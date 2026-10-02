@@ -81,6 +81,30 @@ const G_GOOGLE =
     '<path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l2.99 2.33C4.66 5.16 6.65 3.58 9 3.58z"/>' +
   '</svg>';
 
+/* Los tres azules del logo, en el orden en que se juntan: el oscuro a la izquierda, el de en
+   medio el más grande, el claro a la derecha. Son colores de la MARCA y no del tema —como la G
+   de arriba—, así que no cambian de noche. */
+const GOO_PUERTA =
+  '<svg class="puerta-goo" viewBox="0 0 120 60" width="120" height="60" aria-hidden="true" focusable="false">' +
+    '<defs><filter id="puerta-goo-f"><feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>' +
+    '<feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9"/></filter></defs>' +
+    '<g filter="url(#puerta-goo-f)">' +
+      '<circle class="g1" cx="44" cy="30" r="11"/><circle class="g2" cx="60" cy="30" r="15"/><circle class="g3" cx="77" cy="30" r="9"/>' +
+    '</g>' +
+  '</svg>';
+
+/* ── El fondo de la puerta ──────────────────────────────────────────────────────
+   La ÚNICA excepción a «nada se mueve solo»: la aprobó Elías para esta pantalla y para ninguna
+   otra. Corre en loop y sigue al dedo o al cursor; con movimiento reducido se queda fijo. Los
+   nueve están en el paquete de animaciones («Fondos Puerta v2»), lado a lado y a tamaño de
+   teléfono, tableta y escritorio.
+
+   Para verlos en la app sin tocar el código: `?fondo=led` (o cualquiera de la lista) en la liga
+   de la puerta. */
+// DECISIÓN PENDIENTE: Elías elige uno de los 9. Mientras, el de la muestra.
+const FONDO_PUERTA = 'neon';
+const FONDOS_PUERTA = ['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'];
+
 /* Cuánto vale el pase sin poder confirmarlo. Ver la cabecera. */
 const DIAS_PASE = 30;
 const MS_PASE = DIAS_PASE * 24 * 60 * 60 * 1000;
@@ -299,6 +323,9 @@ async function confirmarDeVerdad(conPantalla, alPaso) {
        ventana que se cerró, la que el navegador bloqueó— sale en el aviso de la puerta, y
        repetirla aquí la cortaría a media palabra en un teléfono de 360 px. */
     paso('google', 'mal', 'no se completó');
+    /* Sin cuenta no hay a quién preguntarle a la hoja: el segundo renglón lo dice, en vez de
+       quedarse «en espera» como si todavía fuera a pasar algo. */
+    paso('hoja', 'salta', 'no se preguntó');
     /* Que la persona cierre la ventana de Google no es quedarse fuera para siempre: es no
        haber entrado todavía. Se trata como «no se pudo preguntar» y la puerta sigue puesta.
        El mensaje sí viaja tal cual: distinguir «cerraste la ventana» de «tu navegador la
@@ -461,6 +488,7 @@ function pedirEntrada(av, pendiente, echando) {
        corriendo debajo de ella. */
     document.documentElement.classList.remove('antepuerta');
 
+    const pararFondo = montarFondo(caja);
     pintar(caja, av);
 
     /* El guion de Google se pide AHORA, mientras la persona lee la pantalla, y no cuando
@@ -474,6 +502,7 @@ function pedirEntrada(av, pendiente, echando) {
     /* Se cierra la puerta y se sigue, sin que nadie toque nada. Ver arriba. */
     const entrar = r => {
       if (echando) { location.reload(); return; }
+      pararFondo();
       despertar();
       document.documentElement.classList.remove('con-puerta');
       caja.hidden = true;
@@ -485,11 +514,25 @@ function pedirEntrada(av, pendiente, echando) {
       if (arr) arr.hidden = false;
       resolve(dentro('google', r.correo, r.rol));
     };
+    /* El éxito se deja ver un momento antes de irse: los dos renglones con palomita y el botón
+       con «Adentro» durante 900 ms, y luego la caja sube 8 px y se desvanece (240 ms). Sin esa
+       pausa, la palomita de la hoja se pintaba y se borraba en el mismo cuadro. Con movimiento
+       reducido la pausa se queda —es información— y la caja se va sin subir. */
+    let saliendo = false;
+    const entrarConPausa = r => {
+      if (saliendo) return;
+      saliendo = true;
+      const c = caja.querySelector('.puerta-caja');
+      setTimeout(() => {
+        if (c) c.classList.add('sale');
+        setTimeout(() => entrar(r), sinMovimiento() ? 0 : 240);
+      }, 900);
+    };
 
     /* La comprobación que se pasó del tope pero seguía viva. Si contesta que sí, adentro. Si
        contesta «fuera», se cambia el cartel por el que de verdad explica lo que pasa. */
     if (pendiente) pendiente.then(r => {
-      if (caja.hidden) return;                       // ya entró por el botón: llegó tarde
+      if (caja.hidden || saliendo) return;           // ya entró por el botón: llegó tarde
       if (r && r.estado === 'ok') return entrar(r);
       if (r && r.estado === 'fuera') { Prefs.borrarPase(); pintar(caja, MSG.FUERA(r.correo || '')); }
     }).catch(() => {});
@@ -501,7 +544,7 @@ function pedirEntrada(av, pendiente, echando) {
          con otra cuenta» arranca la misma entrada, y que el progreso saliera en un botón chico
          de texto subrayado no lo habría visto nadie. */
       const btn = caja.querySelector('[data-puerta="entrar"]');
-      if (!btn || btn.dataset.estado === 'trabajando') return;
+      if (!btn || saliendo || btn.dataset.estado === 'trabajando') return;
       const otra = caja.querySelector('[data-puerta="otra"]');
       if (b.dataset.puerta === 'otra') {
         /* «Entrar con otra cuenta»: se suelta la sesión de ESTE aparato para que Google
@@ -529,10 +572,14 @@ function pedirEntrada(av, pendiente, echando) {
 
          Nada de esto pasa antes de `requestAccessToken`: lo único que corre dentro del clic es
          preparar la traza y encender el botón, que no esperan a nada. */
+      /* Si tocan antes de que termine la entrada, la entrada se acaba aquí: lo que importa ya
+         es la espera. Es una clase, sin esperar a nada. */
+      const cj = caja.querySelector('.puerta-caja');
+      if (cj) cj.classList.remove('entra');
       const t = arrancarPasos(caja);
       const res = await pedirConGoogle(btn, t, otra);
       if (res.ocupado) return;
-      if (res.ok && res.valor && res.valor.estado === 'ok') return entrar(res.valor);
+      if (res.ok && res.valor && res.valor.estado === 'ok') return entrarConPausa(res.valor);
       const r = res.valor || { estado: 'sin_red' };
       av = r.estado === 'fuera' ? MSG.FUERA(r.correo)
          : (r.mensaje ? aviso(r.mensaje) : MSG.SIN_RED_PRIMERA);
@@ -568,8 +615,11 @@ function arrancarPasos(caja) {
  *  `valor` —sea bueno o no— y `ocupado` si el botón ya estaba trabajando. */
 function pedirConGoogle(btn, t, otra) {
   const P = typeof window !== 'undefined' ? window.Piezas : null;
-  const carga = btn.closest('.puerta-caja') && btn.closest('.puerta-caja').querySelector('.carga-logo');
-  const cl = (P && P.cargaLogo && carga) ? P.cargaLogo(carga) : null;
+  /* Las manchas del logo (pieza 25) van EN el lugar del logo: el logo se separa en sus tres
+     azules mientras se espera y se vuelve a juntar al terminar. Solo mientras dura la espera, y
+     nunca con movimiento reducido: ahí el logo se queda puesto y hablan los relojes. */
+  const marca = btn.closest('.puerta-caja') && btn.closest('.puerta-caja').querySelector('.puerta-marca');
+  if (marca && !sinMovimiento()) marca.dataset.goo = 'espera';
   /* Lo que llegue DESPUÉS de que el intento se dio por terminado no pinta: con el tope de 180 s
      de `confirmar()` la petición de fondo sigue viva, y si contestara tarde volvería a poner
      palomita en un renglón que ya se marcó con cruz. */
@@ -589,7 +639,7 @@ function pedirConGoogle(btn, t, otra) {
   const cierra = r => {
     cerrado = true;
     if (t) t.terminar({ ok: r.ok });
-    if (cl) cl.terminar(r.ok ? 'ok' : 'mal');
+    if (marca) marca.dataset.goo = 'nada';
     return Object.assign({}, r, { valor: r.ok ? r.valor : (r.error && r.error.puerta) });
   };
   if (!P || !P.trabajando) {
@@ -598,9 +648,9 @@ function pedirConGoogle(btn, t, otra) {
   }
   return P.trabajando(btn, trabajo, {
     verbo: 'Entrando', tau: 8000,
-    /* `ok:false`: no hay «Listo» que enseñar, porque en cuanto la hoja dice que sí la puerta se
-       quita entera y detrás está el taller. */
-    ok: false,
+    /* «✓ Adentro» y se queda (`volver:0`): la caja se va 900 ms después, y un botón que volviera
+       a decir «Entrar con Google» en ese rato invitaría a apretarlo otra vez. */
+    ok: 'Adentro', volver: 0,
     /* La frase corta del botón; la explicación entera va en el aviso de arriba y no se repite
        aquí, donde se cortaría con puntos suspensivos. */
     mal: e => (e && e.message) || 'No se pudo entrar',
@@ -670,16 +720,26 @@ function pintar(caja, av) {
      existían al cargar la página, y éste se escribe después. */
   const logo = document.documentElement.getAttribute('data-tema') === 'oscuro'
     ? 'logo-al3d-oscuro.svg' : 'logo-al3d.svg';
-  const P = typeof window !== 'undefined' ? window.Piezas : null;
-  /* Las manchas del logo en vez del anillo gris (pieza 25). Es la misma carga que verificar.html
-     —la única página que ve un tercero— y ésta es la otra: las dos pantallas que alguien mira
-     sin haber entrado todavía se ven de la casa. Va escondida y la enciende el clic. */
-  const carga = (P && P.cargaLogoHTML) ? P.cargaLogoHTML({ chica: true }) : '';
   _ultimoAviso = cuerpo || null;
+  /* La entrada (F10 · 1) pasa UNA vez: la primera vez que se pinta la puerta en esta carga.
+     Los tres azules del logo llegan de los lados y se juntan, el logo aparece encima y lo demás
+     sube en cascada; después la caja se queda quieta. Si la puerta se repinta —una comprobación
+     tardía que dice «fuera»— ya no vuelve a entrar: sería moverse sin que nadie tocara nada. */
+  const entra = !_yaEntro && !sinMovimiento();
+  _yaEntro = true;
+  /* El fondo vive fuera de la caja y sobrevive al repintado: es el mismo nodo, con su lienzo y
+     sus ondas, y no vuelve a arrancar de cero. */
+  const fondo = caja.querySelector('.puerta-fondo');
 
   caja.innerHTML =
-    '<div class="puerta-caja">' +
-      '<img class="puerta-logo logoimg" src="' + logo + '" width="72" height="36" alt="AL3D">' +
+    '<div class="puerta-caja' + (entra ? ' entra' : '') + '">' +
+      /* Las manchas del logo (pieza 25) viven en el lugar del logo, encima de él. Es la misma
+         carga que verificar.html —la única página que ve un tercero— y ésta es la otra: las dos
+         pantallas que alguien mira sin haber entrado todavía se ven de la casa. */
+      '<div class="puerta-marca" data-goo="nada">' +
+        '<img class="puerta-logo logoimg" src="' + logo + '" width="72" height="36" alt="AL3D">' +
+        GOO_PUERTA +
+      '</div>' +
       '<h1>La plataforma del taller</h1>' +
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +
@@ -689,7 +749,6 @@ function pintar(caja, av) {
       /* Los dos pasos nacen escondidos: antes de tocar no hay nada que esperar, y enseñar una
          lista de pendientes a quien todavía no ha apretado sería pintarle trabajo que no pidió. */
       '<div class="puerta-pasos" hidden>' +
-        '<span class="puerta-carga">' + carga + '</span>' +
         '<div class="puerta-traza"></div>' +
       '</div>' +
       '<p class="puerta-pie">' +
@@ -698,8 +757,203 @@ function pintar(caja, av) {
         '<a href="condiciones.html">Condiciones</a>' +
       '</p>' +
     '</div>';
+  if (fondo) caja.prepend(fondo);
+  const cj = caja.querySelector('.puerta-caja');
+  /* La clase se quita cuando la cascada termina, para que el `:active` del botón vuelva a
+     poder encogerlo: una animación con `both` puesta le gana a cualquier transform. */
+  if (entra && cj) setTimeout(() => cj.classList.remove('entra'), 1200);
   const b = caja.querySelector('[data-puerta="entrar"]');
   if (b) b.focus();
+}
+
+let _yaEntro = false;
+const sinMovimiento = () => {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+};
+
+/* ----------------------------------------------------------------------------
+   El fondo
+   ---------------------------------------------------------------------------- */
+
+/* Cuál de los nueve: el de la liga (`?fondo=`) si es uno de ellos, si no FONDO_PUERTA. */
+function fondoElegido() {
+  let q = '';
+  try { q = new URLSearchParams(location.search).get('fondo') || ''; } catch (_) {}
+  return FONDOS_PUERTA.includes(q) ? q : FONDO_PUERTA;
+}
+
+/* El marcado de cada fondo. Todo es decoración —`aria-hidden`, sin texto que leer— y los
+   estilos y los `@keyframes pf-*` viven en css/plataforma.css (bloque F10). Lo que sigue al
+   cursor lee `--px` y `--py`, que escribe `montarFondo()`. */
+const VINETA = '<i class="pf-vineta"></i>';
+const GRANO = '<i class="pf-grano"></i>';
+const AL3D_FILA = '<span>AL3D</span>'.repeat(8);
+const CABEZAL = '<i class="pf-cabeza"><b></b><s class="s1"></s><s class="s2"></s><s class="s3"></s></i>';
+const CORTE = '<i class="pf-guia"></i><i class="pf-bar t"></i><i class="pf-bar r"></i><i class="pf-bar b"></i><i class="pf-bar l"></i>' + CABEZAL;
+function fondoHTML(clave) {
+  switch (clave) {
+    case 'neon': return '<i class="pf-cielo"></i><i class="pf-neon-a"></i><i class="pf-neon-b"></i>' +
+      '<i class="pf-sigue"><b class="pf-neon-foco"></b></i><i class="pf-neon-tubo"></i>' + VINETA + GRANO;
+    case 'plano': return '<i class="pf-rejilla"></i><i class="pf-aro1"></i><i class="pf-aro2"><b></b></i>' +
+      '<i class="pf-cota-x"><s></s><em></em><span>1 200 mm</span><em></em><s></s></i>' +
+      '<i class="pf-cota-y"><s></s><em></em><span>800 mm</span><em></em><s></s></i>' +
+      '<i class="pf-mira-x"></i><i class="pf-mira-y"></i><i class="pf-sigue"><b class="pf-rombo"></b></i>';
+    case 'led': return '<i class="pf-cielo"></i><i class="pf-led-base"></i><i class="pf-led-barre"></i><i class="pf-led-dedo"></i>' + VINETA;
+    case 'circulos': return '<i class="pf-capa c1"><b></b></i><i class="pf-capa c2"><b></b></i>' +
+      '<i class="pf-capa c3"><b></b></i><i class="pf-capa c4"><b></b><b></b></i>';
+    case 'letras': return '<i class="pf-cielo"></i>' +
+      '<i class="pf-fila f1"><i>' + AL3D_FILA + '</i></i><i class="pf-fila f2"><i>' + AL3D_FILA + '</i></i>' +
+      '<i class="pf-fila f3"><i>' + AL3D_FILA + '</i></i><i class="pf-sigue"><b class="pf-letras-luz"></b></i>' +
+      '<i class="pf-letras-borde"></i>' + VINETA + GRANO;
+    case 'cnc': return '<i class="pf-mesa"></i><i class="pf-corte k1">' + CORTE + '</i><i class="pf-corte k2">' + CORTE + '</i>' +
+      '<i class="pf-aro1"></i><i class="pf-sigue"><b class="pf-mira"></b></i>';
+    case 'particulas': return '<i class="pf-cielo"></i><canvas class="pf-lienzo"></canvas>' + VINETA;
+    case 'ondas': return '<i class="pf-cielo"></i><i class="pf-sigue">' +
+      '<b class="pf-onda o1"></b><b class="pf-onda o2"></b><b class="pf-onda o3"></b><b class="pf-onda o4"></b>' +
+      '<b class="pf-punto"></b><b class="pf-late"></b></i><i class="pf-bruma"></i>';
+    case 'acrilico': return '<i class="pf-cielo"></i><i class="pf-laminas">' +
+      '<i class="l1"><b></b></i><i class="l2"><b></b></i><i class="l3"><b></b></i><i class="l4"><b></b></i></i>' +
+      '<i class="pf-brillo"></i><i class="pf-bruma"></i>';
+  }
+  return '';
+}
+
+/**
+ * Pone el fondo detrás de la caja y conecta el dedo. Devuelve con qué pararlo: la puerta lo
+ * llama al entrar, y entonces se van el lienzo, sus cuadros y los oyentes.
+ *
+ * El dedo no repinta nada: `pointermove` escribe `--px` y `--py` (0–1) en la puerta y el CSS
+ * los lee. `pointerleave` los regresa al centro.
+ */
+function montarFondo(caja) {
+  const clave = fondoElegido();
+  const viejo = caja.querySelector('.puerta-fondo');
+  if (viejo) viejo.remove();
+  const f = document.createElement('div');
+  f.className = 'puerta-fondo';
+  f.dataset.fondo = clave;
+  f.setAttribute('aria-hidden', 'true');
+  f.innerHTML = fondoHTML(clave);
+  caja.prepend(f);
+
+  let pt = null;
+  const mover = ev => {
+    const x = Math.min(1, Math.max(0, ev.clientX / (window.innerWidth || 1)));
+    const y = Math.min(1, Math.max(0, ev.clientY / (window.innerHeight || 1)));
+    caja.style.setProperty('--px', x.toFixed(3));
+    caja.style.setProperty('--py', y.toFixed(3));
+    pt = { x, y };
+  };
+  const salir = () => { caja.style.setProperty('--px', '.5'); caja.style.setProperty('--py', '.5'); pt = null; };
+  /* Ondas: cada toque suelta su anillo, y el anillo se borra solo al terminar. Seis a la vez
+     como mucho: un dedo nervioso no llena la pantalla de nodos. */
+  const tocar = ev => {
+    if (clave !== 'ondas' || sinMovimiento()) return;
+    const o = document.createElement('b');
+    o.className = 'pf-onda-clic';
+    o.style.left = (ev.clientX / (window.innerWidth || 1) * 100).toFixed(2) + '%';
+    o.style.top = (ev.clientY / (window.innerHeight || 1) * 100).toFixed(2) + '%';
+    o.addEventListener('animationend', () => o.remove(), { once: true });
+    f.appendChild(o);
+    const todas = f.querySelectorAll('.pf-onda-clic');
+    for (let i = 0; i < todas.length - 6; i++) todas[i].remove();
+  };
+  caja.addEventListener('pointermove', mover, { passive: true });
+  caja.addEventListener('pointerleave', salir);
+  caja.addEventListener('pointerdown', tocar, { passive: true });
+
+  const lienzo = f.querySelector('.pf-lienzo');
+  const pararLienzo = lienzo ? constelacion(lienzo, () => pt) : () => {};
+  return () => {
+    pararLienzo();
+    caja.removeEventListener('pointermove', mover);
+    caja.removeEventListener('pointerleave', salir);
+    caja.removeEventListener('pointerdown', tocar);
+    caja.style.removeProperty('--px');
+    caja.style.removeProperty('--py');
+  };
+}
+
+/* La constelación: puntos que se unen con líneas a menos de 120 px; el cursor los aparta en
+   110 px y se conecta con los que tiene cerca. De 30 a 120 puntos según el área, para que un
+   teléfono no cargue con los mismos que una pantalla de escritorio, y `devicePixelRatio` con
+   tope de 2. Con movimiento reducido se pinta un cuadro y ya; con la pestaña escondida no se
+   pinta ninguno y vuelve cuando la pestaña regresa. */
+function constelacion(c, cursor) {
+  const ctx = c.getContext && c.getContext('2d');
+  if (!ctx) return () => {};
+  let w = 0, h = 0, raf = 0, vivo = true;
+  const pts = [];
+  const ajusta = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = c.clientWidth; h = c.clientHeight;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round(Math.max(30, Math.min(120, w * h / 8000)));
+    while (pts.length < n) pts.push({ x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - .5) * .5, vy: (Math.random() - .5) * .5, r: Math.random() * 1.4 + .9 });
+    pts.length = n;
+  };
+  const COL = ['#6290ff', '#9db4ff', '#7b6bff'];
+  const cuadro = mueve => {
+    ctx.clearRect(0, 0, w, h);
+    const p = cursor(), mx = p ? p.x * w : null, my = p ? p.y * h : null;
+    if (mueve) for (const a of pts) {
+      a.x += a.vx; a.y += a.vy;
+      if (a.x < 0 || a.x > w) a.vx *= -1;
+      if (a.y < 0 || a.y > h) a.vy *= -1;
+      if (mx != null) {
+        const dx = a.x - mx, dy = a.y - my, d = Math.hypot(dx, dy);
+        if (d < 110 && d > 0) { a.x += dx / d * 1.4; a.y += dy / d * 1.4; }
+      }
+    }
+    ctx.lineWidth = 1;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const a = pts[i], b = pts[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d < 120) {
+        ctx.strokeStyle = 'rgba(98,144,255,' + ((1 - d / 120) * .5).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    }
+    if (mx != null) {
+      for (const a of pts) {
+        const d = Math.hypot(a.x - mx, a.y - my);
+        if (d < 190) {
+          ctx.strokeStyle = 'rgba(190,205,255,' + ((1 - d / 190) * .8).toFixed(3) + ')';
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mx, my); ctx.stroke();
+        }
+      }
+      const g = ctx.createRadialGradient(mx, my, 0, mx, my, 160);
+      g.addColorStop(0, 'rgba(98,144,255,.35)'); g.addColorStop(1, 'rgba(98,144,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(mx - 160, my - 160, 320, 320);
+    }
+    ctx.shadowBlur = 8;
+    pts.forEach((a, i) => { ctx.fillStyle = ctx.shadowColor = COL[i % 3]; ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, 6.283); ctx.fill(); });
+    ctx.shadowBlur = 0;
+  };
+  const vuelta = () => {
+    raf = 0;
+    if (!vivo || document.hidden) return;
+    cuadro(true);
+    raf = requestAnimationFrame(vuelta);
+  };
+  const arrancar = () => {
+    if (!vivo || raf) return;
+    if (sinMovimiento()) { cuadro(false); return; }
+    raf = requestAnimationFrame(vuelta);
+  };
+  const alVolver = () => { if (!document.hidden) arrancar(); };
+  ajusta();
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { ajusta(); if (sinMovimiento()) cuadro(false); }) : null;
+  if (ro) ro.observe(c);
+  document.addEventListener('visibilitychange', alVolver);
+  arrancar();
+  return () => {
+    vivo = false;
+    if (raf) cancelAnimationFrame(raf);
+    if (ro) ro.disconnect();
+    document.removeEventListener('visibilitychange', alVolver);
+  };
 }
 
 /** Lo que se ve cuando la puerta no se puede poner: un aviso y nada más. Lo usa también

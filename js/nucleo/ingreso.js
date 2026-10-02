@@ -113,7 +113,7 @@ const MSG = {
   SIN_CONFIG: 'Todavía no está puesto el identificador de Google de la app. Mientras tanto, el puente funciona con el token de este dispositivo.',
   SIN_RED: 'No hay señal para entrar con Google. Lo que hagas se guarda aquí y se manda solo cuando vuelva.',
   RECHAZADO: 'Google no dio permiso. Vuelve a darle a «Entrar con Google» y acepta la pantalla.',
-  CERRADO: 'Se cerró la ventana de Google sin entrar.',
+  CERRADO: 'Cerraste la ventana de Google antes de elegir una cuenta. Vuelve a intentar cuando quieras.',
   /* El navegador tapó la ventana. Es el fallo que más se parece a «la app está rota» y el
      que menos lo es, así que dice dónde se arregla. Google avisa de esto por su
      `error_callback` y no por el callback normal: sin engancharlo, esto era una promesa que

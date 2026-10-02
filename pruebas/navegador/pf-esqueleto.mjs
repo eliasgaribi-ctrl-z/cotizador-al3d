@@ -123,7 +123,9 @@ const sinDesborde = p => p.evaluate(() => document.documentElement.scrollWidth <
    IA es la única pieza que se mueve sola y no es de aquí. */
 const infinitas = p => p.evaluate(() => document.getAnimations()
   .filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity)
-  .filter(a => { const t = a.effect.target; return !(t && t.closest && t.closest('.pf-ia-btn')); })
+  /* «Cotizar con IA» es la única pieza que se mueve sola, y el fondo de la puerta la única
+     excepción aprobada (F10 v2): ni uno ni otro cuentan aquí. */
+  .filter(a => { const t = a.effect.target; return !(t && t.closest && t.closest('.pf-ia-btn,.puerta-fondo')); })
   .map(a => (a.animationName || a.transitionProperty || '?') + ' en ' + ((a.effect.target && (a.effect.target.id || a.effect.target.className && a.effect.target.className.baseVal === undefined ? a.effect.target.className : '')) || '?')));
 const enPantalla = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, r: r.right, b: r.bottom }; }, sel);
 const toque = (p, sel) => p.tap(sel);
@@ -880,14 +882,30 @@ async function puerta({ tema, reducido }) {
     boton: b.textContent.trim().replace(/\s+/g, ' '), estado: b.dataset.estado || '', ariaDis: b.getAttribute('aria-disabled'), disabled: b.disabled, foco: document.activeElement === b,
     pasos: [...document.querySelectorAll('.puerta-traza .traza-paso')].map(l => l.dataset.clave + ':' + l.dataset.estado), detalles: [...document.querySelectorAll('.puerta-traza .traza-d')].map(x => x.textContent),
     relojes: [...document.querySelectorAll('.puerta-traza .traza-reloj')].map(x => x.textContent),
-    pasosVisibles: !document.querySelector('.puerta-pasos').hidden, carga: (document.querySelector('.carga-logo') || {}).dataset && document.querySelector('.carga-logo').dataset.carga,
-    cargaVisible: !!document.querySelector('.puerta-carga') && getComputedStyle(document.querySelector('.puerta-carga')).display !== 'none',
+    pasosVisibles: !document.querySelector('.puerta-pasos').hidden, carga: (document.querySelector('.puerta-marca') || {}).dataset && document.querySelector('.puerta-marca').dataset.goo,
+    cargaVisible: !!document.querySelector('.puerta-goo') && getComputedStyle(document.querySelector('.puerta-goo')).opacity !== '0',
     aviso: (document.querySelector('.puerta-aviso') || {}).textContent || null, avisoRol: (document.querySelector('.puerta-aviso') || {}).getAttribute && document.querySelector('.puerta-aviso').getAttribute('role'),
     repetido: !!document.querySelector('.puerta-aviso.otra-vez'), anim: document.querySelector('.puerta-aviso') ? getComputedStyle(document.querySelector('.puerta-aviso')).animationName : null,
     otra: !!document.querySelector('[data-puerta="otra"]'), otraOcupada: (document.querySelector('[data-puerta="otra"]') || {}).getAttribute && document.querySelector('[data-puerta="otra"]').getAttribute('aria-disabled') }; });
   const inicio = await est();
   cierto(!inicio.pasosVisibles && inicio.boton === 'Entrar con Google' && inicio.aviso === null, 'antes de tocar no hay pasos que esperar ni aviso: solo el botón', inicio);
   cierto(await sinDesborde(p), 'sin desborde de lado');
+  /* F10 v2: el fondo animado, la caja de vidrio y la entrada que pasa una vez. */
+  const v2 = await ev(() => {
+    const f = document.querySelector('#pf-puerta > .puerta-fondo');
+    const caja = document.querySelector('.puerta-caja');
+    const anims = document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.puerta-fondo'));
+    return { fondo: f && f.dataset.fondo, oculto: f && f.getAttribute('aria-hidden'), fija: f && getComputedStyle(f).position,
+      toques: f && getComputedStyle(f).pointerEvents, anims: anims.length, entra: caja.classList.contains('entra'),
+      marca: !!document.querySelector('.puerta-marca .puerta-logo') && !!document.querySelector('.puerta-marca .puerta-goo') };
+  });
+  cierto(v2.fondo === 'neon' && v2.oculto === 'true' && v2.fija === 'fixed' && v2.toques === 'none',
+    'detrás va el fondo de la puerta («' + v2.fondo + '»), fijo, mudo para el lector y sin robar toques', v2);
+  cierto(v2.marca, 'el logo y sus tres manchas comparten lugar', v2);
+  if (reducido) cierto(v2.anims === 0 && !v2.entra, 'con menos movimiento el fondo se queda fijo y no hay entrada', v2);
+  else cierto(v2.anims > 0, 'con movimiento el fondo se mueve (' + v2.anims + ' animaciones): la única excepción aprobada', v2);
+  await p.waitForTimeout(1000);
+  cierto(await ev(() => !document.querySelector('.puerta-caja.entra')), 'la entrada pasa una vez y la caja se queda quieta');
   /* El primer intento se hace con el TECLADO: el foco tiene que quedarse en el botón. */
   await ev(() => document.querySelector('.puerta-btn').focus());
   await p.keyboard.press('Enter');
@@ -896,10 +914,11 @@ async function puerta({ tema, reducido }) {
   cierto(t1.estado === 'trabajando' && /^Entrando · \d+ s$/.test(t1.boton), 'el botón dice cuánto lleva: «' + t1.boton + '»', t1);
   cierto(t1.ariaDis === 'true' && !t1.disabled && t1.foco, 'y no está `disabled`: el foco se queda en él (aria-disabled)', t1);
   cierto(t1.pasosVisibles && t1.pasos.join() === 'google:trabaja,hoja:espera', 'salen los dos pasos: Google trabajando, la hoja esperando', t1);
-  cierto(t1.cargaVisible && t1.carga === 'espera', 'y las manchas del logo se mueven mientras tanto', t1);
+  if (reducido) cierto(!t1.cargaVisible && t1.carga === 'nada', 'con menos movimiento el logo se queda puesto: no hay manchas', t1);
+  else cierto(t1.carga === 'espera', 'y el logo se separa en sus tres manchas mientras tanto', t1);
   const dentro = await ev(() => document.querySelectorAll('.puerta-btn .trabajo-relleno,.puerta-btn .estado-t,.puerta-btn .trabajo-reloj').length);
   cierto(dentro === 3, 'el botón lleva su relleno, su texto y su reloj', dentro);
-  const infin = await ev(() => document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity && a.effect.target && a.effect.target.closest && a.effect.target.closest('#pf-puerta')).length);
+  const infin = await ev(() => document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity && a.effect.target && a.effect.target.closest && a.effect.target.closest('#pf-puerta') && !a.effect.target.closest('.puerta-fondo')).length);
   cierto(infin >= 1, 'lo que se mueve es una espera real: ' + infin + ' animación(es) mientras se espera', infin);
   await p.waitForTimeout(2200);
   const t2 = await est();
@@ -945,6 +964,9 @@ async function puerta({ tema, reducido }) {
   /* Y por fin entra. */
   veredicto = 'ok'; demoraHoja = 300;
   await p.tap('.puerta-btn');
+  await p.waitForFunction(() => /Adentro/.test((document.querySelector('.puerta-btn') || {}).textContent || ''), null, { timeout: 15000 });
+  const ad = await est();
+  cierto(ad.pasos.join() === 'google:ok,hoja:ok', 'antes de irse enseña las dos palomitas y «✓ Adentro»', ad);
   await p.waitForFunction(() => document.getElementById('pf-puerta').hidden, null, { timeout: 15000 });
   await p.waitForFunction(() => [...document.querySelectorAll('.pf-mod')].some(s => !s.hidden && s.childNodes.length), null, { timeout: 15000 });
   cierto(await ev(() => !document.querySelector('[inert]') && !document.documentElement.classList.contains('con-puerta')), 'con la hoja diciendo que sí, la puerta se quita entera y lo de detrás vuelve a estar vivo');

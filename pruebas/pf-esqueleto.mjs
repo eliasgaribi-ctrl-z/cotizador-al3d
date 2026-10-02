@@ -229,6 +229,14 @@ console.log('\nLA HOJA DE ESTILOS: NADA SE MUEVE SOLO, Y TODO TIENE SU APAGADO')
   cierto('nada de `infinite` en lo nuevo: una sola pieza se mueve sola, y es el botón de IA', !/infinite/.test(bloque));
   cierto('nada de `transition:all` ni de `!important` sin razón', !/transition:\s*all/.test(bloque));
 
+  /* La puerta animada (F10 v2) es la excepción aprobada, y vive en su propio bloque para que la
+     excepción no se extienda: ahí `infinite` solo puede ir en el fondo o en la espera del logo. */
+  const pa = css.indexOf('/* ── Plataforma · la puerta animada (F10 v2) ──'), pb = css.indexOf('/* ── fin de pf-puerta ── */');
+  cierto('la puerta animada tiene su bloque, con su marca de fin', pa > 0 && pb > pa);
+  const reglas = css.slice(pa, pb).replace(/\/\*[\s\S]*?\*\//g, '').split('}').filter(r => /infinite/.test(r));
+  const fuera = reglas.filter(r => !/\.pf-|\[data-fondo|\.puerta-fondo|\[data-goo="espera"\]/.test(r.split('{')[0]));
+  cierto('y ahí lo que se mueve solo es el fondo o la espera del logo (' + reglas.length + ' reglas)' + (fuera.length ? ': ' + fuera.map(r => r.split('{')[0].trim()).join(' | ') : ''), reglas.length > 0 && !fuera.length);
+
   const ra = '/* ── rm · pf-esqueleto ── */';
   const rb = '/* ── fin de rm · pf-esqueleto ── */';
   const k = css.indexOf(ra), l = css.indexOf(rb);
