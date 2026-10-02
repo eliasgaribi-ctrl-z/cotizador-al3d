@@ -22,14 +22,13 @@ desde su editor.
 
 ### La palomita roja de «Workers Builds: puente-al3d»
 
-Si en los commits de GitHub sale en rojo **Workers Builds: puente-al3d**, no es el sitio ni el
-puente: es el Worker viejo, que en Cloudflare se quedó conectado al repositorio. Cada push lo
-intenta construir y falla, porque `puente/worker.js` y `puente/wrangler.jsonc` ya no existen
-(se fueron cuando el puente se mudó a la hoja). No se arregla desde el repo —volver a poner
-el `wrangler.jsonc` resucitaría un Worker que nadie usa—, se apaga en el panel:
-**Cloudflare → Workers y Pages → puente-al3d → Configuración → Compilación → Desconectar** el
-repositorio (o borrar el Worker entero, si ya no le queda tráfico). El que sí importa es
-**Cloudflare Pages**, que es otro proyecto y debe seguir en verde.
+El Worker viejo del puente se quedó conectado al repositorio en Cloudflare, y cada push lo
+intenta construir desde `puente/`. Cuando el puente se mudó a la hoja se borró su
+`wrangler.jsonc` y ese build salía en rojo. Ahora `puente/wrangler.jsonc` publica
+`puente/retirado.js`, que contesta 410 a todo: el build pasa y la dirección vieja ya no
+habla con Notion. Si algún día se desconecta el repositorio desde el panel
+(**Workers y Pages → puente-al3d → Configuración → Compilación → Desconectar**), esos dos
+archivos se pueden borrar. **Cloudflare Pages** es otro proyecto, el que sirve el sitio.
 
 ## Los pasos
 
