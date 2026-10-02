@@ -100,7 +100,7 @@ barra «Decidir» del Tablero ahora va derecho a Proyectos (`pf-tablero`), cada 
 también `jalar_almacen` (`pf-esqueleto`), y tres esperas que dependían de la velocidad de la máquina
 (`pf-control`, `pf-material`, `an-mesa`, `an-controles`).
 
-**Estado:** los cambios están en la copia de trabajo de `main`, **sin commit**, con `APP_VERSION` en 78.
+**Estado:** los cambios están en la copia de trabajo de `main`, **sin commit**, con `APP_VERSION` en 79.
 Para aplicarlos: revisar `git diff` (12 archivos), hacer commit y abrir el PR.
 
 **Para correr la tanda en Windows:** entera tarda más de dos horas, más que el límite de una tarea.
