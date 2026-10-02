@@ -523,7 +523,22 @@ function pedirEntrada(av, pendiente, echando) {
       hijo.setAttribute('inert', '');
       dormidos.push(hijo);
     }
-    const despertar = () => dormidos.forEach(h => h.removeAttribute('inert'));
+    /* Y lo que llegue DESPUÉS también se duerme. La puerta se pone mientras la app sigue
+       arrancando, y hay piezas que agregan su nodo al <body> más tarde —las bandas de
+       `bordesDesvanecidos`, un aviso— y nacían despiertas detrás de la puerta. Un aviso de
+       error (`role="alert"`) sí se deja: tiene que poder leerse, la puerta lo tapa igual. */
+    const vigia = typeof MutationObserver === 'function' ? new MutationObserver(lista => {
+      for (const m of lista) for (const n of m.addedNodes) {
+        if (n.nodeType !== 1 || n === caja || n.hasAttribute('inert') || n.getAttribute('role') === 'alert') continue;
+        n.setAttribute('inert', '');
+        dormidos.push(n);
+      }
+    }) : null;
+    if (vigia) vigia.observe(document.body, { childList: true });
+    const despertar = () => {
+      if (vigia) vigia.disconnect();
+      dormidos.forEach(h => h.removeAttribute('inert'));
+    };
     /* El esqueleto del arranque estorba debajo: la puerta tapa la pantalla entera y detrás
        no debe quedar la silueta del tablero de alguien. */
     const arr = $('pf-arranque');
