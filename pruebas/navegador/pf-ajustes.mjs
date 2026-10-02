@@ -90,7 +90,7 @@ function puenteDeMentiras() {
     if (ruta === 'salud') {
       if (M.saludFalla) return json({ ok: false, codigo: 'SIN_RED', mensaje: 'El puente no contestó (de mentiras)' });
       /* La versión que la plataforma espera: con otra, `avisoVersion` saca un aviso de 600 caracteres que tapa media pantalla. */
-      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-8', rol: 'direccion', escribibles: ['Proyecto', 'Estatus'],
+      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-9', rol: 'direccion', escribibles: ['Proyecto', 'Estatus'],
         destino: 'google-sheets', ia: { qwen: true, deepseek: true, gemini: true } });
     }
     if (ruta === 'esquema') return json({ ok: true, faltan: [], accesos: M.sinAccesos ? false : true, nota: M.sinAccesos ? 'falta «Accesos»' : '' });

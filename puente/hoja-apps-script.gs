@@ -1680,6 +1680,7 @@ function dialogoTokens() {
      /jalar     el espejo del dinero, paginado
      /empujar   hasta 25 operaciones, filtradas por la lista blanca del rol
      /expandir  sigue una liga corta de Maps hasta la larga
+     /empujar_almacen, /jalar_almacen   el almacén, el catálogo y las listas de compra (desde la 9)
 
    ── TODO ENTRA POR POST, Y ESO ES A PROPÓSITO ───────────────────────────────
    Apps Script no contesta el preflight de CORS —un Web App solo expone doGet y
@@ -1715,8 +1716,12 @@ function dialogoTokens() {
    puente-sheets-8 (1 de octubre de 2026): el sello firma también los RENGLONES —descripción,
    cantidad e importe de cada partida, tal como los imprime el PDF—, que se guardan en la columna
    «Renglones» de «Autorizaciones»; /verificar los devuelve para compararlos con el papel. Un
-   sello de antes, sin renglones guardados, sigue verificando y dice que solo responde del total. */
-var PUENTE_VERSION = 'puente-sheets-8';
+   sello de antes, sin renglones guardados, sigue verificando y dice que solo responde del total.
+   puente-sheets-9: el almacén, el catálogo de material y las listas de compra tienen pestaña
+   («Almacén», «Catálogo de material», «Listas de compra») y viajan por /empujar_almacen y
+   /jalar_almacen (ver la sección del almacén, al final). Hasta la 8 se quedaban apartados en
+   cada teléfono. */
+var PUENTE_VERSION = 'puente-sheets-9';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1932,6 +1937,8 @@ function doPost(e) {
     if (ruta === 'rechazar')   return responder(rutaRechazar_(cuerpo, rol, ingreso));
     if (ruta === 'revocar')    return responder(rutaRevocar_(cuerpo, rol, ingreso));
     if (ruta === 'ia')         return responder(rutaIA_(cuerpo, ingreso ? 'g:' + ingreso.correo : 't:' + token));
+    if (ruta === 'empujar_almacen') return responder(rutaEmpujarAlmacen_(cuerpo, rol, ingreso ? ingreso.correo : ''));
+    if (ruta === 'jalar_almacen')   return responder(rutaJalarAlmacen_(cuerpo, rol));
 
     return responder({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
   } catch (err) {
@@ -4160,6 +4167,11 @@ function prepararHojaParaElPuente() {
   h.getRange(2, colHora, FIN - 1, 1).setHorizontalAlignment('center');
   crearHojaAccesos(ss);
   protegerColumnasCalculadas(h);
+  /* Las tres del almacén (puente-sheets-9). Se crearían solas en la primera subida; aquí, para
+     que se vean antes y con sus cabeceras. En su propio try: si fallan, Ventas y «Accesos» ya
+     quedaron listas, y la primera subida del almacén las vuelve a intentar. */
+  try { prepararPestanasDelAlmacen(); }
+  catch (eAlm) { avisar('Las pestañas del almacén no se crearon (' + (eAlm && eAlm.message) + '). Se crean solas con la primera subida.'); }
 
   /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
      horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
@@ -4588,4 +4600,598 @@ function construirComisionesPorPeriodo() {
   ss.moveActiveSheet(ss.getNumSheets());
   SpreadsheetApp.flush();
   return h;
+}
+
+/* ============================================================================
+   EL ALMACÉN, EL CATÁLOGO DE MATERIAL Y LAS LISTAS DE COMPRA — desde puente-sheets-9.
+
+   Hasta la 8 el puente conocía una sola pestaña, Ventas, y el teléfono apartaba en su
+   bandeja todo lo demás «hasta que exista su pestaña». Esto es esa pestaña, tres veces:
+
+     · «Almacén»               el libro de movimientos. APPEND-ONLY: un renglón que ya está
+                               no se vuelve a escribir, ni se corrige, ni se borra.
+     · «Catálogo de material»  una fila por material (acr-3mm, lam-galv…).
+     · «Listas de compra»      una fila por requerimiento: lo que un proyecto pide de un
+                               material (<proyecto>:<material>), del que sale la lista de compra.
+
+   Dos caminos nuevos, y nada de lo de la venta se toca:
+     /empujar_almacen   hasta 25 operaciones en una petición, en orden, bajo el candado
+     /jalar_almacen     lo que cambió desde la última vez que ese teléfono preguntó
+
+   ── Por qué el libro no se descuenta dos veces ──────────────────────────────────────
+   El id del movimiento lo pone el teléfono, y aquí se busca ANTES de escribir: un reintento
+   después de una respuesta que se perdió (lo más normal del mundo con mala señal) contesta
+   «ya estaba» y no agrega nada. Y las salidas que deriva la obra llevan un id que sale del
+   requerimiento (`mov-salida:<requerimiento>`, js/datos/proyectos.js): si dos teléfonos
+   cruzan el corte del mismo proyecto antes de enterarse uno del otro, emiten EL MISMO id, y
+   la segunda copia llega aquí como «ya estaba». El libro no suma existencias guardadas: suma
+   renglones, y un renglón repetido es material que aparece de la nada.
+
+   ── Por qué el catálogo y las listas van campo por campo ────────────────────────────
+   La operación trae qué campos cambió (`campos`) y solo ésos se escriben, como en Ventas desde
+   septiembre de 2026: si fabricación corrige el mínimo de almacén y dirección el proveedor del
+   mismo material, quedan las dos. Y cada campo guarda aquí su sello (columna «Sellos»): un
+   cambio que llega tarde —el teléfono que estuvo sin señal— no pisa uno más nuevo del mismo
+   campo. Una operación de una versión anterior, sin `campos`, cuenta como «todos», con la misma
+   regla del sello.
+
+   ── Lo que cada rol puede escribir y leer aquí ──────────────────────────────────────
+   Dirección todo. Fabricación mueve el almacén, edita el catálogo y corrige las listas, pero no
+   escribe costos y no los recibe (CAMPOS_DE_DINERO_ALMACEN). Pagos NO mueve el almacén: lo
+   único suyo que entra es lo que la plataforma deriva sola cuando ese teléfono es el que está
+   abierto el día del corte —la salida `derivado` y el requerimiento que pasa a `consumido`—,
+   porque si no, ese día el almacén se quedaría sin descontar por una razón de organigrama
+   (js/datos/stock.js, `permiso`). Es la misma regla que la plataforma, del lado que no se puede
+   saltar.
+
+   ── Cómo sabe un teléfono qué le falta ──────────────────────────────────────────────
+   Cada fila escrita recibe un número de SECUENCIA, uno más que el último, bajo el candado: el
+   teléfono pregunta «lo que tenga más de N» y guarda el más alto que vio. No es un sello de
+   tiempo a propósito: el reloj de un teléfono miente, y el de la hoja también puede repetirse
+   dentro de un mismo milisegundo; la secuencia no. Una corrección a mano en estas pestañas NO
+   cambia la secuencia y por eso no viaja sola: las pestañas son el buzón de la plataforma, y
+   lo dice su nota (cada teléfono las vuelve a leer enteras una vez por semana, ver puente.js).
+   ============================================================================ */
+
+var ALM_PROP_SECUENCIA = 'ALMACEN_SECUENCIA';
+var ALM_OPS_MAX = 25;
+/* Una respuesta de /jalar_almacen. Un teléfono nuevo pide desde cero, y un libro de años son
+   miles de renglones: se manda por páginas, y el teléfono pide la siguiente. */
+var ALM_POR_PAGINA = 1500;
+var ALM_CELDA_MAX = 45000;      // una celda de Sheets aguanta 50 000 caracteres
+
+/* El vocabulario del libro y del catálogo. Copias a propósito de js/datos/stock.js y de
+   js/datos/material.js —este archivo no importa nada, se pega en un editor— y
+   pruebas/puente-almacen.mjs compara las dos. */
+var ALM_TIPOS = ['entrada', 'salida', 'ajuste', 'conteo', 'merma', 'devolucion'];
+var ALM_ORIGENES = ['derivado', 'manual', 'conteo', 'compra'];
+/* El signo lo pone el tipo. Una salida con cantidad positiva es un dedo que se olvidó del
+   menos, y con ella el almacén CRECE cada vez que la obra consume: se rechaza. `ajuste` va
+   para los dos lados y un `conteo` no es un delta, es lo que había en el estante (≥ 0). */
+var ALM_SIGNO = { entrada: 1, devolucion: 1, salida: -1, merma: -1, ajuste: 0, conteo: 0 };
+var ALM_UNIDADES_COMPRA = ['unidad', 'bolsa', 'caja', 'lamina', 'litro', 'metro'];
+var ALM_UNIDADES_CONSUMO = ['m2', 'm', 'cm', 'pieza', 'litro'];
+var ALM_ESTADOS_REQ = ['calculado', 'apartado', 'comprado', 'consumido', 'descartado'];
+
+/* Lo que fabricación no escribe ni recibe de estas pestañas: los importes. Es la misma regla
+   que la de Ventas (CAMPOS_DE_DINERO y VE_EL_DINERO), y la plataforma ya no los pinta para ese
+   rol (§8.4): aquí es donde de verdad no salen. */
+var CAMPOS_DE_DINERO_ALMACEN = ['costo_total', 'costo_compra'];
+
+/* Lo que no se guarda: la marca local de «ya subí» de cada teléfono. */
+var ALM_NO_VIAJA = ['sync'];
+
+/* ── Las tres pestañas, columna por columna ──────────────────────────────────────────
+   Cada columna lleva { campo, nombre, tipo, para }, como la lista de /esquema: el campo es el
+   nombre en la plataforma, el nombre es la cabecera que lee una persona, el tipo decide cómo
+   se guarda y cómo se lee, y `para` va como nota en la cabecera. Las columnas se buscan POR SU
+   CABECERA, no por su posición: si alguien mueve una, no se escribe en la de al lado.
+   Tipos: texto · número · sí/no · sello (milisegundos, como los guarda la plataforma) ·
+   lista (JSON) · cuándo (la fecha legible de otro sello; se escribe, no se lee). Lo que llegue
+   y no tenga columna se guarda en «Otros (JSON)»: un campo nuevo de la plataforma no se pierde
+   en el viaje por no tener todavía su columna. */
+var ALM_PESTANAS = {
+  movimientos: {
+    hoja: 'Almacén', anexo: true, fijos: ['id'],
+    nota: 'El libro de movimientos del almacén. Lo escribe el puente y nunca se edita: una corrección ' +
+          'es otro movimiento (un ajuste o un conteo). La existencia es el último conteo más lo que pasó después.',
+    columnas: [
+      { campo: '_cuando', nombre: 'Cuándo', tipo: 'cuándo', de: 'ts', para: 'la fecha del movimiento, para leerla; la que vale es «Sello»' },
+      { campo: 'material_id', nombre: 'Material', tipo: 'texto', para: 'la clave del material en el catálogo (acr-3mm)' },
+      { campo: 'tipo', nombre: 'Tipo', tipo: 'texto', para: ALM_TIPOS.join(', ') },
+      { campo: 'cantidad', nombre: 'Cantidad', tipo: 'número', para: 'en unidad de compra y con signo: + entra, − sale' },
+      { campo: 'unidad_compra', nombre: 'Unidad', tipo: 'texto', para: 'la de compra del material, copiada para poder auditar' },
+      { campo: 'origen', nombre: 'Origen', tipo: 'texto', para: ALM_ORIGENES.join(', ') },
+      { campo: 'nota', nombre: 'Nota', tipo: 'texto', para: 'lo que escribió quien lo movió' },
+      { campo: 'usuario', nombre: 'Quién', tipo: 'texto', para: 'el nombre que el teléfono tenía puesto' },
+      { campo: 'rol', nombre: 'Rol', tipo: 'texto', para: 'el rol con el que se capturó' },
+      { campo: 'dispositivo', nombre: 'Dispositivo', tipo: 'texto', para: 'las cuatro letras del aparato' },
+      { campo: 'proyecto_id', nombre: 'Proyecto (id)', tipo: 'texto', para: 'el proyecto al que se le cargó, si alguno' },
+      { campo: 'folio_hoja', nombre: 'Venta', tipo: 'texto', para: 'el folio de esa venta en la pestaña Ventas (V-042)' },
+      { campo: 'requerimiento_id', nombre: 'Requerimiento', tipo: 'texto', para: 'la línea de la lista de compra que lo produjo' },
+      { campo: 'costo_total', nombre: 'Costo total', tipo: 'número', para: 'pesos, si se capturó; fabricación no lo recibe' },
+      { campo: 'sello', nombre: 'Firma', tipo: 'texto', para: 'quién, con qué rol y en qué aparato, como se leyó al capturarlo' },
+      { campo: 'empresa_id', nombre: 'Empresa', tipo: 'texto', para: '' },
+      { campo: 'ts', nombre: 'Sello', tipo: 'sello', para: 'el instante del movimiento, en milisegundos, como lo guarda el teléfono' },
+      { campo: 'id', nombre: 'Id', tipo: 'texto', para: 'lo pone el teléfono; es lo que evita que un reintento reste dos veces' }
+    ]
+  },
+  materiales: {
+    hoja: 'Catálogo de material', anexo: false, fijos: ['id'],
+    nota: 'El catálogo de material de la plataforma. Lo escribe el puente campo por campo; se edita en la ' +
+          'plataforma (Material → Catálogo), no aquí: un cambio a mano no viaja a los teléfonos.',
+    columnas: [
+      { campo: 'id', nombre: 'Clave', tipo: 'texto', para: 'la clave corta del material (acr-3mm); no cambia nunca' },
+      { campo: 'nombre', nombre: 'Nombre', tipo: 'texto', para: 'como se le pide al proveedor' },
+      { campo: 'familia', nombre: 'Familia', tipo: 'texto', para: 'acrilico, aluminio, led, fuente…' },
+      { campo: 'unidad_compra', nombre: 'Unidad de compra', tipo: 'texto', para: ALM_UNIDADES_COMPRA.join(', ') },
+      { campo: 'unidad_consumo', nombre: 'Unidad de consumo', tipo: 'texto', para: ALM_UNIDADES_CONSUMO.join(', ') },
+      { campo: 'medida', nombre: 'Medida', tipo: 'texto', para: 'lo que dice el proveedor' },
+      { campo: 'factor', nombre: 'Factor', tipo: 'número', para: 'unidades de consumo que rinde UNA de compra' },
+      { campo: 'factor_origen', nombre: 'De dónde sale el factor', tipo: 'texto', para: 'obligatorio: sin esto nadie sabe si el número está bien' },
+      { campo: 'largo_cm', nombre: 'Largo (cm)', tipo: 'número', para: 'de la hoja, si es lámina' },
+      { campo: 'ancho_cm', nombre: 'Ancho (cm)', tipo: 'número', para: 'de la hoja, si es lámina' },
+      { campo: 'espesor', nombre: 'Espesor', tipo: 'texto', para: '' },
+      { campo: 'merma_pct', nombre: 'Merma', tipo: 'número', para: 'de 0 a 0.99' },
+      { campo: 'fraccionable', nombre: 'Fraccionable', tipo: 'sí/no', para: 'si un retazo sirve (se compra por cuartos)' },
+      { campo: 'min_compra', nombre: 'Mínimo de compra', tipo: 'número', para: 'en unidad de compra' },
+      { campo: 'min_stock', nombre: 'Mínimo de almacén', tipo: 'número', para: '0 = no avisar' },
+      { campo: 'costo_compra', nombre: 'Costo de compra', tipo: 'número', para: 'pesos por unidad de compra; fabricación no lo recibe ni lo escribe' },
+      { campo: 'proveedor', nombre: 'Proveedor', tipo: 'texto', para: '' },
+      { campo: 'tel_proveedor', nombre: 'Teléfono del proveedor', tipo: 'texto', para: '' },
+      { campo: 'activo', nombre: 'Activo', tipo: 'sí/no', para: '' },
+      { campo: 'empresa_id', nombre: 'Empresa', tipo: 'texto', para: '' },
+      { campo: 'creado_en', nombre: 'Creado', tipo: 'sello', para: 'milisegundos' },
+      { campo: 'actualizado_en', nombre: 'Editado', tipo: 'sello', para: 'milisegundos, del teléfono que lo editó' }
+    ]
+  },
+  requerimientos: {
+    hoja: 'Listas de compra', anexo: false, fijos: ['id', 'proyecto_id', 'material_id'],
+    nota: 'Lo que cada proyecto pide de cada material: de aquí sale la lista de compra. Lo escribe el puente ' +
+          'campo por campo; la cantidad que vale es «Corrección» cuando la hay. No se edita a mano.',
+    columnas: [
+      { campo: 'folio_hoja', nombre: 'Venta', tipo: 'texto', para: 'el folio de la venta en la pestaña Ventas (V-042)' },
+      { campo: 'material_id', nombre: 'Material', tipo: 'texto', para: 'la clave del material' },
+      { campo: 'cantidad_compra', nombre: 'Cantidad', tipo: 'número', para: 'en unidad de compra, SIN redondear: el redondeo es de la lista entera' },
+      { campo: 'unidad_compra', nombre: 'Unidad', tipo: 'texto', para: '' },
+      { campo: 'cantidad_ajustada', nombre: 'Corrección', tipo: 'número', para: 'la de una persona; si está, manda sobre la calculada' },
+      { campo: 'estado', nombre: 'Estado', tipo: 'texto', para: ALM_ESTADOS_REQ.join(', ') + '; consumido ya salió del almacén' },
+      { campo: 'confianza', nombre: 'Confianza', tipo: 'texto', para: 'exacta, estimada o requiere_dato' },
+      { campo: 'requiere', nombre: 'Le falta', tipo: 'texto', para: 'qué dato hace falta, si lo hay' },
+      { campo: 'formula', nombre: 'Cómo se calculó', tipo: 'texto', para: '' },
+      { campo: 'cantidad_consumo', nombre: 'Consumo', tipo: 'número', para: 'en unidad de consumo, ya con merma' },
+      { campo: 'unidad_consumo', nombre: 'Unidad de consumo', tipo: 'texto', para: '' },
+      { campo: 'partidas', nombre: 'Partidas', tipo: 'lista', para: 'qué partidas de la cotización lo piden' },
+      { campo: 'motivo_ajuste', nombre: 'Por qué se corrigió', tipo: 'texto', para: '' },
+      { campo: 'ajustado_por', nombre: 'Corrigió', tipo: 'texto', para: '' },
+      { campo: 'ajustado_en', nombre: 'Corregido', tipo: 'sello', para: 'milisegundos' },
+      { campo: 'constantes_version', nombre: 'Constantes', tipo: 'texto', para: 'con qué números del taller se calculó' },
+      { campo: 'proyecto_id', nombre: 'Proyecto (id)', tipo: 'texto', para: 'el id del proyecto en el teléfono que lo calculó' },
+      { campo: 'empresa_id', nombre: 'Empresa', tipo: 'texto', para: '' },
+      { campo: 'creado_en', nombre: 'Creado', tipo: 'sello', para: 'milisegundos' },
+      { campo: 'actualizado_en', nombre: 'Editado', tipo: 'sello', para: 'milisegundos, del teléfono que lo editó' },
+      { campo: 'id', nombre: 'Id', tipo: 'texto', para: '<proyecto>:<material>; no cambia nunca' }
+    ]
+  }
+};
+/* Las columnas que pone la hoja y no la plataforma. Van al final de cada pestaña. */
+var ALM_COLUMNAS_DE_LA_HOJA = [
+  { campo: '_otros', nombre: 'Otros (JSON)', tipo: 'lista', para: 'lo que llegó sin columna propia; se devuelve tal cual' },
+  { campo: '_sellos', nombre: 'Sellos', tipo: 'lista', para: 'cuándo se escribió cada campo, para que un cambio atrasado no pise uno nuevo', soloFichas: true },
+  { campo: '_secuencia', nombre: 'Secuencia', tipo: 'número', para: 'el orden en que la hoja lo recibió; es lo que cada teléfono pregunta' },
+  { campo: '_llego', nombre: 'Llegó', tipo: 'cuándo', para: 'cuándo lo recibió la hoja' },
+  { campo: '_subio', nombre: 'Subió', tipo: 'texto', para: 'con qué cuenta o con qué rol entró' }
+];
+
+/** Las columnas completas de una pestaña: las de la plataforma y las de la hoja. */
+function almColumnas_(alm) {
+  var t = ALM_PESTANAS[alm];
+  return t.columnas.concat(ALM_COLUMNAS_DE_LA_HOJA.filter(function (c) { return !(c.soloFichas && t.anexo); }));
+}
+
+/* ── La pestaña, creada si falta ──────────────────────────────────────────────────────
+   Se crea sola en la primera escritura, y también en prepararHojaParaElPuente. Si ya existe
+   y le falta alguna cabecera (una columna que llegó con una versión posterior), se agrega al
+   final sin mover las que hay. Devuelve la hoja y el mapa campo → número de columna. */
+function almPestana_(alm, crear) {
+  var t = ALM_PESTANAS[alm];
+  var ss = SpreadsheetApp.getActive();
+  var h = ss.getSheetByName(t.hoja);
+  if (!h) {
+    if (!crear) return null;
+    h = ss.insertSheet(t.hoja);
+    h.setFrozenRows(1);
+    try {
+      /* Con aviso y no con candado: no es contra un atacante —el puente es el único que escribe
+         aquí—, es contra el resbalón de quien entra a ver y teclea encima. */
+      h.protect().setDescription('La escribe el puente — no se edita a mano').setWarningOnly(true);
+    } catch (e) { /* sin la protección la pestaña sirve igual */ }
+  }
+  var cols = almColumnas_(alm);
+  var ancho = Math.max(1, h.getLastColumn());
+  var cab = h.getRange(1, 1, 1, ancho).getValues()[0].map(function (x) { return String(x).trim(); });
+  var mapa = {};
+  var nuevas = [];
+  cols.forEach(function (c) {
+    var i = cab.indexOf(c.nombre);
+    if (i !== -1) mapa[c.campo] = i + 1;
+    else nuevas.push(c);
+  });
+  if (nuevas.length) {
+    /* La primera columna libre. Una pestaña recién creada tiene la fila 1 vacía y su
+       getLastColumn es 0: se empieza en la A. */
+    var libre = cab.every(function (x) { return x === ''; }) ? 1 : ancho + 1;
+    var falta = libre + nuevas.length - 1 - h.getMaxColumns();
+    if (falta > 0) h.insertColumnsAfter(h.getMaxColumns(), falta);
+    nuevas.forEach(function (c, k) {
+      var col = libre + k;
+      mapa[c.campo] = col;
+      var celda = h.getRange(1, col);
+      celda.setValue(c.nombre);
+      if (c.para) { try { celda.setNote(c.para); } catch (e) {} }
+      /* El texto se queda como texto: sin esto Sheets vuelve fecha un «1/2» y número un
+         «0042», y la clave de un material deja de ser la misma al volver. Los sellos, como
+         número entero, para que no salgan en notación científica. */
+      var cuerpo = h.getRange(2, col, Math.max(1, h.getMaxRows() - 1), 1);
+      if (c.tipo === 'texto' || c.tipo === 'lista') cuerpo.setNumberFormat('@');
+      else if (c.tipo === 'sello' || c.campo === '_secuencia') cuerpo.setNumberFormat('0');
+      else if (c.tipo === 'cuándo') cuerpo.setNumberFormat('dd/mm/yyyy HH:mm');
+    });
+    h.getRange(1, 1, 1, libre + nuevas.length - 1).setFontWeight('bold').setBackground(AZUL).setFontColor('#ffffff');
+    try { h.getRange(1, 1).setNote(t.nota + '\n\n' + (cols[0].para || '')); } catch (e) {}
+  }
+  var n = 0;
+  for (var k in mapa) if (mapa[k] > n) n = mapa[k];
+  return { h: h, mapa: mapa, ncol: n, alm: alm };
+}
+
+/** Las tres pestañas, para prepararHojaParaElPuente y para quien quiera crearlas a mano.
+ *  Idempotente: si ya están, solo les agrega la cabecera que les falte. */
+function prepararPestanasDelAlmacen() {
+  for (var alm in ALM_PESTANAS) almPestana_(alm, true);
+}
+
+/* ── De la plataforma a la celda, y de vuelta ──────────────────────────────────────── */
+function almACelda_(c, v) {
+  if (v === undefined || v === null || v === '') return '';
+  if (c.tipo === 'número' || c.tipo === 'sello') { var n = Number(v); return isFinite(n) ? n : ''; }
+  if (c.tipo === 'sí/no') return v === true || v === 'true' || v === 'Sí';
+  if (c.tipo === 'cuándo') { var ms = Number(v); return isFinite(ms) && ms > 0 ? new Date(ms) : ''; }
+  if (c.tipo === 'lista') return JSON.stringify(v);
+  /* Texto. Una celda que empieza con «=» es una FÓRMULA, y una nota que alguien escribió en
+     el teléfono como «=IMPORTXML(…)» saldría a internet sola: se le antepone el apóstrofo,
+     igual que en armarCeldas. */
+  var s = String(v).slice(0, 2000);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+function almDeCelda_(c, x) {
+  if (x === '' || x === null || x === undefined) {
+    if (c.tipo === 'sí/no') return false;
+    return (c.tipo === 'texto') ? '' : null;
+  }
+  if (c.tipo === 'número' || c.tipo === 'sello') {
+    if (Object.prototype.toString.call(x) === '[object Date]') return x.getTime();
+    var n = Number(x);
+    return isFinite(n) ? n : null;
+  }
+  if (c.tipo === 'sí/no') return x === true || String(x).trim().toLowerCase() === 'true' || String(x).trim() === 'Sí';
+  if (c.tipo === 'lista') { try { return JSON.parse(String(x)); } catch (e) { return null; } }
+  var s = String(x);
+  /* El apóstrofo que se puso al escribir, si Sheets lo dejó en el valor. */
+  return (s.charAt(0) === "'" && /^'[=+\-@]/.test(s)) ? s.slice(1) : s;
+}
+
+/** Las filas de una pestaña, con su número de fila. Sin id no es una fila: es un renglón vacío. */
+function almFilas_(P) {
+  var n = P.h.getLastRow() - 1;
+  if (n < 1) return [];
+  var valores = P.h.getRange(2, 1, n, P.ncol).getValues();
+  var colId = P.mapa.id;
+  var out = [];
+  for (var i = 0; i < valores.length; i++) {
+    if (String(valores[i][colId - 1] || '').trim() === '') continue;
+    out.push({ fila: i + 2, valores: valores[i] });
+  }
+  return out;
+}
+
+/** Una fila de la hoja como registro de la plataforma, sin lo que el rol no ve. */
+function almRegistro_(P, valores, rol) {
+  var cols = almColumnas_(P.alm);
+  var otros = null, reg = {};
+  cols.forEach(function (c) {
+    var col = P.mapa[c.campo];
+    if (!col) return;
+    var x = valores[col - 1];
+    if (c.campo === '_otros') { otros = almDeCelda_(c, x); return; }
+    if (c.campo.charAt(0) === '_' || c.tipo === 'cuándo') return;
+    reg[c.campo] = almDeCelda_(c, x);
+  });
+  /* Primero lo de «Otros» y encima las columnas: si una columna se agregó después, manda ella. */
+  var salida = {};
+  if (otros && typeof otros === 'object') for (var k in otros) salida[k] = otros[k];
+  for (var k2 in reg) salida[k2] = reg[k2];
+  /* Una celda vacía de un campo que NUNCA se escribió no se inventa: se devuelve como no venida,
+     para que el teléfono conserve lo que tiene (sync.fusionar no pisa con undefined). Pero la de
+     un campo que sí se escribió vacío —el costo que alguien borró— es un dato, y baja como null:
+     si se quitara también, borrar un costo no llegaría nunca a los otros teléfonos. Lo que dice
+     cuál es cuál es «Sellos». El libro no tiene sellos: sus renglones se escriben enteros. */
+  var sellos = null;
+  if (P.mapa._sellos) {
+    var cs = null;
+    cols.forEach(function (c) { if (c.campo === '_sellos') cs = c; });
+    sellos = almDeCelda_(cs, valores[P.mapa._sellos - 1]) || {};
+  }
+  for (var k3 in salida) {
+    if (salida[k3] === null && sellos && !Object.prototype.hasOwnProperty.call(sellos, k3)) delete salida[k3];
+  }
+  if (!VE_EL_DINERO[rol]) CAMPOS_DE_DINERO_ALMACEN.forEach(function (c) { delete salida[c]; });
+  return salida;
+}
+
+/* ── La secuencia ─────────────────────────────────────────────────────────────────────
+   Vive en las propiedades del script y se sube bajo el candado. Si la propiedad se perdió (un
+   proyecto de Apps Script copiado, alguien que las limpió), se toma la más alta que haya en las
+   pestañas: empezar de cero haría que ningún teléfono volviera a ver nada nuevo. */
+function almLeerSecuencia_() {
+  var p = Number(PropertiesService.getScriptProperties().getProperty(ALM_PROP_SECUENCIA) || 0);
+  if (isFinite(p) && p > 0) return p;
+  var max = 0;
+  for (var alm in ALM_PESTANAS) {
+    var P = almPestana_(alm, false);
+    if (!P || !P.mapa._secuencia) continue;
+    almFilas_(P).forEach(function (f) {
+      var s = Number(f.valores[P.mapa._secuencia - 1]) || 0;
+      if (s > max) max = s;
+    });
+  }
+  return max;
+}
+
+/* ── Quién puede escribir qué ──────────────────────────────────────────────────────────
+   null si puede; si no, el porqué en palabras. Va antes de mirar la hoja. */
+function almPermiso_(rol, alm, op) {
+  var d = op.datos || {};
+  if (!PUENTE_ROLES[rol]) return 'ese rol no existe';
+  if (rol === 'direccion' || rol === 'fabricacion') return null;
+  /* Pagos. Ver la cabecera de esta sección: solo lo que la plataforma deriva sola. */
+  if (alm === 'movimientos') {
+    return (d.origen === 'derivado' && d.tipo === 'salida') ? null
+      : 'el almacén lo mueven fabricación y dirección; desde pagos solo entra la salida que deriva la obra sola';
+  }
+  if (alm === 'requerimientos') {
+    var campos = Object.prototype.toString.call(op.campos) === '[object Array]' ? op.campos : null;
+    var soloEstado = campos && campos.length && campos.every(function (c) { return c === 'estado' || c === 'folio_hoja'; });
+    return (soloEstado && d.estado === 'consumido') ? null
+      : 'las listas de compra las corrigen fabricación y dirección; desde pagos solo se marca lo que ya salió del almacén';
+  }
+  return 'el catálogo de material lo editan fabricación y dirección';
+}
+
+/* ── Lo que no puede entrar, venga de quien venga ──────────────────────────────────── */
+function almValidar_(alm, d) {
+  var id = String(d.id == null ? '' : d.id);
+  if (!id.trim() || id.length > 200) return 'le falta el id, o es demasiado largo';
+  if (alm === 'movimientos') {
+    if (ALM_TIPOS.indexOf(d.tipo) === -1) return '«' + d.tipo + '» no es un tipo de movimiento';
+    if (ALM_ORIGENES.indexOf(d.origen) === -1) return '«' + d.origen + '» no es un origen de movimiento';
+    if (!String(d.material_id || '').trim()) return 'el movimiento no dice de qué material';
+    if (ALM_UNIDADES_COMPRA.indexOf(d.unidad_compra) === -1) return '«' + d.unidad_compra + '» no es una unidad de compra';
+    var c = Number(d.cantidad);
+    if (d.cantidad === null || d.cantidad === '' || !isFinite(c) || Math.abs(c) > 1e7) return 'la cantidad no es un número razonable';
+    var s = ALM_SIGNO[d.tipo];
+    if (s === 1 && !(c > 0)) return 'una ' + d.tipo + ' suma: su cantidad va en positivo';
+    if (s === -1 && !(c < 0)) return 'una ' + d.tipo + ' resta: su cantidad va en negativo';
+    if (d.tipo === 'conteo' && c < 0) return 'no se puede contar menos que nada';
+    if (d.tipo === 'ajuste' && c === 0) return 'un ajuste de cero no ajusta nada';
+    if (!(Number(d.ts) > 0)) return 'el movimiento no trae su sello de tiempo';
+    if (d.costo_total !== undefined && d.costo_total !== null && d.costo_total !== '' && !isFinite(Number(d.costo_total))) return 'el costo no es un número';
+    return '';
+  }
+  if (alm === 'materiales') {
+    if (d.unidad_compra !== undefined && ALM_UNIDADES_COMPRA.indexOf(d.unidad_compra) === -1) return '«' + d.unidad_compra + '» no es una unidad de compra';
+    if (d.unidad_consumo !== undefined && ALM_UNIDADES_CONSUMO.indexOf(d.unidad_consumo) === -1) return '«' + d.unidad_consumo + '» no es una unidad de consumo';
+    if (d.factor !== undefined && !(Number(d.factor) > 0)) return 'el factor tiene que ser mayor que cero';
+    return '';
+  }
+  if (!String(d.proyecto_id || '').trim() || !String(d.material_id || '').trim()) return 'la línea no dice de qué proyecto y de qué material';
+  if (d.estado !== undefined && ALM_ESTADOS_REQ.indexOf(d.estado) === -1) return '«' + d.estado + '» no es un estado de la lista de compra';
+  return '';
+}
+
+/* Un estado de la lista de compra no vuelve atrás desde «comprado» o «consumido». Consumido
+   quiere decir que la salida ya se restó del almacén: si un teléfono atrasado lo regresara a
+   «calculado», la siguiente vuelta del corte volvería a emitir la salida. La única vuelta que
+   hay es de comprado a consumido. */
+function almEstadoAdmite_(actual, nuevo) {
+  if (actual === 'consumido') return nuevo === 'consumido';
+  if (actual === 'comprado') return nuevo === 'comprado' || nuevo === 'consumido';
+  return true;
+}
+
+/* ------------------------------------------------------------ /empujar_almacen */
+function rutaEmpujarAlmacen_(cuerpo, rol, quien) {
+  var ops = (cuerpo && Object.prototype.toString.call(cuerpo.ops) === '[object Array]')
+    ? cuerpo.ops.slice(0, ALM_OPS_MAX) : [];
+  /* El mismo candado que /empujar: una escritura a la vez en toda la hoja. Sin él, dos
+     teléfonos que mandan el mismo movimiento al mismo tiempo lo buscan los dos, no lo
+     encuentran ninguno y lo escriben los dos. */
+  var candado = LockService.getScriptLock();
+  try { candado.waitLock(20000); }
+  catch (e) {
+    return { ok: false, codigo: 'SIN_RED',
+             mensaje: 'La hoja está ocupada con otra escritura. Se vuelve a intentar solo.' };
+  }
+  try {
+    var ctx = { pestanas: {}, secuencia: almLeerSecuencia_(), rol: rol,
+                quien: quien || ('token de ' + rol), ahora: new Date() };
+    var resultados = [], anotaciones = [];
+    for (var i = 0; i < ops.length; i++) {
+      var r;
+      /* Una operación que truena no se lleva a las que vienen detrás en el mismo viaje. */
+      try { r = almUnaOperacion_(ctx, ops[i], anotaciones); }
+      catch (err) {
+        try { console.error('puente almacén: ' + (err && err.stack || err)); } catch (_) {}
+        r = { id: (ops[i] && ops[i].id) || '?', ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja falló al escribir ese cambio.' };
+      }
+      resultados.push(r);
+    }
+    SpreadsheetApp.flush();
+    PropertiesService.getScriptProperties().setProperty(ALM_PROP_SECUENCIA, String(ctx.secuencia));
+    anotar_(anotaciones);
+    return { ok: true, resultados: resultados, secuencia: ctx.secuencia };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/* La pestaña y sus filas por id, leídas una vez por viaje. */
+function almContexto_(ctx, alm) {
+  if (ctx.pestanas[alm]) return ctx.pestanas[alm];
+  var P = almPestana_(alm, true);
+  P.porId = {};
+  almFilas_(P).forEach(function (f) { P.porId[String(f.valores[P.mapa.id - 1]).trim()] = f; });
+  P.siguiente = Math.max(P.h.getLastRow() + 1, 2);
+  ctx.pestanas[alm] = P;
+  return P;
+}
+
+function almUnaOperacion_(ctx, op, anotaciones) {
+  var id = op && op.id;
+  if (!op || !id) return { id: id || '?', ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Operación sin id.' };
+  var alm = String(op.almacen || '');
+  if (!ALM_PESTANAS[alm]) {
+    return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La hoja no tiene pestaña para «' + alm + '».' };
+  }
+  var d = (op.datos && typeof op.datos === 'object') ? op.datos : null;
+  if (!d) return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La operación no trae datos.' };
+
+  var no = almPermiso_(ctx.rol, alm, op);
+  if (no) return { id: id, ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Este teléfono no puede escribir eso: ' + no + '.' };
+  var malo = almValidar_(alm, d);
+  if (malo) return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La hoja no aceptó ese cambio: ' + malo + '.' };
+
+  var P = almContexto_(ctx, alm);
+  var t = ALM_PESTANAS[alm];
+  var llave = String(d.id).trim();
+  var previa = P.porId[llave] || null;
+  var veDinero = !!VE_EL_DINERO[ctx.rol];
+
+  /* ── El libro: si ya está, ya está ── */
+  if (t.anexo && previa) return { id: id, ok: true, ya_estaba: true };
+
+  var cols = almColumnas_(alm);
+  var porCampo = {};
+  cols.forEach(function (c) { porCampo[c.campo] = c; });
+  var valores = previa ? previa.valores.slice() : new Array(P.ncol).fill('');
+  var actual = previa ? almRegistro_(P, previa.valores, 'direccion') : {};
+  var otros = previa && P.mapa._otros ? (almDeCelda_(porCampo._otros, previa.valores[P.mapa._otros - 1]) || {}) : {};
+  var sellos = previa && P.mapa._sellos ? (almDeCelda_(porCampo._sellos, previa.valores[P.mapa._sellos - 1]) || {}) : {};
+  var ts = Number(d.actualizado_en) > 0 ? Number(d.actualizado_en) : ctx.ahora.getTime();
+
+  /* Qué se escribe. En un alta, todo lo que vino. En un cambio, solo lo que la operación dice
+     que cambió —o todo, si es de una versión que no lo decía—, y de cada campo solo si su sello
+     no es más viejo que el de la hoja. */
+  var lista = [];
+  if (!previa) { for (var k in d) lista.push(k); }
+  else if (Object.prototype.toString.call(op.campos) === '[object Array]') lista = op.campos.map(String);
+  else { for (var k2 in d) lista.push(k2); }
+
+  var escritos = [], viejos = [];
+  lista.forEach(function (campo) {
+    if (!Object.prototype.hasOwnProperty.call(d, campo)) return;
+    if (ALM_NO_VIAJA.indexOf(campo) !== -1 || campo.charAt(0) === '_') return;
+    if (campo === 'creado_en' && previa) return;
+    /* Lo que identifica la fila no se cambia en un cambio: la clave, y en la lista de compra el
+       proyecto y el material, que son su id. */
+    if (previa && t.fijos.indexOf(campo) !== -1) return;
+    /* Los importes, solo de quien los ve. Fabricación guarda el material con el costo que tenía
+       su teléfono —ninguno, porque no lo recibe— y sin esto lo borraba. */
+    if (!veDinero && CAMPOS_DE_DINERO_ALMACEN.indexOf(campo) !== -1) return;
+    if (previa && Number(sellos[campo]) > ts) { viejos.push(campo); return; }
+    var v = d[campo];
+    if (alm === 'requerimientos' && campo === 'estado' && previa && !almEstadoAdmite_(actual.estado, v)) { viejos.push(campo); return; }
+    var c = porCampo[campo];
+    if (c && P.mapa[campo]) {
+      var celda = almACelda_(c, v);
+      if (typeof celda === 'string' && celda.length > ALM_CELDA_MAX) { viejos.push(campo); return; }
+      valores[P.mapa[campo] - 1] = celda;
+    } else {
+      otros[campo] = v;
+    }
+    sellos[campo] = ts;
+    escritos.push(campo);
+  });
+
+  if (previa && !escritos.length) {
+    /* Nada nuevo: no se gasta un número de secuencia, que haría bajar la fila otra vez a los
+       tres teléfonos para nada. Se contesta ok —no hay nada que reintentar— y se dice qué no
+       entró por ser más viejo que lo que ya hay. */
+    return { id: id, ok: true, sin_cambio: true, viejos: viejos };
+  }
+
+  /* La fecha legible del libro sale de su sello. */
+  cols.forEach(function (c) {
+    if (c.tipo === 'cuándo' && c.de && P.mapa[c.campo] && escritos.indexOf(c.de) !== -1) {
+      valores[P.mapa[c.campo] - 1] = almACelda_(c, d[c.de]);
+    }
+  });
+  if (P.mapa._otros) {
+    var hayOtros = false; for (var o in otros) { hayOtros = true; break; }
+    var jo = hayOtros ? JSON.stringify(otros) : '';
+    if (jo.length > ALM_CELDA_MAX) return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La hoja no aceptó ese cambio: trae demasiado texto.' };
+    valores[P.mapa._otros - 1] = jo;
+  }
+  if (P.mapa._sellos) valores[P.mapa._sellos - 1] = JSON.stringify(sellos);
+  ctx.secuencia++;
+  valores[P.mapa._secuencia - 1] = ctx.secuencia;
+  valores[P.mapa._llego - 1] = ctx.ahora;
+  valores[P.mapa._subio - 1] = almACelda_(porCampo._subio, ctx.quien);
+
+  var fila = previa ? previa.fila : P.siguiente++;
+  if (fila > P.h.getMaxRows()) P.h.insertRowsAfter(P.h.getMaxRows(), Math.max(200, fila - P.h.getMaxRows()));
+  P.h.getRange(fila, 1, 1, P.ncol).setValues([valores]);
+  P.porId[llave] = { fila: fila, valores: valores };
+
+  anotaciones.push({ rol: ctx.rol, folio: t.hoja + ' · ' + llave, fila: fila,
+                     campos: escritos.filter(function (c) { return c !== 'actualizado_en'; }), creada: !previa });
+  return { id: id, ok: true, creada: !previa, viejos: viejos };
+}
+
+/* -------------------------------------------------------------- /jalar_almacen */
+/**
+ * Lo que la hoja recibió después de la secuencia `desde`, de las tres pestañas, en el orden en
+ * que llegó. Con el candado aunque solo lee: una escritura de varias filas a la mitad dejaría
+ * ver la tercera sin la segunda, y el teléfono, que guarda la más alta que vio, ya no
+ * preguntaría por la segunda. Si está ocupada se dice, y el teléfono pregunta en la siguiente.
+ */
+function rutaJalarAlmacen_(cuerpo, rol) {
+  var desde = Number(cuerpo && cuerpo.desde);
+  if (!isFinite(desde) || desde < 0) desde = 0;
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(10000)) {
+    return { ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está ocupada con otra escritura. Se vuelve a pedir sola.' };
+  }
+  try {
+    var todos = [];
+    for (var alm in ALM_PESTANAS) {
+      var P = almPestana_(alm, false);
+      if (!P || !P.mapa._secuencia || !P.mapa.id) continue;
+      almFilas_(P).forEach(function (f) {
+        var s = Number(f.valores[P.mapa._secuencia - 1]) || 0;
+        if (s > desde) todos.push({ s: s, almacen: P.alm, valores: f.valores, P: P });
+      });
+    }
+    todos.sort(function (a, b) { return a.s - b.s; });
+    var pagina = todos.slice(0, ALM_POR_PAGINA);
+    var hasta = pagina.length ? pagina[pagina.length - 1].s : desde;
+    return {
+      ok: true,
+      registros: pagina.map(function (x) { return { almacen: x.almacen, datos: almRegistro_(x.P, x.valores, rol) }; }),
+      hasta: hasta,
+      hay_mas: todos.length > pagina.length
+    };
+  } finally {
+    candado.releaseLock();
+  }
 }

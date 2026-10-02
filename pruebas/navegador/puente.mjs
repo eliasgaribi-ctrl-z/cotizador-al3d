@@ -442,7 +442,9 @@ apart.pendientes === 0 ? bien('y deja de contarse como «pendiente de mandar», 
 /* La derivación de material ya había encolado lo suyo: son varios y todos se apartan. */
 apart.apartadas >= 1 ? bien('se apartaron ' + apart.apartadas + ' en total (el almacén y las listas de compra que derivó la venta)')
                      : mal('no se apartó nada');
-apart.motivo && /libro del almacén se queda/.test(apart.motivo)
+/* Este puente de mentiras contesta una versión sin número («falso-1»): para el relevo es una hoja
+   anterior a puente-sheets-8, sin la pestaña «Almacén», y la razón lo dice. */
+apart.motivo && /libro del almacén espera aquí/.test(apart.motivo) && /«Almacén»/.test(apart.motivo)
   ? bien('con la razón escrita, y en su idioma: «' + apart.motivo + '»')
   : mal('sin razón, o mal escrita: «' + apart.motivo + '»');
 apart.frases.every(t => !/(compra|listas) se queda /.test(t))
