@@ -68,6 +68,7 @@ import * as Prefs from '../datos/prefs.js';
 import * as Ingreso from './ingreso.js';
 import * as Puente from '../datos/puente.js';
 import { $, esc } from './ui.js';
+import { hoyISO } from './fechas.js';
 
 /* La G de Google, en línea y con sus cuatro colores. No va al sprite de iconos de index.html
    porque ése es monocromo —todo se pinta con `currentColor`— y la marca de Google no se
@@ -99,11 +100,21 @@ const GOO_PUERTA =
    nueve están en el paquete de animaciones («Fondos Puerta v2»), lado a lado y a tamaño de
    teléfono, tableta y escritorio.
 
-   Para verlos en la app sin tocar el código: `?fondo=led` (o cualquiera de la lista) en la liga
-   de la puerta. */
-// DECISIÓN PENDIENTE: Elías elige uno de los 9. Mientras, el de la muestra.
-const FONDO_PUERTA = 'neon';
+   Cada vez que sale la puerta toca uno al azar, y nunca el mismo dos veces seguidas (Elías,
+   2-oct-2026). Para ver uno en concreto: `?fondo=led` (o cualquiera de la lista) en la liga. */
 const FONDOS_PUERTA = ['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'];
+
+/* ── La sesión dura un día ────────────────────────────────────────────────────
+   Decisión de Elías (2-oct-2026): cada día se vuelve a entrar con Google, para saber quién está
+   usando cada aparato. La primera vez que la app se abre en un día nuevo —o a medianoche, si se
+   quedó abierta— se suelta la sesión de Google de este aparato, se borra el pase y sale la
+   puerta; no hay renovación callada que se la salte. Hace falta tocar «Entrar con Google».
+
+   Lo que eso cuesta, dicho: entrar el primer rato del día pide SEÑAL. Ya adentro, el resto del
+   día se trabaja sin red como siempre (el pase sigue valiendo). Un aparato que amanece en una
+   azotea sin datos no abre hasta que tenga señal una vez. Con `false` se vuelve al pase de
+   DIAS_PASE días sin cierre diario. */
+const CIERRE_DIARIO = true;
 
 /* Cuánto vale el pase sin poder confirmarlo. Ver la cabecera. */
 const DIAS_PASE = 30;
@@ -132,6 +143,10 @@ const MSG = {
           'plataforma. Pídele a Dirección que te dé de alta.' }),
   SIN_RED_PRIMERA: aviso('Para entrar por primera vez en este aparato hace falta señal: hay que ' +
                          'preguntarle a la hoja qué te toca hacer. Conéctate y vuelve a intentar.'),
+  NUEVO_DIA: correo => avisoH('La sesión de <b>' + esc(correo) + '</b> se cerró al terminar el día. ' +
+                              'Cada día se vuelve a entrar con Google: así se sabe quién usa este aparato.'),
+  SIN_RED_HOY: aviso('Para entrar hoy hace falta señal: cada día se confirma con Google quién usa este ' +
+                     'aparato. Conéctate y vuelve a intentar; ya adentro, el resto del día funciona sin red.'),
   CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
                            esc(correo) + '</b>. Conéctate a internet y vuelve a entrar.'),
 };
@@ -162,6 +177,18 @@ export async function custodiar(avisar) {
         dejaba la plataforma sin poder abrirse ni probarse. Nadie llega a estas direcciones
         con la liga pública, que es de quien protege esto. */
   if (esCopiaLocal()) return dentro('local', '', Prefs.rol());
+
+  /* 0b. UN DÍA NUEVO — la sesión de ayer ya no vale (CIERRE_DIARIO). Va ANTES del pase vivo y
+        de la renovación callada: las dos dejarían pasar sin que nadie tocara nada, que es justo
+        lo que este cierre quiere evitar. */
+  if (CIERRE_DIARIO && Prefs.get(Prefs.CLAVES.ENTRADA, '') !== hoyISO()) {
+    const p0 = Prefs.get(Prefs.CLAVES.PASE, null);
+    const quien = (p0 && p0.correo) || Ingreso.correo() || '';
+    _delDia = true;
+    Ingreso.salir();
+    Prefs.borrarPase();
+    return await pedirEntrada(quien ? MSG.NUEVO_DIA(quien) : null);
+  }
 
   /* 1. EL PASE VIVO — se entra YA, y se confirma por detrás.
         Es el camino de todas las mañanas, y la primera versión lo hizo mal: esperaba a que
@@ -195,6 +222,7 @@ export async function custodiar(avisar) {
       if (r.rol !== p.rol) { location.reload(); return; }
       if (avisar) avisar('');
     }).catch(() => {});
+    vigilarElDia();
     return dentro('google', p.correo, p.rol, avisoDePase(p));
   }
 
@@ -206,7 +234,7 @@ export async function custodiar(avisar) {
   if (correoPrevio) {
     const { real, conTope } = confirmarSuelto(false);
     const r = await conTope;
-    if (r.estado === 'ok') return dentro('google', r.correo, r.rol);
+    if (r.estado === 'ok') { vigilarElDia(); return dentro('google', r.correo, r.rol); }
     if (r.estado === 'fuera') { Prefs.borrarPase(); return await pedirEntrada(MSG.FUERA(r.correo || correoPrevio)); }
     /* `r.tarde` es el caso en que se acabó el tope pero la comprobación SIGUE viva. Se pinta
        la puerta para no dejar a nadie mirando un esqueleto, y se le pasa la promesa: si la
@@ -428,6 +456,24 @@ async function preguntarALaHoja() {
   return { estado: 'sin_red', mensaje: s.mensaje || '' };
 }
 
+/* true cuando la puerta se puso porque empezó un día nuevo: cambia lo que se dice si no hay señal. */
+let _delDia = false;
+
+/* Si la app se queda abierta y cambia el día, la sesión se cierra igual: a medianoche (más un
+   segundo), o al volver a la pestaña si el teléfono durmió y el temporizador se atrasó. Se
+   cierra con `salir()`, que recarga: lo que se estaba capturando ya se guardó en cada tecla. */
+let _vigilando = false;
+function vigilarElDia() {
+  if (!CIERRE_DIARIO || _vigilando || typeof document === 'undefined') return;
+  _vigilando = true;
+  const dia = hoyISO();
+  const revisar = () => { if (hoyISO() !== dia) salir(); };
+  const ahora = new Date();
+  const manana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1);
+  setTimeout(revisar, manana - ahora + 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+}
+
 /** Cuánto le queda al pase, dicho solo cuando ya conviene decirlo. */
 function avisoDePase(p) {
   const queda = Number(p.hasta) - Date.now();
@@ -512,6 +558,9 @@ function pedirEntrada(av, pendiente, echando) {
          base, sembrar el catálogo, montar— y en un teléfono viejo eso son segundos en los que
          parece que la app se murió justo al entrar. */
       if (arr) arr.hidden = false;
+      /* Hoy ya se entró: hasta medianoche no se vuelve a pedir. */
+      Prefs.set(Prefs.CLAVES.ENTRADA, hoyISO());
+      vigilarElDia();
       resolve(dentro('google', r.correo, r.rol));
     };
     /* El éxito se deja ver un momento antes de irse: los dos renglones con palomita y el botón
@@ -582,7 +631,7 @@ function pedirEntrada(av, pendiente, echando) {
       if (res.ok && res.valor && res.valor.estado === 'ok') return entrarConPausa(res.valor);
       const r = res.valor || { estado: 'sin_red' };
       av = r.estado === 'fuera' ? MSG.FUERA(r.correo)
-         : (r.mensaje ? aviso(r.mensaje) : MSG.SIN_RED_PRIMERA);
+         : (r.mensaje ? aviso(r.mensaje) : (_delDia ? MSG.SIN_RED_HOY : MSG.SIN_RED_PRIMERA));
       ponerAviso(caja, av);
     });
   });
@@ -775,11 +824,17 @@ const sinMovimiento = () => {
    El fondo
    ---------------------------------------------------------------------------- */
 
-/* Cuál de los nueve: el de la liga (`?fondo=`) si es uno de ellos, si no FONDO_PUERTA. */
+/* Cuál de los nueve: el de la liga (`?fondo=`) si es uno de ellos; si no, uno al azar que no
+   sea el de la vez pasada. */
 function fondoElegido() {
   let q = '';
   try { q = new URLSearchParams(location.search).get('fondo') || ''; } catch (_) {}
-  return FONDOS_PUERTA.includes(q) ? q : FONDO_PUERTA;
+  if (FONDOS_PUERTA.includes(q)) return q;
+  const antes = Prefs.get(Prefs.CLAVES.FONDO, '');
+  const otros = FONDOS_PUERTA.filter(f => f !== antes);
+  const f = otros[Math.floor(Math.random() * otros.length)];
+  Prefs.set(Prefs.CLAVES.FONDO, f);
+  return f;
 }
 
 /* El marcado de cada fondo. Todo es decoración —`aria-hidden`, sin texto que leer— y los

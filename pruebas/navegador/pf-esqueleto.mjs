@@ -899,7 +899,7 @@ async function puerta({ tema, reducido }) {
       toques: f && getComputedStyle(f).pointerEvents, anims: anims.length, entra: caja.classList.contains('entra'),
       marca: !!document.querySelector('.puerta-marca .puerta-logo') && !!document.querySelector('.puerta-marca .puerta-goo') };
   });
-  cierto(v2.fondo === 'neon' && v2.oculto === 'true' && v2.fija === 'fixed' && v2.toques === 'none',
+  cierto(['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'].includes(v2.fondo) && v2.oculto === 'true' && v2.fija === 'fixed' && v2.toques === 'none',
     'detrás va el fondo de la puerta («' + v2.fondo + '»), fijo, mudo para el lector y sin robar toques', v2);
   cierto(v2.marca, 'el logo y sus tres manchas comparten lugar', v2);
   if (reducido) cierto(v2.anims === 0 && !v2.entra, 'con menos movimiento el fondo se queda fijo y no hay entrada', v2);
