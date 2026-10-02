@@ -650,6 +650,14 @@ async function montarDeVerdad(ruta, opts = {}) {
      nada y no bloquea nada.
 
      Va ANTES de quitar el `hidden`, que es lo que rearranca la animación de la sección. */
+  /* La de antes SALE en vez de esfumarse, y lo de dentro de la nueva llega en cascada. Ver
+     `despedir()`. Nada de eso en un remonte en silencio: ahí la pantalla no cambió. Va ANTES de
+     `ponerDireccion()`: la clase `va-*` que pone le arranca la animación de entrada también a la
+     sección que se va, y el clon se fotografiaría ya corrido 36 px. */
+  if (!enSilencio && _actual && _actual !== ruta) {
+    despedir(rutaPorNombre(_actual), direccionDeEntrada(lugarEnLaBarra(_actual), lugarEnLaBarra(ruta)));
+    marcarLlegada();
+  }
   ponerDireccion(_actual, ruta, $(r.seccion));
 
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
@@ -660,7 +668,11 @@ async function montarDeVerdad(ruta, opts = {}) {
      durante seis segundos. Lo que sí se queda para el final es anunciarlo por voz, porque un
      lector de pantalla tiene que oír el nombre cuando la pantalla ya está, no cuando empieza. */
   const sub = $('pf-sub');
-  if (sub) sub.textContent = r.nombre;
+  if (sub && sub.textContent !== r.nombre) {
+    sub.textContent = r.nombre;
+    /* El título también cambia de lugar, no de letras: sube y aparece (plataforma.css). */
+    if (!enSilencio) { sub.classList.remove('cambia'); void sub.offsetWidth; sub.classList.add('cambia'); }
+  }
   const cabsub = $('pf-cab-sub');
   if (cabsub) cabsub.textContent = r.sub || '';
 
@@ -734,6 +746,7 @@ async function montarDeVerdad(ruta, opts = {}) {
    cinco líneas cambie, cambia para los dos caminos. */
 function rematar(r, ruta, opts) {
   _remontando = false;
+  terminarLlegada();
   /* Idempotente: en el camino de montaje ya lo llamó `listo()`. Se repite aquí porque el de
      reutilizar no pasa por `listo()`, y dejar el esqueleto de arranque puesto es dejar la app
      tapada para siempre. */
@@ -986,7 +999,63 @@ function ponerDireccion(desde, hacia, seccion) {
   seccion.addEventListener('animationend', alFin);
   /* Con movimiento reducido no hay animación y `animationend` no llega nunca: el respaldo lo
      quita igual. */
-  const reloj = setTimeout(limpiar, 600);
+  const reloj = setTimeout(limpiar, 800);
+}
+
+/* ----- EL FLUJO ENTRE PANTALLAS -----
+   Elías (octubre de 2026): «no se nota que haya un flujo entre pantallas». Y era cierto: la de
+   antes se apagaba con `hidden` en el acto y la nueva se asomaba 12 px. Cambiar de pantalla se
+   leía como un parpadeo, no como ir a otro lugar. Esto deshace a propósito el corte que dejó la
+   auditoría de PR #71: lo pidió quien usa la app.
+
+   Lo de antes SALE: se fotografía como un clon fijo en su sitio —la sección real se esconde
+   como siempre, así que el router no cambia en nada— y se va hacia el lado contrario al que
+   entra la nueva mientras se desvanece. El clon no lleva ids ni recibe toques, y se quita solo.
+   Las pantallas con <iframe> (Cotizador, herramientas) no se clonan: clonar un marco lo vuelve a
+   cargar entero. Con movimiento reducido o con las teclas 1-9, nada. */
+const MS_SALE = 170;
+function despedir(rAntes, dir) {
+  const h = document.documentElement;
+  if (!rAntes || h.dataset.nav === 'teclado') return;
+  try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (_) {}
+  const s = $(rAntes.seccion);
+  if (!s || s.hidden || !s.childNodes.length || s.querySelector('iframe')) return;
+  const caja = s.getBoundingClientRect();
+  if (!caja.width || caja.bottom < 0) return;
+  const c = s.cloneNode(true);
+  c.removeAttribute('id');
+  c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+  c.setAttribute('aria-hidden', 'true');
+  c.setAttribute('inert', '');
+  c.className = 'pf-sale';
+  c.style.cssText = 'top:' + caja.top + 'px;left:' + caja.left + 'px;width:' + caja.width + 'px;' +
+    'height:' + Math.min(caja.height, window.innerHeight - caja.top) + 'px';
+  /* Junto a la original y no al final del <body>: las reglas que dependen de dónde vive la
+     sección (#pf-contenido, .pf-wrap) siguen alcanzando al clon, y no se corre de sitio. */
+  s.after(c);
+  const dx = dir === 'adelante' ? -36 : dir === 'atras' ? 36 : 0;
+  const fin = 'translate(' + dx + 'px,' + (dx ? 0 : -8) + 'px)';
+  let a = null;
+  try {
+    a = c.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: fin }],
+      { duration: MS_SALE, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+  } catch (_) {}
+  const quitar = () => c.remove();
+  if (a && a.finished) a.finished.then(quitar, quitar); else setTimeout(quitar, MS_SALE);
+  setTimeout(quitar, MS_SALE + 400);   // por si `finished` no llega nunca
+}
+
+/* `pf-llega` enciende la cascada de lo de dentro de la pantalla nueva (plataforma.css). Vive
+   solo lo que dura la llegada: un remonte en silencio de 30 s después no debe volver a
+   escalonar nada. Se quita en `rematar()`, con tiempo para que la cascada termine. */
+let _llegaReloj = 0;
+function marcarLlegada() {
+  clearTimeout(_llegaReloj);
+  document.documentElement.classList.add('pf-llega');
+}
+function terminarLlegada() {
+  clearTimeout(_llegaReloj);
+  _llegaReloj = setTimeout(() => document.documentElement.classList.remove('pf-llega'), 900);
 }
 
 /** Las cuentas de atención de la barra. Las publica cada módulo en este mapa. */

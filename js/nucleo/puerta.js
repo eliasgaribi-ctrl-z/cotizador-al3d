@@ -457,6 +457,9 @@ function pedirEntrada(av, pendiente, echando) {
     if (arr) arr.hidden = true;
     document.documentElement.classList.add('con-puerta');
     caja.hidden = false;
+    /* La antepuerta (js/tema.js) ya cumplió: la puerta tapa todo, y su latido no debe seguir
+       corriendo debajo de ella. */
+    document.documentElement.classList.remove('antepuerta');
 
     pintar(caja, av);
 

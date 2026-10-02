@@ -261,7 +261,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
       cierto(!v.anims.some(a => /entra-(der|izq)/.test(a)), 'y la pantalla no se desplaza al entrar (a lo más el fundido de siempre: ' + (v.anims.join() || 'nada') + ')', v);
     } else {
       cierto(v.ficha, 'la píldora del icono VIAJA de Tablero a Calendario', v);
-      cierto(/va-adelante/.test(v.clases) && v.anims.includes('entra-der'), 'Calendario está después: entra desde la derecha (' + v.anims.join() + ')', v);
+      cierto(/va-adelante/.test(v.clases) && v.anims.includes('pf-entra-der'), 'Calendario está después: entra desde la derecha (' + v.anims.join() + ')', v);
     }
     await p.waitForTimeout(300);
     const d = await ev(() => ({
@@ -279,7 +279,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     const viajeVuelta = vigilarViaje(p);
     await toque(p, '#pf-abajo [data-ruta="hoy"]');
     const a = await viajeVuelta;
-    if (!reducido) cierto(/va-atras/.test(a.clases) && a.anims.includes('entra-izq'), 'de vuelta a Tablero entra desde la izquierda (' + a.anims.join() + ')', a);
+    if (!reducido) cierto(/va-atras/.test(a.clases) && a.anims.includes('pf-entra-izq'), 'de vuelta a Tablero entra desde la izquierda (' + a.anims.join() + ')', a);
     else cierto(!a.anims.some(x => /entra-(der|izq)/.test(x)), 'y de vuelta tampoco se desplaza', a);
     /* Una pantalla oculta —Ajustes— no tiene lado. */
     await toque(p, '#pf-cab-ajustes');
@@ -306,7 +306,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
         foco: document.activeElement && document.activeElement.closest('#pf-mas') ? 'dentro' : 'fuera' };
     });
     cierto(h.abierta && h.expandido === 'true', 'tocar «Más» abre la hoja, con aria-expanded', h);
-    cierto(h.filas.map(f => f.n).join() === 'Material,Mapa,Mesa de corte,Vectorizador,Control', 'lleva las rutas del rol que NO están abajo, con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
+    cierto(h.filas.map(f => f.n).join() === 'Material,Mapa,Mesa de corte,Vectorizador,Publicaciones,Control', 'lleva las rutas del rol que NO están abajo, con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
     cierto(h.filas.every(f => f.h >= 44), 'cada fila mide al menos 44 px', h.filas.map(f => f.h));
     cierto(h.filas[0].cta === '3', 'Material trae su globo: 3', h.filas[0]);
     cierto(h.foco === 'dentro' && /Más módulos/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más módulos»', h);
@@ -598,7 +598,7 @@ for (const tema of ['claro', 'oscuro']) {
   await sembrar(p);
   cierto(!(await ev(() => !!document.querySelector('#pf-abajo') && getComputedStyle(document.getElementById('pf-abajo')).display !== 'none')), 'la barra de abajo no existe con ratón: manda la lateral');
   const lat = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, teclas: [...document.querySelectorAll('#pf-nav .pf-tab')].map(t => t.dataset.tecla).join('') }));
-  cierto(lat.n === 9 && lat.teclas === '123456789', 'la barra lateral lleva las nueve pestañas, cada una con su tecla', lat);
+  cierto(lat.n === 10 && lat.teclas === '123456789', 'la barra lateral lleva las diez pestañas, las nueve primeras con su tecla (Publicaciones, la décima, no tiene)', lat);
   cierto(await sinDesborde(p), 'sin desborde de lado');
   /* P31: el nombre con su tecla. */
   await p.hover('#pf-nav .pf-tab[data-ruta="agenda"]');

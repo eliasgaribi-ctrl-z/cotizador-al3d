@@ -2611,9 +2611,36 @@ html[data-tema="oscuro"] .pf-mas-op .cta{color:var(--nav)}
    colgada de ese atributo deslizaría la pantalla entera al cambiar de mes en el calendario.
    Las teclas 1-9 no animan nada (js/app.js no pone la clase y la regla de `data-nav` de más
    arriba manda), y el movimiento reducido las apaga en el bloque «rm» de abajo. */
-html.va-adelante .pf-mod{animation:entra-der .2s var(--ease-out) both}
-html.va-atras .pf-mod{animation:entra-izq .2s var(--ease-out) both}
+html.va-adelante .pf-mod{animation:pf-entra-der .34s cubic-bezier(.2,.8,.2,1) .06s both}
+html.va-atras .pf-mod{animation:pf-entra-izq .34s cubic-bezier(.2,.8,.2,1) .06s both}
 html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .pf-mod{animation:none}
+@keyframes pf-entra-der{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes pf-entra-izq{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+
+/* ----- El flujo entre pantallas (octubre de 2026) -----
+   Lo pidió Elías: «no se nota que haya un flujo». Tres cosas, y las tres viven solo mientras
+   dura la llegada (`html.pf-llega`, js/app.js):
+     · la pantalla de antes sale como un clon fijo hacia el lado contrario (`.pf-sale`);
+     · lo de dentro de la nueva llega en cascada, renglón por renglón, hasta el octavo;
+     · el título del encabezado sube y aparece en vez de cambiar de letras en seco.
+   `backwards` y no `both`: al terminar no se queda pegado ningún valor, así que lo que cada
+   pieza decide de su propia opacidad —el marco del Cotizador está en 0 mientras carga— vuelve
+   a mandar. Los <iframe> no entran: su opacidad es justo la de la carga. */
+.pf-sale{position:fixed;z-index:1;margin:0;overflow:hidden;pointer-events:none;will-change:transform,opacity;animation:none}
+html.pf-llega .pf-mod>:not(iframe),html.pf-llega .pf-mod>:only-child>:not(iframe){animation:pf-cascada .42s cubic-bezier(.2,.8,.2,1) backwards}
+html.pf-llega .pf-mod>:only-child{animation:none}
+html.pf-llega .pf-mod>:nth-child(2),html.pf-llega .pf-mod>:only-child>:nth-child(2){animation-delay:.04s}
+html.pf-llega .pf-mod>:nth-child(3),html.pf-llega .pf-mod>:only-child>:nth-child(3){animation-delay:.08s}
+html.pf-llega .pf-mod>:nth-child(4),html.pf-llega .pf-mod>:only-child>:nth-child(4){animation-delay:.12s}
+html.pf-llega .pf-mod>:nth-child(5),html.pf-llega .pf-mod>:only-child>:nth-child(5){animation-delay:.16s}
+html.pf-llega .pf-mod>:nth-child(6),html.pf-llega .pf-mod>:only-child>:nth-child(6){animation-delay:.2s}
+html.pf-llega .pf-mod>:nth-child(7),html.pf-llega .pf-mod>:only-child>:nth-child(7){animation-delay:.24s}
+html.pf-llega .pf-mod>:nth-child(n+8),html.pf-llega .pf-mod>:only-child>:nth-child(n+8){animation-delay:.28s}
+@keyframes pf-cascada{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.pf-cab-t.cambia{animation:pf-titulo .32s cubic-bezier(.2,.8,.2,1) backwards}
+@keyframes pf-titulo{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+html[data-nav="teclado"].pf-llega .pf-mod>:not(iframe),html[data-nav="teclado"].pf-llega .pf-mod>:only-child>:not(iframe),
+html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 
 /* ----- A18 · los dos pasos de Safari -----
    El dibujo de cada paso va dentro del renglón del riel, debajo del texto: es la forma del
@@ -3375,6 +3402,8 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:cl
    el fundido de `.pf-mod` ya está apagado más arriba, y aquí se apagan los dos nombres nuevos. */
 .pf-tab .cta.sube,.pf-abajo .cta.sube{animation:none}
 html.va-adelante .pf-mod,html.va-atras .pf-mod{animation:none}
+html.pf-llega .pf-mod>:not(iframe),html.pf-llega .pf-mod>:only-child>:not(iframe),.pf-cab-t.cambia{animation:none}
+.pf-sale{display:none}
 /* La banda sigue apareciendo —es información, no adorno— pero sin desplegarse, y el scroll se
    compensa de un salto (lo hace js/app.js). */
 .pf-banda-caja{transition:none}
