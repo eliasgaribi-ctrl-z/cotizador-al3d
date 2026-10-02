@@ -50,6 +50,12 @@ export const CLAVES = {
      {correo, rol, hasta}. Ver js/nucleo/puerta.js — el porqué de que exista está entero
      allá, y se resume en que el aparato tiene que abrir en una azotea sin señal. */
   PASE:       'al3d_pf_pase',
+  /* El día (AAAA-MM-DD, del aparato) en que alguien entró por última vez con el botón de
+     Google. La sesión vale ese día y nada más: al día siguiente la puerta se vuelve a poner.
+     Ver CIERRE_DIARIO en js/nucleo/puerta.js. */
+  ENTRADA:    'al3d_pf_entrada',
+  /* El último fondo que enseñó la puerta, para que el siguiente sea otro. Adorno puro. */
+  FONDO:      'al3d_pf_fondo',
 };
 
 /* ----------------------------------------------------------------------------

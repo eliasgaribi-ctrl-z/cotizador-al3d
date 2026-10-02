@@ -54,18 +54,26 @@ async function sinAl3d(base, que) {
   process.exit(1);
 }
 
-async function abrir(base, { tema = 'claro', pase = null } = {}) {
-  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block',
+/* El día de hoy en el reloj del aparato, como lo cuenta hoyISO() en js/nucleo/fechas.js. */
+const diaISO = (ms = Date.now()) => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+async function abrir(base, { tema = 'claro', pase = null, entrada = null, ctx: ctxDado = null } = {}) {
+  const ctx = ctxDado || await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block',
     colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
-  /* Google no se alcanza desde aquí, y no hace falta: la puerta se pinta antes de preguntarle
-     nada. Cortar lo de fuera en el acto evita esperar a que venza. */
-  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
-  await ctx.addInitScript(([tema, pase]) => {
-    try {
-      localStorage.setItem('al3d_tema', tema);
-      if (pase) localStorage.setItem('al3d_pf_pase', JSON.stringify(pase));
-    } catch (_) {}
-  }, [tema, pase]);
+  if (!ctxDado) {
+    /* Google no se alcanza desde aquí, y no hace falta: la puerta se pinta antes de preguntarle
+       nada. Cortar lo de fuera en el acto evita esperar a que venza. */
+    await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+    await ctx.addInitScript(([tema, pase, entrada]) => {
+      try {
+        if (sessionStorage.getItem('sembrado')) return;     // solo la primera carga de la pestaña
+        sessionStorage.setItem('sembrado', '1');
+        localStorage.setItem('al3d_tema', tema);
+        if (pase) localStorage.setItem('al3d_pf_pase', JSON.stringify(pase));
+        if (entrada) localStorage.setItem('al3d_pf_entrada', JSON.stringify(entrada));
+      } catch (_) {}
+    }, [tema, pase, entrada]);
+  }
   const p = await ctx.newPage();
   const errores = [];
   p.on('pageerror', e => errores.push(e.message));
@@ -151,11 +159,38 @@ console.log('\nDE NOCHE');
 console.log('\nCON UN PASE VIVO');
 {
   const pase = { correo: 'elias@al3d.mx', rol: 'direccion', hasta: Date.now() + 5 * 864e5, visto: Date.now() };
-  const { ctx, p, errores } = await abrir(PUBLICO, { pase });
+  const { ctx, p, errores } = await abrir(PUBLICO, { pase, entrada: diaISO() });
   const e = await estado(p);
-  cierto(!e.puerta, 'se entra directo, sin puerta: el pase existe para no esperar a la red');
+  cierto(!e.puerta, 'si hoy ya se entró, se entra directo, sin puerta: el pase existe para no esperar a la red');
   cierto(e.montados.includes('mod-tablero'), 'y abre el Tablero');
   cierto(!errores.length, 'cero errores de página' + (errores.length ? ': ' + errores.join(' | ') : ''));
+  await ctx.close();
+}
+
+console.log('\nLA SESIÓN DURA UN DÍA');
+{
+  const pase = { correo: 'elias@al3d.mx', rol: 'direccion', hasta: Date.now() + 5 * 864e5, visto: Date.now() };
+  const { ctx, p } = await abrir(PUBLICO, { pase, entrada: diaISO(Date.now() - 864e5) });
+  const e = await estado(p);
+  const d = await p.evaluate(() => ({
+    aviso: (document.querySelector('.puerta-aviso') || {}).textContent || '',
+    pase: localStorage.getItem('al3d_pf_pase') }));
+  cierto(e.puerta && e.montados.length === 0, 'con un pase vivo pero de AYER, sale la puerta y no se monta nada');
+  cierto(/elias@al3d\.mx/.test(d.aviso) && /se cerró al terminar el día/.test(d.aviso), 'y dice de quién era la sesión que se cerró: «' + d.aviso.slice(0, 70) + '…»');
+  cierto(d.pase === null || d.pase === 'null', 'el pase de ayer se borra: ya no abre nada');
+  await ctx.close();
+}
+{
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+  const vistos = [];
+  for (let i = 0; i < 4; i++) {
+    const { p } = await abrir(PUBLICO, { ctx });
+    vistos.push(await p.evaluate(() => (document.querySelector('.puerta-fondo') || {}).dataset.fondo));
+    await p.close();
+  }
+  const seguidos = vistos.some((f, i) => i && f === vistos[i - 1]);
+  cierto(vistos.every(Boolean) && !seguidos, 'cada vez que sale la puerta trae otro fondo, nunca el mismo dos veces seguidas: ' + vistos.join(' → '));
   await ctx.close();
 }
 

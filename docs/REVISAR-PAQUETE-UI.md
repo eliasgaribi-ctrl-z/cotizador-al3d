@@ -71,6 +71,37 @@ para que el cliente decida— o cerrarlo para que no se pueda autorizar hasta el
 Dónde: `js/cotizador/partidas.js`, `resumenPartida()` y `opcionesDe()`; el aviso lo pinta
 `pintarFaltantes()` en `js/cotizador/proceso.js`.
 
+### ✅ Resuelta · Cuál de los nueve fondos lleva la puerta
+
+La puerta animada (F10 v2, paquete «Pantalla animada AL3D Google») ya está: los azules del logo se
+juntan al entrar, la caja es de vidrio, el logo se separa en sus manchas mientras se espera y dice
+«✓ Adentro» antes de irse. El fondo se mueve en loop y sigue al dedo —la única excepción aprobada a
+«nada se mueve solo»—.
+
+**Decidido (Elías, 2-oct-2026):** uno al azar cada vez que sale la puerta, nunca el mismo dos veces
+seguidas. Para ver uno en concreto se le pone `?fondo=` a la liga: `neon`, `plano`, `led`,
+`circulos`, `letras`, `cnc`, `particulas`, `ondas` o `acrilico`.
+
+### ✅ Resuelta · La sesión dura un día
+
+**Decidido (Elías, 2-oct-2026):** cada día se vuelve a entrar con Google, para llevar el control de
+quién usa cada aparato. La primera apertura de un día nuevo —o la medianoche, si la app se quedó
+abierta— suelta la sesión de Google del aparato, borra el pase y pone la puerta, con un aviso que dice
+de quién era la sesión que se cerró. Ni el pase vivo ni la renovación callada se la saltan.
+
+**Lo que cuesta:** la primera entrada del día pide señal. Ya adentro, el resto del día funciona sin
+red como antes. Un aparato que amanece sin datos no abre hasta tenerlos una vez; si eso estorba en
+obra, `CIERRE_DIARIO = false` en `js/nucleo/puerta.js` regresa al pase de 30 días.
+
+Dos cosas que pidió el paquete y se ajustaron al medir:
+
+- **La caja va al 94 % de opacidad, no al 86 %.** Con el tema de día sobre los fondos de noche
+  (Neón, LED, Letras, Constelación), el pie quedaba en 3.7:1. Al 94 % y con el texto tenue en
+  `--tinta2`, el peor de los 18 casos (9 fondos × 2 temas) mide 5.3:1.
+- **Falta medir en un Android de gama media.** Si baja de 50 fps, se quita la viñeta o el grano
+  antes que la animación. Letras (texto de 150–210 px con dos sombras) y Constelación (lienzo) son
+  los más pesados.
+
 ---
 
 ## Cotizador · partidas y completitud (cot-partidas)
