@@ -588,7 +588,8 @@ async function ronda(cfg, { larga = false } = {}) {
         await hasta(p, async a => (await (await import('/js/datos/material.js')).constantes()).APROV_NESTING_simple !== a, antes, 12000);
         await p.waitForTimeout(900);
         const foco = await p.evaluate(() => { const a = document.activeElement; return a && a.hasAttribute('data-calibrar'); });
-        cierto(foco, 'tras la escritura el foco sigue en «Actualizar», no se cayó al principio de la página');
+        cierto(foco, 'tras la escritura el foco sigue en «Actualizar», no se cayó al principio de la página',
+          foco ? undefined : await p.evaluate(() => { const a = document.activeElement; return a ? a.outerHTML.slice(0, 160) : null; }));
       });
     }
   }
@@ -803,6 +804,13 @@ async function siluetaSinHueco() {
       requestAnimationFrame(paso);
     };
     requestAnimationFrame(paso);
+    /* Si los datos se leen en menos de un cuadro, la silueta del módulo entra y sale entre dos
+       requestAnimationFrame y el muestreador de arriba nunca la ve: la prueba fallaba de vez en
+       cuando sin que hubiera hueco (huecos: 0). El observador la ve aunque viva un instante;
+       corre en una microtarea, cuando `cargar()` ya le puso `sin-espera`. */
+    new MutationObserver(() => {
+      if (document.querySelector('#mt-cuerpo .pf-esqueleto.sin-espera')) __sil.sinEspera = true;
+    }).observe(document, { childList: true, subtree: true });
   });
   await ctx.route(/\/js\/mod\/material\.js/, async r => { await dormir(900); await r.continue(); });
   await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());

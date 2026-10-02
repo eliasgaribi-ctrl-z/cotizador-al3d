@@ -1153,6 +1153,11 @@ for (const ancho of [360, 420]) for (const tema of ['claro', 'oscuro']) for (con
   await p.tap('#an-zoom-mas'); await dormir(500);
   ok((await mesa(p)).zoom.some(Boolean), 'tocar «+» acerca');
   ok(await desborde(p) <= 0, 'con zoom no desborda', await desborde(p));
+  /* A 420 px, con el zoom, el centro de la pieza quedaba DEBAJO de la barra de arriba y el toque
+     se lo llevaba la barra (a 360 caía libre): la prueba fallaba sin que la mesa tuviera nada.
+     Se trae a la vista primero, como haría el dedo. */
+  await p.evaluate(() => document.querySelector('#pz-an-e0').scrollIntoView({ block: 'center', inline: 'nearest' }));
+  await dormir(300);
   const [px, py] = await centro(p, '#pz-an-e0');
   await p.touchscreen.tap(px, py); await dormir(200);
   ok((await mesa(p)).eleccion === 'pz-an-e0', 'tocar una pieza la elige');

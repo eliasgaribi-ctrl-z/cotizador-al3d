@@ -162,7 +162,10 @@ console.log('\nA4 · LA MECHA DEL PARO');
   /* El hilo se consume: tras 2.2 s va por ~2200 ms. */
   await dormir(2200);
   m = await mecha();
-  cierto(m && m.t >= 1900 && m.t <= 3500, 'a los 2 s la mecha va por ~2 s', m);
+  /* Desde 1500 y no 1900: el reloj de animación de la página va un poco detrás del de node (en
+     Windows marcó 1849 tras dormir 2200). Lo que se mide es que el hilo se consume —ni parado ni
+     reiniciado—, y eso lo sigue diciendo. */
+  cierto(m && m.t >= 1500 && m.t <= 3500, 'a los 2 s la mecha va por ~2 s', m);
   for (let i = 0; i < 5; i++) await sinMejora(p);
   cierto(/faltan 20 intentos y \d+ s$/.test(await texto(p, '#an-paro-t')), 'cinco intentos sin mejorar y la frase lo cuenta: «' + await texto(p, '#an-paro-t') + '»');
   /* Una mejora rellena la mecha de golpe y pone los intentos en cero. */
@@ -515,7 +518,9 @@ console.log('\nA9 · DESHACER CON MECHA AL VOLVER A ACOMODAR');
 // ═══ A16 · DESCARGAR POR HOJA DESDE UN MENÚ ═══════════════════════════════════════════════════
 console.log('\nA16 · DESCARGAR POR HOJA DESDE UN MENÚ');
 {
-  const { ctx, p, errs } = await abrir();
+  /* «Sin dónde compartir» se fija aquí y no se da por hecho: el Chromium de Linux no trae
+     navigator.share, pero el de Windows sí comparte archivos, y ahí salía «Compartir» con su flecha. */
+  const { ctx, p, errs } = await abrir({ antes: 'navigator.share = undefined; navigator.canShare = undefined;' });
   await cargar(p, SVG_MM); await motorFalso(p);
   cierto(await p.evaluate(() => document.getElementById('an-dl').disabled && !document.getElementById('an-dl-hojas')), 'sin acomodo, «Descargar SVG» está apagado y ya no hay fila de botones por hoja');
   await p.evaluate(() => window.Anidador.iniciar());
