@@ -76,6 +76,26 @@
   document.addEventListener('DOMContentLoaded', todas);
 })();
 
+/* ----- La antepuerta: sin pase, no se pinta ni el cascarón -----
+   La puerta de verdad (js/nucleo/puerta.js) sale hasta que baja todo el árbol de módulos de
+   app.js, y en un teléfono con la red mal eso son segundos. Mientras, el HTML fijo —la barra
+   lateral, el encabezado, el esqueleto del Tablero— ya estaba pintado: alguien sin cuenta veía
+   la plataforma unos segundos antes de que se le pidiera entrar. Aquí, antes del primer
+   pintado, si la página lo pide (`data-puerta` en <html>, solo index.html) y no hay un pase
+   vivo, se pone `antepuerta` y css/sistema.css tapa todo con el logotipo. La quita app.js
+   cuando custodiar() deja pasar. Las mismas exenciones que la puerta: la copia local. */
+(function () {
+  var h = document.documentElement;
+  if (!h.hasAttribute('data-puerta')) return;
+  try {
+    var n = location.hostname;
+    if (location.protocol === 'file:' || n === 'localhost' || n === '127.0.0.1' || n === '') return;
+    var p = JSON.parse(localStorage.getItem('al3d_pf_pase') || 'null');
+    if (p && typeof p.correo === 'string' && Number(p.hasta) > Date.now()) return;
+  } catch (_) {}
+  h.classList.add('antepuerta');
+})();
+
 (function () {
   var CLAVE = 'al3d_tema';
   var COLOR = { claro: '#4060f8', oscuro: '#0f1124' };

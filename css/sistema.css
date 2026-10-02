@@ -7454,6 +7454,19 @@ html.con-puerta,html.con-puerta body{overflow:hidden}
   overflow-y:auto}
 .pf-puerta[hidden]{display:none}
 
+/* La ANTEPUERTA: lo que se ve sin pase mientras baja el código de la puerta. Todo el cascarón
+   queda invisible y en su lugar va el logotipo sobre el lienzo, con un pulso suave para que no
+   parezca congelado. La puerta (z 300) y los avisos de error (role=alert) quedan fuera de la
+   regla, así que salen encima en cuanto existen. Ver la antepuerta en js/tema.js. */
+html.antepuerta,html.antepuerta body{overflow:hidden}
+html.antepuerta body>:not(#pf-puerta):not([role="alert"]){visibility:hidden}
+html.antepuerta body::after{content:'';position:fixed;inset:0;z-index:299;pointer-events:none;
+  background:var(--fondo) url(../logo-al3d.svg) center/120px auto no-repeat;
+  animation:antepuerta 1.6s ease-in-out infinite alternate}
+html.antepuerta[data-tema="oscuro"] body::after{background-image:url(../logo-al3d-oscuro.svg)}
+@keyframes antepuerta{from{opacity:1}to{opacity:.55}}
+@media (prefers-reduced-motion:reduce){ html.antepuerta body::after{animation:none} }
+
 .puerta-caja{width:100%;max-width:420px;text-align:center;
   /* `auto` arriba y abajo y no `align-items:center` a secas: con el teclado abierto o en un
      teléfono acostado el panel es más alto que la pantalla, y centrado se le corta la cabeza

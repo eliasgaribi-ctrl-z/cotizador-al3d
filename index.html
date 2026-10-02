@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-puerta>
 <head>
 <meta charset="UTF-8">
 <!-- ----- A dónde puede hablar esta página (Content-Security-Policy) -----
@@ -442,6 +442,12 @@
 <!-- Las piezas compartidas con el cotizador y el anidador (js/piezas.js). Guion clásico y antes
      que el módulo: los módulos se ejecutan diferidos, así que cuando app.js arranca ya está. -->
 <script src="./js/piezas.js"></script>
+<!-- La puerta y lo que ella importa se piden YA, en paralelo con app.js, y no cuando app.js
+     termina de bajar su árbol y llega al `import()` de la puerta: eso era la mayor parte de la
+     espera antes de ver «Entrar con Google». -->
+<link rel="modulepreload" href="./js/nucleo/puerta.js">
+<link rel="modulepreload" href="./js/nucleo/ingreso.js">
+<link rel="modulepreload" href="./js/datos/puente.js">
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>

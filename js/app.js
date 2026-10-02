@@ -1537,6 +1537,8 @@ async function arrancar() {
          recargar, sobre una app que está arrancando perfectamente. */
       if (_bandaLista) revisarDispositivo();
     });
+    /* Ya hay derecho a pasar: fuera la antepuerta que js/tema.js puso antes del primer pintado. */
+    document.documentElement.classList.remove('antepuerta');
   } catch (e) {
     /* Sin puerta no se entra. Hubo un tiempo en que aquí se entraba igual, para no dejar la
        app muerta por un archivo que no bajó; Dirección decidió que la plataforma solo se ve
