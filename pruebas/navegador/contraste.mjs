@@ -28,6 +28,7 @@
      pruebas/correr.sh --navegador
 */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'zlib';
 
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
@@ -102,7 +103,7 @@ const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-119
 /* deviceScaleFactor 3: con 1 px por píxel el texto chico es casi todo antialias y la medida
    baila. A ×3 hay píxeles de tinta plena que contar. */
 const ctx = await nav.newContext({viewport:{width:1440,height:1000}, locale:'es-MX', deviceScaleFactor:3});
-await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
+await ctx.addInitScript({ path: fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url)) });   // el notario, de mentiras
 const p = await ctx.newPage();
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };

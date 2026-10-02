@@ -510,11 +510,35 @@ async function recolectarDemanda(opts = {}) {
     });
   }
 
+  /* La línea que bajó de otro teléfono (puente-sheets-9) trae el `proyecto_id` de ESE teléfono:
+     en éste, la misma venta es otra tarjeta, con otro id —la importada de la hoja,
+     `proy-hoja-V-042`—. Lo que las ata es el folio de la venta en la hoja (`folio_hoja`, que el
+     relevo le pone a la línea al subirla). Sin esto, la lista de compra de fabricación no veía
+     nada de lo que dirección había derivado. Y si este teléfono tiene su propia línea de ese
+     proyecto y ese material, manda la suya: la misma demanda no se pide dos veces. */
+  const porFolioHoja = new Map();
+  for (const p of (proys || [])) {
+    if (!p || !abiertos.has(p.id)) continue;
+    for (const f of [p.notion_page_id, p.folio_hoja]) {
+      const k = String(f || '').trim();
+      if (k && !porFolioHoja.has(k)) porFolioHoja.set(k, p.id);
+    }
+  }
+  const propias = new Set();
+  for (const r of (reqs || [])) if (r && abiertos.has(r.proyecto_id)) propias.add(r.proyecto_id + '|' + r.material_id);
+  const proyectoDe = r => {
+    if (abiertos.has(r.proyecto_id)) return abiertos.get(r.proyecto_id);
+    const id = porFolioHoja.get(String(r.folio_hoja || '').trim());
+    if (!id || propias.has(id + '|' + r.material_id)) return null;
+    propias.add(id + '|' + r.material_id);   // y una segunda de otro teléfono, tampoco
+    return abiertos.get(id);
+  };
+
   const out = new Map();
   for (const r of (reqs || [])) {
     if (!r || !r.material_id) continue;
     if (REQ_SERVIDOS.has(r.estado)) continue;
-    const pr = abiertos.get(r.proyecto_id);
+    const pr = proyectoDe(r);
     if (!pr) continue;
 
     /* La corrección humana SIEMPRE gana (§4.8). Si fabricación dijo que fueron 1.5

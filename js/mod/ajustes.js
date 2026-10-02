@@ -510,8 +510,19 @@ function cardQuienEres() {
     '<dl class="pf-dato"><dt>Id de este dispositivo</dt><dd><span class="folio">' +
     esc(Prefs.dispositivo()) + '</span></dd></dl>' +
     '<p class="pf-nota">Los cuatro caracteres se generan una vez en la vida del teléfono y ' +
-    'sirven para desempatar folios: el contador del cotizador es local, así que dos ' +
-    'teléfonos pueden emitir COT-0042 el mismo día.</p>', 'aj-s-quien');
+    'desempatan por dentro los folios de dos aparatos.</p>' +
+
+    /* La letra sí sale en el papel: el contador es de cada teléfono, y sin ella dos clientes
+       podían tener el mismo COT-0042 en la mano. Sale sola del id, pero una letra al azar le
+       puede tocar igual a dos aparatos: aquí se le pone A, B, C… a cada uno. */
+    '<div class="fld aj-bloque"><label for="aj-letra">Letra de los folios de este teléfono</label>' +
+    '<input type="text" id="aj-letra" maxlength="1" autocomplete="off" autocapitalize="characters" ' +
+    'inputmode="text" pattern="[A-Za-z]" class="aj-letra" value="' +
+    esc(Prefs.letraFolio()) + '"></div>' +
+    '<button type="button" class="btn btn-gho pf-btn-corto" data-act="letra">' +
+    ico('i-guardar') + ' Guardar la letra</button>' +
+    '<p class="pf-nota">Va al final de cada folio nuevo: COT-0042-' + esc(Prefs.letraFolio()) +
+    '. Dale una distinta a cada teléfono que cotiza; los folios ya emitidos no cambian.</p>', 'aj-s-quien');
 }
 
 /* ----- 1b. Apariencia -----
@@ -735,8 +746,9 @@ function cardPuente() {
      que nunca baja, y un número que nunca baja se aprende a ignorar. */
   const cuentaApart = APARTADAS
     ? ' Además hay ' + APARTADAS + (APARTADAS === 1 ? ' cambio apartado' : ' cambios apartados') +
-      ' que este puente no lleva: el almacén y el catálogo se quedan en este dispositivo ' +
-      'hasta que existan sus bases. No se pierden.'
+      ' que no viajan: las constantes del taller y los avisos se quedan en este dispositivo, y el ' +
+      'almacén, el catálogo y las listas de compra esperan aquí solo si la hoja corre un puente sin ' +
+      'sus pestañas —se mandan solos en cuanto se actualice—. No se pierden.'
     : '';
 
   /* Lo que se intentó y no se pudo escribir. Sin esto la pantalla decía en verde «la bandeja
@@ -989,6 +1001,7 @@ async function clic(ev) {
   if (tile) { elegirTiles(tile.dataset.tile); return; }
 
   if (t.closest('[data-act="nombre"]')) { guardarNombre(); return; }
+  if (t.closest('[data-act="letra"]')) { guardarLetra(); return; }
   if (t.closest('[data-act="respaldar"]')) { respaldar(); return; }
   if (t.closest('[data-act="gcal-guardar"]')) { guardarGcal(); return; }
   if (t.closest('[data-act="gcal-conectar"]')) { conectarGcal(); return; }
@@ -1050,6 +1063,14 @@ function guardarNombre() {
   if (!n) { toast('Falta tu nombre: es lo que va a decir cada movimiento del almacén', 'err', 4200); return; }
   if (!Prefs.setNombre(n)) { toast('Este navegador no dejó guardar el nombre', 'err', 4200); return; }
   toast('Nombre guardado', 'ok', 2600);
+  if (CTX.refrescar) CTX.refrescar();
+}
+
+function guardarLetra() {
+  const l = ($('aj-letra') && $('aj-letra').value || '').trim();
+  if (!/^[A-Za-z]$/.test(l)) { toast('La letra del folio es una sola letra, de la A a la Z', 'err', 4200); return; }
+  if (!Prefs.setLetraFolio(l)) { toast('Este navegador no dejó guardar la letra', 'err', 4200); return; }
+  toast('Los folios nuevos llevarán la ' + l.toUpperCase(), 'ok', 2600);
   if (CTX.refrescar) CTX.refrescar();
 }
 

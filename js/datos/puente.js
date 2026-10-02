@@ -13,14 +13,21 @@
    mañana el relevo dejara de ser la hoja, se reescribe este archivo y nada más.
 
    ── Lo que este relevo LLEVA, y lo que no ──────────────────────────────────────
-   El puente de hoy conoce una sola pestaña: `Ventas`. Así que este relevo lleva `proyectos`
-   e `instalaciones` —las dos caras de la misma fila de venta— y NO lleva el almacén, el
-   catálogo ni los avisos, porque todavía no existen las pestañas a las que irían.
+   La venta: `proyectos` e `instalaciones`, las dos caras de la misma fila de `Ventas`. Y desde
+   puente-sheets-9 también el almacén: `movimientos` (el libro), `materiales` (el catálogo) y
+   `requerimientos` (de donde sale la lista de compra), cada uno a su pestaña —«Almacén»,
+   «Catálogo de material», «Listas de compra»— por sus dos caminos propios (/empujar_almacen y
+   /jalar_almacen; ver `subirAlmacen` y `bajarAlmacen`). Hasta la 8 esos tres se apartaban en
+   la bandeja de cada teléfono «hasta que exista su pestaña»; el primer bombeo contra una hoja
+   que ya las tiene los reincorpora solos, en su orden (`sync.revivirSinDestino`).
 
-   Lo que no lleva NO se descarta y NO se cuenta como pendiente de mandar: `sync.js` lo
-   aparta con el motivo escrito. Descartarlo perdería el día que sí haya destino; contarlo
-   como pendiente haría que Ajustes dijera «47 esperando» para siempre, y un contador que
-   nunca baja se aprende a ignorar igual que un aviso rojo que no significa nada.
+   NO lleva los avisos (se calculan en cada teléfono), las constantes del taller ni la caché de
+   ubicaciones. Lo que no lleva NO se descarta y NO se cuenta como pendiente de mandar: `sync.js`
+   lo aparta con el motivo escrito. Descartarlo perdería el día que sí haya destino; contarlo
+   como pendiente haría que Ajustes dijera «47 esperando» para siempre, y un contador que nunca
+   baja se aprende a ignorar igual que un aviso rojo que no significa nada. Y lo mismo el
+   almacén contra una hoja que todavía corre la 8 o una anterior: se aparta con su razón —«la hoja no tiene la
+   pestaña»— y vuelve solo cuando la hoja se actualiza.
 
    ── Por qué no viaja `esperado` ────────────────────────────────────────────────
    El Worker sabe comparar contra `last_edited_time` y este relevo no se lo manda. No es
@@ -144,7 +151,16 @@ export const ETAPA_DESDE_NOTION = Object.fromEntries(
   Object.entries(ETAPA_A_NOTION).map(([k, v]) => [v, k]));
 
 /** Lo que este relevo sabe llevar. `sync.js` lo consulta ANTES de gastar una petición. */
-export const ALMACENES = ['proyectos', 'instalaciones'];
+export const ALMACENES = ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos'];
+
+/** Los del almacén: van a sus propias pestañas, en lotes, y solo a una hoja que las tenga.
+ *  `sync` los agrupa en un viaje (`agrupa`), porque una compra recibida son diez renglones del
+ *  libro y un recálculo diez líneas de la lista: de uno en uno, con el cupo de 60 peticiones por
+ *  minuto de la hoja, una tanda atrasada se quedaba sin cupo a la mitad. */
+export const DEL_ALMACEN = ['movimientos', 'materiales', 'requerimientos'];
+
+/** Desde qué versión del puente existen las pestañas del almacén. */
+export const VERSION_DEL_ALMACEN = 9;
 
 /** Lo que este relevo BAJA entero y de lo que la hoja es la única dueña: `sync.jalar` borra
  *  de estos almacenes, al cerrar un barrido completo, lo que la hoja ya no trajo. */
@@ -155,19 +171,32 @@ export const ESPEJOS = ['ventas_hoja'];
    dispositivo». Una frase armada con pegamento no concuerda en plural, y este texto lo lee
    una persona que está intentando entender por qué su cambio no salió. */
 const NO_LLEVA = {
-  movimientos:    'El libro del almacén se queda en este dispositivo hasta que exista su pestaña en la hoja.',
-  materiales:     'El catálogo de material se queda en este dispositivo hasta que exista su pestaña en la hoja.',
-  requerimientos: 'Las listas de compra se quedan en este dispositivo: se derivan de las partidas y se vuelven a calcular solas.',
   avisos:         'Los avisos se calculan al abrir la plataforma, en cada dispositivo. No viajan y no hace falta que viajen.',
   constantes:     'Las constantes del taller se quedan en este dispositivo.',
   geo:            'La caché de ubicaciones se queda en este dispositivo. Se vuelve a llenar sola.',
+};
+/* Los del almacén, contra una hoja que todavía corre un puente anterior al 9. */
+const HOJA_SIN_PESTANA = {
+  movimientos:    'El libro del almacén espera aquí: la hoja todavía corre un puente sin la pestaña «Almacén».',
+  materiales:     'El catálogo de material espera aquí: la hoja todavía corre un puente sin la pestaña «Catálogo de material».',
+  requerimientos: 'Las listas de compra esperan aquí: la hoja todavía corre un puente sin la pestaña «Listas de compra».',
 };
 
 /** El texto que Ajustes pinta al lado de lo apartado. Sale de aquí para que la pantalla no
  *  invente una lista de almacenes que este archivo podría cambiar mañana. */
 export function motivoSinDestino(almacen) {
-  return 'El puente de hoy solo lleva la venta a la hoja. ' +
+  if (HOJA_SIN_PESTANA[almacen]) {
+    return HOJA_SIN_PESTANA[almacen] + ' Se manda solo en cuanto se actualice el Apps Script de la hoja (puente-sheets-' +
+      VERSION_DEL_ALMACEN + ' o posterior). No se pierde nada.';
+  }
+  return 'El puente lleva a la hoja la venta, el almacén, el catálogo de material y las listas de compra. ' +
     (NO_LLEVA[almacen] || 'Eso se queda en este dispositivo hasta que exista su pestaña.');
+}
+
+/** El número de una versión del puente («puente-sheets-9» → 9), o 0. PURA. */
+export function numeroDeVersion(version) {
+  const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
+  return m ? Number(m[1]) : 0;
 }
 
 /* ============================================================================
@@ -469,7 +498,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-7';
+export const VERSION_ESPERADA = 'puente-sheets-9';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -480,6 +509,8 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 8 */ 'el almacén, el catálogo de material y las listas de compra no viajan: esa versión no tiene sus pestañas, y se quedan esperando en cada teléfono —sin perderse— hasta que la hoja se actualice',
+  /* 7 */ 'el QR de un PDF autorizado solo responde del total y del negocio, no de cada renglón: un PDF con los importes de las partidas cambiados pero el mismo total pasa por auténtico. Se autoriza y se verifica igual; lo que falta es que el sello firme los renglones',
   /* 6 */ 'nadie puede autorizar un precio —el cotizador ya no autoriza sin el sello de la hoja— ni solicitar autorización a dirección, y Cotizar con IA no tiene llaves: desde puente-sheets-7 viven en la hoja (⚡ AL3D → Preparar las autorizaciones selladas y ⚡ AL3D → Llaves de IA)',
   /* 5 */ 'al reacomodarse la hoja, las columnas Y a AD (folio de cotización, etapa, dirección) se quedaban en su renglón y la siguiente subida podía escribir una venta encima de otra; «Registrar un cobro» escribía LIQUIDADO en la cuenta; y un cambio contra una venta borrada creaba una fila sin nombre',
   /* 4 */ 'entrar con Google no da rol: esa versión no sabe de identidades, y un teléfono sin token de dispositivo se queda fuera',
@@ -689,14 +720,190 @@ export function crear(cfg0) {
      puede escribir solo sirve para que el Worker las devuelva rechazadas. */
   let escribibles = null;
 
+  /* Si la hoja tiene las pestañas del almacén: null mientras no se sabe, y entonces se intenta
+     (lo que sabe es la propia hoja, en su primera respuesta); true o false en cuanto un /salud
+     dice su versión, o en cuanto un camino del almacén contesta «Camino desconocido». Con false,
+     `lleva` contesta que no y `sync` aparta lo del almacén con la razón —la hoja corre un
+     puente anterior al 9— sin gastar una petición por renglón; con un /salud nuevo que diga 9 o
+     más, el siguiente bombeo lo reincorpora solo. */
+  let hojaSabeAlmacen = null;
+  let sabidoEn = 0;
+  const notarVersion = v => { if (v) { hojaSabeAlmacen = numeroDeVersion(v) >= VERSION_DEL_ALMACEN; sabidoEn = Date.now(); } };
+  /* Un «no» caduca a los diez minutos. El relevo vive lo que dura la app abierta, y la hoja se
+     puede actualizar a media mañana: sin esto, lo del almacén se quedaba apartado hasta volver a
+     abrir la app. Volver a preguntar cuesta una petición cada diez minutos, no una por renglón. */
+  const MS_VOLVER_A_PREGUNTAR = 10 * 60 * 1000;
+  const sabeAlmacen = () => {
+    if (hojaSabeAlmacen === false && Date.now() - sabidoEn > MS_VOLVER_A_PREGUNTAR) { hojaSabeAlmacen = null; escribibles = null; }
+    return hojaSabeAlmacen;
+  };
+  const noSabe = () => { hojaSabeAlmacen = false; sabidoEn = Date.now(); };
+
+  /* Lo más alto de la secuencia del almacén que trajo la última bajada, para guardarlo cuando
+     `sync` ya escribió lo que bajó (ver `despuesDeBajar`). Antes no: si la escritura local se
+     cayera a la mitad, la marca diría que esos renglones ya están aquí. */
+  let almacenPorGuardar = null;
+
   async function asegurarEscribibles() {
     if (escribibles) return escribibles;
     const r = await pedir(cfg, '/salud');
+    notarVersion(r.cuerpo.version);
     /* Solo se recuerda una lista de verdad. Un /salud que contestó 503 porque Notion está
        caído no trae `escribibles`, y cachear ese vacío dejaría a este teléfono mandando a
        ciegas el resto de la sesión: así, la siguiente subida vuelve a preguntar. */
     if (Array.isArray(r.cuerpo.escribibles)) escribibles = new Set(r.cuerpo.escribibles);
     return escribibles || new Set();
+  }
+
+  /* ── EL ALMACÉN: subir ───────────────────────────────────────────────────────────────
+     Un viaje por lote, en el orden de la bandeja, y la hoja contesta operación por operación.
+     Lo que reintentar no arregla —un rol que no escribe eso, un dato que la hoja no acepta— va
+     `definitivo` y `sync` lo aparta sin parar a los demás; lo que es de la red o del candado
+     ocupado, no: se queda en la cola y sale en el siguiente bombeo.
+
+     Lo que se manda es la operación tal como quedó en la bandeja, con dos retoques:
+       · sin `sync`, que es la marca local de «ya salió» y en la hoja no significa nada;
+       · con el folio de la venta en la hoja (`folio_hoja`, V-042) si el registro cuelga de un
+         proyecto que ya tiene fila. El `proyecto_id` es el de ESTE teléfono: en el de
+         fabricación la misma venta es otra tarjeta, con otro id, y sin el folio su lista de
+         compra no tendría cómo saber que esa línea es de su tarjeta (ver
+         `stock.recolectarDemanda`). Y a quien lee la pestaña le dice de qué venta es. */
+  const sinPestana = op => ({ id: op.id, ok: false, codigo: 'SIN_DESTINO', mensaje: motivoSinDestino(op.almacen) });
+
+  async function paraLaHoja(op) {
+    const datos = { ...(op.datos || {}) };
+    delete datos.sync;
+    let campos = Array.isArray(op.campos) ? op.campos.slice() : null;
+    const pid = datos.proyecto_id;
+    if (pid && !datos.folio_hoja) {
+      let p = null;
+      try { p = await DB.obtener('proyectos', pid); } catch (_) { p = null; }
+      const fh = p ? texto(p.notion_page_id || p.folio_hoja).trim() : '';
+      if (fh) {
+        datos.folio_hoja = fh;
+        if (campos && !campos.includes('folio_hoja')) campos.push('folio_hoja');
+      }
+    }
+    return { id: op.id, almacen: op.almacen, tipo: op.tipo, registro_id: op.registro_id, datos, campos };
+  }
+
+  async function subirAlmacen(lista) {
+    const DEFINITIVOS = ['ROL_SIN_PERMISO', 'NO_ENCONTRADO', 'DATO_INVALIDO'];
+    sabeAlmacen();   // si el «no» caducó, el /salud de abajo vuelve a preguntar la versión
+    try { await asegurarEscribibles(); } catch (e) {
+      return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
+    }
+    if (hojaSabeAlmacen === false) return lista.map(sinPestana);
+
+    const envio = [];
+    for (const op of lista) envio.push(await paraLaHoja(op));
+    let r;
+    try {
+      r = await pedir(cfg, '/empujar_almacen', { method: 'POST', body: JSON.stringify({ ops: envio }) });
+    } catch (e) {
+      return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
+    }
+    const c = r.cuerpo || {};
+    if (c.ok === false) {
+      /* «Camino desconocido»: una hoja anterior al 9 que no dijo su versión. Se aparta como si
+         la hubiera dicho —la razón es la misma— y no como rechazo: no es culpa del renglón. */
+      if (c.codigo === 'NO_ENCONTRADO') { noSabe(); return lista.map(sinPestana); }
+      return lista.map(op => ({ id: op.id, ok: false, codigo: c.codigo || 'SIN_RED',
+                                mensaje: c.mensaje || 'La hoja no pudo recibir el almacén.' }));
+    }
+    hojaSabeAlmacen = true;
+    const res = Array.isArray(c.resultados) ? c.resultados : [];
+    return lista.map(op => {
+      const x = res.find(y => y && y.id === op.id);
+      if (!x) return { id: op.id, ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja contestó sin decir qué pasó con ese cambio.' };
+      /* «Ya estaba» es éxito: es el reintento de algo que sí llegó, y es justo lo que evita que el
+         libro reste dos veces. Lo que la hoja no escribió por ser más viejo que lo que ya tiene
+         (`viejos`) tampoco es un rechazo: otro teléfono lo cambió después, y gana. */
+      if (x.ok) return { id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba };
+      return { id: op.id, ok: false, codigo: x.codigo || 'DESCONOCIDO', definitivo: DEFINITIVOS.includes(x.codigo),
+               mensaje: x.mensaje || 'La hoja rechazó el cambio.' };
+    });
+  }
+
+  /* ── EL ALMACÉN: bajar ───────────────────────────────────────────────────────────────
+     Lo que la hoja recibió después de la última secuencia que este teléfono vio. La secuencia
+     la pone la hoja bajo su candado, uno más por cada fila escrita (ver la sección del almacén
+     en el .gs), así que «lo que tenga más de N» es exactamente lo que falta, sin depender del
+     reloj de nadie.
+
+     Una vez por semana se pide todo desde cero: si algo se quedó sin bajar —una escritura local
+     que falló, una fila corregida a mano en la hoja, que no cambia la secuencia—, ahí llega.
+     Cuesta una respuesta grande por semana, y es lo que hace que un error no sea para siempre.
+
+     Del libro, cada renglón tal cual: `sync.jalar` descarta el que ya está (el libro no se
+     corrige). Del catálogo y de las listas, la fila con el sello de AHORA, porque la hoja es
+     donde se juntan los cambios de todos, campo por campo: lo que acaba de bajar es lo más nuevo
+     que hay, aunque el sello de quien lo editó sea más viejo que el de una copia de aquí. Con
+     una excepción: si este teléfono tiene un cambio de ese registro esperando en la bandeja, la
+     fila se salta esta vez. Bajarla le borraría en pantalla lo que la persona acaba de hacer;
+     cuando ese cambio suba, la hoja lo junta y la fila vuelve a bajar ya con él. */
+  const MS_SEMANA = 7 * 24 * 3600 * 1000;
+  const ID_MARCA_ALMACEN = '_almacen_hoja';
+
+  async function esperandoEnLaBandeja() {
+    const s = new Set();
+    let todas = [];
+    try { todas = await DB.listar('pendientes'); } catch (_) { todas = []; }
+    for (const o of (todas || [])) {
+      if (!o || String(o.id || '').charAt(0) === '_' || !DEL_ALMACEN.includes(o.almacen)) continue;
+      if (o.estado === 'pendiente' || o.estado === 'sin_destino' || !o.estado) s.add(o.almacen + '|' + String(o.registro_id || ''));
+    }
+    return s;
+  }
+
+  async function bajarAlmacen() {
+    let marca = null;
+    try { marca = await DB.obtener('pendientes', ID_MARCA_ALMACEN); } catch (_) { marca = null; }
+    const completoEn = (marca && Number(marca.completo_en)) || 0;
+    /* Una vuelta entera que no cupo en las veinte páginas sigue donde se quedó (`barriendo`):
+       volver a cero cada vez no la terminaría nunca. */
+    const siguiendo = !!(marca && marca.barriendo);
+    const entera = siguiendo || !completoEn || Date.now() - completoEn > MS_SEMANA;
+    let desde = (entera && !siguiendo) ? 0 : ((marca && Number(marca.desde)) || 0);
+    const esperando = await esperandoEnLaBandeja();
+    const out = [];
+    let alguna = false, terminada = false;
+    /* Veinte páginas de 1500 como tope: un teléfono nuevo contra años de libro. Lo que no
+       alcance, sigue en la bajada siguiente desde donde se quedó. */
+    for (let vuelta = 0; vuelta < 20; vuelta++) {
+      let r;
+      try { r = await pedir(cfg, '/jalar_almacen', { method: 'POST', body: JSON.stringify({ desde }) }); }
+      catch (_) { break; }
+      const c = r.cuerpo || {};
+      if (c.ok !== true) { if (c.codigo === 'NO_ENCONTRADO') noSabe(); break; }
+      alguna = true;
+      hojaSabeAlmacen = true;
+      for (const x of (Array.isArray(c.registros) ? c.registros : [])) {
+        const alm = x && String(x.almacen || '');
+        const d = x && x.datos;
+        if (!DEL_ALMACEN.includes(alm) || !d || typeof d !== 'object' || !d.id) continue;
+        if (alm === 'movimientos') { out.push({ almacen: alm, datos: d }); continue; }
+        if (esperando.has(alm + '|' + String(d.id))) continue;
+        out.push({ almacen: alm, datos: { ...d, actualizado_en: Date.now() } });
+      }
+      const hasta = Number(c.hasta);
+      if (isFinite(hasta) && hasta > desde) desde = hasta;
+      if (!c.hay_mas) { terminada = true; break; }
+    }
+    if (alguna) {
+      almacenPorGuardar = { desde, completo_en: (entera && terminada) ? Date.now() : completoEn,
+                            barriendo: entera && !terminada };
+    }
+    return out;
+  }
+
+  async function guardarMarcaAlmacen(m) {
+    /* En la bandeja y con id de guion bajo, como las marcas de `sync`: muere con ella. Si alguien
+       borra la base, la marca se va también y la primera bajada pide todo desde cero. */
+    try {
+      await DB.poner('pendientes', { id: ID_MARCA_ALMACEN, ts: 0, desde: m.desde, completo_en: m.completo_en,
+                                     barriendo: !!m.barriendo });
+    } catch (_) {}
   }
 
   /** Quita del paquete lo que este rol no puede escribir. Lo quitado se NOMBRA. */
@@ -748,8 +955,14 @@ export function crear(cfg0) {
   return {
     nombre: 'hoja',
 
-    /** Los almacenes que este relevo sabe llevar. `sync.js` aparta el resto sin gastar red. */
-    lleva(almacen) { return ALMACENES.includes(almacen); },
+    /** Los almacenes que este relevo sabe llevar. `sync.js` aparta el resto sin gastar red. Los
+     *  del almacén, mientras no se sepa que la hoja NO tiene sus pestañas. */
+    lleva(almacen) {
+      if (!ALMACENES.includes(almacen)) return false;
+      return !DEL_ALMACEN.includes(almacen) || sabeAlmacen() !== false;
+    },
+    /** Los que `sync` puede mandar juntos en un viaje (en su orden, hasta 25). */
+    agrupa(almacen) { return DEL_ALMACEN.includes(almacen); },
     motivo: motivoSinDestino,
     /** Los que baja enteros: `sync.jalar` borra lo que la hoja dejó de traer. */
     espejos: ESPEJOS.slice(),
@@ -758,6 +971,7 @@ export function crear(cfg0) {
       try {
         const r = await pedir(cfg, '/salud');
         if (Array.isArray(r.cuerpo.escribibles)) escribibles = new Set(r.cuerpo.escribibles);
+        if (r.cuerpo.ok === true) notarVersion(r.cuerpo.version);
         /* `ok === true` y no «distinto de false»: un JSON cualquiera sin `ok` no es el puente. */
         if (r.cuerpo.ok !== true) {
           /* El `codigo` viaja. Sin él, la puerta no puede distinguir «tu correo no está en la
@@ -818,6 +1032,8 @@ export function crear(cfg0) {
      */
     async subir(ops) {
       const lista = Array.isArray(ops) ? ops : [];
+      /* Un lote del almacén (`sync` los arma con `agrupa`) va entero a su camino. */
+      if (lista.length && lista.every(op => op && DEL_ALMACEN.includes(op.almacen))) return subirAlmacen(lista);
       const salida = [];
 
       let permitidas;
@@ -839,6 +1055,13 @@ export function crear(cfg0) {
       let refrescada = false;
 
       for (const op of lista) {
+        /* Uno del almacén suelto entre cambios de la venta: por su camino, y en su lugar. */
+        if (op && DEL_ALMACEN.includes(op.almacen)) {
+          const [x] = await subirAlmacen([op]);
+          salida.push(x);
+          if (x.codigo === 'SIN_RED') break;
+          continue;
+        }
         if (!this.lleva(op.almacen)) {
           salida.push({ id: op.id, ok: false, codigo: 'SIN_DESTINO', mensaje: motivoSinDestino(op.almacen) });
           continue;
@@ -1192,6 +1415,14 @@ export function crear(cfg0) {
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
       }
 
+      /* 3. El almacén, el catálogo y las listas de compra, de sus pestañas (puente-sheets-9).
+         Después de la venta y en su propio try: si la hoja no los tiene o no contesta, lo de la
+         venta ya bajó igual, y la marca del almacén no se mueve. Solo en la última página de la
+         venta, que hoy es la única. */
+      if (!r.cuerpo.hay_mas && sabeAlmacen() !== false) {
+        try { for (const x of await bajarAlmacen()) registros.push(x); } catch (_) { /* la venta ya bajó */ }
+      }
+
       return { registros, cursor: r.cuerpo.cursor || null, hay_mas: !!r.cuerpo.hay_mas };
     },
 
@@ -1210,7 +1441,13 @@ export function crear(cfg0) {
      * todavía no mandan `motivo`); si la bajada lo confirma, lo decide `revisarContraLaHoja`.
      */
     async despuesDeBajar(info) {
-      const ids = (info && info.vistos && Array.isArray(info.vistos.ventas_hoja)) ? info.vistos.ventas_hoja : [];
+      /* Lo del almacén ya está escrito: ahora sí se guarda hasta dónde se vio. */
+      if (almacenPorGuardar) {
+        const m = almacenPorGuardar;
+        almacenPorGuardar = null;
+        await guardarMarcaAlmacen(m);
+      }
+      const ids =(info && info.vistos && Array.isArray(info.vistos.ventas_hoja)) ? info.vistos.ventas_hoja : [];
       const folios = new Set(ids.map(String).filter(x => x.startsWith('hoja:')).map(x => x.slice(5)));
       const rebotes = [];
       for (const o of (info && Array.isArray(info.rechazadas) ? info.rechazadas : [])) {

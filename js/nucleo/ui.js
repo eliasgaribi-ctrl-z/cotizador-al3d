@@ -340,15 +340,23 @@ export function repintarEnSitio(capa, html) {
    siguiente», una pestaña de Material o de Control—, y el botón enfocado deja de existir: quien
    navega con teclado caía al <body>, al principio del documento. Esto envuelve un manejador:
    recuerda los atributos data-* del control enfocado dentro del contenedor y, si después del
-   repintado el foco se perdió, lo devuelve al control equivalente. */
+   repintado el foco se perdió, lo devuelve al control equivalente.
+   Solo cuando la acción vino del teclado (una tecla, o el clic que dispara Enter/Espacio, que
+   llega con detail 0): con el ratón el foco no se ve, y devolverlo a un control que no es el
+   que se tocó deja un Enter posterior apuntando a otra cosa. Si el control trae data-clave, es
+   su identidad estable y se busca solo por ella (el data-acc del Tablero es una posición en la
+   lista y cambia de dueño al repintar). */
 export function conservandoFoco(fn, contFijo) {
   return async function (ev) {
     const cont = contFijo || ev.currentTarget;
     const a = document.activeElement;
+    const teclado = !!ev && ev.detail === 0;
     const at = a && cont && cont.contains && cont.contains(a)
-      ? Array.from(a.attributes).filter(x => x.name.startsWith('data-')) : null;
+      ? (a.hasAttribute('data-clave') ? [a.getAttributeNode('data-clave')]
+                                      : Array.from(a.attributes).filter(x => x.name.startsWith('data-')))
+      : null;
     await fn.call(this, ev);
-    if (!at || !at.length || a.isConnected) return;
+    if (!teclado || !at || !at.length || a.isConnected) return;
     if (document.activeElement && document.activeElement !== document.body) return;   // otro lo tomó
     let b = null;
     try { b = cont.querySelector(at.map(x => '[' + x.name + '="' + CSS.escape(x.value) + '"]').join('')); } catch (_) {}

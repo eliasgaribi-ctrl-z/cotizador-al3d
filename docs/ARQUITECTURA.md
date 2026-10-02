@@ -26,7 +26,7 @@ Gana **notion-verdad**: Notion sigue siendo el sistema de registro de los proyec
 
 - **Conserva su calendario y sus siete vistas.** No se tocan. La vista de calendario por `Fecha Anticipo e Instalacion` se queda como está.
 - **Es el destino de escritura de la venta ganada** (Fase 3): una fila en `Ventas - AL3D` de la copia **(A) ELIAS**, `collection://56fa21d8-8e7d-4e16-b874-455fd6c65643`, respetando los nombres literales con **espacio final incluido**: `Precio Neto ` y `Cuenta `.
-- **Es el relevo de sincronización multidispositivo** (Fase 3): dos bases nuevas, `Movimientos - AL3D` y `Materiales - AL3D`, que la plataforma usa como buzón compartido. No hace falta ninguna otra pieza de infraestructura.
+- **Es el relevo de sincronización multidispositivo** (Fase 3): dos bases nuevas, `Movimientos - AL3D` y `Materiales - AL3D`, que la plataforma usa como buzón compartido. No hace falta ninguna otra pieza de infraestructura. *(Con la hoja en lugar de Notion, ese buzón son tres pestañas de la propia hoja —«Almacén», «Catálogo de material» y «Listas de compra»— desde `puente-sheets-9`; ver §5.13.)*
 - **Nunca es fuente de lectura de una pantalla.** Ninguna vista de la plataforma espera un `fetch` a Notion. Si el puente está caído, la plataforma funciona idéntica con el espejo local y el botón *Copiar fila para Google Sheets* —que ya está en producción— sigue siendo el camino manual. **Ese camino no se retira jamás.**
 - Las copias **(B) OMAR** y **(C) CLAUDE** son archivo muerto. De (B) se hereda únicamente el vocabulario (`Tipo de proyecto` de 7 valores, `Tiempo de entrega` 1–4 semanas), y se hereda porque ahora se **deriva** en vez de capturarse.
 
@@ -105,11 +105,15 @@ para enchufarlo.
 **Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
 `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
 cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
-`puente-sheets-7` (la 6 más el notario —autorizar se sella en la hoja— y la IA por el puente);
-«Probar» compara la que contesta la hoja con la que la plataforma espera y
-avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
-`instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se
-aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5.13.
+`puente-sheets-9` (la 6 más el notario —autorizar se sella en la hoja— y la IA por el puente,
+que entraron en la 7; el sello que firma también cada renglón del PDF, que entró en la 8; y el
+almacén —movimientos, catálogo de material y listas de compra con pestaña propia en la hoja—, que
+entró en la 9); «Probar» compara la que contesta la hoja con la que la plataforma espera y avisa
+si la hoja se quedó atrás. El relevo lleva `proyectos`, `instalaciones`, `movimientos`,
+`materiales` y `requerimientos`, **no los doce almacenes**: los avisos, las constantes del taller
+y la caché de ubicaciones se quedan en cada dispositivo, apartados en la bandeja con su razón.
+Contra una hoja que todavía corre la 8 o una anterior, lo del almacén se aparta igual y se
+reincorpora solo el día que la hoja se actualice. Ver §5.13.
 
 ---
 
@@ -762,13 +766,19 @@ export function deNotion(fila): Object|null                   // -> parche de es
 export function ventaDeHoja(fila): Object|null                // -> renglón de `ventas_hoja`, o null si la fila está vacía
 
 export function instrucciones(): {titulo, minutos, pasos:string[], notas:string[]}
-export const ALMACENES = ['proyectos', 'instalaciones']       // lo que LLEVA
+export const ALMACENES = ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos']  // lo que LLEVA
+export const DEL_ALMACEN = ['movimientos', 'materiales', 'requerimientos']   // a sus pestañas, en lotes, desde puente-sheets-9
 export const ESPEJOS = ['ventas_hoja']                        // lo que BAJA entero; sync borra lo que la hoja ya no trae
 ```
 
 Cinco decisiones, y ninguna es de estilo:
 
-1. **Lleva `proyectos` e `instalaciones`, y lo dice.** El adaptador expone `lleva(almacen)`, `sync.bombear` pregunta ANTES de gastar una petición, y lo que no lleva se aparta con `estado:'sin_destino'` y la razón escrita. Ni se descarta —perdería el día que exista la base— ni se cuenta como pendiente —daría un contador que nunca baja—. `sync.sinDestino()` lo cuenta aparte y el primer bombeo de un relevo que sí lo lleve lo reincorpora solo.
+1. **Lleva la venta y el almacén, y lo dice.** El adaptador expone `lleva(almacen)`, `sync.bombear` pregunta ANTES de gastar una petición, y lo que no lleva se aparta con `estado:'sin_destino'` y la razón escrita. Ni se descarta —perdería el día que exista la base— ni se cuenta como pendiente —daría un contador que nunca baja—. `sync.sinDestino()` lo cuenta aparte y el primer bombeo de un relevo que sí lo lleve lo reincorpora solo. Así llegó el almacén: hasta la 8 se apartaba, y contra una hoja en la 9 vuelve solo, en su orden.
+   - **Las tres pestañas del almacén** («Almacén», «Catálogo de material», «Listas de compra») las crea el Apps Script si faltan, con cabeceras descritas como las columnas de `/esquema` (`{campo, nombre, tipo, para}`) y buscadas por nombre, no por posición. Viajan por `/empujar_almacen` (hasta 25 operaciones por viaje, bajo el candado: `sync` las agrupa con `agrupa(almacen)` porque una compra recibida son diez renglones y el cupo de la hoja es de 60 peticiones por minuto) y `/jalar_almacen` (lo recibido después de una **secuencia** que la hoja numera bajo el candado; el teléfono guarda la más alta que vio y una vez por semana pide todo).
+   - **El libro no se descuenta dos veces.** La hoja busca el id antes de escribir y contesta «ya estaba» a un reintento; `sync.jalar` descarta un id que ya tiene; y la salida que deriva el corte lleva un id que sale del requerimiento (`mov-salida:<proyecto>:<material>`), así que dos teléfonos que cortan el mismo proyecto emiten el mismo renglón.
+   - **El catálogo y las listas van campo por campo** (`campos` en la operación) y la hoja guarda el sello de cada campo: un cambio atrasado no pisa uno nuevo, y un requerimiento `consumido` no vuelve a `calculado`. Lo que baja de esas dos pestañas gana en el teléfono —la hoja es donde se juntan los cambios de todos—, salvo el registro que tiene un cambio esperando en la bandeja.
+   - **Roles.** Dirección todo; fabricación mueve el almacén, edita el catálogo y corrige las listas, sin escribir ni recibir costos; pagos no mueve el almacén: solo entra lo que la plataforma deriva sola (la salida `derivado` y el requerimiento que pasa a `consumido`), la misma regla que `stock.permiso`.
+   - **La línea de otro teléfono.** El `proyecto_id` de un requerimiento es el del teléfono que lo calculó; en otro, la misma venta es otra tarjeta. El relevo le pone al subirlo el folio de la venta en la hoja (`folio_hoja`) y `stock.recolectarDemanda` lo ata por ahí, sin pedir dos veces la misma demanda.
 2. **No viaja `esperado`.** Un PATCH de Notion es por propiedad, no por fila, y este relevo escribe solo propiedades que nadie teclea a mano allá. El control de concurrencia protegería contra un choque que no puede ocurrir, a cambio de un GET por operación y de un campo nuevo en el modelo congelado de §4.4. Las excepciones son `Estatus` y `Cuenta `, que las manda PAGOS apretando un botón: ahí gana el último, que es lo que quiso decir.
 3. **`bajar()` no crea proyectos, pero sí guarda el récord entero.** La hoja arrastra 199 filas anteriores a la plataforma, sin partidas y sin material: convertirlas en proyectos llenaría el tablero de obra de trabajos que nadie puede fabricar, así que el parche del dinero solo cae sobre la fila que ya tiene proyecto de este lado, atada por `Folio cotizacion`. Pero **cada fila** baja además como renglón de `ventas_hoja` (`ventaDeHoja`), que es de donde Control saca «cuánto vendimos»: hasta septiembre de 2026 esas filas se miraban y se descartaban, y el récord de vendidas era el de ese teléfono. `sync.jalar` anota qué ids vio en cada barrido completo y al cerrarlo borra del espejo lo que la hoja ya no trajo; lo que no cambió no se reescribe.
 4. **El espejo gana el empate.** `sync.fusionar` deja ganar al más nuevo y el registro local se toca cada vez que alguien mueve la etapa, así que `bajar()` iguala el sello al local. Sin eso, un `pago_pendiente` recién bajado perdería contra el `null` local porque alguien avanzó la obra hace un rato, y la cobranza se quedaría vacía para siempre. De esos campos la dueña es Notion por definición (§4.0).

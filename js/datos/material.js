@@ -43,16 +43,33 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 async function modSync()  { try { return await import('./sync.js');  } catch (_) { return null; } }
 async function modStock() { try { return await import('./stock.js'); } catch (_) { return null; } }
 
-async function encolar(tipo, almacen, registro) {
+/* `campos` dice qué cambió, como en `proyectos.actualizar`: la hoja escribe solo ésos
+   (puente-sheets-9, «Catálogo de material» y «Listas de compra»). Sin eso, el teléfono que
+   guarda el proveedor de un material le regresaba a la hoja el mínimo de almacén que tenía
+   guardado, y pisaba el que fabricación acababa de corregir en el suyo. null es «todo»: un alta. */
+async function encolar(tipo, almacen, registro, campos) {
   const S = await modSync();
   if (!S || typeof S.encolar !== 'function') return;
   try {
     await S.encolar({
       id: DB.nuevoId('op'), tipo, almacen,
       registro_id: registro[almacen === 'constantes' ? 'clave' : 'id'],
-      datos: registro, esperado: null, ts: Date.now(), intentos: 0, ultimo_error: '',
+      datos: registro, campos: Array.isArray(campos) ? campos : null,
+      esperado: null, ts: Date.now(), intentos: 0, ultimo_error: '',
     });
   } catch (_) { /* la escritura local ya está; la cola se recupera en el próximo bombeo */ }
+}
+
+/* Los campos en que `nuevo` difiere de `previo`, sin los sellos ni la marca local. PURA. */
+const NO_CUENTAN = new Set(['sync', 'actualizado_en', 'creado_en']);
+export function camposQueCambiaron(previo, nuevo) {
+  const a = previo || {}, b = nuevo || {};
+  const out = [];
+  for (const k of Object.keys(b)) {
+    if (NO_CUENTAN.has(k)) continue;
+    if (JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k])) out.push(k);
+  }
+  return out;
 }
 
 /* La bitácora: quién cambió el catálogo o una constante. Después de escribir y en un try. */
@@ -298,9 +315,12 @@ export async function guardarMaterial(mat) {
     sync: 0,
   };
   const previo = await DB.obtener('materiales', id);
+  /* Guardar sin cambiar nada no sube nada: la hoja no tiene nada que escribir. */
+  const cambiaron = previo ? camposQueCambiaron(previo, fila) : null;
   const r = await DB.poner('materiales', fila);
   if (r.ok) {
-    await encolar('actualizar', 'materiales', r.valor);
+    if (!previo) await encolar('crear', 'materiales', r.valor, null);
+    else if (cambiaron.length) await encolar('actualizar', 'materiales', r.valor, cambiaron);
     /* Lo que cambió, campo por campo, para que «alguien tocó el factor de la lámina» se
        pueda leer con el número de antes y el de después. */
     const dif = [];
@@ -505,7 +525,11 @@ export async function sembrar() {
     }));
 
   if (nuevosMat.length) {
-    const r = await DB.ponerVarios('materiales', nuevosMat);
+    /* Con el sello más viejo posible, y a propósito: lo sembrado no lo editó nadie. Sellado con
+       «ahora», el teléfono que se siembra HOY tenía el catálogo «más nuevo» que la corrección
+       que dirección hizo ayer en el suyo y que ya bajó de la hoja (puente-sheets-9), y
+       `sync.fusionar` se quedaba con la semilla. Con 1, cualquier edición de verdad gana. */
+    const r = await DB.ponerVarios('materiales', nuevosMat.map(m => ({ ...m, actualizado_en: 1 })), { conservarSello: true });
     if (!r.ok) return r;
   }
   if (nuevasCte.length) {
@@ -1080,7 +1104,16 @@ export async function recalcular(proyectoId) {
   if (escribir.length) {
     const r = await DB.ponerVarios('requerimientos', escribir);
     if (!r.ok) return r;
-    for (const reg of escribir) await encolar('actualizar', 'requerimientos', reg);
+    /* Solo sube lo que cambió, y de cada línea solo sus campos cambiados. Un recálculo vuelve a
+       escribir todas las líneas aunque las partidas sean las mismas; subirlas enteras
+       regresaba a la hoja una `cantidad_ajustada` vacía encima de la corrección que fabricación
+       acababa de hacer en su teléfono, y la lista de compra volvía a pedir lo de la fórmula. */
+    for (const reg of escribir) {
+      const a = antes.get(reg.id);
+      if (!a) { await encolar('crear', 'requerimientos', reg, null); continue; }
+      const cambiaron = camposQueCambiaron(a, reg);
+      if (cambiaron.length) await encolar('actualizar', 'requerimientos', reg, cambiaron);
+    }
   }
 
   return ok({ lineas: d.lineas, preservadas, sinMaterial: d.sinMaterial, avisos: d.avisos });
@@ -1123,7 +1156,8 @@ export async function ajustar(reqId, cantidadReal, motivo) {
   };
   const r = await DB.poner('requerimientos', fila);
   if (!r.ok) return r;
-  await encolar('actualizar', 'requerimientos', r.valor);
+  await encolar('actualizar', 'requerimientos', r.valor,
+    ['cantidad_ajustada', 'motivo_ajuste', 'ajustado_por', 'ajustado_en']);
 
   let movimiento = null;
   if (req.estado === 'consumido' && Math.abs(dif) > 1e-9) {

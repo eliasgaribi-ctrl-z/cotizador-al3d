@@ -250,8 +250,12 @@ console.log('\n5. EL FOLIO DE OTRO TELÉFONO VIAJA AL onclick COMO LITERAL DE JS
 
 console.log('\n6. EL PROYECTO TAMBIÉN SE FIRMÓ: CAMBIARLO APAGA EL QR');
 {
-  const ctx = vm.createContext({ Q: {}, authVigente: () => true, Math, Number, String });
-  vm.runInContext(fuente(COT.entrega, 'selloImprimible') + fuente(COT.entrega, 'selloDeOtroProyecto'), ctx);
+  /* renglonesDelPapel se sustituye: aquí se prueba la decisión del QR, y que los renglones se
+     armen igual que en la hoja lo comprueba pruebas/precio-servidor.mjs. */
+  const ctx = vm.createContext({ Q: {}, authVigente: () => true, Math, Number, String, JSON, Array,
+    renglonesDelPapel: () => ctx.papel });
+  vm.runInContext(fuente(COT.entrega, 'selloImprimible') + fuente(COT.entrega, 'selloDeOtroProyecto')
+    + fuente(COT.entrega, 'selloDeOtrosRenglones'), ctx);
   ctx.Q = { estado: 'autorizada', proy: 'Farmacia Luz ', sello: { codigo: 'C', folio: 'F', total: 100, proyecto: 'Farmacia Luz' } };
   cierto('mismo proyecto (sin contar espacios de los lados): el QR se imprime', vm.runInContext('selloImprimible(100)', ctx));
   ctx.Q.proy = 'Farmacia Sol';
@@ -260,6 +264,23 @@ console.log('\n6. EL PROYECTO TAMBIÉN SE FIRMÓ: CAMBIARLO APAGA EL QR');
   cierto('un sello de antes de guardar el proyecto se imprime como siempre', vm.runInContext('selloImprimible(100)', ctx));
   cierto('aplicarSello guarda el proyecto en Q.sello', /Q\.sello=\{[^}]*proyecto\}/.test(COT.notario));
   cierto('generarPDF avisa por qué sale sin QR', /selloDeOtroProyecto\(\)\)\{\s*\n\s*toast\('Este PDF sale sin el código de verificación/.test(COT.entrega));
+
+  /* Y los renglones, desde puente-sheets-8: verificar.html los enseña con «si alguno no
+     coincide, el PDF fue alterado», así que el QR no puede salir sobre unos que ya no son. */
+  ctx.Q.proy = 'Farmacia Luz';
+  ctx.Q.sello.renglones = [{ descripcion: 'Letras LUZ', cantidad: 3, importe: 100 }];
+  ctx.papel = [{ descripcion: 'Letras LUZ', cantidad: 3, importe: 100.001 }];
+  cierto('los mismos renglones (al centavo): el QR se imprime', vm.runInContext('selloImprimible(100)', ctx));
+  ctx.papel = [{ descripcion: 'Letras LUZ en acero', cantidad: 3, importe: 100 }];
+  eq('una descripción que cambió después de sellar: sin QR', vm.runInContext('selloImprimible(100)', ctx), null);
+  ctx.papel = [{ descripcion: 'Letras LUZ', cantidad: 3, importe: 100 }, { descripcion: 'Otra', cantidad: 1, importe: 0 }];
+  eq('una partida de más: sin QR', vm.runInContext('selloImprimible(100)', ctx), null);
+  delete ctx.Q.sello.renglones;
+  cierto('un sello sin renglones —de una hoja anterior a la 8— se imprime como siempre', vm.runInContext('selloImprimible(100)', ctx));
+  cierto('generarPDF avisa también por qué sale sin QR', /selloDeOtrosRenglones\(\)\)\{\s*\n\s*toast\('Este PDF sale sin el código de verificación/.test(COT.entrega));
+  cierto('aplicarSello guarda los renglones que firmó la hoja', /Q\.sello\.renglones=sello\.renglones\.map/.test(COT.notario));
+  cierto('la frase del PDF promete los renglones solo si el sello los trae',
+         /Array\.isArray\(s\.renglones\)\?'el total, el negocio o algún renglón':'el total o el negocio'/.test(COT.entrega));
 }
 
 console.log('\n7. EL RESPALDO SE REVISA ANTES DE PINTAR NADA');

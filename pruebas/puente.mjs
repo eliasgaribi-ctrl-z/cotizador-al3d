@@ -351,10 +351,22 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 7', VERSION_ESPERADA, 'puente-sheets-7');
+  eq('la plataforma espera la 9', VERSION_ESPERADA, 'puente-sheets-9');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
+  eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);
+  /* A la 7 solo le falta que el sello firme los renglones: se autoriza y se verifica igual, y el
+     aviso no puede asustar con «nadie puede autorizar», que es lo de la 6. */
+  const a7 = avisoVersion('puente-sheets-7');
+  cierto('a la 7 le dice que el QR no responde de cada renglón', /renglón/.test(a7));
+  cierto('  y no que no se puede autorizar, que la 7 ya arregló', !/nadie puede autorizar/.test(a7));
+  eq('y la 8, que no tiene las pestañas del almacén', versionVieja('puente-sheets-8'), true);
+  const a8 = avisoVersion('puente-sheets-8');
+  cierto('a la 8 le dice que el almacén, el catálogo y las listas de compra no viajan', /almacén/.test(a8) && /listas de compra/.test(a8));
+  cierto('  y no le repite lo de los renglones, que la 8 ya firma', !/renglón/.test(a8));
+  cierto('a la 7, lo de los renglones y también lo del almacén', /renglón/.test(a7) && /almacén/.test(a7));
   const a6 = avisoVersion('puente-sheets-6');
+  cierto('a la 6 le dice también lo de los renglones', /renglón/.test(a6));
   cierto('a la 6 le dice que no se puede autorizar ni cotizar con IA', /autorizar/.test(a6) && /IA/.test(a6));
   cierto('y no le repite lo de Y a AD, que la 6 ya arregló', !/Y a AD/.test(a6));
   const a5 = avisoVersion('puente-sheets-5'), a4 = avisoVersion('puente-sheets-4'), a3 = avisoVersion('puente-sheets-3');
@@ -365,7 +377,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
   cierto('a la 3, lo del saldo, y lo de las que vienen después', /al revés/.test(a3) && /Google/.test(a3) && /Y a AD/.test(a3));
   /* Y ya no manda a pegar el .gs del repo encima sin mirar: el README dice que la copia
      que manda es la de la hoja, y que se compara antes. */
-  cierto('los cuatro mandan a comparar antes de pegar', [a3, a4, a5, a6].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
+  cierto('los seis mandan a comparar antes de pegar', [a3, a4, a5, a6, a7, a8].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
 }
 
 console.log('\nEL FOLIO DE COTIZACIÓN SOLO VIAJA SI LO HAY (defecto 4)');
@@ -504,8 +516,9 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
   cierto('las notas explican dónde está la puerta: Google, y el token de reserva',
     ins.notas.some(n => /token/i.test(n) && /p(ú|u)blica|puerta/i.test(n) && /Google/.test(n)));
 
-  eq('el relevo de hoy lleva la venta y su instalación, y nada más',
-     ALMACENES, ['proyectos', 'instalaciones']);
+  /* Desde puente-sheets-8 también el almacén; los avisos, las constantes y la caché no. */
+  eq('el relevo lleva la venta, su instalación y el almacén, y nada más',
+     ALMACENES, ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos']);
 }
 
 console.log('\nLA FILA QUE YA NO ESTÁ: cuál NO_ENCONTRADO es cuál');

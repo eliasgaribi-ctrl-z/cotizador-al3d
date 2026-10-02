@@ -35,6 +35,7 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { fileURLToPath } from 'node:url';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const CAP = process.env.CAPTURAS || join(tmpdir(), 'cot-entrega-capturas');
 mkdirSync(CAP, { recursive: true });
@@ -87,7 +88,7 @@ async function ronda(R, indice) {
   const H = 740;
   const ctx = await nav.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     locale: 'es-MX', timezoneId: 'America/Mexico_City', serviceWorkers: 'block', reducedMotion: red ? 'reduce' : 'no-preference' });
-  await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });
+  await ctx.addInitScript({ path: fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url)) });
   await ctx.addInitScript(t => { try { localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: B }).catch(() => {});
   /* El puente de mentiras: cuenta las peticiones y contesta lo que se le diga, con la demora que

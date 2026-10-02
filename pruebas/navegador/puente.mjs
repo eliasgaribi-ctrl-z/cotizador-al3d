@@ -169,7 +169,7 @@ console.log('\nservidor y puente de mentiras en ' + B);
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const ctx = await nav.newContext({ viewport: { width: 430, height: 932 }, isMobile: true,
   hasTouch: true, locale: 'es-MX', timezoneId: 'America/Mexico_City', serviceWorkers: 'allow' });
-await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
+await ctx.addInitScript({ path: fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url)) });   // el notario, de mentiras
 
 /* Se siembra la configuración, no la venta. La venta se captura con clics: si se sembrara,
    la prueba diría que el puente funciona con un dato que nadie tecleó nunca. */
@@ -259,7 +259,9 @@ if (!RECIBIDO.empujar.length) {
 
   console.log('\n  — lo que manda el cotizador al registrar la venta —');
   dCot['Proyecto'] ? bien('lleva el nombre: «' + dCot['Proyecto'] + '»') : mal('sin nombre: sería una fila en blanco en el libro del dinero');
-  /^COT-\d+@/.test(dCot['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + dCot['Folio cotizacion'])
+  /* La letra del teléfono (COT-0042-B, desde octubre de 2026) es opcional: los folios de antes
+     no la llevan y siguen viajando. */
+  /^COT-\d+(-[A-Z])?@/.test(dCot['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + dCot['Folio cotizacion'])
     : mal('sin folio global: nada ataría la fila al cotizador, y la plataforma crearía una segunda');
   dCot['Precio Subtotal'] > 0 ? bien('lleva el subtotal, que es de lo que cuelgan el neto y la comisión')
     : mal('sin subtotal: la hoja no podría calcular nada');
@@ -440,7 +442,9 @@ apart.pendientes === 0 ? bien('y deja de contarse como «pendiente de mandar», 
 /* La derivación de material ya había encolado lo suyo: son varios y todos se apartan. */
 apart.apartadas >= 1 ? bien('se apartaron ' + apart.apartadas + ' en total (el almacén y las listas de compra que derivó la venta)')
                      : mal('no se apartó nada');
-apart.motivo && /libro del almacén se queda/.test(apart.motivo)
+/* Este puente de mentiras contesta una versión sin número («falso-1»): para el relevo es una hoja
+   anterior a puente-sheets-8, sin la pestaña «Almacén», y la razón lo dice. */
+apart.motivo && /libro del almacén espera aquí/.test(apart.motivo) && /«Almacén»/.test(apart.motivo)
   ? bien('con la razón escrita, y en su idioma: «' + apart.motivo + '»')
   : mal('sin razón, o mal escrita: «' + apart.motivo + '»');
 apart.frases.every(t => !/(compra|listas) se queda /.test(t))

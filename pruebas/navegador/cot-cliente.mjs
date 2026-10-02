@@ -39,10 +39,11 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { fileURLToPath } from 'node:url';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const CAP = process.env.CAPTURAS || join(tmpdir(), 'cot-cliente-capturas');
 mkdirSync(CAP, { recursive: true });
-const HOJA = decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname);
+const HOJA = fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url));
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
@@ -406,7 +407,11 @@ async function ronda(R, indice) {
     const folio = () => ev(() => ({ sr: document.querySelector('#folio .folio-sr').textContent, cel: document.querySelector('#folio .fcs').textContent, dato: document.getElementById('folio').dataset.folio,
       oculto: document.querySelector('#folio .fcs').getAttribute('aria-hidden') }));
     const f0 = await folio();
-    cierto(f0.sr === f0.cel && f0.oculto === 'true' && /^COT-\d{4}$/.test(f0.sr), 'las casillas van aria-hidden y el folio entero va en su texto para el lector: «' + f0.sr + '»', JSON.stringify(f0));
+    /* Desde octubre de 2026 el folio lleva la letra del teléfono (COT-0001-B). Los folios que esta
+       sección escribe a mano la llevan también, para que cambien los mismos dígitos de siempre. */
+    const L = f0.sr.slice(8);
+    await ev(L => { window.__L = L; }, L);
+    cierto(f0.sr === f0.cel && f0.oculto === 'true' && /^COT-\d{4}(-[A-Z])?$/.test(f0.sr), 'las casillas van aria-hidden y el folio entero va en su texto para el lector: «' + f0.sr + '»', JSON.stringify(f0));
     cierto((await voltean()) === 0, 'al arrancar no voltea nada: no había folio antes');
     await ev(() => pintarFolio()); await ev(() => pintarFolio());
     cierto((await voltean()) === 0, 'repintar el mismo folio no mueve nada (pintarFolio corre en cada guardado fallido)');
@@ -414,10 +419,10 @@ async function ronda(R, indice) {
     const w = await ev(() => { const f = document.querySelector('#folio .fcs'), t = document.createElement('span'); t.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'; const cs = getComputedStyle(f); t.style.fontFamily = cs.fontFamily; t.style.fontSize = cs.fontSize; t.style.fontWeight = cs.fontWeight; t.style.fontVariantNumeric = 'tabular-nums'; t.textContent = document.getElementById('folio').dataset.folio; document.body.append(t); const r = { a: f.getBoundingClientRect().width, b: t.getBoundingClientRect().width }; t.remove(); return r; });
     cierto(Math.abs(w.a - w.b) <= 3, 'las casillas no ensanchan la píldora: ' + w.a.toFixed(1) + ' px contra ' + w.b.toFixed(1) + ' px del texto corrido', JSON.stringify(w));
     /* Dos caracteres cambian. */
-    await ev(() => { Q.folio = 'COT-0042'; pintarFolio(); });
+    await ev(() => { Q.folio = 'COT-0042' + window.__L; pintarFolio(); });
     await p.waitForTimeout(40);
     const n1 = await voltean();
-    if (red) cierto(n1 === 0 && (await folio()).cel === 'COT-0042', 'con menos movimiento el número cambia en seco', JSON.stringify(await folio()));
+    if (red) cierto(n1 === 0 && (await folio()).cel === 'COT-0042' + L, 'con menos movimiento el número cambia en seco', JSON.stringify(await folio()));
     else {
       cierto(n1 === 2, 'de 0001 a 0042 voltean EXACTAMENTE los dos que cambiaron (' + n1 + ')');
       const ya = await ev(() => [...document.querySelectorAll('#folio .fc')].map(c => c.textContent).join(''));
@@ -425,18 +430,18 @@ async function ronda(R, indice) {
       await s.captura('06-folio-volteando');
       await p.waitForTimeout(900);
       const f1 = await folio();
-      cierto(f1.cel === 'COT-0042' && f1.sr === 'COT-0042' && (await voltean()) === 0, 'al terminar dice COT-0042 y no queda nada animándose', JSON.stringify(f1));
-      await ev(() => { Q.folio = 'COT-0043'; pintarFolio(); }); await p.waitForTimeout(30);
+      cierto(f1.cel === 'COT-0042' + L && f1.sr === 'COT-0042' + L && (await voltean()) === 0, 'al terminar dice COT-0042 y no queda nada animándose', JSON.stringify(f1));
+      await ev(() => { Q.folio = 'COT-0043' + window.__L; pintarFolio(); }); await p.waitForTimeout(30);
       cierto((await voltean()) === 1, 'de 0042 a 0043 voltea UNO solo');
       await p.waitForTimeout(800);
-      await ev(() => { Q.folio = 'COT-0039'; pintarFolio(); }); await p.waitForTimeout(30);
+      await ev(() => { Q.folio = 'COT-0039' + window.__L; pintarFolio(); }); await p.waitForTimeout(30);
       cierto((await voltean()) === 2, 'de 0043 a 0039 voltean dos');
       await p.waitForTimeout(800);
       /* A media vuelta llega otro folio: gana el último. */
-      await ev(() => { Q.folio = 'COT-0050'; pintarFolio(); }); await p.waitForTimeout(60);
-      await ev(() => { Q.folio = 'COT-0051'; pintarFolio(); }); await p.waitForTimeout(1100);
+      await ev(() => { Q.folio = 'COT-0050' + window.__L; pintarFolio(); }); await p.waitForTimeout(60);
+      await ev(() => { Q.folio = 'COT-0051' + window.__L; pintarFolio(); }); await p.waitForTimeout(1100);
       const f2 = await folio();
-      cierto(f2.cel === 'COT-0051' && f2.sr === 'COT-0051' && (await voltean()) === 0, 'si llega otro folio a media vuelta gana el último, sin dejar uno viejo escrito', JSON.stringify(f2));
+      cierto(f2.cel === 'COT-0051' + L && f2.sr === 'COT-0051' + L && (await voltean()) === 0, 'si llega otro folio a media vuelta gana el último, sin dejar uno viejo escrito', JSON.stringify(f2));
     }
     /* El camino de verdad: empezar otra cotización con el cuaderno ya lleno. */
     await ev(() => { nueva(); }); await p.waitForTimeout(40);

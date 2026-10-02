@@ -36,10 +36,11 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { fileURLToPath } from 'node:url';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const CAP = process.env.CAPTURAS || join(tmpdir(), 'cot-precio-capturas');
 mkdirSync(CAP, { recursive: true });
-const HOJA = decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname);
+const HOJA = fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url));
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };

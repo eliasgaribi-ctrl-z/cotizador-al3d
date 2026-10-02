@@ -19,7 +19,10 @@ import vm from 'node:vm';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RUTA = join(RAIZ, 'js/piezas.js');
-const FUENTE = readFileSync(RUTA, 'utf8');
+/* Con los fines de línea de Unix: git en Windows saca el archivo con \r\n, y las comprobaciones
+   de estructura de abajo (el cierre «\n  }\n» de la sección) fallaban ahí sin que el código
+   tuviera nada. */
+const FUENTE = readFileSync(RUTA, 'utf8').replace(/\r\n/g, '\n');
 
 let fallos = 0;
 const eq = (nombre, real, esperado) => {

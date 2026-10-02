@@ -995,7 +995,18 @@ async function emitirSalidasAhora(p, origenMov, nota) {
        de cero solo ensucia el libro. */
     if (!(cant > 0)) continue;
 
-    const rm = await St.mover({
+    /* El id de la salida SALE DEL REQUERIMIENTO, no del azar. La fila de arriba la protege dentro
+       de este teléfono; esto la protege entre teléfonos, ahora que el libro viaja por la hoja
+       (puente-sheets-9): si el de dirección y el de fabricación cruzan el corte del mismo
+       proyecto antes de enterarse uno del otro, emiten EL MISMO renglón, y la hoja —que busca
+       el id antes de escribir— y `sync.jalar` —que descarta un id que ya tiene— se quedan con
+       uno. Con dos ids al azar, el material se restaba dos veces y nada podía saberlo. Y si el
+       renglón ya está aquí (bajó del otro teléfono antes de que el requerimiento llegara
+       consumido), no se emite otra vez: solo se marca. */
+    const idSalida = 'mov-salida:' + req.id;
+    const yaSalio = await DB.obtener('movimientos', idSalida);
+    const rm = yaSalio ? { ok: true, valor: yaSalio } : await St.mover({
+      id: idSalida,
       material_id: req.material_id,
       tipo: 'salida',
       /* Con signo, y negativo: una salida resta. La unidad viaja en la fila porque es lo
@@ -1009,14 +1020,16 @@ async function emitirSalidasAhora(p, origenMov, nota) {
     });
     if (!rm || !rm.ok) { fallidos++; continue; }
 
-    movimientos++;
+    if (!yaSalio) movimientos++;
     const fila = { ...req, estado: 'consumido', sync: 0 };
     await DB.poner('requerimientos', fila);
     const S = await mod('sync');
     if (S && typeof S.encolar === 'function') {
       try {
+        /* Solo el estado: es lo único que cambió, y es lo único que la hoja le acepta a una
+           salida derivada desde el teléfono de pagos (ver almPermiso_ en el .gs). */
         await S.encolar({ id: DB.nuevoId('op'), tipo: 'actualizar', almacen: 'requerimientos',
-          registro_id: fila.id, datos: fila, esperado: null, ts: Date.now(),
+          registro_id: fila.id, datos: fila, campos: ['estado'], esperado: null, ts: Date.now(),
           intentos: 0, ultimo_error: '' });
       } catch (_) {}
     }

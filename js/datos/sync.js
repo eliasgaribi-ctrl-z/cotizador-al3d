@@ -112,6 +112,12 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  * Una que es `ok` puede traer `omitida`: el relevo la despachó sin mandarla, porque no tiene a
  * dónde ir (la lápida que nunca tuvo fila, la venta fuera de la hoja) y lo que haga falta lo
  * anotó él. Sale de la bandeja, pero no se cuenta como subida.
+ *
+ * Opcionales: `lleva(almacen)` (lo que no lleva se aparta sin gastar red), `motivo(almacen)` (la
+ * razón de eso), y `agrupa(almacen)`: lo que el relevo sabe mandar en un solo viaje, y entonces
+ * `subir` recibe hasta MAX_LOTE operaciones seguidas de la bandeja. Una respuesta con
+ * `codigo:'SIN_DESTINO'` es un «no lleva» que el relevo supo ya con la petición hecha (la hoja
+ * corre un puente sin esa pestaña): se aparta igual, con su `mensaje`.
  */
 
 /* El almacén 'movimientos' es append-only y por eso no tiene conflictos posibles. No es
@@ -126,6 +132,10 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
    el error no se corrige: se acumula. Un reintento tras un timeout, que es la cosa más
    normal del mundo con una red mala, alcanza para eso. */
 const APPEND_ONLY = new Set(['movimientos']);
+
+/* Cuántas operaciones caben en un viaje, cuando el relevo las sabe mandar juntas (`agrupa`).
+   El mismo tope que la hoja acepta en /empujar_almacen (ALM_OPS_MAX). */
+const MAX_LOTE = 25;
 
 /* Tres almacenes no llevan la llave en 'id', y esto no es un detalle de estilo: buscar
    `datos.id` en un aviso devuelve undefined, y una fila que llega del puente sin llave se
@@ -489,41 +499,27 @@ async function bombearDeVerdad() {
   let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0, rechazadasN = 0, omitidas = 0;
   const rechazos = [];
 
-  for (const op of cola) {
-    /* Se pregunta ANTES de gastar una petición. Mandar al Worker una salida de acrílico
-       para que conteste que no sabe qué hacer con ella es una vuelta de red por cada
-       renglón del libro, cada vez que alguien aprieta bombear. */
-    if (typeof _adaptador.lleva === 'function' && !_adaptador.lleva(op.almacen)) {
-      await DB.poner('pendientes', {
-        ...op, estado: 'sin_destino',
-        ultimo_error: typeof _adaptador.motivo === 'function'
-          ? _adaptador.motivo(op.almacen)
-          : 'Este puente no lleva «' + op.almacen + '». Se queda en este dispositivo.',
-      });
-      apartadas++;
-      continue;
-    }
+  /* Aparta lo que no tiene a dónde ir, con la razón que da el relevo. */
+  const apartar = async (op, razon) => {
+    await DB.poner('pendientes', {
+      ...op, estado: 'sin_destino',
+      ultimo_error: razon || (typeof _adaptador.motivo === 'function'
+        ? _adaptador.motivo(op.almacen)
+        : 'Este puente no lleva «' + op.almacen + '». Se queda en este dispositivo.'),
+    });
+    apartadas++;
+  };
+  const lleva = op => typeof _adaptador.lleva !== 'function' || _adaptador.lleva(op.almacen);
+  const agrupa = op => typeof _adaptador.agrupa === 'function' && _adaptador.agrupa(op.almacen) && lleva(op);
 
-    let respuesta;
-    try {
-      const r = await _adaptador.subir([op]);
-      respuesta = (Array.isArray(r) ? r : []).find(x => x && x.id === op.id) || null;
-    } catch (e) {
-      /* Un adaptador que lanza es un adaptador con un error de programación, no una red
-         mala. Se trata igual: se para el bombeo. Seguir con la operación siguiente
-         mandaría la número 8 antes que la 7 y rompería el orden, que es lo único que
-         este bucle en serie estaba comprando. */
-      _ultimoError = String((e && e.message) || 'el puente falló sin decir por qué');
-      fallidas++;
-      break;
-    }
-
+  /* Lo que se hace con la respuesta de UNA operación. Devuelve true si hay que parar el bombeo. */
+  const tratar = async (op, respuesta) => {
     if (respuesta && respuesta.ok && respuesta.omitida) {
       /* Despachada sin mandar (ver la cabecera): contarla como subida era que Ajustes dijera «Se
          mandó 1 operación» de un cambio que no llegó a ningún lado. */
       await DB.borrar('pendientes', op.id);
       omitidas++;
-      continue;
+      return false;
     }
 
     if (respuesta && respuesta.ok) {
@@ -536,10 +532,18 @@ async function bombearDeVerdad() {
       }
       await DB.borrar('pendientes', op.id);
       subidas++;
-      continue;
+      return false;
     }
 
     const codigo = (respuesta && respuesta.codigo) || 'SIN_RED';
+
+    /* El relevo dice, ya con la petición hecha, que eso no tiene a dónde ir: la hoja corre un
+       puente sin la pestaña del almacén. No es un error de la operación ni de la red: se aparta
+       como lo que no se lleva, y vuelve sola cuando la hoja se actualice (`revivirSinDestino`). */
+    if (codigo === 'SIN_DESTINO') {
+      await apartar(op, respuesta && respuesta.mensaje);
+      return false;
+    }
 
     /* Rechazada para siempre: se aparta con su razón y se sigue. Cuenta como fallida para
        que quien apretó «Mandar» no lea «no había nada que mandar» en verde. */
@@ -555,7 +559,7 @@ async function bombearDeVerdad() {
       /* No se anota como «último error»: esa operación ya salió de la cola, y la banda de «no
          ha podido mandar» se encendía por ella con cada cambio sano que se encolaba después.
          Lo apartado tiene su propio aviso (ver frescura) y su botón en Ajustes. */
-      continue;
+      return false;
     }
 
     if (codigo === 'CONFLICTO') {
@@ -568,7 +572,7 @@ async function bombearDeVerdad() {
         ultimo_error: 'cambió del otro lado mientras no tenías señal',
       });
       enConflicto++;
-      continue;
+      return false;
     }
 
     await DB.poner('pendientes', {
@@ -585,7 +589,52 @@ async function bombearDeVerdad() {
     /* Y con una llave que el puente no reconoce tampoco: las 40 darían 401 igual. Este
        ROL_SIN_PERMISO es el de la PUERTA; el de una sola operación llega `definitivo` y
        ya se apartó arriba sin parar a nadie. */
-    if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO') break;
+    return codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO';
+  };
+
+  for (let i = 0; i < cola.length;) {
+    const op = cola[i];
+    /* Se pregunta ANTES de gastar una petición. Mandar al Worker una salida de acrílico
+       para que conteste que no sabe qué hacer con ella es una vuelta de red por cada
+       renglón del libro, cada vez que alguien aprieta bombear. */
+    if (!lleva(op)) {
+      await apartar(op);
+      i++;
+      continue;
+    }
+
+    /* El LOTE. Lo que el relevo sabe mandar junto (el almacén: renglones del libro, líneas de
+       la lista, materiales del catálogo) sale en un solo viaje, en su orden, hasta 25: una
+       compra recibida son diez renglones, y de uno en uno eran diez peticiones contra el cupo
+       por minuto de la hoja. El orden no se rompe, porque el lote son operaciones SEGUIDAS de
+       la bandeja y la hoja las aplica en el orden en que llegan. Todo lo demás, de una en una. */
+    const lote = [op];
+    if (agrupa(op)) {
+      for (let j = i + 1; j < cola.length && lote.length < MAX_LOTE && agrupa(cola[j]); j++) lote.push(cola[j]);
+    }
+    i += lote.length;
+
+    let respuestas;
+    try {
+      const r = await _adaptador.subir(lote);
+      respuestas = Array.isArray(r) ? r : [];
+    } catch (e) {
+      /* Un adaptador que lanza es un adaptador con un error de programación, no una red
+         mala. Se trata igual: se para el bombeo. Seguir con la operación siguiente
+         mandaría la número 8 antes que la 7 y rompería el orden, que es lo único que
+         este bucle en serie estaba comprando. */
+      _ultimoError = String((e && e.message) || 'el puente falló sin decir por qué');
+      fallidas++;
+      break;
+    }
+
+    let parar = false;
+    for (const o of lote) {
+      /* Si una del lote dice que paremos (la red), las que siguen en él no se tocan: se quedan
+         como estaban, sin un intento fallido más que no fue culpa suya. */
+      if (await tratar(o, respuestas.find(x => x && x.id === o.id) || null)) { parar = true; break; }
+    }
+    if (parar) break;
   }
 
   if (subidas) await ponerMarcas({ ultimo_envio: Date.now() });

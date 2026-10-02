@@ -302,8 +302,11 @@ body.pf::before{display:none}
    no hay nada que medir corto (ver alTerminarDeEntrar en ui.js). */
 .pf-mod{animation:pf-aparece .12s var(--ease-out) both}
 @keyframes pf-aparece{from{opacity:.001}}
-/* Con las teclas 1-9 ni eso: lo que dispara el teclado se repite cien veces y no se anima. */
-html[data-nav="teclado"] .pf-mod{animation:none}
+/* Con las teclas 1-9 ni eso: lo que dispara el teclado se repite cien veces y no se anima.
+   Duración 0 y no animation:none: con none, al quitarse la marca en el primer pointerdown la
+   animación volvía a nacer y la pantalla entera parpadeaba bajo el clic. Cambiar solo la
+   duración de una animación ya terminada no la repite. */
+html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 
 /* El ancho de las pantallas de la plataforma. La maqueta las topa en 1 240 px y la .wrap del
    cotizador venía topando en 1 180; con la barra lateral fuera del flujo, el contenido puede
@@ -1179,6 +1182,8 @@ button.cal-plazo:active{transform:scale(.97)}
 /* Un bloque de campos que abre un tema nuevo dentro de la misma tarjeta. Sin la
    separación, el campo del Client ID se leía como parte del último paso. */
 .aj-bloque{margin-top:var(--e5)}
+/* Una sola letra: el campo mide lo que ella, y se escribe en mayúscula como sale en el folio. */
+.aj-letra{max-width:5em;text-transform:uppercase}
 
 /* `.hintnote` nace inline-block y sin margen porque vive pegada a un campo. En esta
    pantalla van varias seguidas y sin esto se tocan, y tres avisos pegados se leen como un
@@ -2213,6 +2218,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
+  background-position:30% 50%;   /* el atajo la devolvía a 0 %: el tono brincaba */
   transform:translateY(-2px) scale(1.03);
   box-shadow:var(--filo-corto),
              0 8px 24px -4px rgba(var(--a-rgb),.72),
@@ -2220,7 +2226,8 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 }}
 /* Un barrido de una vez al entrar el ratón. Antes el hover cambiaba `animation-duration` a media
    animación, y eso recalcula el avance: el degradado y el barrido saltaban. */
-@media(hover:hover) and (pointer:fine){.pf-ia-btn:hover::after{animation:ia-barrido-una .7s var(--ease-out) 1 both}}
+/* ia-barrido sigue primero en la lista para que al salir el cursor no vuelva a arrancar. */
+@media(hover:hover) and (pointer:fine){.pf-ia-btn:hover::after{animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) 1.2s 2,ia-barrido-una .7s var(--ease-out) 1 both}}
 .pf-ia-btn:active{transform:scale(.96)}
 @media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}}
 
@@ -2276,6 +2283,9 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 /* ----- Lo que apaga esta capa ----- */
 @media(prefers-reduced-motion:reduce){
   .pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi{animation:none}
+  /* El botón que se aparta al bajar la página: solo se desvanece, en su sitio, sin deslizarse. */
+  .pf-ia-btn{transition:opacity .15s ease,box-shadow var(--mv-r)}
+  .pf-ia-btn.apartado{translate:0 calc(-1 * var(--mbar-h,0px))}
   .pf-ia-btn::after{opacity:0}
   @media(hover:hover){.pf-ia-btn:hover{transform:none}}
   .pf-tab:active,.pf-lat-item:active{transform:none}
@@ -2379,7 +2389,9 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-cifra:active{transform:scale(.97)}
 /* La celda del mes no escala —es una rejilla y encogería contra sus vecinas—: se tiñe. */
 .cal-dia:not(:disabled):active{background:var(--a-suave)}
-@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled):hover{background:var(--sup2)}}
+/* Sin el día abierto (aria-current) ni el que se está presionando: el gris del hover pesaba
+   más y borraba la marca del día elegido y el azul del :active. */
+@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled,:active,[aria-current="date"]):hover{background:var(--sup2)}}
 
 /* Las tarjetas de la plataforma no vuelven a «entrar» cuando un módulo repinta. La entrada de
    sistema.css (.card{animation:entra}) se disparaba con cada innerHTML: un filtro, una tecla

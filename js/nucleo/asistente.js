@@ -189,7 +189,7 @@ function pintar() {
   const quien = cadena[0] ? (PROVEEDOR_NOMBRE[cadena[0].prov] || cadena[0].prov) + ' · ' + cadena[0].model : '';
   const hayHilo = _msgs.length > 0;
 
-  capa.innerHTML = '<div class="pf-panel ia-panel">' +
+  const inner =
     '<div class="pf-panel-h">' + ico('i-ia', 'ia-ico') +
       '<div class="ia-titulo"><h2>Asistente del taller</h2>' +
         '<span class="ia-sub">' + (hayLlave ? 'Solo lectura · lo calculable se contesta aquí; lo demás, ' + esc(quien) : 'Solo lectura · sin llave de IA: contesta lo que se calcula aquí') + '</span></div>' +
@@ -210,8 +210,13 @@ function pintar() {
           : '<button type="button" class="btn ia-enviar" data-ia-enviar aria-disabled="true" aria-label="Preguntar">' + ico('i-subir') + '</button>') +
       '</div>' +
       '<p class="ia-pista">Enter envía · Shift+Enter hace renglón' + (hayLlave ? '' : ' · para preguntas libres, Dirección pega una llave de IA en la hoja') + '</p>' +
-    '</div>' +
-  '</div>';
+    '</div>';
+  /* El panel se conserva y solo se rehace lo de adentro: abrirCapa() deja la entrada viva 360 ms
+     (.entra, ui.js), y un panel nuevo en ese plazo —/salud contesta enseguida— volvía a entrar
+     desde abajo en el segundo pintado. */
+  const panel = capa.querySelector(':scope>.ia-panel');
+  if (panel) panel.innerHTML = inner;
+  else capa.innerHTML = '<div class="pf-panel ia-panel">' + inner + '</div>';
   /* Las trazas (la espera y las ya plegadas) viven en su propio nodo, con su reloj andando: se
      devuelven a su sitio en vez de pintarse otra vez, porque repintarlas reiniciaría el «14 s». */
   capa.querySelectorAll('[data-ia-traza]').forEach(ph => {

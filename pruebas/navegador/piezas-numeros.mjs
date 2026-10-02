@@ -56,6 +56,7 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { inflateSync } from 'zlib';
 
+import { fileURLToPath } from 'node:url';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const PAGINA = B + '/pruebas/navegador/piezas-numeros.html';
 const CAPTURAS = process.env.CAPTURAS || '';
@@ -715,7 +716,7 @@ async function contraste(tema) {
 async function enLaApp() {
   console.log('\n── en el cotizador de verdad (1440 px, ratón) ──');
   let ctx = await nav.newContext({ viewport: { width: 1440, height: 900 }, locale: 'es-MX', serviceWorkers: 'block' });
-  await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });
+  await ctx.addInitScript({ path: fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url)) });
   let p = await ctx.newPage();
   let errs = [];
   p.on('pageerror', e => errs.push(e.message));

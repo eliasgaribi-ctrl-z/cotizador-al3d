@@ -2563,7 +2563,9 @@ function copiaGuardadaDeQ(){
    que nunca se autorizan no gastan folios del contador. */
 const FOLIO_PREFIJO='COT-';
 function folioNum(f){ const m=/(\d+)/.exec(String(f||'')); return m?parseInt(m[1],10):0; }
-function folioFmt(n){ return FOLIO_PREFIJO+String(n).padStart(4,'0'); }
+/* Con la letra del teléfono (ver letraFolio en entrega.js). folioNum lee el primer número, así
+   que los folios viejos sin letra y los nuevos cuentan en el mismo contador. */
+function folioFmt(n){ return FOLIO_PREFIJO+String(n).padStart(4,'0')+'-'+letraFolio(); }
 function folioConfirmados(){ try{ return parseInt(localStorage.getItem('al3d_folio')||'0')||0; }catch(_){ return 0; } }
 /* Números ya tomados por cotizaciones vivas (pendientes o autorizadas) o del historial:
    no se reutilizan aunque el contador de confirmadas aún no haya avanzado. */
@@ -2580,7 +2582,7 @@ function nextFolio(){
     let n=folioConfirmados()+1;
     while(ocupados.has(n)) n++;
     return folioFmt(n);
-  }catch(_){ return FOLIO_PREFIJO+String(Math.floor(Math.random()*9000)+1000); }
+  }catch(_){ return folioFmt(Math.floor(Math.random()*9000)+1000); }
 }
 /* Se llama al autorizar: es ahí cuando la cotización cuenta para el contador. */
 function confirmarFolio(folio){
