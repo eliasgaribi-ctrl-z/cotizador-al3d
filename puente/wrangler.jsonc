@@ -1,0 +1,18 @@
+{
+  // El Worker `puente-al3d` está RETIRADO. El puente vive en la hoja (hoja-apps-script.gs).
+  //
+  // Este archivo existe solo porque en Cloudflare el Worker sigue conectado al repositorio
+  // (build apuntando a este directorio, `puente`): sin él, cada push salía con la X roja de
+  // «Workers Builds: puente-al3d». Con él, el build pasa y lo que se publica es
+  // `retirado.js`, que contesta 410 a todo. Así, además, el Worker viejo deja de ser un
+  // proxy a Notion con un token guardado: ya no lo usa nadie.
+  //
+  // Si algún día se desconecta el repositorio desde el panel de Cloudflare
+  // (Workers y Pages → puente-al3d → Configuración → Compilación → Desconectar),
+  // este archivo y `retirado.js` se pueden borrar.
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "puente-al3d",
+  "main": "retirado.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true
+}

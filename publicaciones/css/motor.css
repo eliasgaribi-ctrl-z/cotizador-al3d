@@ -1,0 +1,24 @@
+/* El motor por lotes. Es una herramienta de automatización más que una pantalla de uso
+   diario, así que va sobria: dos columnas, y la vista previa de cada pieza con su botón. */
+.mt-app{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:var(--e5);align-items:start;
+  padding:var(--e5) max(var(--e5),env(safe-area-inset-right,0px)) 64px max(var(--e5),env(safe-area-inset-left,0px))}
+@media(max-width:900px){.mt-app{grid-template-columns:1fr;padding:var(--e4)}}
+.mt-cuerpo{padding:var(--e4) var(--e5) var(--e5)}
+.mt-nota{font-size:var(--t2);color:var(--tinta2);line-height:1.5;margin-bottom:var(--e3)}
+.mt-nota code{font-size:.92em;background:var(--sup2);border:1px solid var(--linea2);border-radius:3px;padding:0 4px}
+#mt-json{height:340px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+.mt-fila{display:flex;gap:var(--e2);flex-wrap:wrap;align-items:center;margin-top:var(--e3)}
+.mt-fila .btn{width:auto;margin:0;padding:10px 16px;font-size:var(--t2);transition:transform .16s var(--ease-out),background-color .12s}
+.mt-fila .btn:active{transform:scale(.97)}
+.mt-fila input[type=search]{flex:1 1 220px}
+.mt-fila select{width:auto}
+.mt-err{color:var(--mal);font-size:var(--t2);margin-top:var(--e2);min-height:1.45em}
+.mt-salida{display:flex;flex-wrap:wrap;gap:var(--e5);align-items:flex-start;margin-bottom:var(--e5)}
+.mt-salida:empty{display:none}
+.mt-pieza{display:flex;flex-direction:column;gap:var(--e2)}
+.mt-pieza .pb-caja [data-slot]{cursor:text}
+.mt-meta{font-size:var(--t2);color:var(--tinta2)}
+.mt-meta b{color:var(--tinta)}
+.mt-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--e4)}
+.mt-lib .pb-tarj .pb-pie{flex-direction:column;align-items:flex-start;gap:2px}
+.mt-lib .pb-tarj .pb-pie span{white-space:normal;font-size:var(--t1)}

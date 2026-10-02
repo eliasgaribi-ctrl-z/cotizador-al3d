@@ -114,6 +114,26 @@ if (!/anidador-vectores/.test((/function esDeLaPlataforma[\s\S]*?\n\}/.exec(sw) 
       'y la caché del anidador no se usaría nunca');
 } else bien('sw.js manda el anidador por la ruta de la plataforma');
 
+/* Publicaciones, con la misma regla: se cuenta la carpeta entera y no una lista. Una
+   plantilla nueva que use un logotipo nuevo funciona con señal y sale sin logo sin ella. */
+function todoDe(dir, out = []) {
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) todoDe(p, out);
+    else if (!/\.md$/.test(n)) out.push(relativa(p));
+  }
+  return out;
+}
+const publicaciones = [...todoDe(join(RAIZ, 'publicaciones')), 'vendor/html-to-image.js'];
+const publicacionesFuera = publicaciones.filter(f => !archivos.includes(f));
+if (publicacionesFuera.length) {
+  mal(publicacionesFuera.length + ' archivo(s) de Publicaciones NO están en APP_FILES: ' + publicacionesFuera.join(', ') + '\n' +
+      '      Arreglo: añadirlos a APP_FILES en sw.js y subir APP_VERSION.');
+} else bien('los ' + publicaciones.length + ' archivos de Publicaciones están todos en APP_FILES');
+if (!/\/publicaciones\//.test((/function esDeLaPlataforma[\s\S]*?\n\}/.exec(sw) || [''])[0])) {
+  mal('esDeLaPlataforma() en sw.js no reconoce /publicaciones/: su caché no se usaría nunca');
+} else bien('sw.js manda Publicaciones por la ruta de la plataforma');
+
 /* Y que APP_VERSION exista, porque es la línea que hay que subir al publicar. */
 if (!/const APP_VERSION = \d+;/.test(sw)) mal('sw.js no tiene APP_VERSION: sin eso, publicar un cambio de la plataforma no llega a los teléfonos');
 else bien('sw.js tiene APP_VERSION (súbela al publicar cambios de la plataforma)');
@@ -199,7 +219,7 @@ comparar('los oninput de cotizador.html', porTipo('oninput'),
 const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
   setenta: 70, 'setenta y cuatro': 74, 'setenta y cinco': 75, 'setenta y seis': 76,
   ochenta: 80, 'ochenta y un': 81, 'ochenta y dos': 82, 'ochenta y tres': 83, 'ochenta y cuatro': 84,
-  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100 };
+  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100, 'ciento seis': 106 };
 const mConj = /Son ([a-zá-ú ]+?) archivos que se cargan en orden/.exec(readme);
 if (!mConj) mal('el README ya no dice cuántos archivos son el conjunto versionado');
 else if (NUM[mConj[1].trim()] === undefined) mal('el README dice «' + mConj[1].trim() + ' archivos» y esta prueba no sabe leer ese número; añádelo a NUM');
