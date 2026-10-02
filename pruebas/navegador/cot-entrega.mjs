@@ -194,9 +194,13 @@ async function ronda(R, indice) {
   await p.focus(verMsg); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
   cierto(await ev(() => !!document.querySelector('.vistazo:popover-open')), 'con el teclado, Enter en «Ver mensaje» lo abre');
   await p.tap('.vistazo:popover-open .vistazo-acciones .btn'); await p.waitForTimeout(500);
+  /* El `\r\n` se quita porque el portapapeles de Windows convierte cada salto en `\r\n` al leerlo:
+     el mensaje que se pega es el mismo, pero sin esto la prueba fallaba en las 8 rondas en Windows
+     y en ninguna en Linux, y parecía un error de «Copiar». */
   const copiado = await ev(async () => ({ abierto: !!document.querySelector('.vistazo:popover-open'), foco: document.activeElement.className,
-    portapapeles: await navigator.clipboard.readText().catch(() => null), esperado: mensajeWhatsApp() }));
-  cierto(copiado.portapapeles === copiado.esperado, '«Copiar» deja el mensaje exacto en el portapapeles');
+    portapapeles: await navigator.clipboard.readText().then(t => t.replace(/\r\n/g, '\n')).catch(() => null), esperado: mensajeWhatsApp() }));
+  cierto(copiado.portapapeles === copiado.esperado, '«Copiar» deja el mensaje exacto en el portapapeles'
+    + (copiado.portapapeles === copiado.esperado ? '' : ' — quedó: ' + JSON.stringify(copiado.portapapeles && copiado.portapapeles.slice(0, 80))));
   cierto(!copiado.abierto && /hito-ver/.test(copiado.foco), 'y cierra el globo devolviendo el foco a «Ver mensaje»');
   await libre();
   /* El texto se arma AL ABRIR: `upd()` no repinta el panel, y quien cambia el límite de

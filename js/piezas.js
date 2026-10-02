@@ -3282,7 +3282,15 @@
         s.classList.add('arriba');
         s.style.left = 'auto';
         s.style.right = Math.max(0, c.derecha) + 'px';
-        s.style.top = (c.arriba - s.offsetHeight) + 'px';
+        /* Y nunca por encima del borde de la tarjeta: con la letra de Windows la caja del texto
+           sube un poco más y el «+$100» quedaba 1 px fuera, recortado por arriba. */
+        const tarjeta = el.closest('.pf-cuenta');
+        let tope = -Infinity;
+        if (tarjeta) {
+          const k = el.offsetHeight ? el.getBoundingClientRect().height / el.offsetHeight : 1;
+          tope = (tarjeta.getBoundingClientRect().top - el.getBoundingClientRect().top) / (k > 0 ? k : 1) + tarjeta.clientTop;
+        }
+        s.style.top = Math.max(tope, c.arriba - s.offsetHeight) + 'px';
       }
       const quitar = () => { if (s.parentNode) s.remove(); };
       s.addEventListener('animationend', quitar, { once: true });

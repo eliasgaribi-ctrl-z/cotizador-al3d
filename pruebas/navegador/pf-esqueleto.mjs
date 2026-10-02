@@ -59,7 +59,10 @@ async function contestarHoja(r) {
   try { cuerpo = JSON.parse(r.request().postData() || '{}'); } catch (_) {}
   const ruta = String(cuerpo.ruta || '').replace(/^\/+/, '');
   hoja.llamadas++;
-  if (hoja.demora && ruta !== 'salud') await dormir(hoja.demora);
+  /* La demora es de la VUELTA, y por eso solo la paga `jalar`: desde que el almacén viaja a la
+     hoja, cada vuelta pide `jalar` y después `jalar_almacen`, en serie, y con la demora en las dos
+     una vuelta «de 2.3 s» duraba 4.6 s y el arco seguía girando cuando la prueba lo miraba. */
+  if (hoja.demora && ruta === 'jalar') await dormir(hoja.demora);
   let json;
   if (ruta === 'salud') json = { ok: true, rol: 'direccion', version: 'falso-1', via: 'token', escribibles: [], correo: '' };
   else if (ruta === 'jalar') {

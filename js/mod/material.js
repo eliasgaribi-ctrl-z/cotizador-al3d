@@ -1195,9 +1195,12 @@ function conVentana(clave, btn, escribir, alDeshacer) {
     estado.escribiendo = true;
     /* La escritura repinta la pantalla ocho segundos después del toque, fuera del manejador de
        clic que cuida el foco (`conservandoFoco`): quien navega con teclado y sigue sobre el botón
-       caía al <body>, al principio de la página. Se le da el mismo cuidado aquí. */
+       caía al <body>, al principio de la página. Se le da el mismo cuidado aquí.
+       `conservandoFoco` solo devuelve el foco si el evento fue de teclado (`detail === 0`), y aquí
+       no hay evento: llamado sin nada nunca lo devolvía. Se le pasa uno de teclado a propósito;
+       de todos modos solo actúa si el foco seguía en el botón y se cayó al <body>. */
     const conFoco = cont ? conservandoFoco(() => escribir(), cont) : () => escribir();
-    try { await conFoco(); } catch (e) {
+    try { await conFoco({ detail: 0 }); } catch (e) {
       /* Una mutación de la capa de datos no lanza nunca; si algo llega aquí es un error de
          programación de esta pantalla y se dice, en vez de dejar la acción muerta. */
       console.error('la acción de material falló', e);

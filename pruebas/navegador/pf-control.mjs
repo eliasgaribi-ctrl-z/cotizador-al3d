@@ -463,7 +463,10 @@ if (activa('p16')) {
 
   /* A · La bajada que arranca sola no enciende el botón; un toque la enciende donde ya iba. */
   const c = await abrir({ touch: true, puente: true });
-  c.mock.demora = 500;
+  /* 900 y no 500: la bajada arranca al cargar, y con 500 ms por página (2 s en total) el toque
+     caía cuando ya iba en la última. «Trabajando» duraba 80 ms y el muestreador alcanzaba dos
+     lecturas. Con 3.6 s el toque cae a media bajada en una máquina lenta también. */
+  c.mock.demora = 900;
   const { p, errs, mock } = c;
   await irA(p, '#/hoy', 900);
   await sembrar(p);
@@ -841,7 +844,9 @@ if (activa('f54')) {
   que(antesBase === despuesBase, 'NO escribió nada: ni ventas, ni proyectos, ni bandeja de salida, ni bitácora');
   /* Copiar y mandar. */
   await p.locator('[data-com-copiar]').tap(); await esp(p, 500);
-  const portap = await p.evaluate(() => navigator.clipboard.readText());
+  /* Sin el `\r\n` que el portapapeles de Windows pone en cada salto al leerlo: la lista pegada
+     es la misma, pero sin esto la comprobación fallaba siempre en Windows. */
+  const portap = await p.evaluate(() => navigator.clipboard.readText().then(t => t.replace(/\r\n/g, '\n')));
   que(portap === s.texto, 'copiar deja en el portapapeles exactamente la lista');
   const wa = await p.locator('#ct-com-armada .btn-wa').getAttribute('href');
   que(wa.startsWith('https://wa.me/?text=') && decodeURIComponent(wa.split('?text=')[1]) === s.texto, 'y «Mandarla por WhatsApp» abre el chat sin número con la misma lista');

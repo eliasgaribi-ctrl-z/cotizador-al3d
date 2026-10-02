@@ -74,3 +74,35 @@ entre 500 y 1,800 comprobaciones cada uno.
 La lista de lo que las zonas dejaron anotado para revisar está en **`docs/REVISAR-PAQUETE-UI.md`**:
 20 zonas y 194 puntos, cada uno con archivo, qué revisar y gravedad, más la decisión de producto
 que sigue abierta.
+
+## La tanda del 2 de octubre, en Windows: 44 de 44 otra vez
+
+Después del PR #75 se corrió la tanda entera en la máquina de Elías (Windows). Las 46 de node
+pasaron a la primera; de navegador cayeron 15. **Cuatro eran errores de la app**, ya arreglados:
+
+1. **El «+$100» se salía de su tarjeta** (`js/piezas.js`, `marcarDelta`). Cuando la cifra llena la
+   tarjeta, el aviso va encima; con la letra de Windows quedaba 1 px fuera y `.pf-cuenta` lo recortaba.
+   Ahora nunca sube del borde de la tarjeta.
+2. **El foco caía al principio de Material** tras la escritura de «Actualizar» (`js/mod/material.js`,
+   `conVentana`). `conservandoFoco` solo devuelve el foco con un evento de teclado y se llamaba sin
+   evento: no lo devolvía nunca.
+3. **La medida nueva del escalador no cabía sobre el pie del panel** en el teléfono (`css/sistema.css`,
+   `.sp-mitem`). La escala de siete tamaños subió el renglón de 155 a 165 px; ahí el escalón va hacia
+   abajo en vertical y vuelve a caber (la pista de deslizar tampoco salía por esto).
+4. **La isla partía la barra del cotizador a 1100 px** (`css/sistema.css`). La letra del teléfono en el
+   folio ensanchó la barra justo lo que le quedaba. Mientras la isla se ve, «Anuncios Luminosos 3D» le
+   cede el sitio y vuelve al irse. Eran los dos fallos de `cot-cliente` que ya venían de main.
+
+El resto eran **pruebas viejas o que no contaban con Windows**: el portapapeles devuelve `\r\n`
+(`cot-entrega`, `pf-control`), `path.normalize` usa `\` (`service-worker-actualizacion`, que se daba
+por «del entorno» y no lo era), Chromium de Windows sí trae `navigator.share` (`an-controles`), la
+barra «Decidir» del Tablero ahora va derecho a Proyectos (`pf-tablero`), cada vuelta de la hoja pide
+también `jalar_almacen` (`pf-esqueleto`), y tres esperas que dependían de la velocidad de la máquina
+(`pf-control`, `pf-material`, `an-mesa`, `an-controles`).
+
+**Estado:** los cambios están en la copia de trabajo de `main`, **sin commit**, con `APP_VERSION` en 78.
+Para aplicarlos: revisar `git diff` (12 archivos), hacer commit y abrir el PR.
+
+**Para correr la tanda en Windows:** entera tarda más de dos horas, más que el límite de una tarea.
+Conviene correr cada archivo de `pruebas/navegador/` por separado, cada uno con su propio límite de
+tiempo; `cot-precio` necesita unos 15 minutos.

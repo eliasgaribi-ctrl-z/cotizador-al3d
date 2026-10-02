@@ -545,6 +545,11 @@ body::before{
 .brand .t{font-family:var(--f-cifra);font-size:var(--t5);font-weight:600;letter-spacing:-.1px;
   display:flex;align-items:baseline;gap:var(--e2);flex-wrap:wrap;line-height:1.2}
 .brand .t small{font-family:var(--f-texto);font-size:var(--t2);font-weight:400;color:var(--tinta3);letter-spacing:0}
+/* Mientras la isla avisa algo —sin señal, sellando, esperando—, la aclaración le cede su sitio. La
+   barra iba ya al ras: con la letra del teléfono en el folio, el solo icono de la isla la partía en
+   dos renglones a 1100 px (y toda la pantalla bajaba 56 px), y la frase no cabía ni a 1440. Los
+   botones no se mueven: van pegados a la derecha. Al irse la isla, la aclaración vuelve. */
+.topbar-in:has(.isla.ver) .brand .t small{display:none}
 /* MEDIDO: entre 561 y 594 px la página entera se desplazaba de lado. `.topbar-in` sí
    envuelve, así que este bloque se bajaba de renglón completo — pero él no envolvía, y sus
    seis hijos (deshacer, Clientes, Historial, Plataforma, folio y el selector de rol) miden
@@ -2125,9 +2130,13 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .sp-mlist{flex:none;overflow:visible;min-height:0}
   .sp-side .btn{min-height:46px}
   .sp-ibtn{font-size:var(--t5);padding:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:var(--rr3);color:var(--muted)}
-  .sp-mitem{padding:var(--e3);margin-bottom:var(--e2)}
+  /* Aquí el escalón va hacia ABAJO, no al de arriba como en el resto: con la escala, el renglón
+     creció 10 px (155 → 165) y en el teléfono ya no cabía entero sobre el pie del panel (~154 px
+     de franja). La medida nueva llegaba con su final escondido y la pista de deslizar no salía
+     nunca. En vertical es lo que sobra; los 44 px de los botones no se tocan. */
+  .sp-mitem{padding:var(--e2) var(--e3);margin-bottom:var(--e2)}
   .sp-mitem-add{min-height:44px;font-size:var(--t2);margin-top:var(--e2)}
-  .sp-mitem-label{padding:var(--e2) 0;font-size:var(--t2)}
+  .sp-mitem-label{padding:var(--e1) 0;font-size:var(--t2)}
   .sp-zoom button{width:46px;height:46px}
   .sp-cotas-fab button{width:46px;height:46px}
   /* Ver el comentario de la nota en cotizador.html: en el celular el panel no da para

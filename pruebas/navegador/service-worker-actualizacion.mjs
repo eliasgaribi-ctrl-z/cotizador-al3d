@@ -19,7 +19,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -35,7 +35,10 @@ const TIPOS = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; char
 
 const servidor = createServer((req, res) => {
   const ruta = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  let rel = normalize(ruta).replace(/^(\.\.[/\\])+/, '').replace(/^\//, '') || 'index.html';
+  /* `posix` y no el `normalize` de la plataforma: en Windows convierte «/sw.js» en «\sw.js», y
+     entonces `rel === 'sw.js'` no se cumplía nunca —se servía la versión real, sin cambiarla— ni
+     se rompía js/mod/mapa.js. La prueba fallaba en Windows y parecía un problema del entorno. */
+  let rel = posix.normalize(ruta).replace(/^(\.\.\/)+/, '').replace(/^\//, '') || 'index.html';
 
   /* El archivo que esta vuelta tiene que faltar. Es lo que provoca que addAll reviente. */
   if (estado.romper && rel === estado.romper) { res.writeHead(404).end('no está'); return; }

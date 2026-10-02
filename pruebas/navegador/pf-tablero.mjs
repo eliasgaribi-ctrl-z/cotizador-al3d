@@ -284,13 +284,17 @@ if (activa('p3')) {
   que(await aparece(p), 'con el ratón: un clic en una cuenta baja y enciende su destino, igual que el dedo');
   await seApaga(p);
 
-  /* Primero «Decidir»: con una cotización sin decidir la barra fija manda a esa tarjeta. */
+  /* Primero «Decidir»: con una cotización sin decidir la barra fija va DERECHO a Proyectos, como
+     el botón de la tarjeta (tablero.js, pintarMbar): en el teléfono ese botón no se pinta, así que
+     bajar a la tarjeta dejaba el toque sin destino. Antes esta prueba esperaba las esquinas sobre
+     la tarjeta y fallaba siempre. */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
   const mbar = await p.$eval('#pf-mbar', e => ({ oculta: e.hidden, txt: e.textContent.trim() }));
   que(!mbar.oculta && /Decidir/.test(mbar.txt), 'la barra fija del teléfono ofrece «' + mbar.txt + '»');
   await p.locator('#pf-mbar button').tap();
-  que(await aparece(p), 'y al tocarla llega con las esquinas, no en silencio');
-  await seApaga(p);
+  que(await p.waitForFunction(() => location.hash === '#/proyectos', null, { timeout: 3500 }).then(() => true, () => false),
+    'y al tocarla va derecho a Proyectos, donde se decide');
+  await irA(p, '#/hoy', 1500);
 
   /* «Ganados sin fecha» abre el Calendario en la lente de Taller. */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
