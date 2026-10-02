@@ -20,6 +20,17 @@ Google (`ORIGENES` en `js/nucleo/ingreso.js` y el comentario de `PUENTE_CLIENT_I
 `.gs`). **El puente no** se redespliega con nada de eso: es código de Apps Script y se publica
 desde su editor.
 
+### La palomita roja de «Workers Builds: puente-al3d»
+
+Si en los commits de GitHub sale en rojo **Workers Builds: puente-al3d**, no es el sitio ni el
+puente: es el Worker viejo, que en Cloudflare se quedó conectado al repositorio. Cada push lo
+intenta construir y falla, porque `puente/worker.js` y `puente/wrangler.jsonc` ya no existen
+(se fueron cuando el puente se mudó a la hoja). No se arregla desde el repo —volver a poner
+el `wrangler.jsonc` resucitaría un Worker que nadie usa—, se apaga en el panel:
+**Cloudflare → Workers y Pages → puente-al3d → Configuración → Compilación → Desconectar** el
+repositorio (o borrar el Worker entero, si ya no le queda tráfico). El que sí importa es
+**Cloudflare Pages**, que es otro proyecto y debe seguir en verde.
+
 ## Los pasos
 
 1. Abre la hoja → **Extensiones → Apps Script**.
