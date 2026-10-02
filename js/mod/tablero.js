@@ -1161,9 +1161,25 @@ function pie() {
       '</div>' +
     '</div>';
 
+  /* Publicaciones, por la misma razón que las dos de arriba: en el teléfono no cabe en la barra
+     de abajo y esta fila es la única puerta. Se pregunta a la ruta y no al rol a mano, para que
+     cambiar quién la tiene en RUTAS no deje aquí un botón que rebota. */
+  const publicaciones = !(_ctx && typeof _ctx.tieneRuta === 'function' && _ctx.tieneRuta('publicaciones')) ? '' :
+    '<div class="pf-fila">' +
+      '<span class="pf-fila-ico">' + ico('i-publicar') + '</span>' +
+      '<div class="pf-fila-tx">' +
+        '<p class="pf-fila-t">Publicaciones</p>' +
+        '<p class="pf-fila-d">Plantillas de la marca para redes: cambias el texto y la foto y bajas la imagen o el video.</p>' +
+      '</div>' +
+      '<div class="pf-fila-acc">' +
+        btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'publicaciones' }) +
+      '</div>' +
+    '</div>';
+
   return '<div class="card"><div class="card-b">' +
     control +
     herramientas +
+    publicaciones +
     '<div class="pf-fila">' +
       '<span class="pf-fila-ico">' + ico('i-aviso') + '</span>' +
       '<div class="pf-fila-tx">' +

@@ -1,0 +1,277 @@
+/* ============================================================================
+   Publicaciones — el editor de plantillas de redes. Solo lo que el sistema no tiene.
+
+   Se apoya en css/sistema.css y css/vidrio.css, que van antes: de ahí salen los tokens, la
+   barra de arriba, los botones, los chips, los campos y el aviso de abajo. Aquí vive la
+   rejilla de miniaturas, el panel de edición, la hoja del teléfono y el diálogo de «Crear con
+   mi idea».
+
+   El movimiento sigue la auditoría de septiembre (docs y memoria del proyecto): presionar
+   dura 160 ms con salida fuerte; lo que entra, entre 200 y 300; la hoja del teléfono lleva la
+   curva del sistema operativo; y NADA se mueve solo en reposo. Eso último importa aquí más que
+   en ninguna otra pantalla: hay 52 plantillas de video con animaciones infinitas, y pintadas
+   tal cual en la rejilla eran 52 cosas latiendo a la vez mientras se busca un diseño. Se
+   congelan en la mitad del ciclo —donde todo ya entró— y solo corren donde se piden: al pasar
+   el ratón por una de video y en la vista previa del editor.
+   ============================================================================ */
+
+/* Las dos tipografías de las publicaciones, de aquí mismo. Son variables: un archivo por
+   familia cubre todos los pesos que usan las plantillas. Solo latín, que es todo el español. */
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:200 800;font-display:swap;
+  src:url(../fuentes/plus-jakarta-sans-latin.woff2) format('woff2')}
+@font-face{font-family:'Figtree';font-style:normal;font-weight:300 900;font-display:swap;
+  src:url(../fuentes/figtree-latin.woff2) format('woff2')}
+
+.pb{min-height:100dvh}
+html.empotrado .pb-top{display:none}
+html.empotrado body.pb::before{display:none}
+.pb-top .brand .t{white-space:nowrap}
+.pb-volver{width:auto;min-height:40px;padding:8px 16px;font-size:var(--t2)}
+
+/* ----- La rejilla de dos columnas -----
+   Plantillas con lo que sobre y el editor a la derecha, pegado mientras se hace scroll: se
+   elige mirando las miniaturas y se edita sin perder de vista cuál se eligió. */
+.pb-app{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:0;align-items:start;min-height:100dvh}
+html:not(.empotrado) .pb-app{min-height:calc(100dvh - 64px)}
+@media(max-width:1100px){.pb-app{grid-template-columns:minmax(0,1fr) 350px}}
+.pb-lib{min-width:0;padding:var(--e4) max(var(--e5),env(safe-area-inset-left,0px)) 64px}
+
+/* ----- La barra de herramientas ----- */
+.pb-herr{display:flex;gap:var(--e2);align-items:center;flex-wrap:wrap}
+.pb-busca{flex:1 1 240px;position:relative;display:block}
+.pb-busca .svgi{position:absolute;left:14px;top:50%;width:var(--ico1);height:var(--ico1);transform:translateY(-50%);color:var(--n6)}
+.pb-busca input{padding-left:40px;border-radius:var(--cv-pastilla,999px)}
+.pb-tam{flex:0 0 auto}
+.pb-tam button{min-height:38px;padding:6px 12px}
+.pb-idea{width:auto;flex:0 0 auto;min-height:44px;padding:10px 18px}
+.pb-idea .svgi{width:var(--ico1);height:var(--ico1)}
+
+/* Los formatos: una tira de chips que se desliza de lado en el teléfono. La máscara del borde
+   derecho dice que hay más sin poner una flecha. */
+.pb-formatos{display:flex;gap:var(--e2);overflow-x:auto;margin:var(--e3) calc(-1 * var(--e1)) 0;padding:var(--e1);
+  scrollbar-width:none;-webkit-mask:linear-gradient(90deg,#000 calc(100% - 32px),transparent)}
+.pb-formatos::-webkit-scrollbar{display:none}
+.pb-formatos::after{content:'';flex:0 0 24px}
+.pb-formatos .chip{flex:0 0 auto;white-space:nowrap;min-height:38px;padding:7px 14px;cursor:pointer;font-family:inherit;font-size:var(--t2);
+  transition:background-color var(--mv-s),border-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.pb-formatos .chip em{font-style:normal;font-size:var(--t1);font-variant-numeric:tabular-nums;color:var(--n6);margin-left:2px}
+.pb-formatos .chip.on em{color:inherit;opacity:.75}
+.pb-cuenta{margin:var(--e3) 0 var(--e3);font-size:var(--t2);color:var(--tinta3);min-height:1.45em}
+
+/* ----- Las miniaturas -----
+   Cada una es un <button>: se llega con el tabulador y se elige con Enter, que con un <div>
+   con onclick no pasaba. */
+.pb-rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--w,220px),1fr));gap:var(--e5) var(--e4)}
+.pb-tarj{display:flex;flex-direction:column;gap:var(--e2);min-width:0;padding:0;border:0;background:none;text-align:left;
+  font-family:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pb-marco{position:relative;overflow:hidden;border-radius:var(--rr2);background:var(--sup2);border:1px solid var(--linea);
+  box-shadow:var(--sombra-reposo);
+  transition:transform .16s var(--ease-out),box-shadow .2s var(--ease-out),border-color .2s var(--ease-out)}
+@media(hover:hover) and (pointer:fine){
+  .pb-tarj:hover .pb-marco{transform:translateY(-2px);box-shadow:var(--sombra-alta);border-color:var(--a-borde)}
+}
+/* Presionar va después de pasar por encima: con la misma especificidad gana la última, y la
+   miniatura levantada tiene que poder hundirse. */
+.pb-tarj:active .pb-marco{transform:scale(.97);box-shadow:var(--sombra-reposo)}
+.pb-tarj:focus-visible{outline:none}
+.pb-tarj:focus-visible .pb-marco{outline:2.5px solid var(--a);outline-offset:3px}
+/* Elegida: un anillo del acento. Sin transform —el anillo ya dice cuál es— para que no brinque
+   cuando se elige. */
+.pb-tarj.on .pb-marco{border-color:var(--a);box-shadow:0 0 0 2px var(--a),var(--sombra-alta)}
+.pb-in{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
+/* Congeladas en reposo. El instante lo escribe el guion en línea (la mitad del ciclo). */
+.pb-in *,.pb-in{animation-play-state:paused!important}
+@media(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  .pb-tarj.es-video:hover .pb-in *{animation-play-state:running!important}
+}
+.pb-pie{display:flex;align-items:baseline;justify-content:space-between;gap:var(--e2);font-size:var(--t2);min-width:0}
+.pb-pie b{font-family:var(--f-cifra);font-weight:600;font-size:var(--t2);color:var(--a-tx);white-space:nowrap;font-variant-numeric:tabular-nums}
+.pb-pie span{color:var(--tinta2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-sello{position:absolute;right:8px;top:8px;display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;border-radius:999px;
+  background:rgba(12,14,30,.62);color:#fff;font-size:var(--t1);font-weight:600;pointer-events:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.pb-sello .svgi{width:13px;height:13px}
+
+/* La silueta mientras cargan. Quieta: la auditoría quitó todo lo que late en reposo, y una
+   carga de medio segundo no necesita brillo para decir que está cargando. */
+.pb-esq{pointer-events:none}
+.pb-esq .pb-marco{background:var(--n2);box-shadow:none;border-color:var(--n2)}
+.pb-esq .pb-pie b{display:block;width:58%;height:10px;border-radius:4px;background:var(--n2)}
+
+.pb-nada{grid-column:1/-1;padding:var(--e7) var(--e4);text-align:center;color:var(--tinta2)}
+.pb-nada b{display:block;color:var(--tinta);font-size:var(--t4);margin-bottom:var(--e1)}
+
+/* ============================================================================
+   El editor
+   ============================================================================ */
+.pb-editor{position:sticky;top:0;align-self:start;height:100dvh;display:flex;flex-direction:column;min-height:0;
+  background:var(--sup);border-left:1px solid var(--linea)}
+html:not(.empotrado) .pb-editor{top:64px;height:calc(100dvh - 64px)}
+.pb-ed{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.pb-asa,.pb-cerrar{display:none}
+.pb-velo{display:none}
+
+.pb-vacio{margin:auto;padding:var(--e7) var(--e5);text-align:center;color:var(--tinta2);max-width:300px}
+.pb-vacio .svgi{width:var(--ico4);height:var(--ico4);color:var(--n5);margin-bottom:var(--e3)}
+.pb-vacio-t{font-weight:700;color:var(--tinta);font-size:var(--t4);margin-bottom:var(--e1)}
+.pb-vacio-d{font-size:var(--t2);line-height:1.5}
+
+/* La vista previa: la publicación a tamaño de pantalla, con su sombra de papel. Se escribe
+   encima. */
+.pb-prev{background:var(--sup2);border-bottom:1px solid var(--linea2);padding:var(--e5) var(--e4);display:flex;justify-content:center;flex:0 0 auto}
+.pb-caja{position:relative;overflow:hidden;border-radius:2px;box-shadow:0 1px 2px rgba(20,23,43,.08),0 16px 36px -14px rgba(20,23,43,.35);flex:0 0 auto}
+.pb-caja>div{transform-origin:0 0}
+.pb-caja [data-slot]{cursor:text;outline:none;border-radius:2px;transition:box-shadow .12s var(--ease-out)}
+@media(hover:hover) and (pointer:fine){.pb-caja [data-slot]:hover{box-shadow:0 0 0 1px rgba(140,162,255,.95)}}
+.pb-caja [data-slot]:focus{box-shadow:0 0 0 2px #8CA2FF}
+.pb-caja [data-foto]{cursor:pointer}
+.pb-caja [data-foto].soltar{outline:3px dashed #8CA2FF;outline-offset:-6px}
+@media(prefers-reduced-motion:reduce){.pb-caja *,.pb-caja{animation-play-state:paused!important}}
+
+.pb-info{padding:var(--e4) var(--e5) 0}
+.pb-info b{display:block;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);color:var(--tinta);letter-spacing:-.1px}
+.pb-info span{font-size:var(--t2);color:var(--tinta2);font-variant-numeric:tabular-nums}
+.pb-form{padding:var(--e4) var(--e5) 0}
+.pb-form .fld label{display:block;margin-bottom:5px}
+.pb-form textarea{min-height:0}
+.pb-sin{font-size:var(--t2);color:var(--tinta2)}
+
+/* El recuadro de foto: todo el renglón es el botón, con la miniatura de lo que ya hay. */
+.pb-foto{display:flex;align-items:center;gap:var(--e3);width:100%;min-height:56px;padding:var(--e2);border:1px dashed var(--a-borde);
+  border-radius:var(--rr2);background:var(--a-suave);color:var(--a-tx);font:inherit;font-weight:600;font-size:var(--t2);cursor:pointer;text-align:left;
+  transition:background-color var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+@media(hover:hover) and (pointer:fine){.pb-foto:hover{border-style:solid}}
+.pb-foto:active{transform:scale(.98)}
+.pb-foto i{width:40px;height:40px;border-radius:var(--rr1);background:var(--sup) center/cover no-repeat;flex:none;display:flex;align-items:center;justify-content:center}
+.pb-foto i .svgi{width:var(--ico1);height:var(--ico1)}
+.pb-foto i.con .svgi{display:none}
+
+/* ----- Las acciones -----
+   Un solo botón de color, el que hace lo que se vino a hacer: bajar la imagen. El video, que
+   es la otra forma de bajar, es neutro. */
+.pb-acc{padding:var(--e4) var(--e5);display:grid;gap:var(--e2);margin-top:auto;border-top:1px solid var(--linea2);background:var(--sup);position:sticky;bottom:0}
+.pb-acc .btn{margin:0;position:relative;overflow:hidden;transition:background-color .12s,border-color .12s,color .12s,transform .16s var(--ease-out)}
+.pb-acc .btn:active:not(:disabled){transform:scale(.97)}
+.pb-acc .btn .svgi{width:var(--ico1);height:var(--ico1)}
+.pb-fila2{display:grid;grid-template-columns:1fr 1fr;gap:var(--e2)}
+.pb-fila2 .btn{padding:10px 12px;font-size:var(--t2)}
+/* El rótulo del botón cambia («Descargar PNG» → «Generando…» → «Listo»). Dos textos cruzándose
+   se ven como dos cosas; con un desenfoque corto se leen como una que cambia. */
+.pb-btx{display:inline-flex;align-items:center;gap:var(--e2);transition:filter .18s var(--ease-out),opacity .18s var(--ease-out)}
+.pb-btx.cambia{filter:blur(2px);opacity:.4}
+/* El avance del video, dentro del mismo botón que lo pidió. Es un transform y no un ancho:
+   no recalcula la caja 144 veces. */
+.pb-prog{position:absolute;left:0;bottom:0;height:3px;width:100%;background:currentColor;opacity:.55;transform-origin:0 50%;transform:scaleX(0);pointer-events:none}
+.pb-croma{display:flex;align-items:center;gap:var(--e2);font-size:var(--t2);color:var(--tinta2);cursor:pointer;min-height:36px}
+.pb-croma input{width:18px;height:18px;min-height:0;accent-color:var(--a);margin:0;flex:none}
+
+/* ----- Mi lista ----- */
+.pb-lista{padding:var(--e4) var(--e5) 0}
+.pb-lista-t{font-size:var(--t1);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta3);margin-bottom:var(--e2)}
+.pb-lista-f{display:flex;flex-wrap:wrap;gap:6px}
+.pb-item{display:inline-flex;align-items:stretch;border:1px solid var(--linea);border-radius:999px;background:var(--sup2);overflow:hidden;font-size:var(--t2)}
+.pb-item button{border:0;background:none;font:inherit;color:var(--tinta);cursor:pointer;padding:6px 4px 6px 12px;min-height:34px;font-variant-numeric:tabular-nums;
+  transition:background-color var(--mv-s)}
+.pb-item button+button{padding:6px 10px 6px 6px;color:var(--n6);display:flex;align-items:center}
+.pb-item button+button .svgi{width:12px;height:12px}
+@media(hover:hover) and (pointer:fine){.pb-item button:hover{background:var(--n2)}.pb-item button+button:hover{color:var(--mal)}}
+.pb-item button:active{background:var(--n3)}
+/* Una pieza que acaba de entrar a la lista: llega desde el botón de abajo. Pasa unas veces al
+   día, así que se puede notar. */
+.pb-item.nuevo{animation:pb-item-entra .24s var(--ease-out)}
+@keyframes pb-item-entra{from{opacity:0;transform:translateY(6px) scale(.96)}}
+
+.pb-avanzado{padding:var(--e3) var(--e5) var(--e4);font-size:var(--t2);color:var(--tinta2)}
+.pb-avanzado summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-weight:600}
+.pb-avanzado textarea{height:140px;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;margin-top:var(--e2)}
+.pb-avanzado .btn{margin-top:var(--e2);width:auto;min-height:36px;padding:6px 14px;font-size:var(--t2)}
+
+/* ============================================================================
+   El teléfono: el editor es una hoja que sube desde abajo
+   ============================================================================ */
+@media(max-width:759px){
+  .pb-app{grid-template-columns:1fr}
+  .pb-lib{padding:var(--e3) max(var(--e4),env(safe-area-inset-left,0px)) 96px}
+  .pb-tam,.pb-volver{display:none}
+  .pb-idea{flex:1 1 100%}
+  .pb-rejilla{--w:140px!important;gap:var(--e4) var(--e3)}
+
+  .pb-velo{display:block;position:fixed;inset:0;z-index:40;background:rgba(var(--nav-rgb),.45);opacity:0;
+    transition:opacity .24s var(--ease-out)}
+  .pb-velo.abierto{opacity:1}
+  /* `html:not(.empotrado)` porque la regla de escritorio de la página suelta lo lleva, y con esa
+     especificidad su `top:64px` le ganaba a éste: la hoja salía pegada arriba en vez de subir. */
+  html .pb-editor,html:not(.empotrado) .pb-editor{top:auto;height:min(88dvh,760px)}
+  .pb-editor{position:fixed;left:0;right:0;bottom:0;z-index:41;
+    border-left:0;border-radius:var(--rr4) var(--rr4) 0 0;box-shadow:0 -18px 48px -12px rgba(20,23,43,.4);
+    transform:translateY(100%);visibility:hidden;
+    /* Cerrar es más rápido que abrir: abrir es algo que se mira, cerrar es quitarse de enmedio. */
+    transition:transform .28s var(--ease-out),visibility 0s linear .28s}
+  .pb-editor.abierto{transform:none;visibility:visible;transition:transform .42s var(--ease-hoja),visibility 0s}
+  .pb-editor.arrastra{transition:none}
+  .pb-asa{display:block;flex:0 0 auto;height:22px;position:relative;cursor:grab;touch-action:none}
+  .pb-asa::before{content:'';position:absolute;left:50%;top:9px;width:40px;height:4px;margin-left:-20px;border-radius:99px;background:var(--n4)}
+  .pb-cerrar{display:flex;position:absolute;right:10px;top:10px;z-index:2}
+  .pb-prev{padding:var(--e3) var(--e4) var(--e4)}
+  .pb-acc{padding-bottom:max(var(--e4),env(safe-area-inset-bottom,0px))}
+}
+.pb-cerrar{width:36px;height:36px;border-radius:50%;border:1px solid var(--linea);background:var(--sup);color:var(--tinta2);
+  align-items:center;justify-content:center;cursor:pointer;transition:transform var(--mv-liq),background-color var(--mv-s)}
+.pb-cerrar .svgi{width:14px;height:14px}
+.pb-cerrar:active{transform:scale(.94)}
+.pb-cerrar-fijo{display:flex;position:static;flex:none}
+
+/* ============================================================================
+   Crear con mi idea
+   ============================================================================ */
+.pb-dialogo{border:0;padding:0;background:transparent;color:var(--tinta);max-width:min(1080px,calc(100vw - 32px));width:100%;
+  max-height:calc(100dvh - 48px);margin:auto;overflow:visible;
+  opacity:0;transform:scale(.97);
+  transition:opacity .15s var(--ease-out),transform .15s var(--ease-out),overlay .15s allow-discrete,display .15s allow-discrete}
+.pb-dialogo[open]{opacity:1;transform:none;transition:opacity .2s var(--ease-out),transform .24s var(--ease-out),overlay .24s allow-discrete,display .24s allow-discrete}
+@starting-style{.pb-dialogo[open]{opacity:0;transform:scale(.97)}}
+.pb-dialogo::backdrop{background:rgba(var(--nav-rgb),0);transition:background-color .2s var(--ease-out),overlay .2s allow-discrete,display .2s allow-discrete}
+.pb-dialogo[open]::backdrop{background:rgba(var(--nav-rgb),.5)}
+@starting-style{.pb-dialogo[open]::backdrop{background:rgba(var(--nav-rgb),0)}}
+.pb-dialogo-in{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);box-shadow:var(--sombra-alta);
+  padding:var(--e5);max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain}
+.pb-dialogo-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--e3);margin-bottom:var(--e3)}
+.pb-dialogo h2{font-size:var(--t5);font-weight:600;letter-spacing:-.2px;margin-bottom:var(--e1)}
+.pb-dialogo-cab p{color:var(--tinta2);font-size:var(--t3);max-width:60ch}
+.pb-dialogo textarea{min-height:88px;font-size:16px}
+.pb-ejemplos{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--e3)}
+.pb-ejemplos .chip{cursor:pointer;font-family:inherit;font-size:var(--t2);min-height:34px;padding:6px 12px;transition:background-color var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+.pb-idea-fila{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e4);align-items:center}
+.pb-idea-fila select{width:auto;flex:1 1 180px}
+.pb-idea-fila .btn{width:auto;flex:0 0 auto;padding:11px 22px;transition:transform .16s var(--ease-out),filter .12s}
+.pb-idea-fila .btn:active{transform:scale(.97)}
+.pb-idea-st{margin-top:var(--e3);font-size:var(--t2);color:var(--tinta2);min-height:1.45em}
+.pb-opciones{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--e5) var(--e4);margin-top:var(--e2)}
+.pb-op{display:flex;flex-direction:column;gap:var(--e2);min-width:0;
+  animation:pb-op-entra .28s var(--ease-out) backwards;animation-delay:calc(var(--i,0) * 40ms)}
+@keyframes pb-op-entra{from{opacity:0;transform:translateY(8px)}}
+.pb-op .pb-marco{box-shadow:var(--sombra)}
+.pb-op small{color:var(--tinta2);font-size:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-op .btn{padding:9px 12px;font-size:var(--t2);transition:transform .16s var(--ease-out),background-color .12s}
+.pb-op .btn:active{transform:scale(.97)}
+@media(max-width:759px){
+  .pb-dialogo{max-width:100vw;max-height:100dvh;margin:auto 0 0;transform:translateY(24px)}
+  .pb-dialogo[open]{transform:none}
+  @starting-style{.pb-dialogo[open]{transform:translateY(24px)}}
+  .pb-dialogo-in{border-radius:var(--rr4) var(--rr4) 0 0;max-height:92dvh;padding:var(--e4) var(--e4) max(var(--e4),env(safe-area-inset-bottom,0px))}
+  .pb-opciones{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ----- Reducir movimiento -----
+   Menos y más suave, no cero: se quedan los fundidos, que ayudan a entender qué cambió, y se
+   va todo lo que se desplaza. */
+@media(prefers-reduced-motion:reduce){
+  .pb-marco,.pb-tarj:active .pb-marco,.pb-acc .btn:active:not(:disabled),.pb-foto:active{transform:none!important}
+  .pb-editor,.pb-editor.abierto{transition:opacity .2s ease,visibility 0s linear .2s}
+  @media(max-width:759px){.pb-editor{transform:none;opacity:0}.pb-editor.abierto{opacity:1;transition:opacity .2s ease,visibility 0s}}
+  .pb-dialogo,.pb-dialogo[open]{transform:none}
+  @starting-style{.pb-dialogo[open]{transform:none}}
+  .pb-op,.pb-item.nuevo{animation:pb-funde .2s ease backwards}
+  @keyframes pb-funde{from{opacity:0}}
+}
+
+html.arrancando .pb-herr,html.arrancando .pb-formatos{visibility:hidden}

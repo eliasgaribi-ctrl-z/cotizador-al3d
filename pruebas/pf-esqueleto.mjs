@@ -82,7 +82,7 @@ console.log('\nLA BARRA DE ABAJO SE QUEDA EN CINCO, Y LA QUINTA ES «MÁS»');
 
   const di = repartirBarra(visibles('direccion'));
   eq('dirección: las cuatro marcadas `movil` se quedan abajo', nombres(di.barra), ['hoy', 'agenda', 'proyectos', 'cotizador']);
-  eq('  y «Más» abre lo demás, en el orden de RUTAS', nombres(di.mas), ['material', 'mapa', 'anidador', 'vectorizar', 'control']);
+  eq('  y «Más» abre lo demás, en el orden de RUTAS', nombres(di.mas), ['material', 'mapa', 'anidador', 'vectorizar', 'publicaciones', 'control']);
 
   const fa = repartirBarra(visibles('fabricacion'));
   eq('fabricación: las mismas cuatro abajo', nombres(fa.barra), ['hoy', 'agenda', 'proyectos', 'cotizador']);

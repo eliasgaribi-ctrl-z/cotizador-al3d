@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- ----- Content-Security-Policy -----
+     La misma que el editor. El contenido (?contenido=…) y las fotos tienen que ser de este
+     mismo sitio o venir en data:: abrirle la puerta a cualquier servidor para leer un JSON es
+     abrírsela también a que ese JSON diga a dónde mandar lo que hay en la página. Ver
+     README.md de esta carpeta. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; media-src 'self' blob:; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Motor de publicaciones · AL3D</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="../icono-192.png">
+<script src="js/previo.js"></script>
+<script src="../js/tema.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
+<link rel="stylesheet" href="../css/sistema.css">
+<link rel="stylesheet" href="../css/vidrio.css">
+<link rel="stylesheet" href="css/publicaciones.css">
+<link rel="stylesheet" href="css/motor.css">
+<script src="../vendor/html-to-image.js" defer></script>
+<script type="module" src="js/motor.js"></script>
+</head>
+<body class="pb pb-motor">
+<header class="topbar pb-top">
+  <div class="topbar-in">
+    <div class="brand">
+      <img class="logoimg" src="../logo-al3d.svg" alt="AL3D" width="120" height="38">
+      <span class="t">Motor de publicaciones <small id="mt-cuenta">cargando plantillas…</small></span>
+    </div>
+    <a class="btn btn-gho pb-volver" href="./">Volver al editor</a>
+  </div>
+</header>
+<main class="mt-app">
+  <section class="card mt-panel">
+    <div class="card-h"><h2>Contenido (JSON)</h2></div>
+    <div class="mt-cuerpo">
+      <p class="mt-nota">Una lista de piezas: <code>plantilla</code>, <code>campos</code> (usa <code>\n</code> para el salto de renglón), <code>fotos</code> en orden y el <code>nombre</code> del archivo. Toca un texto de la vista previa para cambiarlo: el JSON se actualiza solo.</p>
+      <textarea id="mt-json" spellcheck="false" aria-label="Contenido en JSON"></textarea>
+      <div class="mt-fila">
+        <button type="button" class="btn btn-pri" id="mt-generar">Generar</button>
+        <button type="button" class="btn btn-gho" id="mt-todo">Descargar todo (PNG)</button>
+        <label class="btn btn-gho">Cargar JSON<input type="file" id="mt-archivo" accept=".json,application/json" hidden></label>
+      </div>
+      <label class="pb-croma"><input type="checkbox" id="mt-croma"> Videos con fondo verde, para encimarlos sobre tu grabación</label>
+      <p class="mt-err" id="mt-err" role="alert"></p>
+    </div>
+  </section>
+  <section class="mt-der">
+    <div class="mt-salida" id="mt-salida"></div>
+    <div class="card mt-bib">
+      <div class="card-h"><h2>Biblioteca</h2></div>
+      <div class="mt-cuerpo">
+        <div class="mt-fila">
+          <input type="search" id="mt-q" placeholder="Buscar por ID o nombre (P12, carrusel, cita…)" aria-label="Buscar plantilla">
+          <select id="mt-tipo" aria-label="Tipo">
+            <option value="">Todos</option><option>post</option><option>carrusel</option><option>historia</option>
+            <option>video</option><option>portada</option><option>perfil</option>
+          </select>
+        </div>
+        <p class="mt-nota">Toca una plantilla para agregarla al JSON con sus campos.</p>
+        <div class="mt-lib" id="mt-lib"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="pb-toast" role="status" aria-live="polite"></div>
+</body>
+</html>

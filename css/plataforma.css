@@ -2361,6 +2361,11 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .esq-cols.an-esq{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
 @media(max-width:920px){ .esq-cols,.esq-cols.an-esq{grid-template-columns:1fr} .esq-lado{display:none} }
 .esq-mesa{height:380px}
+/* La de Publicaciones: la búsqueda, una rejilla de miniaturas y el panel del editor. */
+.esq-cols.pb-esq-cols{grid-template-columns:minmax(0,1fr) 360px}
+.esq-mosaico{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--e4);margin-top:var(--e4)}
+.esq-mini{aspect-ratio:3/4;height:auto;border-radius:var(--rr2)}
+@media(max-width:920px){.esq-cols.pb-esq-cols{grid-template-columns:1fr}}
 /* El del mapa va suelto, sin tarjeta alrededor, y su brillo —de --sup2 a --n2— se confunde
    con el lienzo de la página: con el borde de tarjeta se lee como lo que es, el hueco del mapa. */
 /* Con el alto del lienzo de verdad (60 dvh, y 45 en el teléfono) y no con 420 px sueltos (F16): la

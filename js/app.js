@@ -93,6 +93,12 @@ const RUTAS = [
      había que abrir una cotización que nadie iba a mandar. El botón del cotizador se queda
      donde está: son dos puertas al mismo documento, no dos implementaciones. */
   { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'], conservar: true },
+  /* El editor de publicaciones: las plantillas de marca para redes. Es la tercera herramienta
+     de marco —un documento propio, publicaciones/, igual que la mesa de corte— y por eso se
+     conserva: cargar las 554 plantillas es un mega de JSON y volver de otra pantalla no debe
+     costarlo otra vez ni perder lo que se estaba escribiendo. Solo Dirección: es la voz de la
+     marca, no una herramienta del taller ni de la cobranza. */
+  { ruta: 'publicaciones', mod: 'herramientas', seccion: 'mod-publicaciones', icono: 'i-publicar', nombre: 'Publicaciones', sub: 'plantillas de marca para redes',              roles: ['direccion'], conservar: true },
   /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
      el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
      Material: se llega desde el Tablero. */

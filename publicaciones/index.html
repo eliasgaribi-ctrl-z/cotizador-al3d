@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- ----- Content-Security-Policy -----
+     El editor no habla con nadie de afuera. Las plantillas, los logotipos y las dos
+     tipografías de las publicaciones son de aquí mismo (fuentes/), y html-to-image vive en
+     vendor/. Lo único externo son las dos familias de la app —Sora y Manrope, las mismas que
+     la plataforma—, que solo visten la interfaz y nunca entran en una imagen. Las fotos que
+     se suben se leen como data:, y la descarga es un blob:. Ver pruebas/csp.mjs. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; media-src 'self' blob:; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Publicaciones · AL3D</title>
+<meta name="description" content="Plantillas de marca para redes sociales: eliges un diseño, cambias textos y fotos y descargas el PNG o el video.">
+<meta name="theme-color" content="#4060f8">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="../icono-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+
+<script src="js/previo.js"></script>
+<script src="../js/tema.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+
+<!-- El sistema de diseño de las tres superficies, la capa de vidrio y, encima, solo lo propio
+     de esta pantalla. Mismo orden que el anidador. -->
+<link rel="stylesheet" href="../css/sistema.css">
+<link rel="stylesheet" href="../css/vidrio.css">
+<link rel="stylesheet" href="css/publicaciones.css">
+<script src="../vendor/html-to-image.js" defer></script>
+<script type="module" src="js/editor.js"></script>
+</head>
+<body class="pb">
+
+<a href="#pb-rejilla" class="salto">Ir a las plantillas</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.6 15.6 4.9 4.9"/></symbol>
+<symbol id="i-ia" viewBox="0.583 -0.417 23.333 23.333" style="stroke-width:1.847"><path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5 8.3 10.2 4 8.5l4.3-1.7z"/><path d="M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
+<symbol id="i-bajar" viewBox="0 0 24 24"><path d="M12 3v12.5"/><path d="M6.8 10.6 12 15.8l5.2-5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-check" viewBox="1.95 2 20.4 20.4" style="stroke-width:1.615"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
+<symbol id="i-cerrar" viewBox="3.333 3.333 17.333 17.333" style="stroke-width:1.372"><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5"/></symbol>
+<symbol id="i-imagen" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><rect x="2.5" y="4" width="19" height="16" rx="2.2"/><circle cx="8.4" cy="9.6" r="1.8"/><path d="M21.5 15.5 16 10 6.5 19.5"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="m10 9.2 5 2.8-5 2.8z"/></symbol>
+<symbol id="i-mas" viewBox="2 2 20 20" style="stroke-width:1.583"><path d="M12 4.5v15M4.5 12h15"/></symbol>
+<symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
+<symbol id="i-lapiz" viewBox="1.2 0.4 22.4 22.4" style="stroke-width:1.773"><path d="M16.8 3.2 20.8 7.2 8 20H4v-4z"/><path d="M14.6 5.4 18.6 9.4"/></symbol>
+</defs></svg>
+
+<!-- La barra de la página suelta. Empotrada, la esconde html.empotrado: quien manda ahí es el
+     encabezado de la plataforma, que ya dice «Publicaciones». -->
+<header class="topbar pb-top">
+  <div class="topbar-in">
+    <div class="brand">
+      <img class="logoimg" src="../logo-al3d.svg" alt="AL3D" width="120" height="38">
+      <span class="t">Publicaciones <small>plantillas de marca para redes</small></span>
+    </div>
+    <a class="btn btn-gho pb-volver" href="../#/publicaciones">Abrir en la plataforma</a>
+  </div>
+</header>
+
+<main class="pb-app" id="pb-app">
+  <section class="pb-lib" aria-label="Plantillas">
+    <div class="pb-herr">
+      <label class="pb-busca">
+        <svg class="svgi" aria-hidden="true"><use href="#i-buscar"/></svg>
+        <span class="solo-voz">Buscar diseño</span>
+        <input type="search" id="pb-q" placeholder="Buscar: cita, precio, proyecto, P12…" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="seg pb-tam" id="pb-tam" role="group" aria-label="Tamaño de las miniaturas">
+        <button type="button" data-w="160" aria-pressed="false">Chico</button>
+        <button type="button" data-w="220" aria-pressed="true" class="on">Mediano</button>
+        <button type="button" data-w="320" aria-pressed="false">Grande</button>
+      </div>
+      <button type="button" class="btn btn-gho pb-idea" id="pb-idea-abrir">
+        <svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg>Crear con mi idea
+      </button>
+    </div>
+    <div class="pb-formatos" id="pb-formatos" role="group" aria-label="Formato"></div>
+    <p class="pb-cuenta" id="pb-cuenta" aria-live="polite"></p>
+    <div class="pb-rejilla" id="pb-rejilla" style="--w:220px">
+      <!-- La silueta mientras llegan las 554 plantillas (un mega de JSON). La reemplaza la
+           primera pintada de la rejilla. -->
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:3/4"></div><div class="pb-pie"><b></b></div></div>
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:1"></div><div class="pb-pie"><b></b></div></div>
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:4/5"></div><div class="pb-pie"><b></b></div></div>
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:9/16"></div><div class="pb-pie"><b></b></div></div>
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:3/4"></div><div class="pb-pie"><b></b></div></div>
+      <div class="pb-tarj pb-esq" aria-hidden="true"><div class="pb-marco" style="aspect-ratio:1"></div><div class="pb-pie"><b></b></div></div>
+    </div>
+  </section>
+
+  <div class="pb-velo" id="pb-velo" hidden></div>
+  <aside class="pb-editor" id="pb-editor" aria-label="Editar la publicación">
+    <div class="pb-asa" id="pb-asa" aria-hidden="true"></div>
+    <button type="button" class="pb-cerrar" id="pb-cerrar" aria-label="Cerrar el editor">
+      <svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg>
+    </button>
+    <div class="pb-ed" id="pb-ed">
+      <div class="pb-vacio">
+        <svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg>
+        <p class="pb-vacio-t">Elige un diseño para editarlo</p>
+        <p class="pb-vacio-d">Escribes encima de la publicación, le pones tus fotos y la bajas lista para subir.</p>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- Crear con mi idea. <dialog> nativo: Escape, el foco atrapado y el fondo inerte los pone
+     el navegador. -->
+<dialog class="pb-dialogo" id="pb-idea" aria-labelledby="pb-idea-t">
+  <form method="dialog" class="pb-dialogo-in">
+    <div class="pb-dialogo-cab">
+      <div>
+        <h2 id="pb-idea-t">Crear con mi idea</h2>
+        <p>Escribe qué quieres publicar. Te propongo plantillas ya llenas con tu texto; eliges una y la ajustas.</p>
+      </div>
+      <button class="pb-cerrar pb-cerrar-fijo" value="cerrar" aria-label="Cerrar">
+        <svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg>
+      </button>
+    </div>
+    <textarea id="pb-idea-tx" rows="3" placeholder="Ej.: Terminamos letras 3D con luz LED para la cafetería Café Central en Zapopan, quiero enseñar el antes y después"></textarea>
+    <div class="pb-ejemplos" id="pb-idea-ej"></div>
+    <div class="pb-idea-fila">
+      <select id="pb-idea-fmt" aria-label="Formato">
+        <option value="">Formato: el que mejor quede</option>
+        <option value="post@3x4">Post 3:4</option>
+        <option value="post@4x5">Post 4:5</option>
+        <option value="post@1x1">Post 1:1</option>
+        <option value="carrusel">Carrusel</option>
+        <option value="historia">Historia</option>
+        <option value="video">Video</option>
+      </select>
+      <select id="pb-idea-n" aria-label="Cuántas opciones">
+        <option value="6">6 opciones</option>
+        <option value="9">9 opciones</option>
+        <option value="12">12 opciones</option>
+      </select>
+      <button type="button" class="btn btn-pri" id="pb-idea-ir">Proponer</button>
+    </div>
+    <p class="pb-idea-st" id="pb-idea-st" aria-live="polite"></p>
+    <div class="pb-opciones" id="pb-idea-ops"></div>
+  </form>
+</dialog>
+
+<div class="toast" id="pb-toast" role="status" aria-live="polite"></div>
+</body>
+</html>

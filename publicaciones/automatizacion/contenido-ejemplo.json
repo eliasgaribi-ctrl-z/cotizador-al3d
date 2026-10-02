@@ -1,0 +1,35 @@
+[
+  {
+    "nombre": "lunes-post",
+    "plantilla": "P01@3x4",
+    "campos": {
+      "t1": "¿Tu negocio se ve de noche?",
+      "t2": "LETRAS 3D\nCON LUZ LED",
+      "t3": "Fabricamos e instalamos en Guadalajara y Zapopan.",
+      "t4": "Solicita tu cotización"
+    },
+    "fotos": []
+  },
+  {
+    "nombre": "miercoles-proyecto",
+    "plantilla": "N01@3x4",
+    "campos": {
+      "etiqueta": "Proyecto terminado",
+      "titulo": "Letras 3D para Café Central"
+    },
+    "fotos": [
+      "https://ejemplo.com/foto-proyecto.jpg"
+    ]
+  },
+  {
+    "nombre": "viernes-reel-portada",
+    "plantilla": "V04@9x16",
+    "campos": {
+      "etiqueta": "NUEVO PROYECTO",
+      "cliente": "Café",
+      "cliente2": "Central",
+      "ciudad": "Zapopan, Jal."
+    },
+    "fotos": []
+  }
+]
