@@ -172,10 +172,13 @@ cada sesión.
 
 ## Respaldar y mover los datos
 
-Los datos se guardan localmente en cada dispositivo y **no se sincronizan entre ellos**. Eso se
-pierde al borrar los datos del navegador, al cambiar de teléfono o cuando iOS limpia los sitios
-que llevan semanas sin abrirse. La app lo pide sola: apunta la fecha del último respaldo y lo
-nombra al autorizar si lleva más de treinta días o diez cotizaciones sin respaldarse.
+Con el puente, **la venta y el almacén viajan a la hoja** y de ahí a los demás teléfonos: los
+proyectos ganados, la cobranza, los movimientos del almacén, el catálogo de material y las listas
+de compra. Lo demás —el historial de cotizaciones, los cuadernos de cliente, la cotización en
+curso y las preferencias de cada teléfono— **vive solo en el dispositivo** y no se sincroniza.
+Eso se pierde al borrar los datos del navegador, al cambiar de teléfono o cuando iOS limpia los
+sitios que llevan semanas sin abrirse. La app lo pide sola: apunta la fecha del último respaldo
+y lo nombra al autorizar si lleva más de treinta días o diez cotizaciones sin respaldarse.
 
 En el pie del historial hay cuatro botones: **⬇ Respaldar** descarga un archivo con todo lo de
 ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de lo que estaba),
@@ -355,9 +358,45 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 
 ## Pendientes
 
+Al 1 de octubre de 2026, después del PR #75 (folio con la letra del teléfono, QR que firma cada
+renglón, revisión remota partida por partida, almacén en la hoja y las ventanas del escalador,
+vectorizador e historial en la escala de siete tamaños).
+
+**De negocio**
+
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
-  la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
-  cobra.
+  la que el módulo de material excluye por diseño. Falta decidir cómo se cobra.
+
+**Por desplegar**
+
+- **Publicar el puente `puente-sheets-9` en la hoja** ([`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)).
+  Hasta entonces la app funciona, pero ningún sello nuevo firma renglones y el almacén se queda
+  esperando en cada teléfono. Ya publicado, probarlo una vez de punta a punta con la hoja real:
+  autorizar, escanear el QR, comprobar que un PDF de antes siga «auténtica» y mover algo en el
+  almacén. Hasta hoy solo se probó contra la hoja de mentiras.
+
+**Por verificar**
+
+- **Correr completa la tanda de navegador** (`pruebas/correr.sh --navegador`) con la máquina sin
+  carga. En la última corrida varias se cortaron por tiempo o con «Target crashed» mientras
+  trabajaban cuatro agentes a la vez; las de node pasan todas.
+- **Dos fallos de la isla** en `pruebas/navegador/cot-cliente.mjs`: en la computadora no se
+  desenrolla, y a 1100 px la barra baja de 65 a 121 px. Fallan igual en `main` antes del #75.
+- **«Copiar» de la entrega** (`pruebas/navegador/cot-entrega.mjs`) falló una vez y no se repitió.
+
+**Límites conocidos del almacén en la hoja**
+
+- Un cambio hecho **a mano** en las pestañas del almacén no mueve la secuencia: llega a los
+  teléfonos en la vuelta semanal en que cada uno las vuelve a leer enteras.
+- La etapa que fabricación mueve en una tarjeta importada no regresa al proyecto de Dirección.
+- Una salida derivada con id al azar, emitida antes de este cambio, puede duplicarse con la nueva
+  solo durante la transición.
+
+**De seguridad**
+
+- **El origen compartido** sigue siendo lo más grande que está abierto (ver
+  [«El origen compartido»](#el-origen-compartido)): mudar la app a un origen propio y quitar
+  `eliasgaribi-ctrl-z.github.io` de los orígenes autorizados del cliente de OAuth.
 
 ---
 
