@@ -25,6 +25,7 @@
 
 export const CLAVES = {
   DISP:       'al3d_pf_disp',
+  LETRA_FOLIO:'al3d_pf_letra_folio',
   ROL:        'al3d_pf_rol',
   NOMBRE:     'al3d_pf_nombre',
   GANADAS:    'al3d_pf_ganadas',
@@ -90,7 +91,7 @@ export const ROL_DESC = {
   pagos:       'Cobranza y comisiones. No mueves el almacén ni la agenda.',
 };
 
-const CRUDAS = new Set([CLAVES.DISP, CLAVES.ROL, CLAVES.NOMBRE, CLAVES.TILES,
+const CRUDAS = new Set([CLAVES.DISP, CLAVES.LETRA_FOLIO, CLAVES.ROL, CLAVES.NOMBRE, CLAVES.TILES,
                         CLAVES.ULT_EXPORT, CLAVES.EMPRESA, CLAVES.RESTAURAR]);
 
 /** Lee. Nunca lanza. Devuelve `def` si no está, si no se pudo leer o si el JSON está roto. */
@@ -134,6 +135,21 @@ export function dispositivo() {
   }
   set(CLAVES.DISP, d);
   return d;
+}
+
+/* La letra del folio impreso (COT-0042-B): la primera letra del id, o la que se elija en
+   Ajustes para que cada teléfono tenga la suya. La lee el cotizador con la misma regla
+   (letraFolio en js/cotizador/entrega.js); cambiarla no toca los folios ya emitidos. */
+export function letraFolio() {
+  let l = get(CLAVES.LETRA_FOLIO, '');
+  if (/^[A-Z]$/.test(l)) return l;
+  l = (/[A-Z]/.exec(dispositivo()) || ['A'])[0];
+  set(CLAVES.LETRA_FOLIO, l);
+  return l;
+}
+export function setLetraFolio(l) {
+  l = String(l || '').trim().toUpperCase();
+  return /^[A-Z]$/.test(l) && set(CLAVES.LETRA_FOLIO, l);
 }
 
 /* EL ROL SALE DE LA HOJA, no de este aparato.

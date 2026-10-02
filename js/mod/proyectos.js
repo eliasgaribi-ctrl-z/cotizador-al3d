@@ -32,10 +32,18 @@ import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import {
-  $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
+  $, esc, money, cant, ico, toast, voz, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, rotularPapel, confirmarPf, repintarEnSitio, claseSiSube,
+  diasHasta, hoyISO, rotularPapel, confirmarPf, repintarEnSitio, hayCapaAbierta, scrollSuave,
 } from '../nucleo/ui.js';
+
+/* Las piezas compartidas (js/piezas.js) son un guion clásico y cuelgan de `window.Piezas`:
+   esta pantalla las PIDE, no las copia. Se pregunta en cada uso y no una vez al cargar, por lo
+   mismo que en ui.js: este módulo también lo importan las pruebas de node, donde no hay
+   ventana, y porque el guion puede no haber llegado (una caché a medias). Todo lo que se pinta
+   con ellas tiene su camino sin ellas: un riel sin animar, una cifra sin rodar, un tablero sin
+   arrastre. La pantalla funciona; lo que se pierde es el adorno. */
+const P = () => (typeof window !== 'undefined' ? window.Piezas : null);
 
 /* ============================================================================
    Estado del módulo. Todo aquí y todo se suelta en desmontar().
@@ -66,11 +74,43 @@ const _oyentes = [];        // [[elemento, tipo, fn]]
 let _tBuscar = 0;
 let _imprimiendo = false;
 
+/* ----- Lo que sobrevive al desmontaje, y por qué -----
+   `desmontar()` pone `_d` en null y vacía los mapas: el valor anterior de una cuenta NO puede
+   vivir ahí o el odómetro (P18) rodaría desde cero cada vez que se entra a la pantalla, que es
+   justo lo que la ficha prohíbe («nunca al entrar»). Lo mismo el latido de «sin decidir» (P11):
+   lo que decide si vuelve a latir es si la cuenta SUBIÓ respecto a la última vez que se vio, y
+   eso es memoria de la sesión, no del montaje. Las claves de `rodarCifra` son del módulo
+   («pj:…») para no chocar con las del Tablero.
+
+   Hay un caso que se parece a «entrar» y no lo es, y es justo el que pide P18: la
+   sincronización baja algo de otro teléfono y app.js REMONTA la pantalla que se está mirando
+   (`montar(..., {forzar:true})`: desmontar y montar seguidos). Ahí el número cambió delante de
+   quien mira y tiene que rodar. La diferencia con entrar de verdad es el tiempo: un remonte
+   vuelve a montar en el mismo aliento que desmontó, y una persona que cambia de pantalla tarda
+   más que eso. Por eso `montar()` mira cuánto pasó desde el último `desmontar()`. */
+let _primerPintado = true;      // el primer pintado de las cuentas no rueda
+let _candN = -1;                // cuántas cotizaciones sin decidir había la última vez
+let _desmontadoEn = 0;          // cuándo se desmontó por última vez (ms)
+const REMONTE_MS = 4000;        // un remonte de la sincronización monta antes de esto
+
+/* Los cables de las piezas que hay que soltar a mano: no se van con el nodo porque miran el
+   scroll o el documento. */
+let _bordesTira = null;         // bordes que se desvanecen en la tira de etapas (P23)
+let _bordesTablero = null;      // y en el tablero, para el Fold abierto (P23)
+let _paginas = null;            // las columnas como páginas del teléfono (P28)
+let _rielFicha = null;          // el riel de etapas de la ficha (P7)
+let _bordesRiel = null;         // y sus bordes que se desvanecen: siete etapas no caben en 360 px
+let _viaje = null;              // el id cuya tarjeta tiene que viajar de columna (P8)
+let _obsFicha = null;           // mira cuándo se cierra la ficha, para soltar el viaje
+
 function on(el, tipo, fn) {
   if (!el) return;
   el.addEventListener(tipo, fn);
   _oyentes.push([el, tipo, fn]);
 }
+
+/* Soltar una pieza sin que un fallo suyo tire el repintado que la estaba reemplazando. */
+const soltar = x => { try { if (x && x.destruir) x.destruir(); } catch (_) {} };
 
 /* ============================================================================
    Vocabulario: todo importado, nada propio
@@ -100,6 +140,9 @@ const hay = v => v !== null && v !== undefined;
 export async function montar(c, ctx) {
   cont = c;
   CTX = ctx || {};
+  /* Entrar no es un cambio: la primera vez que se pintan las cuentas no ruedan. Un remonte de la
+     sincronización sí lo es (ver «Lo que sobrevive al desmontaje»). */
+  _primerPintado = Date.now() - _desmontadoEn > REMONTE_MS;
 
   /* La base cerrada NO se pinta como «no hay proyectos». Son dos cosas distintas y la
      diferencia es la que decide si alguien se queda tranquilo o pierde la tarde buscando
@@ -126,7 +169,8 @@ export async function montar(c, ctx) {
   cont.innerHTML =
     '<div class="pf-cuentas" id="pj-cuentas"></div>' +
     '<div id="pj-cand"></div>' +
-    '<div class="card"><div class="card-h"><h2>' + ico('i-proyectos') + ' Proyectos</h2></div>' +
+    '<div class="card"><div class="card-h"><h2>' + ico('i-proyectos') + ' Proyectos</h2>' +
+      interruptorClienteHTML() + '</div>' +
     '<div class="card-b">' +
       '<div class="fld"><label for="pj-q">Buscar por nombre, cliente, folio o dirección</label>' +
       /* Con `value`: el filtro de texto SOBREVIVE al remontaje —los módulos ES se cachean, así
@@ -161,8 +205,15 @@ export async function montar(c, ctx) {
   /* Cruzar los 760 px cambia el marcado, no solo el estilo: de un lado hay un tablero de
      cinco columnas y del otro una lista de renglones. Sin este oyente, girar un Fold —que es
      cruzar de 344 a 880 px— dejaba la lista de teléfono estirada a lo ancho de la pantalla
-     grande. Se apunta con `on()`, que es lo que lo desengancha al desmontar. */
-  on(ANCHO, 'change', pintarLista);
+     grande. Se apunta con `on()`, que es lo que lo desengancha al desmontar. Se repintan también
+     los filtros y se vuelve a filtrar (`aplicar`), no solo el marcado de la lista: los chips del
+     tablero llevan «Todas» y los de las páginas no, y la lista de las páginas incluye a los que
+     «no se dieron» y la del tablero no. */
+  on(ANCHO, 'change', () => { pintarFiltros(); aplicar(); });
+
+  cablearModoCliente();
+  cablearArrastre();
+  cablearCierreDeFicha();
 
   await cargar();
 
@@ -174,6 +225,7 @@ export async function montar(c, ctx) {
 }
 
 export function desmontar() {
+  _desmontadoEn = Date.now();
   for (const [el, tipo, fn] of _oyentes) {
     try { el.removeEventListener(tipo, fn); } catch (_) {}
   }
@@ -190,6 +242,22 @@ export function desmontar() {
     if (el) el.innerHTML = '';
   }
   trasImprimir();
+
+  /* Las piezas que miran el scroll o el documento no se van con el nodo: se sueltan a mano.
+     El arrastre en curso también, o el fantasma se queda flotando sobre la Agenda. */
+  soltarArrastre();
+  soltar(_bordesTira); _bordesTira = null;
+  soltar(_bordesTablero); _bordesTablero = null;
+  soltar(_paginas); _paginas = null;
+  soltar(_rielFicha); _rielFicha = null;
+  soltar(_bordesRiel); _bordesRiel = null;
+  if (_obsFicha) { try { _obsFicha.disconnect(); } catch (_) {} _obsFicha = null; }
+  _viaje = null;
+  clearTimeout(_tViaje); _tViaje = 0;
+  clearTimeout(_tYendo); _tYendo = 0; _yendoA = -1;
+  /* El modo cliente SÍ se queda: es una decisión de la persona («tengo al cliente enfrente»),
+     no un estado de esta pantalla, y su razón de ser es que también tape la cuenta «En el
+     taller» del Tablero, que es otra pantalla. Se apaga con su mismo interruptor. */
 
   TODOS = []; VISTA = []; SIN_DECIDIR = [];
   FECHA = new Map(); SEM = new Map(); REQS = new Map(); MATS = new Map(); HUELLA = new Map();
@@ -387,10 +455,15 @@ async function aplicar() {
      y notas. Una segunda versión aquí encontraría «Paréntesis» en una pantalla y no en la
      otra, y de ahí a bajar la lista con el dedo hay un paso. */
   const base = filtro.texto.trim() ? await Proy.listar({ texto: filtro.texto }) : TODOS;
-  VISTA = filtro.etapa === 'todas'
-    ? base.filter(p => p.etapa !== 'cancelado')
+  /* En el teléfono la lista son PÁGINAS, una por etapa (P28): ahí `filtro.etapa` deja de
+     recortar la lista y pasa a decir en qué página se está. Si siguiera recortando, cada
+     página tendría una sola columna y deslizar no llevaría a ningún lado. */
+  VISTA = (enPaginas() || filtro.etapa === 'todas')
+    ? base.filter(p => p.etapa !== 'cancelado' || enPaginas())
     : base.filter(p => p.etapa === filtro.etapa);
-  pintarCuentas();
+  /* Con un viaje esperando a que se cierre la ficha, tampoco las cuentas: rodarían debajo del
+     velo, donde nadie las ve, y al cerrar la ficha ya no habría nada que rodar. */
+  if (!(_viaje && hayCapaAbierta())) pintarCuentas();
   pintarLista();
 }
 
@@ -407,31 +480,110 @@ function pintarCuentas() {
   const fuera = vivos.length - enObra.length;
   const sinFecha = vivos.filter(p => !FECHA.get(p.id)).length;
   const faltan = vivos.filter(p => ['falta', 'grave'].includes((SEM.get(p.id) || {}).estado)).length;
+  /* `data-cuenta` en el <b> es lo que le da memoria al odómetro (P18): la cinta se repinta
+     entera en cada toque, así que el valor anterior no puede vivir en el nodo —se va con él—
+     y se recuerda por la clave. El nombre lleva el prefijo del módulo para no chocar con las
+     cuentas del Tablero, que ruedan con la misma pieza. */
   el.innerHTML =
-    '<div class="pf-cuenta"><b>' + enObra.length + '</b>' + (enObra.length === 1 ? 'proyecto en obra' : 'proyectos en obra') + '</div>' +
-    (fuera ? '<div class="pf-cuenta"><b>' + fuera + '</b>' +
+    '<div class="pf-cuenta"><b data-cuenta="obra">' + enObra.length + '</b>' + (enObra.length === 1 ? 'proyecto en obra' : 'proyectos en obra') + '</div>' +
+    (fuera ? '<div class="pf-cuenta"><b data-cuenta="fuera">' + fuera + '</b>' +
       (fuera === 1 ? 'instalado o en garantía' : 'instalados o en garantía') + '</div>' : '') +
-    (sinFecha ? '<div class="pf-cuenta urge"><b>' + sinFecha + '</b>sin fecha de instalación</div>' : '') +
-    (faltan ? '<div class="pf-cuenta urge"><b>' + faltan + '</b>con material faltante</div>' : '');
+    (sinFecha ? '<div class="pf-cuenta urge"><b data-cuenta="sinfecha">' + sinFecha + '</b>sin fecha de instalación</div>' : '') +
+    (faltan ? '<div class="pf-cuenta urge"><b data-cuenta="faltan">' + faltan + '</b>con material faltante</div>' : '');
+  rodarCuentas(el);
+}
+
+/* ----- P18 · las cuentas ruedan cuando algo cambió, nunca al entrar -----
+   La cinta cambia por dos motivos: porque tocaste algo aquí, o porque la sincronización bajó
+   un proyecto de otro teléfono. El segundo es el que importa —«Van tarde 2» pasaba a 3 en
+   silencio— y el primero también se lee bien. Lo que NO puede pasar es que ruede al montar la
+   pantalla: entrar no es un cambio, y cuatro odómetros arrancando a la vez son cuatro cosas
+   moviéndose en la primera décima de segundo de la pantalla. De eso se encarga `_primerPintado`,
+   que vive fuera de `desmontar()` a propósito (ver el porqué de arriba). */
+function rodarCuentas(raiz) {
+  const p = P();
+  if (!p || !p.rodarCifra) return;
+  for (const b of raiz.querySelectorAll('.pf-cuenta b[data-cuenta]')) {
+    p.rodarCifra(b, b.textContent, {
+      clave: 'pj:' + b.dataset.cuenta,
+      animar: !_primerPintado,
+      /* El «+1» dice CUÁNTO cambió, que es lo que la cifra sola no puede decir mientras rueda. */
+      delta: true,
+    });
+  }
+  _primerPintado = false;
+}
+
+/* Las etapas que existen hoy, en el orden del proceso. Ocho botones fijos en un teléfono son
+   seis que no filtran nada y que empujan la lista abajo del doblez. La usan la tira y las
+   páginas: si cada una hiciera su lista, un día enseñarían columnas distintas. */
+function etapasConProyectos() {
+  const cuenta = {};
+  for (const p of TODOS) cuenta[p.etapa] = (cuenta[p.etapa] || 0) + 1;
+  return Proy.ETAPAS.filter(e => cuenta[e]).map(e => ({ v: e, n: cuenta[e] }));
 }
 
 function pintarFiltros() {
   const el = $('pj-filtros'); if (!el) return;
-  const cuenta = {};
-  for (const p of TODOS) cuenta[p.etapa] = (cuenta[p.etapa] || 0) + 1;
+  const etapas = etapasConProyectos();
 
-  /* Solo las etapas que existen hoy. Ocho botones fijos en un teléfono son seis que no
-     filtran nada y que empujan la lista abajo del doblez. «Todas» siempre está. */
-  const ops = [{ v: 'todas', t: 'Todas' }];
-  for (const e of Proy.ETAPAS) {
-    if (!cuenta[e]) continue;
-    ops.push({ v: e, t: (Proy.ETAPA_NOMBRE[e] || e) + ' ' + cuenta[e] });
+  /* «Todas» solo donde filtra. En el teléfono la tira dejó de ser un filtro y pasó a ser el
+     PASADOR de las páginas (P28): ahí «Todas» no tiene a dónde llevar —las páginas ya son
+     todas, una por etapa— y un botón que no hace nada es peor que no tenerlo. */
+  const ops = enPaginas() ? [] : [{ v: 'todas', t: 'Todas' }];
+  for (const e of etapas) ops.push({ v: e.v, t: (Proy.ETAPA_NOMBRE[e.v] || e.v) + ' ' + e.n });
+  const elegida = ops.some(o => o.v === filtro.etapa) ? filtro.etapa : (ops[0] ? ops[0].v : 'todas');
+  el.innerHTML = '<div class="fld-lab">Etapa de obra</div>' +
+    segmento(ops, elegida, 'data-etapa', 'Etapa de obra');
+
+  /* P23 · el borde del lado donde queda tira se desvanece, y se apaga al llegar al final.
+     La tira se repinta entera, así que la pieza se vuelve a colgar del carril nuevo; y el chip
+     encendido se trae a la vista para que la máscara no lo tape (es el «Cuidado» de la ficha). */
+  soltar(_bordesTira); _bordesTira = null;
+  const carril = el.querySelector('.tipo-seg');
+  const p = P();
+  if (carril && p && p.bordesDesvanecidos) {
+    _bordesTira = p.bordesDesvanecidos(carril, { eje: 'x' });
+    if (_bordesTira && _bordesTira.revelar) _bordesTira.revelar(carril.querySelector('.on'), true);
   }
-  el.innerHTML = '<div class="fld-lab">Etapa de obra</div>' + segmento(ops, filtro.etapa, 'data-etapa');
 }
 
+/* ----- P8 · la tarjeta viaja a su nueva columna -----
+   Cada cambio rehace el `innerHTML`, así que las transiciones declaradas en el CSS nunca
+   corrían: los nodos son nuevos y una transición necesita el mismo nodo. La pieza 22 lo
+   resuelve nombrando UNA tarjeta y dejando que el navegador la lleve de su columna vieja a la
+   nueva.
+
+   Se dispara al CERRAR la ficha y no al mover la etapa, y es lo que dice el «Cuidado» de la
+   ficha: con la capa abierta, el velo y el panel entran en la captura de la transición y lo que
+   se ve es la pantalla entera fundiéndose debajo de un vidrio. Así que el viaje se apunta y
+   espera; lo suelta `cablearCierreDeFicha()`.
+
+   Y mientras espera, la lista de abajo NO se repinta. La primera versión de esto repintaba la
+   lista en el mismo `cargar()` que mueve la etapa —debajo de la ficha, donde no se ve— y al
+   cerrar la ficha pedía el viaje: la pieza fotografía «el antes» del DOM de ese momento, que ya
+   tenía la tarjeta en su columna nueva, y no había nada que viajar. Se descubrió midiendo dónde
+   estaba la tarjeta cuando la pieza se llamó, no mirando que se llamara. */
 function pintarLista() {
   const el = $('pj-lista'); if (!el) return;
+  const id = _viaje, p = P();
+  if (id && hayCapaAbierta()) return;     // el viaje espera a que la ficha se cierre
+  if (id) _viaje = null;
+  if (id && p && p.transicion) {
+    /* Un nombre de transición es un identificador de CSS y el id de un proyecto importado trae
+       el folio de la hoja dentro: se limpia antes de usarlo. El elemento se busca con una
+       función porque después del repintado es otro nodo. */
+    const nombre = 'pj-' + String(id).replace(/[^\w-]/g, '_');
+    const donde = () => [...document.querySelectorAll('[data-abrir]')].find(x => x.dataset.abrir === id) || null;
+    p.transicion(() => pintarListaYa(el), { nombres: { [nombre]: donde } }).catch(() => {});
+    return;
+  }
+  pintarListaYa(el);
+}
+
+function pintarListaYa(el) {
+  soltar(_bordesTablero); _bordesTablero = null;
+  soltar(_paginas); _paginas = null;
 
   if (!VISTA.length) {
     if (!TODOS.length) {
@@ -464,9 +616,112 @@ function pintarLista() {
 
      `fila()` sigue existiendo: la usan la ficha y el Tablero para el renglón con icono y
      acción, que es otra forma para otra pregunta. */
-  el.innerHTML = ANCHO.matches
-    ? tablero()
-    : '<div class="pj-lista-movil">' + VISTA.map(tarjeta).join('') + '</div>';
+  el.innerHTML = ANCHO.matches ? tablero() : columnasComoPaginas();
+
+  const p = P();
+  if (ANCHO.matches) {
+    /* P23 · en el Fold abierto el tablero se corta en la cuarta columna y nada decía que
+       hubiera más: el borde del lado con contenido escondido se desvanece. */
+    if (p && p.bordesDesvanecidos) _bordesTablero = p.bordesDesvanecidos(el.querySelector('.pj-tablero'), { eje: 'x' });
+  } else {
+    cablearPaginas(el);
+  }
+}
+
+/* ============================================================================
+   P28 · En el teléfono, las columnas como páginas
+   ============================================================================
+   Antes había una tira de etapas y una lista, y con eso se perdía la forma: en qué columna se
+   está haciendo tapón. En 360 px no cabe un tablero de cinco columnas —serían tiras de 60 px
+   donde no entra el nombre de un cliente—, pero sí caben cinco PÁGINAS que se deslizan, y eso
+   sí contesta la pregunta: cada página dice su etapa y cuántos hay.
+
+   La decisión que la ficha dejó abierta («¿qué pasa con Todas?»): «Todas» desaparece del
+   teléfono. Las páginas YA son todas, una etapa por página, y la tira de arriba pasa de filtrar
+   a pasar de página. Es el mismo argumento que ya está escrito en el CSS para el tablero de
+   escritorio: dos filtros que contestan la misma pregunta en la misma pantalla acaban diciendo
+   cosas distintas. Así nadie pierde nada —los cancelados también tienen su página, cosa que
+   antes solo se veía eligiendo «No se dio»— y se gana la forma.
+
+   Con una búsqueda escrita, las páginas se quedan: ver en qué columna cayó lo que buscas es
+   exactamente lo que hace útil un tablero. Una página sin coincidencias lo dice y no se vacía
+   en silencio. */
+const enPaginas = () => typeof window !== 'undefined' && !ANCHO.matches;
+
+function columnasComoPaginas() {
+  const etapas = etapasConProyectos();
+  if (!etapas.length) return '<div class="pj-lista-movil">' + VISTA.map(tarjeta).join('') + '</div>';
+  return '<div class="pj-lista-movil">' + etapas.map(e => {
+    const items = VISTA.filter(x => x.etapa === e.v);
+    return '<section class="pj-pag" data-col="' + esc(e.v) + '" aria-label="' +
+        esc((Proy.ETAPA_NOMBRE[e.v] || e.v) + ', ' + items.length +
+            (items.length === 1 ? ' proyecto' : ' proyectos')) + '">' +
+      '<h3 class="pj-pag-h ' + claseEtapa(e.v) + '">' +
+        '<span class="pj-pag-t">' + esc(Proy.ETAPA_NOMBRE[e.v] || e.v) + '</span>' +
+        '<span class="pj-col-n">' + items.length + '</span>' +
+      '</h3>' +
+      (items.length ? items.map(tarjeta).join('')
+        : '<p class="pj-col-vacia">' + (filtro.texto.trim() ? 'Nada de la búsqueda cayó aquí' : 'Nada aquí') + '</p>') +
+    '</section>';
+  }).join('') + '</div>';
+}
+
+function cablearPaginas(el) {
+  const p = P();
+  const tira = el.querySelector('.pj-lista-movil');
+  if (!p || !p.paginas || !tira || !tira.querySelector('.pj-pag')) return;
+  const etapas = etapasConProyectos().map(e => e.v);
+  /* La página que toca es la del filtro de ANTES del repintado, y se lee antes de crear la
+     pieza: al crearse, la pieza lee sus páginas y avisa `alCambiar(0)` de la primera, y sin
+     este cuidado eso pisaba `filtro.etapa` con «Ganado» en cada repintado —buscar una letra,
+     guardar una cuenta desde la ficha, bajar un cambio de la sincronización— y la lista volvía
+     a la primera página delante de quien la estaba mirando. */
+  const quiero = Math.max(0, etapas.indexOf(filtro.etapa));
+  let arrancando = true;
+  _paginas = p.paginas(tira, {
+    nombre: 'columna',
+    etiqueta: 'Columnas de Proyectos',
+    /* Sin puntos: la tira de etapas de arriba YA es la barra de páginas, con el nombre de cada
+       una y su cuenta. Dos barras para lo mismo es lo que se acaba de quitar. */
+    puntos: false, flechas: false,
+    /* Deslizar mueve el chip encendido, y no al revés: cambiar `filtro.etapa` aquí repintaría
+       la lista a media inercia y el dedo se quedaría sin página debajo. */
+    alCambiar: i => {
+      if (arrancando) return;
+      /* Si un chip mandó la tira a una página lejana, las de en medio no encienden nada: el chip
+         de destino ya está encendido y no tiene que pasar por los otros cuatro. */
+      if (_yendoA >= 0 && i !== _yendoA) return;
+      _yendoA = -1;
+      marcarEtapa(etapas[i]);
+    },
+  });
+  /* A la página de antes, sin recorrido: es un repintado, no un movimiento. Se asigna el scroll
+     de la tira (que no es «smooth») en vez de pedirle a la pieza `ir()`, que sí lo es. */
+  const pag = tira.children[quiero];
+  if (pag && quiero > 0) {
+    const c = tira.getBoundingClientRect(), r = pag.getBoundingClientRect();
+    tira.scrollLeft += (r.left - c.left) - (tira.clientWidth - r.width) / 2;
+  }
+  arrancando = false;
+}
+
+/* La página a la que va un chip que se tocó. Mientras la tira se desliza hasta allá, pasa por
+   las de en medio y la pieza avisa de cada una: sin esto, el chip encendido recorría todas. */
+let _yendoA = -1;
+let _tYendo = 0;
+
+/* Enciende el chip de una etapa sin repintar nada: es lo que hace deslizar de página. */
+function marcarEtapa(etapa) {
+  if (!etapa) return;
+  filtro.etapa = etapa;
+  const carril = $('pj-filtros');
+  if (!carril) return;
+  for (const b of carril.querySelectorAll('[data-etapa]')) {
+    const on = b.dataset.etapa === etapa;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on && _bordesTira && _bordesTira.revelar) _bordesTira.revelar(b);
+  }
 }
 
 /* ============================================================================
@@ -604,7 +859,7 @@ const tonoCuando = iso => {
 
 function pintarCand() {
   const el = $('pj-cand'); if (!el) return;
-  if (!SIN_DECIDIR.length) { el.innerHTML = ''; claseSiSube('proyectos', 0); return; }
+  if (!SIN_DECIDIR.length) { el.innerHTML = ''; _candN = 0; return; }
 
   const n = SIN_DECIDIR.length;
   const hoy = hoyISO();
@@ -632,14 +887,23 @@ function pintarCand() {
      —«esto pide que hagas algo antes de seguir»— y si aquí se viera distinta, parecerían
      dos cosas. `.pf-decidir` es la variante en bloque que Inicio ya dejó puesta, porque son
      N cotizaciones con dos botones cada una y no un renglón que se toca completo. */
-  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
   el.innerHTML =
-    '<div class="cand-partidas pf-decidir' + claseSiSube('proyectos', n) + '">' +
+    '<div class="cand-partidas pf-decidir' + (n > _candN ? '' : ' quieta') + '">' +
       '<p class="cp-txt">' + ico('i-aviso') + ' Tienes <b>' + n + '</b> ' +
       (n === 1 ? 'cotización autorizada sin decidir' : 'cotizaciones autorizadas sin decidir') +
       '. Mientras no digas si se ganó, no tiene material, ni fecha, ni existe en ningún sistema.</p>' +
       filas +
     '</div>';
+  /* P11 · el latido late TRES veces y se calla —eso ya lo dice `.cand-partidas` en
+     sistema.css—, pero la tarjeta se repinta con innerHTML en cada recarga y un nodo recién
+     nacido arranca la animación otra vez: en la práctica volvía a latir cada vez que se tocaba
+     cualquier cosa de la pantalla, que es un bucle escrito de otra manera. Aquí se decide por
+     el DATO y no por el nodo: solo late cuando la cuenta SUBIÓ respecto a la última vez que se
+     vio. Si baja o se queda igual, nace con `.quieta` y el aro no corre.
+
+     `_candN` vive fuera de `desmontar()` a propósito: si se olvidara al salir de la pantalla,
+     volver a entrar contaría como «subió de 0 a 3» y latiría en cada visita. */
+  _candN = n;
 }
 
 /* ============================================================================
@@ -650,11 +914,42 @@ async function clicLista(ev) {
   const t = ev.target;
 
   const seg = t.closest('[data-etapa]');
-  if (seg) { filtro.etapa = seg.dataset.etapa; pintarFiltros(); aplicar(); return; }
+  if (seg) {
+    /* Con páginas, la tira no filtra: pasa de página (P28). Repintar aquí sería quitarle al
+       dedo la lista que está mirando para volver a ponerle otra igual. */
+    if (enPaginas()) {
+      const etapa = seg.dataset.etapa;
+      const i = etapasConProyectos().findIndex(e => e.v === etapa);
+      marcarEtapa(etapa);
+      if (_paginas) {
+        if (i >= 0 && i !== _paginas.actual()) {
+          _yendoA = i;
+          clearTimeout(_tYendo); _tYendo = setTimeout(() => { _yendoA = -1; }, 1200);
+          _paginas.ir(i);
+        }
+      } else {
+        /* Sin la pieza las páginas se apilan como secciones, y el chip lleva a la suya. */
+        const sec = [...cont.querySelectorAll('.pj-pag')].find(x => x.dataset.col === etapa);
+        if (sec) sec.scrollIntoView({ block: 'start', behavior: scrollSuave() });
+      }
+      return;
+    }
+    filtro.etapa = seg.dataset.etapa; pintarFiltros(); aplicar(); return;
+  }
 
   if (t.closest('[data-limpiar]')) {
     const q = $('pj-q'); if (q) { q.value = ''; q.focus(); }
     filtro.texto = ''; aplicar(); return;
+  }
+
+  /* El interruptor del modo cliente y su alternativa de teclado (P12 + función 31). */
+  const sw = t.closest('[data-cliente]');
+  if (sw) { ponerModoCliente(sw.getAttribute('aria-checked') !== 'true'); return; }
+  const ver = t.closest('[data-ver-importes]');
+  if (ver) {
+    const a = document.body.classList.toggle(MODO_CLIENTE_VE);
+    ver.setAttribute('aria-pressed', a ? 'true' : 'false');
+    return;
   }
 
   const abrir = t.closest('[data-abrir]');
@@ -747,7 +1042,70 @@ async function abrirFicha(id) {
   fichaId = id;
   const capa = $('pf-ficha'); if (!capa) return;
   capa.innerHTML = htmlFicha(p);
+  cablearFicha();
+  /* La hoja del teléfono (P10) sube desde abajo y se cierra deslizando sin una línea más, y no
+     hay nada de esta zona que lo haga: `abrirCapa` le pone `.entra` y sistema.css (PR #71) la
+     hace nacer en `translateY(100%)`; `P.hojasDeslizables()`, colgado una vez en ui.js, trata a
+     `.pf-modal-bg.show>.pf-panel` como hoja y la cierra por la misma función que su ×. Aquí solo
+     hay que no estorbar: la ficha se rehace con `repintarEnSitio` y no con la capa cerrada. */
   abrirCapa('pf-ficha', { hist: true });
+  /* Un cuadro después: con la capa recién abierta la tira del riel ya tiene medidas. */
+  requestAnimationFrame(revelarEtapaActual);
+}
+
+/* Lo que hay que volver a colgar cada vez que la ficha se repinta: el riel de etapas mira sus
+   propios botones y el nodo es otro. Se llama desde `abrirFicha` y desde `refrescarFicha`. */
+function cablearFicha() {
+  soltar(_rielFicha); _rielFicha = null;
+  soltar(_bordesRiel); _bordesRiel = null;
+  /* Los renglones internos nacen de nuevo en cada pintado: hay que volver a decirles si son
+     una parada de tabulador (solo lo son con el modo cliente encendido). */
+  marcarTapados();
+  const p = P();
+  const ol = $('pj-etapas');
+  if (!p || !p.riel || !ol) return;
+  _rielFicha = p.riel(ol, {
+    alTocar: (i, estado, li) => tocarPaso(estado, li),
+  });
+  /* Siete etapas de 88 px no caben en 360: la tira se recorre, y con la ficha recién abierta el
+     paso de hoy quedaba fuera de la vista —en «Instalado», detrás de cuatro palomitas— que es
+     justo lo único que se abre la ficha a mirar delante del cliente. El borde desvanecido dice
+     que hay más de un lado, y `revelarEtapaActual()` trae el paso encendido a la vista. */
+  if (p.bordesDesvanecidos) _bordesRiel = p.bordesDesvanecidos(ol, { eje: 'x' });
+  revelarEtapaActual();
+}
+
+/* Sin desplazar la ficha: la pieza 10 mueve solo la tira. Con la capa todavía cerrada la tira no
+   tiene medidas, por eso `abrirFicha` lo repite un cuadro después de abrirla. */
+function revelarEtapaActual() {
+  const ol = $('pj-etapas');
+  if (!ol || !_bordesRiel) return;
+  const actual = ol.querySelector('[aria-current="step"]');
+  if (actual) _bordesRiel.revelar(actual, false);
+  if (_bordesRiel.medir) _bordesRiel.medir();
+}
+
+/* Tocar un paso del riel. Lo que ya pasó regresa la etapa (con la pregunta que ya existía); la
+   etapa de hoy no hace nada; el siguiente es lo mismo que su botón; y los de más adelante NO se
+   saltan tocándolos: eran siete botones iguales donde un dedo torpe brincaba dos etapas, y de
+   eso se trata la fila de pasos —enseñar que hay un orden—. Se dice cuál sigue, en vez de
+   quedarse mudo. Con la etapa fuera del riel (un proyecto que «no se dio», o fabricación mirando
+   uno ya instalado) no hay «de hoy» ni «siguiente»: cualquier paso vale, como valían antes. */
+async function tocarPaso(estado, li) {
+  const clave = li && li.dataset.clave;
+  if (!clave || !fichaId) return;
+  const nombre = Proy.ETAPA_NOMBRE[clave] || clave;
+  if (estado === 'actual') { voz('Ya está en ' + nombre); return; }
+  if (estado === 'pendiente') {
+    const pasos = [...li.parentElement.children].filter(x => x.classList.contains('riel-paso'));
+    const hoy = pasos.findIndex(x => x.dataset.estado === 'actual');
+    if (hoy >= 0 && pasos.indexOf(li) > hoy + 1) {
+      const sig = pasos[hoy + 1].dataset.clave;
+      toast('Ese paso todavía no toca. Sigue: ' + (VERBO_ETAPA[sig] || Proy.ETAPA_NOMBRE[sig] || sig), '', 3200);
+      return;
+    }
+  }
+  await moverEtapa(fichaId, clave);
 }
 
 function htmlFicha(p) {
@@ -790,10 +1148,12 @@ function htmlFicha(p) {
   /* El espejo de Notion. Se pinta con su nombre y se dice qué es: el estatus de allá es de
      dinero y no de obra, y verlos juntos en la misma ficha es lo que impide que alguien
      empiece a usar uno como si fuera el otro. */
+  /* Los dos espejos llevan marca para que guardar un estatus o una cuenta pueda actualizarlos
+     EN SU SITIO, sin rehacer la ficha entera (P2). */
   datos.push(dato('Estatus en la hoja (dinero)', p.estatus_notion
     ? '<span class="pf-sem nada">' + esc(p.estatus_notion) + '</span>'
-    : '<span class="pf-sem falta">Sin capturar</span>', true));
-  datos.push(dato('Cuenta de cobro', p.cuenta || '<span class="pf-sem falta">Sin capturar</span>', !p.cuenta));
+    : '<span class="pf-sem falta">Sin capturar</span>', true, 'estatus'));
+  datos.push(dato('Cuenta de cobro', p.cuenta || '<span class="pf-sem falta">Sin capturar</span>', !p.cuenta, 'cuenta'));
 
   if (ve) {
     /* `money(undefined)` es «$0.00», y un subtotal de cero junto a «Total vendido $40,000.00»
@@ -805,21 +1165,29 @@ function htmlFicha(p) {
       : (p.iva !== false && (p.precio_auth || p.neto)
           ? money((p.precio_auth || p.neto) / 1.16) + ' <span class="pf-sem nada">calculado</span>'
           : '<span class="pf-sem falta">Sin capturar</span>')));
-    datos.push(dato('Total vendido', money(p.precio_auth || p.neto)));
+    /* El total es lo que el cliente viene a ver: con el modo cliente encendido crece (función
+       31). Va marcado y no con una clase suelta para que el CSS de esta zona lo encuentre. */
+    datos.push(dato('Total vendido', money(p.precio_auth || p.neto), false, 'total'));
     datos.push(dato('Anticipo pactado', p.anti_pactado ? money(p.anti_pactado) : 'No se pactó anticipo'));
     datos.push(dato('IVA', p.iva !== false ? 'Sí, incluido' : 'Sin IVA'));
     /* La comisión se cobra hoy al 10 % fijo: la fórmula R de la hoja no lee el % de la fila.
        Un proyecto viejo con 15 decía «Comisión pactada 15 %» y se leía como lo que se cobra.
        Cuando no es 10 se dice qué es: lo que se pactó ANTES de fijarla. Va dentro de `ve`,
        como todo el dinero de la ficha: fabricación no lo ve. */
+    /* `interno` es el dinero que el cliente no tiene por qué leer: se marca aquí y lo tapa el
+       modo cliente (P12). NO lleva el total ni el subtotal ni el anticipo: eso es lo que se le
+       enseña al cliente para decirle en qué va su anuncio, y taparlo sería tapar la ficha. Es
+       la misma decisión escrita en `fila()`: el importe del propio proyecto no se difumina. */
     if (p.pct_comision) {
       datos.push(dato(Number(p.pct_comision) === 10 ? 'Comisión pactada' : 'Comisión pactada (antes de fijarla en 10 %)',
-        p.pct_comision + ' %'));
+        p.pct_comision + ' %', false, null, true));
     }
     /* Las dos fórmulas de Notion. Se leen, jamás se calculan aquí: dos versiones de la
        misma fórmula empiezan a dar dos respuestas y nadie sabe cuál cobrar. */
+    /* El pago pendiente SÍ lo ve el cliente: es lo que él debe, y enseñárselo es media razón
+       para abrir la ficha delante de él. La comisión restante no: esa es de la casa. */
     if (hay(p.pago_pendiente)) datos.push(dato('Pago pendiente (fórmula de la hoja)', money(p.pago_pendiente)));
-    if (hay(p.comision_restante)) datos.push(dato('Comisión restante (fórmula de la hoja)', money(p.comision_restante)));
+    if (hay(p.comision_restante)) datos.push(dato('Comisión restante (fórmula de la hoja)', money(p.comision_restante), false, null, true));
   }
 
   const partes = [];
@@ -847,7 +1215,16 @@ function htmlFicha(p) {
   const hoja = avisoHoja(p, rol);
   if (hoja) partes.push(hoja);
 
+  /* El aviso de que hay algo tapado va ANTES de la lista de datos, no dentro: si viviera dentro
+     también se taparía, y un borrón sin explicación se lee como un error de pintado. Solo sale
+     con el modo encendido (lo enseña el CSS) y solo si esta ficha tiene algo que tapar. */
+  if (datos.some(x => x.includes('pf-interno'))) {
+    partes.push('<p class="pf-tapado">' + ico('i-ojo') +
+      ' Tapado para el cliente · mantén presionado un renglón para verlo</p>');
+  }
   partes.push('<dl class="pf-2col">' + datos.join('') + '</dl>');
+
+  partes.push(garantiaHTML(p, inst, ve));
 
   /* La dirección cruda, tal como la escribió quien cotizó. No se normaliza ni se parte en
      campos: es lo que el instalador va a leer en la calle. */
@@ -873,32 +1250,23 @@ function htmlFicha(p) {
       esc(p.notas).replace(/\n/g, '<br>') + '</p>');
   }
 
-  /* Etapa: el segmento con lo que ESTE rol puede marcar. Fabricación llega a «Listo» y no
+  /* Etapa: los pasos con lo que ESTE rol puede marcar. Fabricación llega a «Listo» y no
      más: «Instalado» lo marca quien estuvo en la obra, y de ahí cuelga la cobranza. */
-  if (rol !== 'pagos') {
-    /* El tope sale de ETAPAS y no de una lista escrita a mano: el día que se meta una
-       etapa entre cortado y armado, fabricación la ve sin que nadie se acuerde de este
-       archivo. `cancelado` no está en el segmento: se descarta con su propio botón, que
-       pregunta por qué. */
-    const tope = rol === 'fabricacion'
-      ? Proy.ETAPAS.slice(0, Proy.ETAPAS.indexOf('listo') + 1)
-      : Proy.ETAPAS.filter(e => e !== 'cancelado');
-    partes.push('<div class="fld-lab">Mover la etapa de obra</div>' +
-      segmento(tope.map(e => ({ v: e, t: Proy.ETAPA_NOMBRE[e] || e })), p.etapa, 'data-mover') +
-      '<p class="hintnote">Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre.</p>');
-  }
+  if (rol !== 'pagos') partes.push(pasosDeEtapa(p, rol));
 
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
     partes.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
-      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus') +
+      '<div data-grupo="estatus">' +
+      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus',
+        'Estatus en la hoja') + '</div>' +
       /* Con renglón en la hoja no hay fila que copiar (ver el pie): se dice dónde está lo que
          sí falta, que es este segmento. */
       (p.notion_page_id
         ? '<p class="hintnote">Esta venta ya está en la hoja. Lo que cambia es este estatus, y el puente lo sube solo: no copies la fila, pegarla la daría de alta dos veces.</p>'
         : ''));
-    partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips">' +
-      CUENTAS.map(c => chip(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
+    partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips" data-grupo="cuenta">' +
+      CUENTAS.map(c => chipGuardado(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
   }
 
   const pie = [];
@@ -928,8 +1296,551 @@ function htmlFicha(p) {
   '</div>';
 }
 
-const dato = (etiqueta, valorHTML, esHtml) =>
-  '<div class="pf-dato"><dt>' + esc(etiqueta) + '</dt><dd>' + (esHtml ? valorHTML : esc(valorHTML)) + '</dd></div>';
+/* `marca` le pone nombre al renglón para que otro código lo encuentre sin adivinar por el texto
+   de su etiqueta: «estatus» y «cuenta» son los espejos que un guardado reescribe en su sitio
+   (P2), «total» es el importe que el modo cliente agranda (función 31). `interno` marca el
+   dinero que ese mismo modo tapa (P12), y se tapa el renglón ENTERO —la etiqueta también—: que
+   el cliente no lea ni la palabra «Comisión». */
+const dato = (etiqueta, valorHTML, esHtml, marca, interno) =>
+  '<div class="pf-dato' + (interno ? ' pf-interno' : '') + '"' +
+    (marca ? ' data-marca="' + marca + '"' : '') +
+    (interno ? ' tabindex="-1"' : '') + '>' +
+    '<dt>' + esc(etiqueta) + '</dt><dd>' + (esHtml ? valorHTML : esc(valorHTML)) + '</dd></div>';
+/* ============================================================================
+   P7 · La etapa como PASOS, no como siete casillas
+   ============================================================================
+   Eran siete botones iguales en tres renglones, y de ahí no se sacaba lo único que importa
+   mirando una ficha delante del cliente: qué ya pasó, en qué va y qué sigue. Ahora es una
+   línea de pasos (pieza 16): las etapas hechas llevan palomita, la actual va encendida con
+   `aria-current="step"` y la siguiente tiene su propio botón con el verbo en pasado —«Ya se
+   cortó»—, que es como se dice en el taller.
+
+   Los verbos viven aquí y no en datos/proyectos.js porque son de ESTA pantalla: son el rótulo
+   de un botón, no el nombre de la etapa. El nombre sigue saliendo de `ETAPA_NOMBRE`, que es de
+   todos.
+
+   Retroceder sigue preguntando, y ahora AVANZAR hacia «Cortado» también: el Tablero preguntaba
+   («¿Ya se cortó?», porque saca el material del almacén) y la ficha no, y era el mismo hecho
+   contestado de dos maneras según por dónde entraras. Lo iguala `moverEtapa`. */
+const VERBO_ETAPA = {
+  ganado: 'Volver a «Ganado»', en_diseno: 'Ya se diseñó', cortado: 'Ya se cortó',
+  armado: 'Ya se armó', listo: 'Ya quedó listo', instalado: 'Ya se instaló',
+  garantia: 'Pasa a garantía',
+};
+
+/* El tope sale de ETAPAS y no de una lista escrita a mano: el día que se meta una etapa entre
+   cortado y armado, fabricación la ve sin que nadie se acuerde de este archivo. `cancelado` no
+   está en los pasos: se descarta con su propio botón, que pregunta por qué. */
+function etapasDelRol(rol) {
+  return rol === 'fabricacion'
+    ? Proy.ETAPAS.slice(0, Proy.ETAPAS.indexOf('listo') + 1)
+    : Proy.ETAPAS.filter(e => e !== 'cancelado');
+}
+
+function pasosDeEtapa(p, rol) {
+  const etapas = etapasDelRol(rol);
+  const i = etapas.indexOf(p.etapa);
+  const pasos = etapas.map((e, k) => ({
+    texto: Proy.ETAPA_NOMBRE[e] || e,
+    clave: e,
+    /* Con la etapa fuera del tope del rol (fabricación mirando un proyecto ya instalado), `i`
+       es −1 y todos quedan pendientes: es lo correcto, ninguno de esos pasos es «el actual»
+       para quien no puede marcarlos. */
+    estado: i < 0 ? 'pendiente' : k < i ? 'hecho' : k === i ? 'actual' : 'pendiente',
+  }));
+  const sig = i >= 0 && i + 1 < etapas.length ? etapas[i + 1] : null;
+  const piezas = P();
+  const riel = piezas && piezas.rielHTML
+    ? piezas.rielHTML(pasos, { forma: 'horizontal', desliza: true, tocable: true,
+        numeros: false, etiqueta: 'Etapa de obra', id: 'pj-etapas' })
+    /* Sin las piezas (una caché a medias), el segmento de siempre: la pantalla no se queda sin
+       forma de mover la etapa por un guion que no llegó. */
+    : segmento(etapas.map(e => ({ v: e, t: Proy.ETAPA_NOMBRE[e] || e })), p.etapa, 'data-mover',
+        'Etapa de obra');
+
+  /* El rol llegó a su tope (fabricación en «Listo»): no hay botón, y un paso sin botón sin decir
+     por qué se lee como una pantalla a medias. */
+  const siguienteDeTodos = i >= 0 ? Proy.ETAPAS[Proy.ETAPAS.indexOf(p.etapa) + 1] : null;
+  return '<div class="fld-lab">Etapa de obra</div>' + riel +
+    (sig
+      ? '<div class="btn-fila pj-sigue"><button type="button" class="btn btn-pri" data-mover="' +
+        esc(sig) + '">' + esc(VERBO_ETAPA[sig] || Proy.ETAPA_NOMBRE[sig] || sig) + '</button></div>'
+      : (!sig && siguienteDeTodos && siguienteDeTodos !== 'cancelado'
+          ? '<p class="hintnote pj-sigue">Lo que sigue, «' + esc(Proy.ETAPA_NOMBRE[siguienteDeTodos] || siguienteDeTodos) +
+            '», lo marca Dirección.</p>'
+          : '')) +
+    '<p class="hintnote">Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre. ' +
+    'Tocar un paso de atrás regresa la etapa, y eso sí pregunta.</p>';
+}
+
+/* ============================================================================
+   Función 53 · Garantía y liquidación con cuenta regresiva
+   ============================================================================
+   Tres reglas que hasta hoy vivían en la cabeza de quien cobra —el otro 50 % a 2 días hábiles
+   de instalar, 1 año de garantía eléctrica, 2 de colorimetría— y que por no estar escritas se
+   preguntaban por teléfono. La cuenta es pura y vive en datos/proyectos.js con su prueba de
+   node; aquí solo se pinta.
+
+   Dos piezas separadas a propósito: la liquidación es DINERO y va dentro de `ve` —fabricación
+   no la ve, igual que el resto del dinero de la ficha—, y la garantía la ve todo el mundo,
+   porque quien atiende un reclamo en la calle necesita saber si sigue viva y no tiene por qué
+   ver cuánto costó.
+
+   Los medidores de garantía son de la pieza 20: barras QUIETAS, sin transición y sin animación.
+   Un año de garantía no es una espera que haya que amenizar. La frase va al lado y dice lo
+   mismo que la barra: el color nunca va solo.
+
+   La cuenta se hace desde la instalación de la AGENDA —la instalación viva más próxima, que es
+   la que ya lee la ficha— y no desde una fecha inventada. Sin ella no se pinta la cuenta: decir
+   «vence hoy» contando desde hoy sería inventar la regla, y se dice qué falta. */
+function garantiaHTML(p, inst, ve) {
+  if (p.etapa !== 'instalado' && p.etapa !== 'garantia') return '';
+  if (!inst || !inst.fecha) {
+    return '<div class="fld-lab">Garantía y liquidación</div>' +
+      '<p class="hintnote nota-av">' + ico('i-aviso') +
+      ' Sin fecha de instalación no hay de dónde contar la garantía ni el plazo para liquidar. ' +
+      'Ponle su fecha en el Calendario y vuelve.</p>';
+  }
+  const g = Proy.garantiaYLiquidacion({
+    instalado: inst.fecha,
+    total: num(p.precio_auth || p.neto),
+    /* La fórmula de la hoja manda; si no vino, el saldo pactado es la mitad. Nunca se calcula
+       una segunda versión de una fórmula que ya existe allá. */
+    saldo: hay(p.pago_pendiente) ? num(p.pago_pendiente) : null,
+    hoy: hoyISO(),
+  });
+  if (!g) return '';
+
+  const piezas = P();
+  const plural = (n, s, pl) => n + ' ' + (n === 1 ? s : pl);
+  const partes = [];
+
+  if (ve) {
+    const l = g.liquidacion;
+    const tono = l.estado === 'vencida' ? 'mal' : l.estado === 'venceHoy' ? 'av'
+      : l.estado === 'pagada' ? 'ok' : l.estado === 'excepcion' ? 'nada' : 'a';
+    const titulo =
+      l.estado === 'pagada' ? 'Ya está liquidado'
+      : l.estado === 'excepcion' ? 'La liquidación va como se pactó'
+      : l.estado === 'vencida' ? 'Liquidación vencida hace ' + plural(l.dias, 'día hábil', 'días hábiles')
+      : l.estado === 'venceHoy' ? 'La liquidación vence hoy'
+      : 'La liquidación vence en ' + plural(l.dias, 'día hábil', 'días hábiles');
+    const detalle =
+      l.estado === 'pagada' ? 'No queda saldo según la fórmula de la hoja.'
+      : l.estado === 'excepcion' ? 'Es de más de ' + money(Proy.LIQUIDACION_EXCEPCION) +
+          ': el saldo de ' + money(l.saldo) + ' se liquida como se pactó, no a los dos días hábiles.'
+      : (l.estado === 'venceHoy' ? 'Último día hábil'
+          : l.estado === 'vencida' ? 'Venció el ' + fmtFecha(l.vence) : 'Vence el ' + fmtFecha(l.vence)) +
+        ' · saldo por cobrar ' + money(l.saldo);
+    /* El glifo de la pieza 24 acompaña a la palabra y nunca la sustituye: el estado se lee. */
+    const glifo = piezas && piezas.marcaEstadoHTML
+      ? piezas.marcaEstadoHTML(tono === 'mal' ? 'mal' : tono === 'av' ? 'av' : tono === 'ok' ? 'ok' : 'espera', { tam: 20 })
+      : '';
+    partes.push('<div class="pj-liq" data-tono="' + tono + '" role="status">' + glifo +
+      '<span><b>' + esc(titulo) + '</b><small>' + esc(detalle) + '</small></span></div>');
+  }
+
+  const filas = g.garantias.map(x => {
+    const frase = x.vencida
+      ? 'Venció el ' + fmtFecha(x.hasta)
+      : Math.round(x.consumido * 100) + ' % consumido · ' +
+        (x.quedan === 0 ? 'vence hoy' : 'quedan ' + plural(x.quedan, 'día', 'días'));
+    const medidor = piezas && piezas.medidorHTML
+      ? piezas.medidorHTML({ valor: x.consumido, max: 1, tono: x.vencida ? 'mal' : '' })
+      : '';
+    return '<div class="pj-gar-f' + (x.vencida ? ' vencida' : '') + '">' +
+      '<div class="pj-gar-t"><span>' + esc(x.nombre) + ' · ' +
+        (x.meses === 12 ? '1 año' : (x.meses / 12) + ' años') + '</span>' +
+        '<span>' + esc(frase) + '</span></div>' +
+      '<div class="pj-gar-h">Hasta el ' + esc(fmtFecha(x.hasta)) + '</div>' + medidor + '</div>';
+  }).join('');
+
+  partes.push('<div class="pj-gar">' +
+    '<b>Se cuenta desde la instalación, el ' + esc(fmtFecha(g.instalado)) + '</b>' + filas + '</div>');
+
+  return '<div class="fld-lab">Garantía y liquidación</div>' + partes.join('');
+}
+
+/* ============================================================================
+   P2 · El chip que guarda en su sitio
+   ============================================================================
+   `chip()` de ui.js es la única implementación del chip y sigue siéndolo: aquí solo se le mete
+   dentro la palomita de la pieza 6, con la clase `.ck` que el sistema ya esconde en los chips
+   apagados y enseña en el encendido. Nace SIN dibujar —`dibujar:false`— porque la ficha se
+   repinta entera y una palomita que se traza en cada pintado deja de significar «acabas de
+   guardar esto»; la del chip recién elegido sí se traza, y eso lo hace `parcharGrupo()`. */
+function chipGuardado(txt, on, attrs) {
+  const piezas = P();
+  const palo = piezas && piezas.palomitaHTML
+    ? piezas.palomitaHTML({ clase: 'ck', dibujar: false })
+    : '';
+  return chip(txt, on, attrs).replace('</button>', palo + '</button>');
+}
+
+/* ============================================================================
+   P12 + función 31 · El modo cliente
+   ============================================================================
+   La ficha que se le enseña al cliente para decirle en qué va su anuncio llevaba a la vista la
+   comisión, y la pantalla de entrada abre con la suma de todo lo que hay en el taller. El
+   cotizador ya resolvió esto (`_SEL_PRECIO` y `_espiarPrecios()` en js/cotizador/nucleo.js): una
+   clase en el <body> difumina, y mantener el dedo encima destapa mientras dura el toque. Aquí es
+   la misma pieza, con el mismo gesto, para que sea el mismo hábito.
+
+   Lo que añade la función 31 sobre P12 es el MODO: un interruptor con nombre («Enseñar al
+   cliente») en vez de un difuminado permanente, porque el 90 % del tiempo no hay ningún cliente
+   enfrente y trabajar detrás de un borrón es peor que el problema que resuelve. Y con el modo
+   encendido el total de la ficha crece: lo que el cliente sí ve se lee desde el otro lado de la
+   mesa.
+
+   Qué se tapa y qué no:
+     · se tapa la comisión pactada y la comisión restante de la ficha (marcadas `.pf-interno`);
+     · se tapa la cuenta «En el taller» del Tablero, POR SU CLASE (`.pf-cuenta.dinero`) y sin
+       tocar js/mod/tablero.js: es la suma de todo lo vendido y abre la pantalla de entrada;
+     · NO se tapa el importe del propio proyecto —total, subtotal, anticipo, pago pendiente—,
+       que es la decisión que ya está escrita en `fila()`: es lo que se le enseña al cliente;
+     · fabricación no ve ninguna de estas cifras porque no se pintan (el `if (ve)`), así que no
+       hay nada que difuminar y el interruptor no sale.
+
+   El modo SOBREVIVE al cambio de pantalla a propósito: se prende para enseñar y se apaga al
+   terminar, y si se apagara solo al salir de Proyectos la cuenta del Tablero volvería a
+   destaparse justo al llegar a ella. Vive en el <body>, que es de la app entera, y por eso sus
+   oyentes también: se cuelgan una vez del documento —como los del cotizador— y no en `montar()`,
+   o destapar con el dedo dejaría de funcionar en cuanto se saliera de Proyectos, que es
+   exactamente donde hace falta. */
+const MODO_CLIENTE = 'pf-cliente';
+const MODO_CLIENTE_VE = 'pf-cliente-ve';
+const enModoCliente = () => typeof document !== 'undefined' &&
+  document.body.classList.contains(MODO_CLIENTE);
+
+function interruptorClienteHTML() {
+  /* Fabricación no ve ninguna de estas cifras: sin nada que tapar, el interruptor sería un
+     botón que no hace nada. */
+  if (!Prefs.veDinero()) return '';
+  const on = enModoCliente();
+  /* El interruptor del sistema (`.switch` + `.tg`, el del IVA y el de la iluminación del
+     cotizador), no uno propio: un solo interruptor en toda la app, con su mismo movimiento. */
+  return '<div class="pj-cliente">' +
+    '<button type="button" class="switch" data-cliente role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' +
+      '<span class="tg' + (on ? ' on' : '') + '" aria-hidden="true"></span>Enseñar al cliente</button>' +
+    /* La alternativa de teclado al gesto (regla 10): quien no puede sostener un dedo sobre un
+       renglón destapa todo de un toque, y de otro vuelve a taparlo. Solo existe con el modo
+       encendido, porque apagado no hay nada tapado que ver. */
+    '<button type="button" class="btn btn-gho pj-ver" data-ver-importes aria-pressed="false"' +
+      (on ? '' : ' hidden') + '>Ver importes</button>' +
+  '</div>';
+}
+
+function ponerModoCliente(on) {
+  document.body.classList.toggle(MODO_CLIENTE, !!on);
+  if (!on) {
+    document.body.classList.remove(MODO_CLIENTE_VE);
+    for (const el of document.querySelectorAll('.destapado')) el.classList.remove('destapado');
+    _espiando = null;
+  }
+  const sw = cont && cont.querySelector('[data-cliente]');
+  if (sw) {
+    sw.setAttribute('aria-checked', on ? 'true' : 'false');
+    const tg = sw.querySelector('.tg'); if (tg) tg.classList.toggle('on', !!on);
+  }
+  const ver = cont && cont.querySelector('[data-ver-importes]');
+  if (ver) { ver.hidden = !on; ver.setAttribute('aria-pressed', 'false'); }
+  marcarTapados();
+  voz(on ? 'Modo cliente encendido: los importes internos quedan tapados'
+         : 'Modo cliente apagado: los importes internos vuelven a verse');
+}
+
+/* Un renglón tapado tiene que poder recibir el foco para destaparse con la tecla; uno
+   destapado no tiene por qué ser una parada de tabulador de más. Se llama en cada repintado de
+   la ficha y al cambiar el modo. */
+function marcarTapados() {
+  const on = enModoCliente();
+  for (const el of document.querySelectorAll('.pf-interno')) {
+    el.tabIndex = on ? 0 : -1;
+    if (on) el.setAttribute('aria-label', 'Importe interno tapado. Mantén presionado para verlo');
+    else el.removeAttribute('aria-label');
+  }
+}
+
+/* Destapar mientras dura el dedo, y mientras dura la tecla. Delegado en el documento, como el
+   del cotizador: los renglones se rehacen en cada repintado y volver a engancharlos en cada
+   pintado se olvidaría en algún camino. */
+let _espiando = null;         // el renglón que el dedo (o la tecla) tiene destapado
+let _cableado = false;
+function cablearModoCliente() {
+  marcarTapados();
+  if (_cableado || typeof document === 'undefined') return;
+  _cableado = true;
+  const tapado = t => (t && t.closest) ? t.closest('.pf-interno,.pf-cuenta.dinero') : null;
+  /* Se destapa EL renglón que se sostiene, no todos: con la comisión pactada bajo el dedo, la
+     restante sigue tapada, y de eso se trata —enseñar una cosa sin enseñar la de al lado—. El
+     cotizador suelta todos a la vez porque allá son importes de una misma cuenta; aquí son
+     cosas distintas. «Ver importes» sí las suelta todas, a propósito, para quien no puede
+     sostener nada. */
+  const destapar = el => { dejarDeEspiar(); el.classList.add('destapado'); _espiando = el; };
+  /* Soltar solo tapa lo que destapó el GESTO: con «Ver importes» a la vista, un toque en
+     cualquier otra parte volvía a taparlos y el botón quedaba mintiendo. Es el mismo defecto
+     que ya se corrigió en el cotizador. */
+  const dejarDeEspiar = () => {
+    if (!_espiando) return;
+    _espiando.classList.remove('destapado');
+    _espiando = null;
+  };
+
+  document.addEventListener('pointerdown', ev => {
+    const el = enModoCliente() ? tapado(ev.target) : null;
+    if (el) destapar(el);
+  });
+  document.addEventListener('pointerup', dejarDeEspiar);
+  document.addEventListener('pointercancel', dejarDeEspiar);
+  window.addEventListener('blur', dejarDeEspiar);
+  /* Sin el menú de pulsación larga de Android encima de lo que se está destapando. */
+  document.addEventListener('contextmenu', ev => {
+    if (enModoCliente() && tapado(ev.target)) ev.preventDefault();
+  });
+  document.addEventListener('keydown', ev => {
+    if (!enModoCliente() || ev.repeat) return;
+    if (ev.key !== ' ' && ev.key !== 'Enter') return;
+    const el = tapado(ev.target);
+    if (!el) return;
+    ev.preventDefault();
+    destapar(el);
+  });
+  document.addEventListener('keyup', ev => { if (ev.key === ' ' || ev.key === 'Enter') dejarDeEspiar(); });
+  document.addEventListener('focusout', dejarDeEspiar);
+}
+
+/* ============================================================================
+   P9 · Arrastrar tarjetas entre columnas del tablero
+   ============================================================================
+   La tarjeta solo abría la ficha: cambiar de columna pedía abrirla, bajar hasta la etapa y
+   tocar. Ahora se levanta manteniéndola 250 ms y se suelta en otra columna, que es el gesto
+   que ya tiene aprendido cualquiera que haya usado un tablero.
+
+   Por qué con pulsación larga y no con arrastre inmediato: de 760 a 1023 px —el Fold abierto—
+   el tablero se DESLIZA en horizontal (las cinco columnas piden 1 048 px), y un arrastre que
+   empieza al primer píxel se come ese deslizamiento. Con los 250 ms, mover el dedo antes
+   cancela el levantamiento y lo que pasa es lo de siempre: el tablero se recorre. Y un toque
+   corto sigue abriendo la ficha, porque no se toca el clic.
+
+   Con el dedo hay un problema que con el ratón no existe: una vez levantada la tarjeta, el
+   navegador sigue creyendo que el dedo quiere DESLIZAR la página, y a los pocos píxeles cancela
+   el puntero (`pointercancel`) y suelta la tarjeta a medio camino. `touch-action` no sirve
+   —se lee al empezar el toque y aquí la decisión llega 250 ms después—, así que al levantarla
+   se cuelga un `touchmove` que no es pasivo y apaga ese deslizamiento. Sin esto la tarjeta se
+   arrastraba con ratón y se caía con el dedo, que es justo con lo que se usa.
+
+   Solo de 760 px para arriba. En el teléfono las tarjetas viven en páginas que se deslizan
+   (P28) y un arrastre ahí pelearía con el gesto de pasar de página y con el de atrás de
+   Android.
+
+   Por teclado: Alt + → y Alt + ← sobre la tarjeta enfocada. Es la alternativa que pide la
+   regla 10, y encima es más rápida que el arrastre para quien tiene teclado.
+
+   Los roles se respetan por el mismo camino que la ficha: `Proy.puedeMover` es la regla y las
+   columnas a las que este rol no puede mover no se iluminan y soltar ahí no hace nada. Pagos no
+   levanta tarjetas: no mueve obra. Y quien decide de verdad es `moverEtapa`, que pregunta lo que
+   hay que preguntar —regresar la etapa, y ahora también cruzar «Cortado»— y escribe por
+   `Proy.avanzarEtapa`, que vuelve a comprobar el rol. */
+const MS_LEVANTAR = 250;
+const MOVER_CANCELA = 8;      // px: si el dedo se movió antes de los 250 ms, era deslizar
+const BORDE_CORRE = 56;       // px del borde del tablero donde empieza a correr solo
+const CORRE_MAX = 18;         // px por cuadro, como mucho
+
+let _arr = null;              // { id, tarjeta, fantasma, col, pid, desde, x, y, raf, tablero, snap, quitar[] }
+
+function puedeMoverA(etapa) {
+  /* La regla es la de la capa de datos y no una copia: `etapasDelRol()` sirve para pintar los
+     pasos de la ficha, pero a pagos no le quita ninguno —su ficha ni siquiera trae ese bloque—
+     y con ella pagos podía arrastrar tarjetas por un tablero que no le toca. */
+  return etapa !== 'cancelado' && Proy.puedeMover(Prefs.rol(), etapa);
+}
+
+function soltarArrastre() {
+  if (!_arr) return;
+  const a = _arr; _arr = null;
+  a.quitar.forEach(f => { try { f(); } catch (_) {} });
+  if (a.raf) cancelAnimationFrame(a.raf);
+  if (a.fantasma) a.fantasma.remove();
+  if (a.tablero) a.tablero.style.scrollSnapType = a.snap || '';
+  if (a.tarjeta) {
+    a.tarjeta.classList.remove('pj-levantada');
+    try { if (a.pid != null) a.tarjeta.releasePointerCapture(a.pid); } catch (_) {}
+  }
+  document.documentElement.classList.remove('pj-arrastrando');
+  for (const c of document.querySelectorAll('.pj-col.sobre')) c.classList.remove('sobre');
+}
+
+function cablearArrastre() {
+  on(cont, 'pointerdown', ev => {
+    if (!ANCHO.matches || !ev.isPrimary || ev.button > 0) return;
+    if (enModoCliente()) return;      // con el cliente enfrente no se mueve obra por accidente
+    if (!COLUMNAS().some(puedeMoverA)) return;    // pagos: no mueve obra
+    const tarjeta = ev.target.closest('.pj-tarj[data-abrir]');
+    if (!tarjeta || !tarjeta.closest('.pj-tablero')) return;
+
+    const x0 = ev.clientX, y0 = ev.clientY, pid = ev.pointerId;
+    let reloj = 0;
+    const quitar = [];
+    const oir = (x, t, f) => { x.addEventListener(t, f); quitar.push(() => x.removeEventListener(t, f)); };
+    const cancelar = () => { clearTimeout(reloj); quitar.forEach(f => f()); quitar.length = 0; };
+
+    /* Antes de levantar: moverse es deslizar el tablero, no arrastrar la tarjeta. */
+    oir(tarjeta, 'pointermove', e => {
+      if (Math.hypot(e.clientX - x0, e.clientY - y0) > MOVER_CANCELA) cancelar();
+    });
+    oir(tarjeta, 'pointerup', cancelar);        // toque corto: el clic abre la ficha, como siempre
+    oir(tarjeta, 'pointercancel', cancelar);
+    /* El menú de «mantener presionado» de Android sale a los ~500 ms y se comería el gesto. */
+    oir(tarjeta, 'contextmenu', e => e.preventDefault());
+
+    reloj = setTimeout(() => {
+      cancelar();
+      levantar(tarjeta, pid, x0, y0);
+    }, MS_LEVANTAR);
+  });
+
+  /* Teclado: Alt + → / ←. Va en `cont` y no en la tarjeta porque las tarjetas se rehacen. */
+  on(cont, 'keydown', ev => {
+    if (!ev.altKey || (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft')) return;
+    const tarjeta = ev.target.closest && ev.target.closest('.pj-tarj[data-abrir]');
+    if (!tarjeta) return;
+    const col = tarjeta.closest('.pj-col');
+    const cols = COLUMNAS();
+    const i = col ? cols.indexOf(col.dataset.col) : -1;
+    if (i < 0) return;
+    const destino = cols[i + (ev.key === 'ArrowRight' ? 1 : -1)];
+    ev.preventDefault();
+    if (!destino) { voz(ev.key === 'ArrowRight' ? 'Es la última columna' : 'Es la primera columna'); return; }
+    if (!puedeMoverA(destino)) { voz('Con tu rol no se marca ' + (Proy.ETAPA_NOMBRE[destino] || destino)); return; }
+    moverEtapa(tarjeta.dataset.abrir, destino);
+  });
+}
+
+function levantar(tarjeta, pid, x, y) {
+  soltarArrastre();
+  try { tarjeta.setPointerCapture(pid); } catch (_) {}
+  tarjeta.classList.add('pj-levantada');
+  document.documentElement.classList.add('pj-arrastrando');
+  /* Un golpecito para decir que ya se levantó: sin él, en una pantalla táctil no hay forma de
+     saber si el dedo agarró la tarjeta o va a deslizar el tablero. Donde no existe, no pasa nada. */
+  try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+
+  const fantasma = document.createElement('div');
+  fantasma.className = 'pj-fantasma';
+  fantasma.setAttribute('aria-hidden', 'true');
+  fantasma.textContent = tarjeta.querySelector('.pj-tarj-t')
+    ? tarjeta.querySelector('.pj-tarj-t').textContent : 'Proyecto';
+  document.body.appendChild(fantasma);
+
+  const tablero = tarjeta.closest('.pj-tablero');
+  const quitar = [];
+  const oir = (el, t, f, opc) => { el.addEventListener(t, f, opc); quitar.push(() => el.removeEventListener(t, f, opc)); };
+  _arr = { id: tarjeta.dataset.abrir, tarjeta, fantasma, col: null, pid, desde: columnaDe(tarjeta),
+    x, y, raf: 0, tablero, snap: tablero ? tablero.style.scrollSnapType : '', quitar };
+  /* El tablero se desliza a saltos de columna (scroll-snap): mientras corre solo por el borde,
+     el imán se lo devolvería en cada cuadro. */
+  if (tablero) tablero.style.scrollSnapType = 'none';
+
+  oir(tarjeta, 'pointermove', e => { if (e.pointerId === pid) seguir(e.clientX, e.clientY); });
+  oir(tarjeta, 'pointerup', e => { if (e.pointerId === pid) soltarEnColumna(); });
+  oir(tarjeta, 'pointercancel', e => { if (e.pointerId === pid) soltarArrastre(); });
+  oir(tarjeta, 'contextmenu', e => e.preventDefault());
+  /* El dedo: sin esto el navegador empieza a desplazar la página y cancela el puntero. */
+  oir(document, 'touchmove', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+  /* Escape suelta sin mover: lo mismo que hace Escape en toda la app. */
+  oir(window, 'keydown', e => { if (e.key === 'Escape') { e.preventDefault(); soltarArrastre(); } });
+
+  seguir(x, y);
+  _arr.raf = requestAnimationFrame(correrPorElBorde);
+  voz('Tarjeta levantada. Suéltala en una columna, o Escape para dejarla donde estaba');
+}
+
+const columnaDe = el => { const c = el && el.closest ? el.closest('.pj-col') : null; return c ? c.dataset.col : null; };
+
+/* En el Fold abierto el tablero mide más que la pantalla: para llevar una tarjeta a la quinta
+   columna hay que poder arrastrarla hasta el borde y que el tablero corra solo, a la velocidad
+   de qué tan cerca esté el dedo. Un bucle de cuadros que vive solo mientras hay una tarjeta en
+   el aire. */
+function correrPorElBorde() {
+  if (!_arr) return;
+  const a = _arr, t = a.tablero;
+  a.raf = requestAnimationFrame(correrPorElBorde);
+  if (!t || t.scrollWidth <= t.clientWidth) return;
+  const r = t.getBoundingClientRect();
+  let dx = 0;
+  if (a.x < r.left + BORDE_CORRE) dx = -(r.left + BORDE_CORRE - a.x) / 3;
+  else if (a.x > r.right - BORDE_CORRE) dx = (a.x - (r.right - BORDE_CORRE)) / 3;
+  dx = Math.max(-CORRE_MAX, Math.min(CORRE_MAX, dx));
+  if (!dx) return;
+  const antes = t.scrollLeft;
+  t.scrollLeft += dx;
+  /* Corrió: la columna que está bajo el dedo cambió aunque el dedo no se haya movido. */
+  if (t.scrollLeft !== antes) seguir(a.x, a.y);
+}
+
+/* El clic que llega DESPUÉS de soltar abriría la ficha del proyecto que se acaba de mover. Se
+   frena una sola vez, en captura sobre el documento, y se levanta solo por si el navegador no
+   manda ninguno (soltar fuera de la tarjeta). */
+let _frenarClic = false;
+function frenarClicUnaVez() {
+  _frenarClic = true;
+  const f = e => { if (_frenarClic) { e.preventDefault(); e.stopPropagation(); } _frenarClic = false; document.removeEventListener('click', f, true); };
+  document.addEventListener('click', f, true);
+  setTimeout(() => { _frenarClic = false; document.removeEventListener('click', f, true); }, 400);
+}
+
+function seguir(x, y) {
+  if (!_arr) return;
+  _arr.x = x; _arr.y = y;
+  /* Solo `transform`: mover con `left/top` repinta la página entera en cada cuadro, y esto se
+     usa en un teléfono de gama media. */
+  _arr.fantasma.style.transform = 'translate(' + (x - 70) + 'px,' + (y - 22) + 'px)';
+  /* El fantasma no puede taparse a sí mismo del `elementFromPoint`: lleva `pointer-events:none`
+     en su hoja, así que basta con preguntar. */
+  const bajo = document.elementFromPoint(x, y);
+  const col = bajo && bajo.closest ? bajo.closest('.pj-col') : null;
+  const vale = !!col && puedeMoverA(col.dataset.col) && col.dataset.col !== _arr.desde;
+  for (const c of document.querySelectorAll('.pj-col')) c.classList.toggle('sobre', vale && c === col);
+  _arr.col = vale ? col : null;
+}
+
+function soltarEnColumna() {
+  if (!_arr) return;
+  const { id, col } = _arr;
+  const etapa = col ? col.dataset.col : null;
+  frenarClicUnaVez();
+  soltarArrastre();
+  if (etapa) moverEtapa(id, etapa);
+}
+
+/* ----- P8 · cuándo sale el viaje de la tarjeta -----
+   La ficha se cierra por cinco caminos —su ×, Escape, el atrás del teléfono, deslizarla hacia
+   abajo y `cerrarCapa()` desde el código— y todos acaban quitándole la clase `.show`. Mirar la
+   clase es lo único que los cubre a los cinco sin tocar `registrarCapa()`, que es de app.js. */
+function cablearCierreDeFicha() {
+  const capa = $('pf-ficha');
+  if (!capa || typeof MutationObserver === 'undefined') return;
+  let estaba = capa.classList.contains('show');
+  _obsFicha = new MutationObserver(() => {
+    const ahora = capa.classList.contains('show');
+    if (estaba && !ahora && _viaje) {
+      /* Después de que la ficha termine de irse (220 ms de salida): si el viaje sale mientras
+         la hoja todavía se está bajando, la captura de «antes» trae la ficha a medio irse y lo
+         que viaja es una mancha. Con menos movimiento no hay salida que esperar. */
+      clearTimeout(_tViaje);
+      _tViaje = setTimeout(() => {
+        if (!_viaje || hayCapaAbierta()) return;
+        pintarCuentas();
+        pintarLista();
+      }, sinMov() ? 0 : 260);
+    }
+    estaba = ahora;
+  });
+  _obsFicha.observe(capa, { attributes: true, attributeFilter: ['class'] });
+}
+let _tViaje = 0;
+const sinMov = () => { const p = P(); return !!(p && p.sinMovimiento && p.sinMovimiento()); };
+
 
 /* ============================================================================
    LA VENTA Y LA HOJA NO CUADRAN — el aviso de la ficha
@@ -1088,52 +1999,69 @@ async function decisionHoja(que, id, boton) {
   const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
   /* La pregunta de la app y no el confirm() del navegador: aquel salía gris, sin rojo para lo
      que borra y, en la app instalada del iPhone, con la dirección del sitio encima. Es «el
-     momento en que la app deja de parecer una app» (js/cotizador/nucleo.js). El título es la
-     primera frase; lo demás, el texto. */
+     momento en que la app deja de parecer una app» (js/cotizador/nucleo.js).
+
+     Cada una con un título corto —la pregunta— y el texto en dos partes que se pueden leer por
+     separado: «Qué pasa» y «Qué no se toca». Eran párrafos de seis renglones con las dos cosas
+     revueltas, y quien decide con el teléfono en una mano lee el título y el botón. En rojo
+     solo lo que borra: quitar la tarjeta y juntar dos (que quita la copia). Dejarla fuera de la
+     hoja no borra nada —los cambios que rebotaron se guardan— y en rojo se leía igual de grave. */
   const SI = { fuera: 'Dejarla fuera', dejar: 'Dejarla en el tablero', quitar: 'Quitar del tablero', juntar: 'Juntarlas', noesla: 'Son distintas' };
-  const preguntar = msg => {
-    const [titulo, ...resto] = String(msg).split('\n\n');
-    return confirmarPf({ titulo, texto: resto.join('\n\n'), si: SI[que] || 'Seguir', no: 'Cancelar', peligro: que === 'quitar' || que === 'fuera' });
+  const preguntar = (titulo, queOcurre, queNoSeToca) => {
+    const promesa = confirmarPf({
+      titulo,
+      texto: 'Qué pasa: ' + queOcurre + (queNoSeToca ? '\n\nQué no se toca: ' + queNoSeToca : ''),
+      si: SI[que] || 'Seguir', no: 'Cancelar', peligro: que === 'quitar' || que === 'juntar' });
+    /* P1 · «Quitar del tablero» se confirma manteniendo presionado (pieza 5). De las cinco
+       preguntas de aquí es la única que BORRA algo de este teléfono sin más, y con dos botones del
+       mismo tamaño se veía igual que «Dejarla». Solo en ésa: poner el gesto en las cinco lo
+       convertiría en el trámite de siempre y dejaría de decir nada. */
+    return que === 'quitar' ? conMantenerPresionado(promesa) : promesa;
   };
   const otra = (d && d.nombre) || 'la de este teléfono';
   const fila = (d && d.folio_hoja) || p.folio_hoja || '';
+  const bitacora = ' Queda anotado en la bitácora.';
+  /* Lo que nombra una tarjeta la hace imposible de quitar: lo dice `quitarDelTablero`, y se avisa
+     aquí para que nadie apriete un botón rojo esperando algo que la capa de datos va a negar. */
+  const nombrada = 'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita.';
 
   if (que === 'fuera') {
     /* Lo que rebotó no se tira: `dejarFueraDeLaHoja` lo anota en el proyecto (`sin_mandar`) y
        viaja con lo demás si la fila vuelve. Una lápida no tiene «Volver a darla de alta». */
-    if (!await preguntar('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
-      'Los cambios que rebotaron contra su fila no se tiran: se guardan en este teléfono, y si su fila vuelve a la hoja se mandan solos, con lo de ese día.' +
-      (p.etapa === 'cancelado' ? '' : ' Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».'))) return;
+    if (!await preguntar('¿Dejar «' + nombre + '» fuera de la hoja?',
+      'el proyecto se queda en este teléfono y deja de mandarse a la hoja.' +
+        (p.etapa === 'cancelado' ? '' : ' Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».'),
+      'los cambios que rebotaron contra su fila no se tiran: se guardan en este teléfono y, si su fila vuelve a la hoja, se mandan solos, con lo de ese día.')) return;
   } else if (que === 'dejar') {
     /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`),
        `dejarFueraDeLaHoja` anota ahí también lo que ya había rebotado, y la bajada lo manda
        cuando la fila vuelve; antes lo cambiado mientras tanto, y lo que rebotó, se perdía. */
-    if (!await preguntar('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
-      'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto y lo que ya había rebotado.')) return;
+    if (!await preguntar('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?',
+      'no se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja.',
+      'nada se borra. Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto y lo que ya había rebotado.')) return;
   } else if (que === 'quitar') {
-    if (!await preguntar(d
-      ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
-        'Se borra de este teléfono; la hoja no se toca, y su fila se queda con «' + otra + '»: la siguiente bajada ya no la vuelve a importar. ' +
-        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.'
-      : '¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
-        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.')) return;
+    if (!await preguntar(d ? '¿Quitar esta copia de «' + nombre + '» del tablero?' : '¿Quitar «' + nombre + '» del tablero?',
+      d ? 'se borra de este teléfono la copia importada de la fila ' + fila + ', que repite «' + otra + '»; la siguiente bajada ya no la vuelve a importar.'
+        : 'es una tarjeta importada de la hoja cuya fila ya no está, y se borra de este teléfono.',
+      (d ? 'la hoja, y su fila se queda con «' + otra + '». ' : 'la hoja. ') + nombrada + bitacora)) return;
   } else if (que === 'juntar') {
     /* Lo que de verdad hace `juntar`: las notas se suman; el pin, el plazo y los datos de la venta
        (dirección, teléfono, entrecalles…) pasan solo si la de aquí no tiene los suyos. Prometer
        «su ubicación pasa» cuando la de aquí ya tenía una era mentira: se quedaba la de aquí y la
        de la copia se borraba con ella. Cuáles datos son, lo dice el porqué de arriba. */
     const porConfirmar = !!(d && Array.isArray(d.claves) && d.claves.includes('identidad'));
-    if (!await preguntar('¿Juntar esta tarjeta con «' + otra + '»?' +
-      (d && Array.isArray(d.por) && d.por.length ? '\n\nPor qué no se juntó sola: ' + d.por.join('; ') + '.' : '') +
-      '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación, su plazo y sus datos (dirección, teléfono del cliente, entrecalles, compromiso…) ' +
-      'pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
-      'La etapa no —moverla descuenta material, y eso lo haces tú—. Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero.' +
-      (porConfirmar ? '\n\nY la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : '') +
-      ' Queda anotado en la bitácora.')) return;
+    if (!await preguntar('¿Juntar esta tarjeta con «' + otra + '»?',
+      (d && Array.isArray(d.por) && d.por.length ? 'no se juntó sola porque ' + d.por.join('; ') + '. ' : '') +
+        'las notas de la copia se suman a las de «' + otra + '». Su ubicación, su plazo y sus datos (dirección, teléfono del cliente, entrecalles, compromiso…) ' +
+        'pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
+        'Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero.' +
+        (porConfirmar ? ' Y la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : ''),
+      'la etapa —moverla descuenta material, y eso lo haces tú—.' + bitacora)) return;
   } else if (que === 'noesla') {
-    if (!await preguntar('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?\n\nEsta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila +
-      ', y no se vuelve a preguntar. «' + otra + '» se queda sin fila en la hoja —la ' + fila + ' es de esta otra venta— y deja de mandarle cambios: ' +
-      'en su ficha decides si se vuelve a dar de alta o se queda fuera. Queda anotado en la bitácora.')) return;
+    if (!await preguntar('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?',
+      'esta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila + ', y no se vuelve a preguntar. «' + otra +
+        '» se queda sin fila en la hoja —la ' + fila + ' es de esta otra venta— y deja de mandarle cambios: en su ficha decides si se vuelve a dar de alta o se queda fuera.',
+      'ninguna de las dos se borra.' + bitacora)) return;
   }
 
   if (boton) boton.disabled = true;
@@ -1176,6 +2104,31 @@ async function decisionHoja(que, id, boton) {
   await refrescarFicha();
 }
 
+/* ----- El «Sí» de una pregunta que borra, bajo el dedo -----
+   `confirmarPf()` reusa el mismo `#pf-confirma-si` en todas las preguntas de la app, así que la
+   pieza 5 se le pone JUSTO para esta pregunta y se le quita al terminar, pase lo que pase: si
+   se quedara puesta, la siguiente pregunta —que reescribe el rótulo del botón con
+   `textContent`— dejaría el marcado de la pieza a medias y su guardia seguiría comiéndose el
+   clic. El botón quedaría muerto, y el síntoma («el diálogo no responde») no se parece en nada
+   a la causa.
+
+   Al completarse el gesto se suelta la pieza y se toca el botón: sin `data-mantener` encima, el
+   clic llega al oyente delegado de `confirmarPf` y la promesa se resuelve por el camino de
+   siempre. Ni una copia de su lógica de cierre. */
+function conMantenerPresionado(promesa) {
+  const piezas = P();
+  const si = $('pf-confirma-si');
+  if (!piezas || !piezas.mantener || !si) return promesa;
+  piezas.mantener(si, {
+    tono: 'mal', ms: 1200,
+    pista: 'Mantén presionado para quitarla',
+    otraVez: 'Otra vez para quitarla',
+    alConfirmar: () => { piezas.mantener.quitar(si); si.click(); },
+  });
+  const soltarla = () => { try { piezas.mantener.quitar(si); } catch (_) {} };
+  return promesa.then(v => { soltarla(); return v; }, e => { soltarla(); throw e; });
+}
+
 /* El link crudo de Maps primero, y es una decisión: es el que el cliente mandó y trae el
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
@@ -1211,10 +2164,11 @@ async function clicFicha(ev) {
   if (mover) { await moverEtapa(fichaId, mover.dataset.mover); return; }
 
   const est = t.closest('[data-estatus]');
-  if (est) { await parchar(fichaId, { estatus_notion: est.dataset.estatus }, 'Estatus de la hoja guardado'); return; }
+  if (est) { await parchar(fichaId, { estatus_notion: est.dataset.estatus }, 'Estatus de la hoja guardado', est); return; }
 
   const cta = t.closest('[data-cuenta]');
-  if (cta) { await parchar(fichaId, { cuenta: cta.dataset.cuenta }, 'Cuenta guardada'); return; }
+  if (cta) { await parchar(fichaId, { cuenta: cta.dataset.cuenta }, 'Cuenta guardada', cta); return; }
+
 
   const tsv = t.closest('[data-tsv]');
   if (tsv) { await copiarFila(tsv.dataset.tsv); return; }
@@ -1259,14 +2213,65 @@ async function refrescarFicha() {
   const capa = $('pf-ficha');
   if (!p || !capa) return;
   repintarEnSitio(capa, htmlFicha(p));   // sin volver arriba ni perder el foco en cada toque
+  cablearFicha();
 }
 
-async function parchar(id, campos, msgOk) {
+/* ============================================================================
+   P2 · La ficha guarda EN SU SITIO
+   ============================================================================
+   Tocar una cuenta de cobro o un estatus reescribía el panel completo: `.pf-panel-b` volvía
+   arriba del todo, el foco se caía al <body> y la única confirmación era un aviso que sale
+   fuera de la ficha, arriba, donde no estaba mirando el dedo. En una ficha larga —la de un
+   proyecto importado con su aviso de hoja— eso era perder el sitio por marcar un chip.
+
+   Ahora el toque parcha SOLO su grupo: se apaga el que estaba, se enciende el tocado, se
+   dibuja su palomita (pieza 6) y se reescribe el renglón espejo de arriba («Estatus en la hoja
+   (dinero)», «Cuenta de cobro»), que es el único otro sitio de la ficha donde vive ese dato.
+   La lista de atrás SÍ se recarga —el semáforo y las cuentas dependen de esto— y eso no se ve,
+   porque está debajo de la capa abierta.
+
+   Si `Proy.actualizar` falla, el chip vuelve a donde estaba: `avisarResultado` ya dice por qué,
+   y un chip encendido sobre un guardado que no ocurrió es la peor de las dos mentiras. */
+async function parchar(id, campos, msgOk, boton) {
   if (!id) return;
+  const grupo = boton && boton.closest ? boton.closest('[data-grupo]') : null;
+  const antes = grupo ? grupo.querySelector('.on') : null;
+  if (grupo) parcharGrupo(grupo, boton, campos);
+
   const r = await Proy.actualizar(id, campos);
-  if (!avisarResultado(r, msgOk)) return;
+  if (!avisarResultado(r, msgOk)) {
+    if (grupo) parcharGrupo(grupo, antes, null);
+    return;
+  }
   await cargar();
-  await refrescarFicha();
+  /* Sin `refrescarFicha()`: el parche ya dejó la ficha diciendo la verdad, y repintarla entera
+     es justo lo que esta ficha viene a quitar. */
+  if (!grupo) await refrescarFicha();
+}
+
+function parcharGrupo(grupo, elegido, campos) {
+  for (const b of grupo.querySelectorAll('button')) {
+    const on = b === elegido;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const piezas = P();
+  /* La palomita se DIBUJA solo en el que se acaba de elegir: las demás nacieron pintadas con el
+     resto de la ficha y volver a trazarlas todas en cada toque le quitaría el significado. */
+  if (elegido && piezas && piezas.dibujar) piezas.dibujar(elegido);
+  if (!campos) return;
+
+  /* El espejo de arriba. Se reescribe con el mismo marcado que `htmlFicha` para que la ficha
+     repintada y la parchada se vean iguales; si no existiera el renglón (otro rol), no pasa
+     nada. */
+  const capa = $('pf-ficha'); if (!capa) return;
+  const valor = campos.estatus_notion !== undefined ? campos.estatus_notion : campos.cuenta;
+  const cual = campos.estatus_notion !== undefined ? 'estatus' : 'cuenta';
+  const dd = capa.querySelector('[data-marca="' + cual + '"] dd');
+  if (!dd) return;
+  dd.innerHTML = valor
+    ? (cual === 'estatus' ? '<span class="pf-sem nada">' + esc(valor) + '</span>' : esc(valor))
+    : '<span class="pf-sem falta">Sin capturar</span>';
 }
 
 async function moverEtapa(id, etapa) {
@@ -1285,6 +2290,20 @@ async function moverEtapa(id, etapa) {
         (cruzaCorte ? '\n\nEl material que salió al cortar NO regresa al almacén, y al volver a cortar no se descuenta otra vez. Si de verdad no se cortó, corrige el almacén con un conteo.' : '') +
         '\n\nQueda anotado en la bitácora con tu nombre.',
       si: 'Regresar la etapa', no: 'Dejarla como está', peligro: true });
+    if (!ok) return;
+  } else if (actual && de !== undefined && a !== undefined &&
+             a >= Proy.ORDEN.cortado && de < Proy.ORDEN.cortado) {
+    /* AVANZAR hasta cruzar «Cortado» también pregunta, y esto es nuevo: el Tablero ya lo hacía
+       («¿Ya se cortó?», en `abrirPide()`) y la ficha no, así que el mismo hecho —sacar el
+       material del almacén, la única escritura de esta pantalla que no se deshace sola— se
+       contestaba de dos maneras según por dónde entraras. Y con el arrastre del tablero (P9)
+       cruzarlo pasó a ser un gesto de un segundo: sin pregunta, de más. */
+    const ok = await confirmarPf({
+      titulo: '¿Ya se cortó «' + (actual.nombre || actual.folio_local) + '»?',
+      texto: 'Al marcar «' + (Proy.ETAPA_NOMBRE[etapa] || etapa) + '» salen del almacén los ' +
+        'materiales de este proyecto, una sola vez y a nombre de ' + Prefs.sello() + '.' +
+        '\n\nEs lo único de esta pantalla que no se deshace solo.',
+      si: 'Sí, ya se cortó', no: 'Todavía no' });
     if (!ok) return;
   }
   const r = await Proy.avanzarEtapa(id, etapa);
@@ -1313,6 +2332,14 @@ async function moverEtapa(id, etapa) {
   } else {
     toast('Ahora está en «' + nombre + '»', 'ok', 2600);
   }
+  /* La tarjeta tiene que viajar a su columna nueva (P8). Se apunta y se cobra al cerrar la
+     ficha: con la capa abierta, el velo entra en la captura de la transición. Si la etapa se
+     movió arrastrando en el tablero, no hay capa y el viaje sale en este mismo `cargar()`. */
+  _viaje = id;
+  /* En el teléfono cada etapa es una página: la tarjeta que se movió ya no está en la que se
+     estaba mirando, y quedarse ahí era ver desaparecer un proyecto. La lista se repinta en la
+     página de su etapa nueva. */
+  if (enPaginas()) filtro.etapa = etapa;
   await cargar();
   await refrescarFicha();
 }

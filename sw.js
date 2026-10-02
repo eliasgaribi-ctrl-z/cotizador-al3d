@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 37 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 36 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 72;
+const APP_VERSION = 78;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -123,9 +123,6 @@ const APP_FILES = [
   './js/datos/bitacora.js',
   './js/datos/asistente-contexto.js',
   './js/datos/puente.js',
-  /* Lo que verificar.html limpia de lo que se teclea desde el papel. verificar.html está
-     arriba, en la lista, y sin este archivo su import falla y la página se queda en blanco. */
-  './js/datos/verificacion.js',
   './js/mod/tablero.js',
   './js/mod/cotizador.js',
   './js/mod/inicio.js',
@@ -390,9 +387,101 @@ async function plataforma(req) {
       const vieja = await (await caches.open(CACHE)).match(req, { ignoreSearch: true });
       if (vieja) return sinRedireccion(vieja);
     } catch (_) {}
+    /* La página de «sin señal» es para quien abre la app (una navegación). Un guion, una hoja
+       o una imagen que no llegaron reciben lo de siempre —un 503 de texto—: meterles una
+       página HTML entera es pedirle al navegador que interprete como JavaScript o como CSS un
+       documento que no lo es, y el fallo que sale no se parece en nada a su causa. */
+    if (req.mode === 'navigate') return sinSenal();
     return new Response('Sin conexión y sin copia guardada de la plataforma.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
+}
+
+/* ==========================================================================
+   A17 · SIN SEÑAL Y SIN COPIA: EL ANUNCIO APAGADO QUE SE ENCIENDE AL VOLVER
+
+   Lo que había aquí era `new Response('Sin conexión y sin copia guardada…')` en texto plano:
+   una línea negra sobre blanco, con la letra del sistema, sin logo y sin salida. Es la
+   pantalla que le toca a quien abre la app por primera vez en la calle —el caso exacto para
+   el que este archivo existe— y parecía que la app no existía, no que faltara señal.
+
+   Ahora es una página de AL3D: el logo apagado en gris, qué pasó dicho en una frase, y un
+   botón para reintentar. Cuando vuelve la señal el logo se enciende a color y la página se
+   recarga sola, así que quien estaba esperando no tiene que tocar nada.
+
+   Tres cosas que parecen descuidos y no lo son:
+
+   · **El CSS va en línea y con los colores escritos a mano.** Aquí no se puede enlazar
+     css/sistema.css: este es justo el caso en que la caché de la app está VACÍA, y una hoja
+     que no llega deja la página sin estilo ninguno. Es el único lugar del repo donde los
+     colores no salen de los tokens, y son copia literal de ellos (--fondo, --tinta, --a,
+     y sus equivalentes de noche), no colores nuevos.
+   · **Nada de fuera.** Ni fuentes de Google, ni guiones, ni una imagen que no esté ya
+     guardada. El logo se pide por su dirección absoluta —calculada desde la del propio
+     service worker, no relativa a la página, que puede ser cualquiera— y lo sirve la caché de
+     la marca, que se guarda en la primera instalación y no lleva versión.
+   · **Esta respuesta no se guarda en caché.** Se arma en cada petición y lleva `no-store`:
+     guardarla sería enseñar «sin señal» a alguien que ya tiene señal.
+
+   El encendido es un momento y se apaga; con `prefers-reduced-motion` el logo aparece a color
+   sin transición y la recarga es inmediata. En papel no tiene sentido y no se estila. */
+function paginaSinSenal() {
+  const logo = new URL('logo-al3d.svg', self.location.href).href;
+  const logoOscuro = new URL('logo-al3d-oscuro.svg', self.location.href).href;
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
+'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
+'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">' +
+'<title>Sin señal · AL3D</title><style>' +
+':root{color-scheme:light dark;--fondo:#f3f4fb;--sup:#fbfcff;--tinta:#1a1d33;--tinta2:#5c6184;--linea:#dcdff2;--a:#4060f8;--a-fill:#4060f8;--a-tx:#3018f8}' +
+'@media(prefers-color-scheme:dark){:root{--fondo:#0f1124;--sup:#232750;--tinta:#eceefb;--tinta2:#a7acd6;--linea:#2f3562;--a:#6d86ff;--a-fill:#3b57e6;--a-tx:#a9b8ff}}' +
+'*{box-sizing:border-box}' +
+'body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--fondo);color:var(--tinta);' +
+'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}' +
+'main{max-width:22rem;text-align:center}' +
+'.logo{display:inline-block;margin-bottom:20px;filter:grayscale(1) contrast(.92) drop-shadow(0 0 0 rgba(64,96,248,0))}' +
+'.logo img{display:block;width:108px;height:auto}' +
+'.logo.viva{filter:grayscale(0) contrast(1) drop-shadow(0 0 0 rgba(64,96,248,0));animation:enciende .9s ease-out}' +
+'@keyframes enciende{0%{filter:grayscale(1) contrast(.92) drop-shadow(0 0 0 rgba(64,96,248,0))}' +
+'30%{filter:grayscale(0) contrast(1) drop-shadow(0 0 14px rgba(64,96,248,.55));opacity:.6}45%{opacity:1}' +
+'100%{filter:grayscale(0) contrast(1) drop-shadow(0 0 0 rgba(64,96,248,0))}}' +
+'h1{font-size:1.35rem;margin:0 0 8px;letter-spacing:-.01em}' +
+'p{margin:0 0 20px;color:var(--tinta2);font-size:.95rem}' +
+'button{font:inherit;font-weight:600;color:#fff;background:var(--a-fill);border:0;border-radius:12px;' +
+'min-height:48px;padding:12px 26px;cursor:pointer}' +
+'button:active{transform:scale(.97)}' +
+'.aviso{color:var(--a-tx);font-weight:600;min-height:1.4em}' +
+'@media(prefers-reduced-motion:reduce){.logo.viva{animation:none}button:active{transform:none}}' +
+'</style></head><body><main>' +
+'<span class="logo" id="logo"><picture>' +
+'<source srcset="' + logoOscuro + '" media="(prefers-color-scheme: dark)">' +
+'<img src="' + logo + '" alt="AL3D" width="108" height="54"></picture></span>' +
+'<h1>Sin señal</h1>' +
+'<p>Sin señal y sin copia guardada todavía: ábrela una vez con señal y de ahí en adelante funciona sin ella.</p>' +
+'<button type="button" id="otra">Reintentar</button>' +
+'<p class="aviso" id="aviso" role="status"></p>' +
+'</main><script>' +
+'(function(){var l=document.getElementById("logo"),a=document.getElementById("aviso");' +
+'document.getElementById("otra").addEventListener("click",function(){location.reload()});' +
+'var q=false;function vuelve(){if(q)return;q=true;l.className="logo viva";a.textContent="Volvió la señal. Cargando…";' +
+'var lento=false;try{lento=matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){}' +
+'setTimeout(function(){location.reload()},lento?0:900)}' +
+/* Solo el evento `online`, nunca `navigator.onLine` al cargar: esa bandera dice «hay red»,
+   no «hay internet», y con un portal cautivo o el sitio caído sale verdadera aunque la
+   petición acabe de fallar. Recargar entonces deja la página dando vueltas sola. */
+'addEventListener("online",vuelve);})();' +
+'<\/script></body></html>';
+}
+
+/* 503 y no 200: para el navegador y para cualquier herramienta esto SIGUE SIENDO un fallo de
+   red, y decir 200 dejaría esta página en el historial como si fuera la app. */
+function sinSenal() {
+  return new Response(paginaSinSenal(), {
+    status: 503,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    },
+  });
 }
 
 /* ----- Una copia que llegó por redirección no se le puede dar a una navegación -----
@@ -409,7 +498,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 37 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 36 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;
@@ -442,6 +531,10 @@ async function cotizador(req) {
     if (req.mode === 'navigate') {
       const portada = await c.match('./cotizador.html');
       if (portada) return sinRedireccion(portada);
+      /* Antes se lanzaba el error y el navegador pintaba SU página de «no se puede acceder a
+         este sitio»: la del dinosaurio, con la dirección del taller arriba. Quien abre el
+         cotizador por primera vez sin señal merece la misma explicación que la plataforma. */
+      return sinSenal();
     }
     throw new Error('sin conexión y sin copia guardada');
   }

@@ -169,7 +169,7 @@ console.log('\nservidor y puente de mentiras en ' + B);
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const ctx = await nav.newContext({ viewport: { width: 430, height: 932 }, isMobile: true,
   hasTouch: true, locale: 'es-MX', timezoneId: 'America/Mexico_City', serviceWorkers: 'allow' });
-await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
+await ctx.addInitScript({ path: fileURLToPath(new URL('./hoja-de-mentiras.js', import.meta.url)) });   // el notario, de mentiras
 
 /* Se siembra la configuración, no la venta. La venta se captura con clics: si se sembrara,
    la prueba diría que el puente funciona con un dato que nadie tecleó nunca. */
@@ -259,7 +259,9 @@ if (!RECIBIDO.empujar.length) {
 
   console.log('\n  — lo que manda el cotizador al registrar la venta —');
   dCot['Proyecto'] ? bien('lleva el nombre: «' + dCot['Proyecto'] + '»') : mal('sin nombre: sería una fila en blanco en el libro del dinero');
-  /^COT-\d+@/.test(dCot['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + dCot['Folio cotizacion'])
+  /* La letra del teléfono (COT-0042-B, desde octubre de 2026) es opcional: los folios de antes
+     no la llevan y siguen viajando. */
+  /^COT-\d+(-[A-Z])?@/.test(dCot['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + dCot['Folio cotizacion'])
     : mal('sin folio global: nada ataría la fila al cotizador, y la plataforma crearía una segunda');
   dCot['Precio Subtotal'] > 0 ? bien('lleva el subtotal, que es de lo que cuelgan el neto y la comisión')
     : mal('sin subtotal: la hoja no podría calcular nada');
@@ -440,7 +442,9 @@ apart.pendientes === 0 ? bien('y deja de contarse como «pendiente de mandar», 
 /* La derivación de material ya había encolado lo suyo: son varios y todos se apartan. */
 apart.apartadas >= 1 ? bien('se apartaron ' + apart.apartadas + ' en total (el almacén y las listas de compra que derivó la venta)')
                      : mal('no se apartó nada');
-apart.motivo && /libro del almacén se queda/.test(apart.motivo)
+/* Este puente de mentiras contesta una versión sin número («falso-1»): para el relevo es una hoja
+   anterior a puente-sheets-8, sin la pestaña «Almacén», y la razón lo dice. */
+apart.motivo && /libro del almacén espera aquí/.test(apart.motivo) && /«Almacén»/.test(apart.motivo)
   ? bien('con la razón escrita, y en su idioma: «' + apart.motivo + '»')
   : mal('sin razón, o mal escrita: «' + apart.motivo + '»');
 apart.frases.every(t => !/(compra|listas) se queda /.test(t))
@@ -655,7 +659,42 @@ async function contestarPf(si) {
     const t = document.getElementById('pf-confirma-t'), d = document.getElementById('pf-confirma-d');
     return (t ? t.textContent : '') + '\n\n' + (d ? d.textContent : '');
   });
-  await p.click(si ? '#pf-confirma-si' : '#pf-confirma-no');
+  if (!si) { await p.click('#pf-confirma-no'); return msg; }
+  /* Algunas preguntas piden SOSTENER el botón en vez de tocarlo: hoy solo «Quitar», que borra la
+     tarjeta de este teléfono (ver conMantenerPresionado en js/mod/proyectos.js). Se detecta por la
+     marca que deja la pieza en el botón, en vez de llevar aquí una lista de cuáles son: la lista se
+     desactualiza y el síntoma —«el diálogo no responde»— no se parece a su causa. */
+  const sostener = await p.evaluate(() => {
+    const b = document.getElementById('pf-confirma-si');
+    return !!b && (b.hasAttribute('data-mantener') || b.classList.contains('mantener'));
+  });
+  if (!sostener) { await p.click('#pf-confirma-si'); return msg; }
+  /* Con el DEDO y no con el ratón: el contexto de esta prueba es un teléfono (isMobile), y la pieza
+     escucha el puntero táctil. Con mouse.down() el gesto no llegaba y el botón nunca confirmaba.
+     Es el mismo arnés de CDP que usan cot-historial y cot-cliente para sostener. */
+  /* La hoja ENTRA deslizándose hacia arriba: si se toman las coordenadas apenas aparece, el dedo
+     sostiene 1,6 s en un punto donde el botón ya no está y la pregunta se queda abierta. Se espera a
+     que deje de moverse —dos medidas iguales— y se comprueba que el punto caiga de verdad encima,
+     para que un fallo se vea como lo que es y no como «el botón no responde». */
+  let c = await p.locator('#pf-confirma-si').boundingBox();
+  for (let i = 0; i < 20; i++) {
+    await p.waitForTimeout(100);
+    const d = await p.locator('#pf-confirma-si').boundingBox();
+    if (d && c && Math.abs(d.y - c.y) < 0.5 && Math.abs(d.x - c.x) < 0.5) { c = d; break; }
+    c = d;
+  }
+  const x = c.x + c.width / 2, y = c.y + c.height / 2;
+  const encima = await p.evaluate(([px, py]) => {
+    const e = document.elementFromPoint(px, py);
+    return !!e && !!e.closest('#pf-confirma-si');
+  }, [x, y]);
+  if (!encima) throw new Error('el punto del dedo no cae sobre #pf-confirma-si: la hoja se movió o algo la tapa');
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+  await p.waitForTimeout(1600);          // la pieza pide 1200 ms; se le da margen
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach().catch(() => {});
+  await p.waitForTimeout(400);
   return msg;
 }
 await p.click('#pf-ficha [data-hoja-quitar]');
@@ -787,7 +826,11 @@ const lapFuera = await p.evaluate(async () => {
 /* El filtro de la lista vive en el módulo y sobrevive a la navegación: se regresa a «Todas». */
 await p.evaluate(() => { const b = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (b) b.click(); });
 await p.waitForTimeout(400);
-await p.click('#pj-filtros [data-etapa="todas"]');
+/* «Todas» ya no existe en el teléfono: desde P28 la tira dejó de ser un filtro y pasó a ser el
+   PASADOR de las páginas —una por etapa—, y un botón que no lleva a ningún lado se quitó a
+   propósito. Lo que esta prueba defiende es que el filtro SOBREVIVE a la navegación, así que se
+   vuelve a la primera etapa, que es el equivalente de «ver desde el principio». */
+await p.evaluate(() => { const b = document.querySelector('#pj-filtros [data-etapa]'); if (b) b.click(); });
 await p.waitForTimeout(400);
 
 /* La venta de aquí en DOS filas de la hoja: las dos traen su folio de cotización (Dirección la
@@ -832,6 +875,14 @@ const btnEsq = await p.$('[data-act="puente-esquema"]');
 if (!btnEsq) mal('no está el botón «Revisar el esquema» que el README promete');
 else {
   bien('el botón «Revisar el esquema» está');
+  /* «Probar» deja arriba el aviso de que la hoja corre otra versión —el puente de mentiras dice
+     «falso-1»—, y es largo: abajo lo tapa ese aviso y arriba el índice de Ajustes, que se pega.
+     El clic de Playwright pone el cursor encima del aviso para intentar, y un aviso con el cursor
+     encima CONGELA su mecha (pieza 12): no se iba nunca y el clic esperaba 30 s. Se quita el
+     cursor de en medio, se limpian los avisos y el botón se trae al centro. */
+  await p.mouse.move(1, 1);
+  await p.evaluate(() => { try { window.Piezas.aviso.limpiar(); } catch (_) {} });
+  await btnEsq.evaluate(b => b.scrollIntoView({ block: 'center' }));
   await btnEsq.click();
   await p.waitForTimeout(1500);
   RECIBIDO.esquema > 0 ? bien('y de verdad lee el esquema de la hoja') : mal('no llamó a /esquema');

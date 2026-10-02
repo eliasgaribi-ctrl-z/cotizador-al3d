@@ -1,5 +1,5 @@
 /* ============================================================================
-   LAS TRES PÁGINAS PÚBLICAS — portada, privacidad y condiciones.
+   LAS CUATRO PÁGINAS PÚBLICAS — portada, privacidad, condiciones y verificar.
 
    Por qué existen, que es lo que nadie recuerda dentro de seis meses: Google no deja
    publicar una app de OAuth sin una página principal, una política de privacidad y unas
@@ -17,7 +17,9 @@
 
    Y no llevan una línea de JavaScript. Una política de privacidad que necesita ejecutar
    código para leerse es una contradicción, y además Google las revisa con herramientas que
-   no siempre esperan a que un guion pinte.
+   no siempre esperan a que un guion pinte. La única que sí lleva guion es verificar.html —
+   la cuarta, la que abre el QR de un PDF—, porque es la única que tiene que preguntarle algo
+   a la hoja. Sus estilos van más abajo, junto a los de las piezas compartidas que usa.
    ============================================================================ */
 
 body.pub {
@@ -83,6 +85,7 @@ a { color: var(--a-tx); }
 .pub-btn { transition: background-color .15s ease, transform .16s var(--ease-out); }
 .pub-btn:active { transform: scale(.97); }
 .pub-btn:disabled { opacity: .6; cursor: default; transform: none; }
+@media (prefers-reduced-motion: reduce) { .pub-btn:active { transform: none; } }
 
 /* ----- El pie ----- */
 .pub-pie {
@@ -119,26 +122,368 @@ a { color: var(--a-tx); }
 .ver-caja.ok .ver-est b  { color: var(--ok); }
 .ver-caja.av .ver-est b  { color: var(--av); }
 .ver-caja.mal .ver-est b { color: var(--mal); }
-.ver-giro {
-  width: 14px; height: 14px; border-radius: 50%; align-self: center;
-  border: 2px solid var(--linea); border-top-color: var(--a-tx); animation: esq-gira .8s linear infinite;
-}
-/* Con menos movimiento el giro no se queda quieto —quieto no dice «estoy trabajando»—: late
-   despacio en opacidad. */
-@media (prefers-reduced-motion: reduce) { .ver-giro { animation: pub-pulso 1.6s ease-in-out infinite; } }
-@keyframes pub-pulso { 50% { opacity: .35; } }
+/* Aquí vivía `.ver-giro`: el mismo anillo gris de toda la app, girando en bucle, en la única
+   pantalla que ve alguien de fuera de AL3D. Se fue con la ficha A23: la espera son ahora las
+   tres manchas de los azules del logo (`P.cargaLogo`, pieza 25), que se mueven solo mientras
+   dura la consulta y se juntan al contestar. El bucle infinito se fue con él. */
 .ver-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e3) var(--e5); margin: var(--e4) 0 0; }
-.ver-datos dt { font-size: var(--t1); color: var(--tinta3); text-transform: uppercase; letter-spacing: .06em; }
+.ver-datos dt { font-size: var(--t1); color: var(--tinta2); text-transform: uppercase; letter-spacing: .06em; }
 .ver-datos dd { margin: 2px 0 0; color: var(--tinta); font-weight: 600; overflow-wrap: anywhere; }
 .ver-num { font-family: var(--f-cifra); font-size: var(--t5); font-variant-numeric: tabular-nums; }
 .ver-form label { display: block; font-size: var(--t2); color: var(--tinta2); margin: var(--e3) 0 var(--e1); }
 /* 16 px como mínimo: con `font: inherit` heredaba 15 y le ganaba a la regla del sistema, y en
    iOS la página hacía zoom al tocar el campo. */
-.ver-form input {
+/* `:not(.casillas-in)`: cuando la pieza 19 envuelve el campo del código, el <input> pasa a ser
+   la capa transparente que se queda con el foco y el pegado —sin borde, sin fondo y sin
+   relleno— y las casillas de al lado son el dibujo. Esta regla le ganaba por especificidad y
+   le devolvía su caja blanca encima de las doce casillas. */
+.ver-form input:not(.casillas-in) {
   width: 100%; box-sizing: border-box; font: inherit; font-size: max(16px, 1em); color: var(--tinta);
   background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr2); padding: 10px 12px;
 }
 .ver-form .pub-btn { margin-top: var(--e4); border: 0; cursor: pointer; font-family: inherit; }
-/* Lo que le falta a lo tecleado. En --av, que sí lleva texto (6:1 de día, 9:1 de noche). */
-.ver-falta { margin: var(--e3) 0 0; font-size: var(--t2); color: var(--av); font-weight: 600; }
 @media (max-width: 480px) { .ver-datos { grid-template-columns: 1fr; } }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LAS PÁGINAS PÚBLICAS, CON LAS PIEZAS COMPARTIDAS  ·  zona «publicas»
+
+   Fichas A1, A2, A3, A14, A19, A20, A23, A26, A27 y A28 del paquete de UI. Lo de arriba es lo
+   que ya había; lo nuevo va aquí, junto, para que se pueda fusionar sin pisar a nadie.
+
+   Dos reglas que mandan sobre todo lo de abajo:
+
+   · Ni un color propio. Todo sale de los tokens de css/sistema.css, que es lo que hace que
+     estas páginas se lean como parte de la misma app y no como algo pegado de otro lado. El
+     tema oscuro sale gratis por eso mismo.
+   · Tres de las cuatro páginas NO ejecutan una línea de JavaScript, y no van a ejecutarla. El
+     índice, el avance de lectura, el neón del título y las tarjetas son CSS y HTML nativos.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── A2 · La espera se convierte en el veredicto ──
+   El renglón pasa de `baseline` a `center` porque ahora lo que va a la izquierda no es una
+   letra sino un glifo de 44 px: alineado a la línea base quedaba colgando medio glifo por
+   debajo del texto. Se alinea al centro y el texto se envuelve al lado. */
+.ver-est { align-items: center; gap: var(--e3); min-height: 44px; flex-wrap: nowrap; }
+.ver-est .marca-estado, .ver-est .carga-logo { flex: none; }
+/* La frase entera es UN hijo flexible: se parte por donde se parte una frase y no deja el
+   «·» colgando en un renglón para él solo. */
+.ver-est-tx { flex: 1 1 auto; min-width: 0; }
+
+/* El título deja de preguntar y contesta. El fundido es corto y de una pasada: un título que
+   se transforma con letras que giran, sobre una página que dice si un documento es bueno, se
+   lee como un truco. Lo que se mueve es la opacidad, no el texto. */
+.ver-titulo-cambia { animation: ver-titulo .28s var(--ease-out) 1; }
+@keyframes ver-titulo { from { opacity: .25; } to { opacity: 1; } }
+
+/* ── A3 · El sello ──
+   Centrado y con aire, para que se lea como lo que es: una estampa, no un icono más de la
+   lista. 150 px es su tamaño de origen; en un teléfono de 360 px se queda en 132 para que
+   quepa con margen a los lados. */
+.ver-sello-caja { display: flex; flex-direction: column; align-items: center; margin: var(--e5) 0 var(--e4); }
+.ver-sello-caja[hidden] { display: none; }
+#ver-sello { display: block; line-height: 0; }
+/* La línea que desmiente al sello: una captura se copia, la dirección de la página no. Va
+   pegada al sello y en la tinta de los textos de apoyo (no en `--tinta3`, que en la tarjeta
+   verde no llega a 4.5:1). */
+.ver-sello-nota { margin: var(--e2) 0 0; font-size: var(--t2); color: var(--tinta2); text-align: center; }
+.ver-sello-caja .sello-circular { --tam: 150px; }
+@media (max-width: 400px) { .ver-sello-caja .sello-circular { --tam: 132px; } }
+
+/* ── A14 · Comparar con el papel, renglón por renglón ──
+   Cada dato ya no es solo un dato: es una pregunta que se contesta. La rejilla pasa a una
+   columna siempre, porque un renglón con dos botones de 44 px no cabe a la mitad del ancho de
+   un teléfono, y porque comparar con un papel se hace de arriba abajo. */
+.ver-datos { grid-template-columns: 1fr; gap: 0; }
+.ver-reng {
+  padding: var(--e3) 0 var(--e3) var(--e3);
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--linea);
+  /* Solo el filete y el fondo: nada de `transition:all`, que en un teléfono de gama media es
+     la diferencia entre un toque que responde y uno que se arrastra. */
+  transition: border-color .18s ease, background-color .18s ease;
+}
+.ver-reng:last-child { border-bottom: 0; }
+.ver-reng.coincide { border-left-color: var(--ok); }
+.ver-reng.no-coincide { border-left-color: var(--mal); }
+.ver-valor { display: block; }
+
+/* El renglón marcado NO se atenúa. La propuesta de la ficha decía «atenúa el renglón», pero
+   el sistema de diseño prohíbe decir el estado con `opacity` sobre bloques con texto (§4.3):
+   un total al 60 % es justo el número que alguien está comparando con su papel a las siete de
+   la tarde. Lo que dice «ya lo revisé» es el filete verde de la izquierda y la palomita del
+   botón, las dos cosas legibles a plena luz y sin depender del color. */
+
+.ver-cotejo { display: flex; gap: var(--e2); margin-top: var(--e2); flex-wrap: wrap; }
+.ver-cot {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--e3);
+  font: inherit; font-size: var(--t2); font-weight: 600;
+  color: var(--tinta2); background: var(--sup);
+  border: 1px solid var(--linea); border-radius: var(--rr3);
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .16s var(--ease-out);
+}
+.ver-cot:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) { .ver-cot:hover { border-color: var(--a-borde); } }
+.ver-cot:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.ver-cot-si[aria-pressed="true"] { color: var(--ok);  border-color: var(--ok-borde);  background: var(--ok-bg); }
+.ver-cot-no[aria-pressed="true"] { color: var(--mal); border-color: var(--mal-borde); background: var(--mal-bg); }
+/* La palomita de la pieza 6 vive aquí dentro. Su hueco aparece de golpe al marcar y NO se anima:
+   animar el ancho es animar el layout, y en un teléfono de gama media eso es lo que hace que un
+   toque se sienta arrastrado. El botón crece 1.2em a la derecha de su rótulo y, como los dos
+   botones de cada renglón envuelven, nada de lo de alrededor se mueve. */
+.ver-cot-ico { display: inline-flex; align-items: center; width: 0; }
+.ver-cot-si[aria-pressed="true"] .ver-cot-ico { width: 1.2em; }
+.ver-cot-ico .palomita { width: 1.1em; height: 1.1em; }
+
+.ver-cotejo-fin {
+  margin: var(--e4) 0 0; padding: var(--e3);
+  color: var(--ok); font-weight: 600;
+  background: var(--ok-bg); border: 1px solid var(--ok-borde); border-radius: var(--rr3);
+}
+/* El aviso de «alterado» ya no es una caja roja dentro de una tarjeta verde: cuando un dato no
+   coincide, la TARJETA entera pasa a rojo (ver contarCotejo() en verificar.html) y esto es
+   solo lo que se puede hacer: escribirle a AL3D. Un filete arriba lo separa de los datos. */
+.ver-alterado { margin-top: var(--e4); padding-top: var(--e4); border-top: 1px solid var(--mal-borde); }
+.ver-alterado p { color: var(--tinta); }
+.ver-alterado p:last-child { margin-bottom: 0; }
+
+/* ── A1 · El formulario que se pliega y el código en casillas ──
+   Plegado cuando ya hubo respuesta por QR. El <summary> mide 48 px de alto y lleva su flecha,
+   porque es lo único que se toca cuando la página llega con resultado. */
+.ver-form-caja {
+  border: 1px solid var(--linea); border-radius: var(--rr4);
+  background: var(--n0); margin: var(--e5) 0;
+}
+.ver-form-caja > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--e3);
+  min-height: 48px; padding: 0 var(--e5);
+  font-family: var(--f-cifra); font-size: var(--t5); font-weight: 600;
+  color: var(--tinta); cursor: pointer; list-style: none;
+  border-radius: var(--rr4);
+}
+.ver-form-caja > summary::-webkit-details-marker { display: none; }
+.ver-form-caja > summary:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.ver-form { padding: 0 var(--e5) var(--e5); }
+.ver-form-ayuda, .ver-ayuda { font-size: var(--t2); color: var(--tinta2); }
+.ver-ayuda { margin: var(--e1) 0 0; }
+.ver-form-ayuda { margin: 0 0 var(--e4); }
+/* El campo del folio: en mayúsculas y con la cifra de la marca, porque lo que se teclea aquí
+   se está copiando carácter por carácter de un papel. */
+.ver-form #f-f { font-family: var(--f-cifra); letter-spacing: .04em; text-transform: uppercase; }
+.ver-form .casillas { margin-top: var(--e1); }
+/* Si js/piezas.js no cargara, lo que queda es el <input> del HTML tal cual, con la regla de
+   arriba: en la cifra de la marca y en mayúsculas, porque se está copiando de un papel. */
+.ver-form #f-c:not(.casillas-in) { font-family: var(--f-cifra); letter-spacing: .08em; text-transform: uppercase; }
+
+/* ── A19 · El índice de las páginas legales ──
+   En el teléfono, plegado en «En esta página»: nueve o diez renglones abiertos encima del
+   texto son media pantalla de nada antes de empezar a leer. De 1000 px para arriba se abre
+   solo y se va a una columna al lado, pegado al scroll y diciendo en cuál sección vas.
+
+   Se pliega el ÍNDICE, nunca el texto: una política de privacidad con secciones cerradas es
+   una política que no se leyó.
+
+   El pliegue es el de todo el sistema (`.pliegue` y `.pliegue-flecha`, de css/sistema.css):
+   abre con su altura donde el navegador sabe hacerlo y en seco donde no. Aquí solo se le da
+   la cara de esta página. Los renglones NO llevan número propio: `condiciones.html` ya numera
+   sus títulos («1. Qué es…») y contar otra vez en el índice daba «1 1. Qué es…». */
+.pub-indice {
+  margin: 0 0 var(--e5);
+  border: 1px solid var(--linea); border-radius: var(--rr4);
+  background: var(--n0);
+}
+.pub-indice > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--e3);
+  min-height: 48px; padding: 0 var(--e4);
+  font-size: var(--t2); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--tinta2); cursor: pointer; list-style: none; border-radius: var(--rr4);
+}
+.pub-indice > summary::-webkit-details-marker { display: none; }
+.pub-indice > summary:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.pub-indice ol { margin: 0; padding: 0 var(--e4) var(--e3); list-style: none; }
+.pub-indice li { margin: 0; }
+/* Cada renglón mide 44 px con el dedo. El filete de la izquierda está siempre, transparente:
+   así el renglón «en el que vas» no se corre al encenderlo. */
+.pub-indice a {
+  display: flex; align-items: center;
+  min-height: 44px; padding: 2px 0 2px var(--e3);
+  border-left: 3px solid transparent;
+  font-size: var(--t3); color: var(--tinta2); text-decoration: none;
+}
+@media (hover: hover) and (pointer: fine) { .pub-indice a:hover { color: var(--a-tx); } }
+.pub-indice a:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; border-radius: var(--rr1); }
+
+/* El índice que sigue al scroll (patrón de la muestra 83). La muestra lo hacía con un
+   IntersectionObserver; estas páginas no llevan guiones, y el navegador ya sabe hacerlo: un
+   contenedor con `scroll-target-group` vuelve «marcadores» a los enlaces con `#` que tiene
+   dentro, y `:target-current` es el de la sección que se está leyendo (Chrome 140 y arriba).
+   Donde no exista el índice queda quieto y sirve igual —son enlaces—, que es la degradación
+   correcta, y por eso va dentro de un @supports y no en las reglas de arriba.
+
+   «Dónde voy» no lo dice solo el color: el renglón se pone en negrita y le sale el filete
+   del acento, dos señales que se ven en un teléfono a contraluz. */
+@supports selector(:target-current) {
+  .pub-indice nav { scroll-target-group: auto; }
+  .pub-indice a:target-current {
+    color: var(--tinta); font-weight: 700; border-left-color: var(--a);
+  }
+}
+
+/* En papel el índice sobra: son enlaces, y los enlaces no se tocan en una hoja. El documento
+   sale entero y sin nada plegado (un <details> cerrado imprimiría solo su rótulo). */
+@media print { .pub-indice { display: none; } }
+
+/* El cuerpo del documento es el texto y su índice. En el teléfono, uno debajo del otro. */
+.pub-doc-texto { min-width: 0; }
+
+/* El salto a una sección: el título se despega de arriba —si no, queda pegado al filete— y
+   destella una vez con los keyframes que ya existen en css/sistema.css. Es `:target`, o sea
+   CSS puro: ni un `scrollIntoView`, que dentro de un contenedor con scroll pelea con el
+   scroll del documento y deja el título a media pantalla. Sirve también para `#creditos`
+   de «acerca», que llega desde el pie de las otras tres páginas. */
+body.pub h2 { scroll-margin-top: var(--e6); }
+body.pub h2:target { animation: scFlash 1.5s ease-out 1; }
+
+@media (min-width: 1000px) {
+  /* El documento y su índice, lado a lado. El encabezado se queda en su medida de lectura, el
+     texto ocupa la columna ancha y el índice la de al lado, pegado al scroll. */
+  .pub-doc .pub-wrap { max-width: 1020px; }
+  .pub-doc .pub-entrada { max-width: 46rem; }
+  .pub-doc-cuerpo {
+    display: grid; grid-template-columns: minmax(0, 1fr) 15rem;
+    column-gap: var(--e7); align-items: start;
+  }
+  .pub-doc-texto { grid-column: 1; grid-row: 1; }
+  .pub-indice {
+    grid-column: 2; grid-row: 1;
+    position: sticky; top: var(--e6); margin: 0;
+    /* Si la ventana es más baja que el índice, el índice se recorre y no se corta. */
+    max-height: calc(100dvh - var(--e6) * 2); overflow-y: auto; overscroll-behavior: contain;
+  }
+  /* Abierto de oficio y sin su botón: en una columna al lado no hay nada que plegar. Va dentro
+     de un @supports porque lo que abre el <details> sin tocarlo es `::details-content`
+     (Chrome 131 y arriba); donde no exista, el índice se queda plegado con su «En esta
+     página», que es exactamente lo que hace en el teléfono y no se rompe nada. */
+  @supports selector(::details-content) {
+    .pub-indice > summary { display: none; }
+    .pub-indice::details-content { block-size: auto; content-visibility: visible; overflow: visible; transition: none; }
+    .pub-indice ol { padding-top: var(--e3); }
+  }
+}
+
+/* ── A26 · El filete de marca como progreso de lectura ──
+   El filete de 3 px de `body::before` es lo único de la marca que se ve siempre. En un
+   documento de diez secciones no decía nada; ahora dice cuánto llevas leído.
+
+   Cero JavaScript: es una animación ligada al scroll del documento (`animation-timeline`).
+   Va toda dentro de un @supports y sobre un elemento propio, y por eso no hace falta tocar
+   css/sistema.css: donde el navegador no la conozca, este elemento no se pinta y el filete
+   de siempre se queda entero, que es la degradación correcta.
+
+   La parte todavía no leída va en `--a-suave` y no en transparente: al 0 % la marca tiene que
+   seguir ahí, y un filete que desaparece al abrir la página se lee como que algo falló. */
+.pub-avance { display: none; }
+@supports (animation-timeline: scroll(root)) {
+  .pub-doc::before { background: var(--a-suave); }
+  .pub-avance {
+    display: block;
+    position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; height: 3px;
+    z-index: 201;                       /* justo encima del filete de body::before, que es 200 */
+    background: var(--a);
+    transform-origin: left center; transform: scaleX(0);
+    pointer-events: none;
+    animation: pub-avance linear both;
+    animation-timeline: scroll(root);
+  }
+  @keyframes pub-avance { to { transform: scaleX(1); } }
+}
+/* Con menos movimiento NO se apaga: un relleno de avance es información, no adorno, y la
+   regla del sistema de diseño lo dice con esas palabras. Además no se mueve solo —se mueve
+   porque alguien está bajando con el dedo—, que es justo lo que `prefers-reduced-motion`
+   pide. En papel no existe: no hay scroll que seguir. */
+@media print { .pub-avance { display: none; } }
+
+/* ── A28 · «Qué hace», en cuatro tarjetas ──
+   2 x 2, una columna bajo 480 px. Quietas: ni hover ni entrada. En el teléfono el hover no
+   existe, y esta es una página que se abre una vez, se lee y se cierra. */
+.pub-tarjetas {
+  list-style: none; margin: 0 0 var(--e5); padding: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e3);
+}
+.pub-tarjeta {
+  margin: 0; padding: var(--e4);
+  background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr4);
+  color: var(--tinta2); font-size: var(--t3); line-height: 1.55;
+}
+.pub-dibujo { display: block; width: 64px; height: 40px; margin-bottom: var(--e3); overflow: visible; }
+/* Las cuatro ilustraciones, con las piezas del propio sistema. Los azules del acento para lo
+   que la app hace y los neutros para el soporte —la lámina, el eje—; nada lleva texto encima,
+   así que ninguno tiene que aguantar 4.5:1. */
+.pd-cara  { fill: var(--a); }
+.pd-canto { fill: var(--a-claro); }
+.pd-linea, .pd-eje { fill: none; stroke: var(--linea); stroke-width: 2.5; stroke-linecap: round; }
+.pd-curva { fill: none; stroke: var(--a); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.pd-punto { fill: var(--n0); stroke: var(--linea); stroke-width: 2.5; }
+.pd-punto.pd-hecho { fill: var(--a); stroke: var(--a); }
+.pd-hoja  { fill: none; stroke: var(--linea); stroke-width: 2; }
+.pd-pieza { fill: var(--a-suave); stroke: var(--a); stroke-width: 1.6; }
+@media (max-width: 480px) { .pub-tarjetas { grid-template-columns: 1fr; } }
+
+/* ── A20 · Créditos y licencias ──
+   Un renglón por pieza, con su licencia y a qué archivo del repo ir por el texto completo.
+   Tres de estas licencias piden la atribución por escrito; esta lista es la atribución. */
+.pub-creditos { list-style: none; margin: 0 0 var(--e4); padding: 0; }
+.pub-creditos li {
+  margin: 0 0 var(--e3); padding: 0 0 var(--e3);
+  border-bottom: 1px solid var(--linea);
+  font-size: var(--t3);
+}
+.pub-creditos li:last-child { border-bottom: 0; }
+.pub-lic { display: block; margin-top: var(--e1); font-size: var(--t2); color: var(--tinta3); }
+.pub-creditos code { font-size: .92em; overflow-wrap: anywhere; }
+/* El subrayado que crece desde la izquierda, con `background-size` y no con `border-bottom`:
+   así se puede animar sin mover una sola caja. Solo con puntero fino y con el foco: en el
+   teléfono no hay nada que recorrer con el ratón, y ahí el enlace se queda subrayado fijo. */
+.pub-creditos a {
+  text-decoration: none; font-weight: 600;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pub-creditos a { background-size: 0 1px; transition: background-size .22s var(--ease-out); }
+  .pub-creditos a:hover, .pub-creditos a:focus-visible { background-size: 100% 1px; }
+}
+
+/* ══════════════ rm · publicas ══════════════
+   Menos movimiento: se apaga el adorno y se queda la información.
+
+   Lo que se va: el fundido del título, el destello del salto a una sección, el crecer del
+   subrayado y el encogerse al presionar.
+   Lo que se queda: el avance de lectura (es información, y además solo se mueve porque
+   alguien está bajando con el dedo), el filete verde y la palomita de A14, y el glifo del
+   veredicto, que aparece ya dibujado.
+   Lo que no se apaga aquí porque ya se apaga donde vive: la carga de A23, las casillas de A1,
+   el sello de A3, el glifo de A2, el pliegue de A19 y el neón del título de «acerca» (A27)
+   traen su propio apagado en css/sistema.css, con `!important`: con menos movimiento el halo
+   del título aparece y se queda, sin parpadear, y una regla de aquí no le ganaría. */
+@media (prefers-reduced-motion: reduce) {
+  .ver-titulo-cambia { animation: none; }
+  .ver-reng, .ver-cot { transition: none; }
+  .ver-cot:active { transform: none; }
+  body.pub h2:target { animation: none; }
+  .pub-creditos a { transition: none; background-size: 100% 1px; }
+}
+
+/* ── fin de publicas ── */
+
+/* ----- puente-sheets-8 · los renglones que firmó la hoja -----
+   Entran a la misma lista que el folio y el total (.ver-reng), con su «Coincide» y su «No
+   coincide»: un renglón que no cuadra pesa lo mismo que un total distinto. Dos ajustes nada
+   más: la cifra de un renglón va un escalón abajo de la del total —es el total lo que se busca
+   primero en el papel— y no se parte entre las piezas y el importe; y la nota que dice qué hacer
+   con ellos va en el gris de las ayudas, debajo de la lista. */
+.ver-reng-partida .ver-num { font-size: var(--t3); white-space: nowrap; }
+.ver-reng-partida dt { text-transform: none; letter-spacing: 0; overflow-wrap: anywhere; }
+.ver-ren-nota { margin: var(--e3) 0 0; font-size: var(--t2); color: var(--tinta2); }
+.ver-ren-nota[hidden] { display: none; }

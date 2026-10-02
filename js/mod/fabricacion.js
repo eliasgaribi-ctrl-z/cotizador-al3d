@@ -65,11 +65,11 @@ import * as Gcal from '../nucleo/gcal.js';
 import * as Taller from '../datos/taller.js';
 import * as Cot from '../datos/cotizador.js';
 import * as Material from '../datos/material.js';
-import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
-import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
+import { masDias, masMeses, iniSemana, ultimoDia, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
+import { $, esc, ico, money, toast, voz, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
-         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller, scrollSuave,
-         conservandoFoco, repintarAlrededor, claseSiSube }
+         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, altoBarraAbajo, filaTaller,
+         scrollSuave, conservandoFoco, repintarAlrededor }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -91,6 +91,11 @@ let _soloCobro = false;      // el filtro de PAGOS
 let _pasadas = false;        // en la vista de lista, incluir lo que ya pasó
 let _oyendo = false;
 let _alTocar = null, _alTeclear = null;   // los manejadores envueltos con conservandoFoco()
+let _cuentasVistas = false;  // la cinta de cuentas ya se pintó una vez en este montaje (F23)
+let _diaRecien = false;      // el día abierto lo abrió un toque, no un repintado (F18)
+let _firma = '';             // lo que NO depende del mes en el último pintado completo (F11)
+let _gesto = null;           // el arrastre de la rejilla, para soltarlo al salir (F11)
+let _nombres = null;         // la ficha de cada día con el ratón, para soltarla al salir (F26)
 
 const MIME_ICS = 'text/calendar;charset=utf-8';
 
@@ -138,6 +143,8 @@ export async function montar(contenedor, ctx) {
   const pide = $('pf-pide');
   if (pide) pide.addEventListener('click', alTocarPide);
   _oyendo = true;
+  _gesto = gestoDeLaRejilla(_cont);
+  _nombres = fichaDeCadaDia(_cont);
 
   /* La base cerrada no se pinta como un calendario vacío. «No tienes instalaciones» y «la
      base no abrió» son la misma pantalla en blanco, y la diferencia entre las dos es la
@@ -202,17 +209,20 @@ export function desmontar() {
   if (hoja) { hoja.removeEventListener('click', alTocarHoja); hoja.removeEventListener('input', alEscribirHoja); }
   const pide = $('pf-pide');
   if (pide) pide.removeEventListener('click', alTocarPide);
+  if (_gesto) { _gesto.soltar(); _gesto = null; }
+  if (_nombres) { _nombres.destruir(); _nombres = null; }
   /* La barra fija se limpia aquí y no en el módulo que sigue: si el siguiente no tiene
      acción principal, el botón de agendar se quedaría flotando encima de su pantalla y el
      primer dedo del día lo apretaría creyendo que es de lo que está viendo. */
   const b = $('pf-mbar');
-  if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
+  if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; b.classList.remove('cal-mbar'); ajustarAltoBarra(); }
   /* Las capas son del documento, no de este módulo. Si se cambió de rol con el panel de
      agendar enfrente, dejarlo puesto bloquea la pantalla nueva con un velo que nadie sabe
      de dónde salió. */
   if (_hoja) cerrarHoja();
   if (_pide) cerrarPide();
   _cont = null; _ctx = null; _d = null; _dia = null; _oyendo = false;
+  _cuentasVistas = false; _diaRecien = false; _firma = '';
   /* Y el filtro de cobro se suelta. Su chip solo se pinta para el rol PAGOS, así que un usuario
      de pagos que lo encendía y cambiaba de rol se encontraba el calendario vacío —en fase 1
      `pago_pendiente` es null en todas las filas— sin ningún control en pantalla para apagarlo.
@@ -353,12 +363,202 @@ async function leer() {
   return d;
 }
 
-async function recargar() {
+/* `o.viaje` ('adelante' | 'atras') es un cambio de MES o de SEMANA: lo que cambia es el lienzo
+   del calendario y viaja de lado (F11). Todo lo demás —un cambio de lente, de vista, una acción
+   sobre una instalación— se repinta completo y sin viaje, como siempre. */
+async function recargar(o = {}) {
   if (!_cont) return;
   const d = await leer();
   if (!_cont) return;        // se cambió de módulo mientras se leía
   _d = d;
-  pintar();
+  if (o.viaje) await viajar(o); else pintar();
+}
+
+/* ============================================================================
+   Cambiar de mes o de semana: con ‹ ›, con el teclado y arrastrando (F11)
+   ============================================================================ */
+
+/* Lo que cambia con el periodo y lo que no. El mes nuevo reemplaza SOLO el lienzo (la rejilla, su
+   nota y la lista del día) y las dos tarjetas que lo cuentan (las cuentas de arriba y «Bajar el
+   mes»): la cabecera —el nombre del mes y sus flechas— se queda donde estaba, y con ella el foco
+   de quien tocó ‹ o ›. Antes `pintar()` rehacía TODO con innerHTML, y el botón de mes que se
+   acababa de usar dejaba de existir en cada toque; `conservandoFoco` lo devolvía después, pero
+   quien navega con teclado veía el anillo irse y volver.
+
+   Eso solo es válido mientras el resto de la pantalla no haya cambiado de verdad (una cuenta,
+   una cotización por decidir, la lente). `firmaFija()` resume lo que NO depende del mes; si
+   cambió desde el último pintado completo, se repinta todo y no se queda nada viejo. */
+function firmaFija(d) {
+  const sinTaller = _lente !== 'instalaciones' && !(d.ventanas || []).length
+    ? (d.mes && d.mes.total ? 'm1' : 'm0') : '';
+  return [d.hoy, d.sinFecha.length, d.vencidas.length, (d.pendientes || []).length,
+          (d.ventanas || []).length, _lente, _vista, _soloCobro, _pasadas, sinTaller].join('|');
+}
+
+/** La clave de «en qué mes (o semana) estoy», para saber hacia dónde viaja un cambio. */
+const clavePeriodo = iso => _vista === 'semana' ? iniSemana(iso) : String(iso).slice(0, 7);
+/** La ancla a la que llevan `n` pasos de mes —o de semana, en esa vista— desde la actual. */
+const anclaTrasPasos = n => _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
+
+/** Lleva el calendario a otro periodo. La dirección sale de comparar el periodo de antes con el
+ *  de después, no de qué control se tocó: ‹ ›, el gesto, RePág/AvPág y «hoy» pasan por aquí y
+ *  los cinco enseñan el viaje del lado correcto. `focoDia` es el número del día que tenía el foco
+ *  en la rejilla (RePág, ←, →): el mes nuevo lo recibe en el mismo número. */
+async function irAlPeriodo(nueva, o = {}) {
+  const antes = clavePeriodo(_ancla), despues = clavePeriodo(nueva);
+  _ancla = nueva;
+  _dia = null;
+  await recargar(antes === despues ? {} : { viaje: despues > antes ? 'adelante' : 'atras', focoDia: o.focoDia });
+}
+
+function viajar(o) {
+  const P = piezas();
+  /* Con View Transitions `fn` corre en el cuadro SIGUIENTE, así que lo que depende del DOM nuevo
+     —el foco al mismo número de día— va adentro. */
+  const hacer = () => {
+    if (!_cont) return;
+    if (!repintarPeriodo()) pintar();
+    if (o.focoDia) {
+      const c = _cont.querySelector('.cal-dia[data-dia$="-' + p2(o.focoDia) + '"]');
+      if (c) { try { c.focus({ preventScroll: true }); } catch (_) {} }
+    }
+  };
+  if (!P.transicion || _vista === 'lista') { hacer(); return Promise.resolve(); }
+  /* 200 ms y no los 320 de la pieza: el mes se cambia varias veces seguidas buscando una fecha, y
+     una rejilla que tarda un tercio de segundo en llegar es una rejilla que estorba. Con menos
+     movimiento la pieza solo corre `hacer`. */
+  return P.transicion(hacer, { contenedor: '.cal-lienzo', direccion: o.viaje, duracion: 200 });
+}
+
+/** Repinta solo lo que depende del periodo. Contesta false si no puede hacerlo sin dejar algo
+ *  viejo —otra vista, otra lente, una cuenta que cambió, un marcado que no es el esperado— y
+ *  quien llama repinta todo. */
+function repintarPeriodo() {
+  const d = _d;
+  const cuerpo = _cont && _cont.querySelector('.cal-card > .card-b');
+  const cab = cuerpo && cuerpo.querySelector(':scope > .cal-cab');
+  const lienzo = cuerpo && cuerpo.querySelector(':scope > .cal-lienzo');
+  const cuentas = _cont && _cont.querySelector(':scope > .pf-cuentas');
+  const exportar = _cont && _cont.querySelector(':scope > #cal-exportar');
+  if (!d || !cab || !lienzo || !cuentas || !exportar || _vista === 'lista' || firmaFija(d) !== _firma) return false;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _vista === 'mes' ? pintarMes(d) : pintarSemana(d);
+  const nuevo = tmp.querySelector(':scope > .cal-lienzo');
+  const titulo = tmp.querySelector(':scope > .cal-cab .cal-mes');
+  const mio = cab.querySelector('.cal-mes');
+  if (!nuevo || !titulo || !mio) return false;
+  mio.textContent = titulo.textContent;
+  lienzo.replaceWith(nuevo);
+  cuentas.outerHTML = pintarCuentas(d);
+  exportar.outerHTML = pintarExportar(d);
+  rodarCuentas();
+  /* El nombre del mes nuevo, dicho: con el foco en ‹ no se mueve nada que el lector de pantalla
+     vea, y «mes siguiente» sin respuesta es un botón que parece no hacer nada. */
+  voz(titulo.textContent);
+  return true;
+}
+
+/* ----- El gesto: arrastrar la rejilla a los lados -----
+   El pulgar ya hace ese gesto en cualquier calendario del teléfono. Tres decisiones que salieron
+   de la muestra y se conservan:
+
+     · EL EJE SE DECIDE EN LOS PRIMEROS 8 PX. Más horizontal que vertical es nuestro; lo vertical
+       es de la página (touch-action: pan-y en `.cal-lienzo`, que además hace que el navegador no
+       se lleve el gesto horizontal). Si el dedo se va de lado, ya no se vuelve a decidir.
+     · LA CAPTURA DEL PUNTERO SOLO CUANDO YA ES ARRASTRE. Capturar en pointerdown manda el clic al
+       contenedor y tocar un día dejaba de abrirlo; con 8 px de holgura un toque es un toque. El
+       clic que llega después de un arrastre se detiene en captura: soltar el dedo sobre un día
+       no lo abre.
+     · EL UMBRAL ES 48 PX. Menos regresa el lienzo a su sitio en 180 ms y no pasa nada.
+
+   Solo dedo y lápiz. Con el ratón están las flechas, el teclado y el selector de arriba, y un
+   arrastre con el botón apretado se parece demasiado a seleccionar texto en la lista del día.
+   Y no con una capa abierta: el gesto de una hoja de abajo es otro. Mientras el dedo arrastra, el
+   lienzo lo sigue —eso es la mano, no un adorno—, así que con menos movimiento también lo sigue;
+   lo que se apaga es el regreso animado y el viaje del mes nuevo. */
+const GESTO_PX = 8, GESTO_UMBRAL = 48;
+function gestoDeLaRejilla(cont) {
+  let id = null, x0 = 0, y0 = 0, dx = 0, arrastra = false, lienzo = null, suprimir = false, reloj = 0;
+  const limpiar = l => { if (l) { l.style.transform = ''; l.style.opacity = ''; } };
+  function alBajar(ev) {
+    if (ev.pointerType === 'mouse' || ev.isPrimary === false || ev.button > 0) return;
+    if (_vista === 'lista' || document.querySelector('.pf-modal-bg.show')) return;
+    const en = ev.target.closest && ev.target.closest(_vista === 'mes' ? '.cal-rej' : '.cal-lienzo');
+    const l = en && en.closest('.cal-lienzo');
+    if (!l) return;
+    lienzo = l; id = ev.pointerId; x0 = ev.clientX; y0 = ev.clientY; dx = 0; arrastra = false;
+  }
+  function alMover(ev) {
+    if (ev.pointerId !== id) return;
+    const mx = ev.clientX - x0, my = ev.clientY - y0;
+    if (!arrastra) {
+      if (Math.abs(mx) > GESTO_PX && Math.abs(mx) > Math.abs(my)) {
+        arrastra = true;
+        try { lienzo.setPointerCapture(id); } catch (_) {}
+      } else {
+        if (Math.abs(my) > GESTO_PX) id = null;       // lo vertical es de la página
+        return;
+      }
+    }
+    dx = mx;
+    lienzo.style.transform = 'translateX(' + dx + 'px)';
+    lienzo.style.opacity = String(1 - Math.min(.5, Math.abs(dx) / 400));
+  }
+  function alSoltar(ev) {
+    if (ev.pointerId !== id) return;
+    id = null;
+    if (!arrastra) return;
+    arrastra = false;
+    suprimir = true;
+    clearTimeout(reloj);
+    reloj = setTimeout(() => { suprimir = false; }, 60);
+    const l = lienzo, de = dx;
+    lienzo = null;
+    if (ev.type !== 'pointercancel' && Math.abs(de) >= GESTO_UMBRAL) {
+      limpiar(l);
+      irAlPeriodo(anclaTrasPasos(de < 0 ? 1 : -1));
+      return;
+    }
+    limpiar(l);
+    const P = piezas();
+    if (!l.isConnected || (P.sinMovimiento && P.sinMovimiento())) return;
+    l.animate([{ transform: 'translateX(' + de + 'px)' }, { transform: 'none' }],
+      { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+  const alClic = ev => { if (suprimir) { ev.stopPropagation(); ev.preventDefault(); } };
+  cont.addEventListener('pointerdown', alBajar);
+  cont.addEventListener('pointermove', alMover);
+  cont.addEventListener('pointerup', alSoltar);
+  cont.addEventListener('pointercancel', alSoltar);
+  cont.addEventListener('click', alClic, true);
+  return {
+    soltar() {
+      clearTimeout(reloj);
+      cont.removeEventListener('pointerdown', alBajar);
+      cont.removeEventListener('pointermove', alMover);
+      cont.removeEventListener('pointerup', alSoltar);
+      cont.removeEventListener('pointercancel', alSoltar);
+      cont.removeEventListener('click', alClic, true);
+    },
+  };
+}
+
+/* ----- Qué hay en un día sin abrirlo, con el ratón (F26) -----
+   La respuesta completa de la celda —cuántas instalaciones, qué vence en el taller, el semáforo—
+   vive en su `aria-label`, y con ratón la única manera de leerla era tocar la celda, lo que
+   repinta la pantalla. La pieza `nombres` enseña ese mismo texto en una ficha sobre la celda: la
+   primera espera 400 ms y, mientras el cursor siga por la rejilla, las siguientes salen sin espera
+   (WarmTooltip). Es una pieza que ya existía y que ya sabe quedarse en el puntero fino: con el dedo
+   no hace nada —el dedo tiene la lista del día— y con el teclado sale al enfocar una celda.
+   La ficha no sustituye al toque: no recibe el puntero, y el clic sigue abriendo el día. Los puntos
+   del `aria-label` se vuelven « · » y no saltos de línea: la pieza junta todo el espacio en blanco
+   del nombre en uno solo (es un nombre de icono, de una línea), y un salto no sobreviviría; la hoja
+   de estilos deja que el texto baje de renglón en vez de cortarlo. */
+function fichaDeCadaDia(cont) {
+  const P = piezas();
+  if (!P.nombres) return null;
+  return P.nombres(cont, { selector: '.cal-dia[data-dia]', siempre: true, toque: false,
+    texto: el => String(el.getAttribute('aria-label') || '').replace(/\.\s+/g, ' · ') });
 }
 
 /* ============================================================================
@@ -417,7 +617,7 @@ function pintar() {
     '</div>';
 
   const calendario =
-    '<div class="card"><div class="card-b">' +
+    '<div class="card cal-card"><div class="card-b">' +
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
     '</div></div>';
 
@@ -428,7 +628,7 @@ function pintar() {
      del otro. Mismo marcado en el monitor y en el teléfono: solo cambia dónde cae cada cosa. */
   _cont.innerHTML =
     pintarCuentas(d) +
-    (d.pendientes.length ? pintarDecidir(d) : (claseSiSube('calendario', 0), '')) +
+    (d.pendientes.length ? pintarDecidir(d) : '') +
     barra +
     (_lente === 'instalaciones'
       ? calendario
@@ -436,8 +636,10 @@ function pintar() {
           '<div class="ag-col">' + calendario + '</div>' + pintarTaller(d) + '</div>') +
     pintarExportar(d);
 
+  _firma = firmaFija(d);
   pintarMbar(d);
   publicarCuentas(d);
+  rodarCuentas();
 }
 
 /* ----- La tarjeta que late: «Se ganó / No se dio» -----
@@ -451,8 +653,7 @@ function pintarDecidir(d) {
   const lista = d.pendientes || [];
   const n = lista.length;
   const veDinero = Prefs.veDinero();
-  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
-  return '<div class="cand-partidas pf-decidir' + claseSiSube('calendario', n) + '" id="ag-decidir">' +
+  return '<div class="cand-partidas pf-decidir" id="ag-decidir">' +
     '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
     (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
     '</b> sin decidir. Sin este toque no hay proyecto, ni ventana de taller, ni fecha: es lo único de esta pantalla que nadie más puede contestar.</p>' +
@@ -574,19 +775,48 @@ function pintarCuentas(d) {
   if (_lente !== 'instalaciones' && d.ventanas) {
     const enTaller = d.ventanas.filter(v => v.ancla === 'instalacion' && v.empezar <= hoy && v.listo >= hoy).length;
     const tarde = d.ventanas.filter(v => v.atraso_dias > 0).length;
-    c.push(unaCuenta(enTaller, 'En el taller hoy', false));
-    if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'Va tarde' : 'Van tarde', true));
+    c.push(unaCuenta(enTaller, 'En el taller hoy', false, 'taller'));
+    if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'Va tarde' : 'Van tarde', true, 'tarde'));
   }
-  c.push(unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false));
+  c.push(unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false, 'instalar'));
   c.push(unaCuenta(d.sinFecha.length,
-    d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0));
+    d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0, 'sinfecha'));
   if (d.vencidas.length) c.push(unaCuenta(d.vencidas.length,
-    d.vencidas.length === 1 ? 'Ya pasó y nadie la marcó' : 'Ya pasaron y nadie las marcó', true));
+    d.vencidas.length === 1 ? 'Ya pasó y nadie la marcó' : 'Ya pasaron y nadie las marcó', true, 'vencidas'));
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
 }
 
-const unaCuenta = (n, txt, urge) =>
-  '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b>' + n + '</b>' + esc(txt) + '</p>';
+/* `data-cuenta` es la CLAVE de la cifra y no su rótulo: «Ganado sin fecha» y «Ganados sin fecha»
+   son la misma cuenta, y la rueda tiene que seguirla a través del cambio de número. */
+const unaCuenta = (n, txt, urge, clave) =>
+  '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b' + (clave ? ' data-cuenta="' + clave + '"' : '') + '>' + n + '</b>' + esc(txt) + '</p>';
+
+/* ----- Las cuentas ruedan cuando cambian (F23) -----
+   Después de agendar, «Ganados sin fecha 3 → 2» cambiaba de golpe en medio de un repintado
+   completo y se pasaba por alto, justo la cifra que se vino a leer. La pieza `rodarCifra` recuerda
+   el último valor de cada cifra por su `clave` —que sobrevive al innerHTML, y esta cinta se rehace
+   en cada toque— y hace rodar solo la que cambió; la que no cambió no se toca. Dos cuidados que
+   son de aquí:
+
+     · NUNCA en el primer pintado del montaje (`animar` es falso hasta que la cinta se pintó una
+       vez): entrar al Calendario no es un cambio, y cuatro cifras girando al abrir son ruido. La
+       pieza igual recuerda lo pintado, así que lo que cambie después sí rueda desde ahí.
+     · el elemento es el `<b>` de siempre, solo con su número: la pieza deja el texto final desde
+       el primer cuadro (el lector de pantalla y las pruebas leen la cifra de verdad) y no cambia
+       el tamaño de la caja. */
+function rodarCuentas() {
+  const P = piezas();
+  const animar = _cuentasVistas;
+  _cuentasVistas = true;
+  if (!P.rodarCifra || !_cont) return;
+  for (const b of _cont.querySelectorAll('.pf-cuentas b[data-cuenta]')) {
+    P.rodarCifra(b, b.textContent, { clave: 'calendario:' + b.dataset.cuenta, animar });
+  }
+}
+
+/* La pieza se pide en el momento: es un guion clásico que index.html carga antes que este módulo,
+   pero una prueba de node que importe esta pantalla no tiene `window`. */
+const piezas = () => (typeof window !== 'undefined' && window.Piezas) || {};
 
 function pintarFiltros() {
   const c = [];
@@ -626,16 +856,22 @@ function pintarMes(d) {
       '<button type="button" class="cal-nav" data-hoy aria-label="Ir al mes de hoy">' + ico('i-hoy') + '</button>' +
       nav(-1, 'Mes anterior') + nav(1, 'Mes siguiente') +
     '</div>' +
-    '<div class="cal-rej">' +
-      DOW.map(x => '<div class="cal-dow" aria-hidden="true">' + x + '</div>').join('') +
-      celdas.join('') +
-    '</div>' +
-    /* La invitación a agendar solo para quien puede: con el rol de Pagos, tocar un día no
-       abre nada —la capa de datos contesta «Agendar es de dirección»—, y el resto de la
-       rejilla ya lo respeta. */
-    (mes.total ? '' : '<p class="pf-nota">No hay nada agendado en ' +
-      esc(etiquetaMes(primero)) + '.' + (puedeAgendar() ? ' Toca un día para agendar en él.' : '') + '</p>') +
-    pintarDiaAbierto(d);
+    /* Todo lo que cambia con el mes va dentro del lienzo, y la cabecera se queda fuera: el
+       lienzo es lo que se arrastra con el dedo y lo que viaja de lado al cambiar de mes (F11),
+       y `.cal-cab` —el nombre del mes y sus flechas— se queda quieta, con el foco donde
+       estaba. */
+    '<div class="cal-lienzo">' +
+      '<div class="cal-rej">' +
+        DOW.map(x => '<div class="cal-dow" aria-hidden="true">' + x + '</div>').join('') +
+        celdas.join('') +
+      '</div>' +
+      /* La invitación a agendar solo para quien puede: con el rol de Pagos, tocar un día no
+         abre nada —la capa de datos contesta «Agendar es de dirección»—, y el resto de la
+         rejilla ya lo respeta. */
+      (mes.total ? '' : '<p class="pf-nota">No hay nada agendado en ' +
+        esc(etiquetaMes(primero)) + '.' + (puedeAgendar() ? ' Toca un día para agendar en él.' : '') + '</p>') +
+      pintarDiaAbierto(d) +
+    '</div>';
 }
 
 /* Adelante y atrás con chevrones de texto y no con iconos. El sprite trae `i-atras` pero no
@@ -692,8 +928,10 @@ function celdaDia(dia, d) {
   return '<button type="button" class="cal-dia' + (dia.hoy ? ' hoy' : '') + '"' +
       ' data-dia="' + dia.fecha + '" aria-label="' + esc(etiqueta) + '"' +
       (abierto ? ' aria-current="date"' : '') + '>' +
-      (sem ? '<span class="cal-sem ' + sem.estado + '" title="' + esc(sem.texto) +
-        '" aria-hidden="true"></span>' : '') +
+      /* Sin `title`: la ficha de la pieza `nombres` ya enseña el texto del semáforo dentro del
+         `aria-label` de la celda (F26), y con el `title` del punto salía una segunda ficha, la nativa,
+         encima. En el teléfono un `title` nunca se vio. */
+      (sem ? '<span class="cal-sem ' + sem.estado + '" aria-hidden="true"></span>' : '') +
       '<span class="cal-n">' + dia.dia + '</span>' + evs + mas +
     '</button>';
 }
@@ -723,7 +961,14 @@ function pintarDiaAbierto(d) {
   const insts = visibles(d.dia);
   const sem = d.sem.get(_dia);
 
-  let html = '<div class="dia-lista"><h3 class="dia-t">' + esc(fmtFechaDia(_dia)) +
+  /* `data-recien` solo cuando lo abrió un TOQUE (F18): es lo que le da su subida corta y lo que
+     deja a `llevarElDiaALaVista` saber que hay algo que traer. Un repintado con el día ya abierto
+     —agendar en él, marcarlo como hecho— no lo lleva, y entonces nada se mueve ni se anima. El
+     encabezado es enfocable (tabindex -1) para que el foco llegue a lo que se acaba de abrir en
+     vez de quedarse en una celda que el repintado ya reemplazó. */
+  const recien = _diaRecien;
+  _diaRecien = false;
+  let html = '<div class="dia-lista"' + (recien ? ' data-recien' : '') + '><h3 class="dia-t" tabindex="-1">' + esc(fmtFechaDia(_dia)) +
     ' <span class="pf-cuando' + toneCuando(_dia) + '">' + esc(cuando(_dia)) + '</span></h3>';
 
   if (veSemaforo() && sem && insts.length) html += renglonSem(sem);
@@ -808,7 +1053,7 @@ function pintarSemana(d) {
       '<h2 class="cal-mes">' + esc(fmtFecha(ini) + ' — ' + fmtFecha(fin)) + '</h2>' +
       '<button type="button" class="cal-nav" data-hoy aria-label="Ir a esta semana">' + ico('i-hoy') + '</button>' +
       nav(-1, 'Semana anterior') + nav(1, 'Semana siguiente') +
-    '</div>' + cuerpo;
+    '</div><div class="cal-lienzo">' + cuerpo + '</div>';
 }
 
 /* ----- Vista de lista -----
@@ -942,7 +1187,7 @@ function pintarExportar(d) {
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ajustes">Cómo se conecta</button></div></div>';
   }
 
-  return '<div class="card"><div class="card-h"><h2>' + ico('i-bajar') +
+  return '<div class="card" id="cal-exportar"><div class="card-h"><h2>' + ico('i-bajar') +
       'Al calendario del teléfono</h2></div><div class="card-b">' +
     '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-agenda') + '</div>' +
@@ -976,20 +1221,41 @@ function pintarExportar(d) {
 function pintarMbar(d) {
   const b = $('pf-mbar');
   if (!b) return;
-  if (!puedeAgendar()) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); return; }
+  if (!puedeAgendar()) { b.hidden = true; b.innerHTML = ''; b.onclick = null; b.classList.remove('cal-mbar'); ajustarAltoBarra(); return; }
   const n = d.sinFecha.length, dec = (d.pendientes || []).length;
+  let texto, clase, atributo;
   if (dec && Prefs.rol() === 'direccion') {
-    b.innerHTML = '<button type="button" class="btn btn-ok" data-ir-decidir>' +
-      (dec === 1 ? 'Decidir la cotización pendiente' : 'Decidir ' + dec + ' cotizaciones') + '</button>';
+    texto = dec === 1 ? 'Decidir la cotización pendiente' : 'Decidir ' + dec + ' cotizaciones';
+    clase = 'btn btn-ok'; atributo = 'data-ir-decidir';
   } else {
     const propone = soloPropone();
-    b.innerHTML = '<button type="button" class="btn btn-pri" data-abrir-agendar>' +
-      (propone
-        ? (n ? 'Proponer un día (' + n + ' sin fecha)' : 'Proponer un día')
-        : (n ? (n === 1 ? 'Agendar el proyecto sin fecha' : 'Agendar (' + n + ' sin fecha)') : 'Agendar una instalación')) +
-      '</button>';
+    texto = propone
+      ? (n ? 'Proponer un día (' + n + ' sin fecha)' : 'Proponer un día')
+      : (n ? (n === 1 ? 'Agendar el proyecto sin fecha' : 'Agendar (' + n + ' sin fecha)') : 'Agendar una instalación');
+    clase = 'btn btn-pri'; atributo = 'data-abrir-agendar';
+  }
+  /* La barra ya está a la vista con su botón (se repinta en cada toque de la pantalla y casi siempre
+     dice lo mismo): el botón NO se reescribe (F29). Si cambió de acción —de «Decidir 2
+     cotizaciones» a «Agendar (3 sin fecha)»— o de cuenta, el rótulo nuevo se cruza con el viejo en
+     su sitio con la pieza 23, que compara antes de tocar y no hace nada si es el mismo; antes el
+     cambio ni se notaba. Lo que cambia con la acción —el color y qué hace el toque— se cambia en el
+     mismo botón. Reescribir con innerHTML era también lo que dejaba a un dedo con el botón cayéndose
+     de debajo. */
+  const P = piezas();
+  const btn = b.hidden ? null : b.querySelector('button');
+  if (btn) {
+    btn.className = clase;
+    btn.removeAttribute('data-ir-decidir'); btn.removeAttribute('data-abrir-agendar');
+    btn.setAttribute(atributo, '');
+    if (P.cambiarRotulo) P.cambiarRotulo(btn, texto); else btn.textContent = texto;
+  } else {
+    b.innerHTML = '<button type="button" class="' + clase + '" ' + atributo + '>' + esc(texto) + '</button>';
   }
   b.hidden = false;
+  /* La entrada (sube 12 px con un fundido de 180 ms) es CSS de esta pantalla y se cuelga de esta
+     clase y no de `.pf-mbar` a secas: la barra es de todo el documento y la usan otros módulos
+     con sus propias acciones. */
+  b.classList.add('cal-mbar');
   b.onclick = ev => {
     if (ev.target.closest('[data-abrir-agendar]')) { abrirAgendar(null); return; }
     if (ev.target.closest('[data-ir-decidir]')) {
@@ -1000,6 +1266,10 @@ function pintarMbar(d) {
       if (primero) { try { primero.focus({ preventScroll: true }); } catch (_) {} }
     }
   };
+  /* Mide el alto de la barra ya puesta y publica `--mbar-h`. Medir con la entrada a medias no
+     engaña: la barra solo se TRASLADA (translateY) mientras entra, y un traslado no cambia su alto
+     —a diferencia de escalarla—. Es el mismo problema que ya resolvió `alTerminarDeEntrar` para el
+     marco del cotizador, y aquí se evita por construcción en vez de esperar al final. */
   ajustarAltoBarra();
 }
 
@@ -1044,14 +1314,8 @@ async function alTocar(ev) {
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }
 
   const mueve = ev.target.closest('[data-mueve]');
-  if (mueve) {
-    const n = Number(mueve.dataset.mueve) || 0;
-    _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
-    _dia = null;
-    await recargar();
-    return;
-  }
-  if (ev.target.closest('[data-hoy]')) { _ancla = hoyISO(); _dia = null; await recargar(); return; }
+  if (mueve) { await irAlPeriodo(anclaTrasPasos(Number(mueve.dataset.mueve) || 0)); return; }
+  if (ev.target.closest('[data-hoy]')) { await irAlPeriodo(hoyISO()); return; }
   if (ev.target.closest('[data-cobro]')) { _soloCobro = !_soloCobro; await recargar(); return; }
   if (ev.target.closest('[data-pasadas]')) { _pasadas = !_pasadas; await recargar(); return; }
   if (ev.target.closest('[data-agendar]')) { abrirAgendar(null); return; }
@@ -1068,15 +1332,36 @@ async function alTocar(ev) {
        fecha ya puesta. Ese es el medio toque del «toque y medio». */
     if (libre && puedeAgendar() && iso >= (_d ? _d.hoy : hoyISO())) { abrirAgendar(iso); return; }
     _dia = _dia === iso ? null : iso;
+    _diaRecien = !!_dia;
     await recargar();
-    /* En el teléfono la lista del día se pinta DEBAJO de la rejilla: el toque cambiaba algo que
-       no se veía. Si quedó abajo del doblez, se la acerca. */
-    const l = _dia && _cont && _cont.querySelector('.dia-lista');
-    if (l && l.getBoundingClientRect().top > innerHeight * .7) l.scrollIntoView({ block: 'nearest', behavior: scrollSuave() });
+    llevarElDiaALaVista();
     return;
   }
 
   await despachar(ev);
+}
+
+/* ----- Al tocar un día, su lista aparece a la vista (F18) -----
+   En el teléfono la lista del día se pinta DEBAJO de la rejilla, y el toque cambiaba algo que no se
+   veía. Antes se acercaba solo si el encabezado quedaba más abajo del 70 % de la pantalla; eso
+   dejaba fuera dos casos: la lista que empieza a la vista pero termina detrás de las barras de
+   abajo, y el foco, que seguía en una celda que el repintado ya había reemplazado.
+
+   Ahora: el encabezado es lo que tiene que quedar a la vista, entre el borde de arriba y donde
+   empiezan las barras de abajo (el dock de módulos y la barra de acción, que se miden y no se
+   suponen); si ya lo está, la página NO se mueve; si no, baja lo justo (`block:'nearest'`, con el
+   margen de las barras puesto en la hoja de estilos). Y el foco va al título del día, que es lo que
+   se acaba de abrir. Solo cuando abrió un toque: un repintado con el día ya abierto no trae
+   `data-recien`, y nada se mueve. */
+function llevarElDiaALaVista() {
+  const l = _dia && _cont && _cont.querySelector('.dia-lista[data-recien]');
+  if (!l) return;
+  const t = l.querySelector('.dia-t');
+  const r = (t || l).getBoundingClientRect();
+  const barra = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mbar-h') || '0', 10) || 0;
+  const fondo = innerHeight - (altoBarraAbajo() || 0) - barra;
+  if (r.top < 0 || r.bottom > fondo) l.scrollIntoView({ block: 'nearest', behavior: scrollSuave() });
+  if (t) { try { t.focus({ preventScroll: true }); } catch (_) {} }
 }
 
 /** Los `data-acc` son los mismos en el renglón y en la ficha, así que se despachan por el
@@ -1085,6 +1370,17 @@ async function despachar(ev) {
   const b = ev.target.closest('[data-acc]');
   if (!b) return;
   ev.preventDefault();
+  /* Las órdenes a Google Calendar no se apagan con `disabled`: tardan segundos y el botón mismo
+     dice qué está haciendo (`ordenACalendar`). Un `disabled` le quita además el foco a quien
+     navega con teclado justo cuando espera una respuesta. */
+  if (b.dataset.acc === 'gcal' || b.dataset.acc === 'gcal-borrar') {
+    try { await ejecutar(b.dataset.acc, b.dataset.id || '', b); }
+    catch (e) {
+      console.error('la orden a Calendar falló', e);
+      toast('Algo se rompió al hacer eso. Recarga la plataforma y vuelve a intentarlo.', 'err', 4600);
+    }
+    return;
+  }
   b.disabled = true;
   try { await ejecutar(b.dataset.acc, b.dataset.id || ''); }
   catch (e) {
@@ -1107,7 +1403,41 @@ function instDe(id) {
   return null;
 }
 
-async function ejecutar(acc, id) {
+/* ----- El botón que habla con Google Calendar dice qué hace (F7) -----
+   Crear o poner al día un evento es una llamada de red que tarda de uno a varios segundos, y hasta
+   ahora el botón solo se ponía `disabled`: ni decía qué hacía, ni cuánto llevaba, ni —al final—
+   cómo había terminado; el resultado llegaba en un aviso abajo, lejos del dedo. Con la pieza 14 el
+   botón cambia su rótulo por lo que está haciendo («Creándola en Calendar · 4 s»), se va llenando
+   de izquierda a derecha, y termina en «Creada» en verde un momento o en «No contestó · Reintentar»
+   con una sacudida corta. Sus hermanos de la ficha pasan a `aria-disabled`.
+
+   El resultado se sigue diciendo con el aviso de siempre (con la explicación larga que la capa de
+   datos ya escribió), así que la pieza no repite la voz: `voz:false`. Con menos movimiento no hay
+   relleno ni sacudida; solo cambia el texto. Si la pieza no está —una prueba de node—, queda lo de
+   antes. `trabajo` devuelve el `Resultado` de la capa de datos, que nunca se rechaza: aquí se
+   vuelve un fallo del botón cuando `ok` es falso.
+   @returns {Promise<Object|null>} el Resultado, o null si el botón ya estaba trabajando */
+const MAL_DE_CALENDAR = { SIN_RED: 'No contestó', ROL_SIN_PERMISO: 'Google no dejó', DATO_INVALIDO: 'Falta un dato' };
+async function ordenACalendar(boton, trabajo, { verbo, ok, tau }) {
+  const P = piezas();
+  if (!P.trabajando || !boton) return trabajo();
+  const caja = boton.closest('.pf-acciones') || boton.parentElement;
+  const hermanos = caja ? [...caja.querySelectorAll('[data-acc]')].filter(x => x !== boton) : [];
+  let resultado = null;
+  const r = await P.trabajando(boton, async () => {
+    resultado = await trabajo();
+    if (!resultado || !resultado.ok) {
+      const e = new Error((resultado && resultado.mensaje) || 'No se pudo');
+      e.codigo = resultado && resultado.codigo;
+      throw e;
+    }
+    return resultado;
+  }, { verbo, tau: tau || 4000, ok, mal: e => MAL_DE_CALENDAR[e && e.codigo] || 'No se pudo', hermanos, voz: false });
+  if (r.ocupado) return null;
+  return resultado;
+}
+
+async function ejecutar(acc, id, boton) {
   if (acc === 'ajustes') { if (_ctx) _ctx.ir('ajustes'); return; }
   if (acc === 'ics-ritmo') { await compartirIcs(Ics.ritmo(), 'al3d-ritmo.ics', 'el ritmo'); return; }
   if (acc === 'ics-mes') { await bajarVarias(); return; }
@@ -1150,7 +1480,12 @@ async function ejecutar(acc, id) {
     }
 
     case 'gcal': {
-      const r = await Gcal.crearEvento(Agenda.paraIcs(i, p));
+      const evento = Agenda.paraIcs(i, p);
+      const r = await ordenACalendar(boton, () => Gcal.crearEvento(evento), {
+        verbo: Number(i.movida) > 0 ? 'Poniéndola al día' : 'Creándola en Calendar',
+        ok: res => { const v = (res && res.valor) || {}; return v.actualizado ? 'Puesta al día' : v.yaEstaba ? 'Ya estaba' : 'Creada'; },
+      });
+      if (!r) return;
       /* No se guarda el `gcal_event_id`. El id que Calendar recibe es determinista sobre el
          UID de la instalación, así que volver a darle al botón no duplica nada; escribirlo
          desde aquí sería inventarle a §5.7 una mutación que no tiene. Y volver a darle es
@@ -1174,7 +1509,9 @@ async function ejecutar(acc, id) {
        de cada invitado. Sin este botón, cancelarla aquí dejaba el evento vivo allá y el
        instalador salía a una cita que ya no existía. */
     case 'gcal-borrar': {
-      const r = await Gcal.borrarEvento(Agenda.paraIcs(i, p).uid);
+      const uid = Agenda.paraIcs(i, p).uid;
+      const r = await ordenACalendar(boton, () => Gcal.borrarEvento(uid), { verbo: 'Quitándola de Calendar', ok: 'Quitada' });
+      if (!r) return;
       avisarResultado(r, 'Ya no está en Google Calendar. Si los invitados lo tenían, les llega la cancelación.');
       return;
     }
@@ -1224,7 +1561,7 @@ async function bajarVarias() {
    entrada que nadie consume: a partir de ahí el atrás del teléfono deja de cerrar el modal
    al primer toque. Así que cuando la capa ya está abierta solo se cambia el contenido, y el
    foco se lleva a mano al panel nuevo, que es lo que hacía `abrirCapa`. */
-function ponerEnCapa(id, html) {
+function ponerEnCapa(id, html, o = {}) {
   const capa = $(id);
   if (!capa) return;
   const todo = '<div class="pf-panel">' + html + '</div>';
@@ -1234,10 +1571,37 @@ function ponerEnCapa(id, html) {
   const vivo = document.activeElement;
   if (capa.classList.contains('show') && vivo && vivo.matches && vivo.matches('input,textarea') &&
       capa.contains(vivo) && repintarAlrededor(capa, todo, vivo)) return;
-  capa.innerHTML = todo;
-  if (!capa.classList.contains('show')) { abrirCapa(id, { hist: true }); return; }
-  const f = capa.querySelector('button:not([disabled]),input,textarea,a[href]');
-  if (f) requestAnimationFrame(() => { try { f.focus(); } catch (_) {} });
+  if (!capa.classList.contains('show')) { capa.innerHTML = todo; abrirCapa(id, { hist: true }); return; }
+  /* `o.dir` es un cambio de PASO dentro de la misma capa (F19): el cuerpo nuevo entra por la derecha
+     al avanzar y por la izquierda al volver. Es la pieza 22 alrededor del innerHTML, y la capa NO se
+     abre otra vez —cada capa lleva una sola entrada de historial—. El foco, que depende del cuerpo
+     nuevo, va dentro: con View Transitions el repintado corre un cuadro después. `o.foco` es el
+     selector de lo que debe recibirlo en vez del primer control (un chip que se acaba de elegir y
+     que el repintado rehízo). */
+  const poner = () => {
+    capa.innerHTML = todo;
+    const f = (o.foco && capa.querySelector(o.foco)) || capa.querySelector('button:not([disabled]),input,textarea,a[href]');
+    if (f) requestAnimationFrame(() => { try { f.focus(); } catch (_) {} });
+  };
+  const P = piezas();
+  if (o.dir && P.transicion) {
+    P.transicion(poner, { contenedor: '#' + id + ' .pf-panel-b', direccion: o.dir, duracion: 220 });
+    return;
+  }
+  poner();
+}
+
+/* ----- Los tres pasos de agendar (F19) -----
+   Proyecto → Día → Al teléfono eran tres contenidos que se reemplazaban en la misma capa sin
+   decir en cuál iba uno ni cuántos faltaban. Un riel de tres puntos con la pieza 16: los pasos de
+   antes con su palomita, el actual con su anillo y `aria-current="step"`, los que faltan huecos.
+   No se toca (no es un botón): volver se hace con «‹ Otro proyecto», que dice a dónde lleva. */
+const PASOS_AGENDAR = ['Proyecto', 'Día', 'Al teléfono'];
+function pasosAgendar(actual) {
+  const P = piezas();
+  if (!P.rielHTML) return '';
+  return '<div class="pf-pasos">' +
+    P.rielHTML(PASOS_AGENDAR, { forma: 'horizontal', actual, etiqueta: 'Pasos para agendar' }) + '</div>';
 }
 
 const cabeza = (titulo, cerrar) =>
@@ -1282,7 +1646,7 @@ function abrirAgendar(fecha) {
   pintarPaso1();
 }
 
-function pintarPaso1() {
+function pintarPaso1(dir) {
   const sinFecha = (_d && _d.sinFecha) || [];
   const q = String(_hoja.filtro || '').trim().toLowerCase();
   const lista = q
@@ -1313,15 +1677,16 @@ function pintarPaso1() {
     cabeza(_hoja.fecha ? 'Agendar el ' + fmtFecha(_hoja.fecha) : 'Agendar una instalación',
            'data-h="cerrar"') +
     '<div class="pf-panel-b">' +
+      pasosAgendar(0) +
       '<p class="pf-cuenta">Estos son los proyectos ganados que todavía no tienen día.</p>' +
       buscador + filas +
     '</div><div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-h="cerrar">Cancelar</button>' +
-    '</div>');
+    '</div>', { dir });
 }
 
 /** Paso 2: el día. Es lo único que se pide de verdad; todo lo demás viene puesto. */
-async function pintarPaso2(pid) {
+async function pintarPaso2(pid, o = {}) {
   const p = await Proyectos.obtener(pid);
   if (!p) { toast('Ese proyecto ya no está en este dispositivo.', 'err', 4200); cerrarHoja(); return; }
 
@@ -1341,11 +1706,19 @@ async function pintarPaso2(pid) {
     chip(Agenda.VENTANA_NOMBRE[v], v === 'dia',
       'data-h="ventana" data-v="' + v + '" title="' + esc(Agenda.VENTANA_DESC[v] || '') + '"')).join('');
 
-  _hoja = { paso: 'fecha', pid, ventana: 'dia', proyecto: p };
+  /* `volver` guarda lo del paso 1 —el día que se tocó en la rejilla y lo que se había escrito en el
+     buscador— para que «‹ Otro proyecto» regrese a la misma lista, no a una en blanco. Solo existe
+     si se pasó por el paso 1: quien llega directo a este paso (el «Mover la fecha» del Tablero ya
+     trae el proyecto) no tiene a dónde volver, y el botón no se pinta. */
+  _hoja = { paso: 'fecha', pid, ventana: 'dia', proyecto: p, volver: o.volver || null };
 
   ponerEnCapa('pf-hoja',
     cabeza('¿Qué día se instala?', 'data-h="cerrar"') +
     '<div class="pf-panel-b">' +
+      pasosAgendar(1) +
+      (_hoja.volver
+        ? '<p class="pf-volver"><button type="button" class="btn btn-gho pf-btn-corto" data-h="otro">‹ Otro proyecto</button></p>'
+        : '') +
       '<dl class="pf-dato"><dt>Proyecto</dt><dd>' + esc(p.nombre || p.folio_local) + '</dd></dl>' +
       (p.compromiso_texto
         ? '<dl class="pf-dato"><dt>Lo que se le prometió al cliente</dt><dd>' +
@@ -1363,6 +1736,13 @@ async function pintarPaso2(pid) {
 
       '<div class="fld"><span class="fld-lab">Ventana</span>' +
         '<div class="chips" role="group" aria-label="Ventana de instalación">' + ventanas + '</div></div>' +
+      /* Lo que implica la ventana elegida, escrito DEBAJO de los chips (F17). Vivía solo en el
+         `title` de cada chip, que en el teléfono nunca se ve, y «De noche» y «Madrugada» cambian la
+         alarma de salida a 2 horas antes: una consecuencia que se descubría al sonar. El texto sale
+         de `Agenda.VENTANA_DESC` y no se copia aquí. `aria-live` para quien oye: el cambio de
+         ventana tiene que decirse. */
+      '<p class="hintnote pf-vent-desc" id="pf-ag-vent-desc" aria-live="polite">' +
+        esc(Agenda.VENTANA_DESC.dia || '') + '</p>' +
 
       '<div class="fld"><label for="pf-ag-dur">Cuánto va a durar, en minutos</label>' +
         '<input type="number" id="pf-ag-dur" min="30" max="600" step="30" value="' + dur + '"></div>' +
@@ -1411,6 +1791,7 @@ async function guardarAgenda() {
   ponerEnCapa('pf-hoja',
     cabeza('Ya está agendada', 'data-h="cerrar"') +
     '<div class="pf-panel-b">' +
+      pasosAgendar(2) +
       '<dl class="pf-dato"><dt>' + esc(p.nombre || 'La instalación') + '</dt><dd>' +
         esc(fmtFechaDia(inst.fecha) + ' · ' +
             (inst.hora ? fmtHora(inst.hora) : 'sin hora, todo el día')) + '</dd></dl>' +
@@ -1421,7 +1802,7 @@ async function guardarAgenda() {
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-pri" data-h="ics">Al calendario</button>' +
       '<button type="button" class="btn btn-gho" data-h="cerrar">Después</button>' +
-    '</div>');
+    '</div>', { dir: 'adelante' });
 
   await recargar();
 }
@@ -1434,7 +1815,13 @@ async function alTocarHoja(ev) {
 
   if (q === 'cerrar') { cerrarHoja(); return; }
 
-  if (q === 'elige') { await pintarPaso2(b.dataset.pid); return; }
+  if (q === 'elige') {
+    const h = _hoja || {};
+    await pintarPaso2(b.dataset.pid, { dir: 'adelante', volver: { fecha: h.fecha || null, filtro: h.filtro || '' } });
+    return;
+  }
+
+  if (q === 'otro') { volverAlPaso1(); return; }
 
   if (q === 'ventana') {
     if (!_hoja) return;
@@ -1447,6 +1834,11 @@ async function alTocarHoja(ev) {
       x.classList.toggle('on', on);
       x.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    /* La línea de abajo cambia con un cruce corto (pieza 23): lo viejo sale y lo nuevo entra en el
+       mismo sitio, sin que nada de abajo se mueva. Con menos movimiento, el cambio es directo. */
+    const desc = $('pf-ag-vent-desc');
+    const texto = Agenda.VENTANA_DESC[_hoja.ventana] || '';
+    if (desc) { const P = piezas(); if (P.cambiarRotulo) P.cambiarRotulo(desc, texto); else desc.textContent = texto; }
     return;
   }
 
@@ -1466,6 +1858,13 @@ async function alTocarHoja(ev) {
     }
     cerrarHoja();
   }
+}
+
+/** «‹ Otro proyecto»: del paso 2 al 1, con la lista como se había dejado. */
+function volverAlPaso1() {
+  const v = (_hoja && _hoja.volver) || {};
+  _hoja = { paso: 'elegir', fecha: v.fecha || null, filtro: v.filtro || '' };
+  pintarPaso1('atras');
 }
 
 /* El buscador del paso 1 se lee al escribir. Está en un oyente de `input` de la capa y no de
@@ -1549,6 +1948,21 @@ function abrirFicha(i) {
     '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
 }
 
+/* ----- Copiar la orden de trabajo, confirmado en el botón (F31) -----
+   `copiarTexto` ya confirma en el botón tocado, pero con su rótulo de siempre, «Copiado»; la orden
+   es femenina y el aviso de abajo dice «Orden copiada». La pieza `copiar` deja elegir el rótulo, y
+   por 1.8 s el botón es una palomita que se dibuja y «Copiada» —sin cambiar su ancho—. El aviso y
+   la voz se quedan: el aviso trae la instrucción (pégala en el chat del instalador) y es lo que
+   oye quien no ve el botón. */
+function copiarOrden(boton) {
+  const texto = (_pide && _pide.texto) || '';
+  const P = piezas();
+  const MSG = 'Orden copiada. Pégala en el chat del instalador.';
+  if (!P.copiar) { copiarTexto(texto, MSG); return; }
+  P.copiar(texto, { boton, ok: 'Copiada' }).then(bien =>
+    bien ? toast(MSG, 'ok', 3400) : toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200));
+}
+
 /** La orden del instalador. Va en un panel y no directo a WhatsApp por una razón que muerde:
  *  el único teléfono que el sistema conoce es el del CLIENTE, y `Reglas.mensajeWa` arma su
  *  `url` con ese. Mandar la orden de trabajo por ahí sería mandarle al cliente lo que se le
@@ -1606,6 +2020,167 @@ function abrirMover(i) {
    quien lo hace, no quien lo vendió. Pagos no. */
 const puedeCorregirPlazo = () => Prefs.rol() !== 'pagos';
 
+/* ----- Probar el plazo antes de fijarlo (F24) -----
+   Los cinco cubos, de «1 semana» a «3 semanas o más», no decían qué fecha resulta; se sabía hasta el
+   aviso de DESPUÉS de tocar. Ahora, al pasar el cursor, al enfocar con el teclado o al apoyar el
+   dedo y deslizarlo, una ficha sobre los chips dice «Entra al taller el lun 8 oct · listo el vie 19
+   oct». Tocar confirma, como hoy: con el dedo, soltar sobre un chip lo toca, y soltar fuera no
+   hace nada, así que el plazo se puede PROBAR sin fijarlo.
+
+   La fecha no se calcula aquí: sale de `Taller.ventanaTaller()` llamada con el proyecto y el plazo
+   candidato, la misma función que pinta la fila. Esta pantalla solo la pide y la escribe. Y el
+   plazo es de CALENDARIO, como en datos/taller.js (a propósito: es lo que dice la tabla de
+   plazos); la ficha lo dice con palabras. */
+const diaCorto = iso => {
+  const f = fechaLocal(iso), q = partesISO(iso);
+  return f && q ? DOW[(f.getDay() + 6) % 7] + ' ' + q.d + ' ' + MES_CORTO[q.m - 1] : '';
+};
+
+/** El texto de la ficha para una ventana ya calculada. */
+function fichaDeVentana(k, v) {
+  if (!v || !partesISO(v.empezar) || !partesISO(v.listo)) {
+    return { texto: 'Sin fecha de instalación ni de venta no hay de dónde contar', sub: '' };
+  }
+  const pl = Taller.plazo(k);
+  return { texto: 'Entra al taller el ' + diaCorto(v.empezar) + ' · listo el ' + diaCorto(v.listo),
+           sub: pl.etiqueta + ' · ' + pl.dias + ' días de calendario' +
+                (v.ancla === 'ganado' ? ' · cuenta desde que se ganó, sin fecha de instalación' : '') };
+}
+
+/** La ficha de un proyecto que ya existe. Lee el proyecto, su instalación viva y las constantes UNA
+ *  vez, al abrir el panel, para que la primera ficha no espere. */
+function fichaDePlazoDe(id) {
+  const base = Promise.all([Proyectos.obtener(id), Agenda.listar({ proyecto_id: id, vivas: true }), Material.constantes()])
+    .then(([p, vivas, cts]) => ({ p, inst: (vivas && vivas[0]) || null, cts }), () => ({ p: null }));
+  return async k => {
+    const b = await base;
+    if (!b.p) return null;
+    return fichaDeVentana(k, Taller.ventanaTaller({ ...b.p, plazo_k: k }, b.inst,
+      { hoy: (_d && _d.hoy) || hoyISO(), cts: b.cts }));
+  };
+}
+
+/** La ficha de una cotización que todavía no es proyecto («Se ganó»): el proyecto candidato es
+ *  `ganado` hoy, con el plazo candidato y el día de instalación que HAYA en el campo en ese
+ *  momento; sin día, la ventana cuenta desde hoy y la ficha lo dice. */
+function fichaDePlazoNuevo(e, tipos) {
+  const cts = Material.constantes().catch(() => ({}));
+  return async k => {
+    const campo = $('ag-ganar-fecha');
+    const dia = campo ? String(campo.value || '') : '';
+    const hoy = (_d && _d.hoy) || hoyISO();
+    const cand = { id: null, nombre: '', etapa: 'ganado', tipo_trabajo: tipos, fecha_ganado: hoy, plazo_k: k,
+                   origen: { items: e.items } };
+    return fichaDeVentana(k, Taller.ventanaTaller(cand, partesISO(dia) ? { fecha: dia, estado: 'confirmada' } : null,
+      { hoy, cts: await cts }));
+  };
+}
+
+/** Cablea la ficha sobre un grupo de chips con `data-k`. `fichaDe(k)` devuelve una promesa de
+ *  {texto, sub} o null. Un solo nodo `role="tooltip"` dentro del grupo. El nodo y los oyentes viven
+ *  en el panel: cuando la pantalla repinta el panel, se van con él. */
+function probarPlazos(grupo, fichaDe) {
+  if (!grupo) return;
+  const peek = document.createElement('div');
+  peek.className = 'pf-peek';
+  peek.id = 'pf-peek';
+  peek.setAttribute('role', 'tooltip');
+  const t = document.createElement('span'); t.className = 'pf-peek-t';
+  const sub = document.createElement('small'); sub.className = 'pf-peek-s';
+  peek.append(t, sub);
+  grupo.classList.add('pf-peek-caja');
+  grupo.appendChild(peek);
+
+  let probando = null, n = 0, presion = null, empezo = null, movio = false;
+  const ocultar = () => {
+    n++;
+    peek.classList.remove('ve');
+    if (probando) { probando.removeAttribute('aria-describedby'); probando.classList.remove('probando'); }
+    probando = null;
+  };
+  async function mostrar(chip) {
+    if (!chip || chip === probando) return;
+    if (probando) { probando.removeAttribute('aria-describedby'); probando.classList.remove('probando'); }
+    probando = chip;
+    const mio = ++n;
+    const f = await fichaDe(Number(chip.dataset.k));
+    if (mio !== n || probando !== chip || !chip.isConnected) return;
+    if (!f) { peek.classList.remove('ve'); return; }
+    t.textContent = f.texto;
+    sub.textContent = f.sub || '';
+    sub.hidden = !f.sub;
+    /* Sobre el chip y sin salirse del grupo; la flechita apunta al centro del chip. El nodo ocupa
+       sitio aunque no se vea (visibility), así que se puede medir antes de enseñarlo. */
+    const g = grupo.getBoundingClientRect(), c = chip.getBoundingClientRect(), w = peek.offsetWidth;
+    const centro = c.left - g.left + c.width / 2;
+    const x = Math.max(0, Math.min(g.width - w, centro - w / 2));
+    peek.style.setProperty('--x', Math.round(x) + 'px');
+    peek.style.setProperty('--flecha', Math.round(Math.max(12, Math.min(w - 12, centro - x))) + 'px');
+    /* Arriba si cabe dentro del cuerpo del panel, que es lo que recorta; si no, debajo. */
+    const cuerpo = grupo.closest('.pf-panel-b');
+    const sitio = c.top - (cuerpo ? cuerpo.getBoundingClientRect().top : 0);
+    peek.dataset.lado = sitio >= peek.offsetHeight + 14 ? 'arriba' : 'abajo';
+    peek.classList.add('ve');
+    chip.classList.add('probando');
+    chip.setAttribute('aria-describedby', 'pf-peek');
+  }
+  const bajo = ev => {
+    const e = document.elementFromPoint(ev.clientX, ev.clientY);
+    const c = e && e.closest ? e.closest('[data-k]') : null;
+    return c && grupo.contains(c) ? c : null;
+  };
+
+  /* Ratón: al pasar. */
+  grupo.addEventListener('pointerover', ev => {
+    if (ev.pointerType !== 'mouse') return;
+    const c = ev.target.closest('[data-k]');
+    if (c) mostrar(c);
+  });
+  grupo.addEventListener('pointerout', ev => {
+    if (ev.pointerType !== 'mouse') return;
+    if (!ev.relatedTarget || !grupo.contains(ev.relatedTarget)) ocultar();
+  });
+  /* Dedo: apoyar enseña, deslizar cambia de chip, soltar sobre uno lo toca, soltar fuera lo deja.
+     El navegador no manda el clic si el dedo se deslizó a otro chip, así que se manda aquí. */
+  grupo.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' || ev.button > 0) return;
+    const c = ev.target.closest('[data-k]');
+    if (!c) return;
+    presion = ev.pointerId; empezo = c; movio = false;
+    mostrar(c);
+  });
+  grupo.addEventListener('pointermove', ev => {
+    if (ev.pointerType === 'mouse' || ev.pointerId !== presion) return;
+    const c = bajo(ev);
+    if (c !== empezo) movio = true;
+    if (c) mostrar(c); else ocultar();
+  });
+  const soltar = ev => {
+    if (ev.pointerId !== presion) return;
+    presion = null;
+    const c = bajo(ev);
+    if (ev.type === 'pointerup' && movio && c && c !== empezo) c.click();
+    movio = false;
+    if (ev.type === 'pointercancel' || !c) { ocultar(); return; }
+    /* Un toque normal confirma y el panel se rehace; si no se rehízo, la ficha se va sola. */
+    setTimeout(() => { if (presion === null && probando) ocultar(); }, 1400);
+  };
+  grupo.addEventListener('pointerup', soltar);
+  grupo.addEventListener('pointercancel', soltar);
+  /* Teclado: al enfocar con Tab (o con las flechas), al momento. Solo con :focus-visible: un toque
+     o un clic también enfocan el botón, y eso no es «mirar» un plazo. */
+  grupo.addEventListener('focusin', ev => {
+    const c = ev.target.closest('[data-k]');
+    if (!c) return;
+    let visible = false;
+    try { visible = c.matches(':focus-visible'); } catch (_) {}
+    if (visible) mostrar(c);
+  });
+  grupo.addEventListener('focusout', ev => {
+    if (!ev.relatedTarget || !grupo.contains(ev.relatedTarget)) ocultar();
+  });
+}
+
 function abrirPlazo(id) {
   if (!puedeCorregirPlazo()) { toast('El plazo lo cambian dirección y fabricación.', 'err', 4200); return; }
   const v = ((_d && _d.ventanas) || []).find(x => x.proyecto_id === id);
@@ -1626,13 +2201,15 @@ function abrirPlazo(id) {
       '<p class="hintnote">El plazo se cuenta hacia atrás desde el día de la instalación: si mueves la fecha, la ventana se mueve con ella. Lo que elijas aquí manda sobre lo calculado y se queda.</p>' +
     '</div>' +
     '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
+  const capa = $('pf-pide');
+  probarPlazos(capa && capa.querySelector('.chips[aria-label="Plazo de taller"]'), fichaDePlazoDe(id));
 }
 
 /* ----- «Se ganó», con la fecha y el plazo en el mismo panel -----
    Pide UNA fecha, prellenada y borrable —el proyecto es el dato irrecuperable; si no hay día
    todavía, A7 lo nombra a las 48 horas—, y ofrece el plazo ya propuesto desde las partidas,
    por si quien gana ya sabe que son tres semanas. Cero toques lo aceptan. */
-function abrirGanar(folio, estado) {
+function abrirGanar(folio, estado, focoK) {
   const e = Cot.porFolio(folio);
   if (!e) { toast('«' + folio + '» ya no está en el historial de este dispositivo. Ábrelo en el cotizador para ver qué pasó.', 'err', 5200); return; }
   const tipos = Proyectos.tiposDerivados(e.items);
@@ -1654,9 +2231,15 @@ function abrirGanar(folio, estado) {
       '<dl class="pf-dato"><dt>De quién</dt><dd>' + esc(quien) + '</dd></dl>' +
       (total > 0 ? '<dl class="pf-dato"><dt>Lo autorizado</dt><dd>' + esc(money(total)) + '</dd></dl>' : '') +
       (e.entrega ? '<dl class="pf-dato"><dt>Lo que se le prometió</dt><dd>' + esc(e.entrega) + '</dd></dl>' : '') +
-      '<div class="fld"><label for="ag-ganar-fecha">¿Qué día se instala?</label>' +
+      /* Fechas rápidas (P14): «Hoy · Mañana · sáb 3 · lun 5 · Sin fecha» escriben en el campo de
+         fecha, que se queda para cualquier otro día. Con el dedo y el cliente enfrente eran varios
+         toques por el selector nativo, y era fácil dejar «hoy» por inercia: ahora hay que ver que
+         «Hoy» es lo que está marcado. «Sin fecha» vacía el campo, que ya estaba permitido. */
+      '<div class="fld"><span class="fld-lab" id="ag-ganar-fecha-l">¿Qué día se instala?</span>' +
+        htmlFechasRapidas(fechaVal || '', 'ag-ganar-fecha-l') + '</div>' +
+      '<div class="fld"><label for="ag-ganar-fecha">Otro día de instalación</label>' +
         '<input type="date" id="ag-ganar-fecha" value="' + esc(fechaVal || '') + '"></div>' +
-      '<p class="hintnote">Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
+      '<p class="hintnote">Es la única fecha que la plataforma te pide. Si todavía no hay día, toca «Sin fecha»: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
       '<div class="fld"><label id="ag-ganar-plazo-l">¿Cuánto tarda en el taller?</label>' +
         '<div class="chips" role="group" aria-labelledby="ag-ganar-plazo-l">' +
           Taller.PLAZOS.map(p => chip(p.etiqueta, p.k === marcado, 'data-pide="ganar-plazo" data-k="' + p.k + '"')).join('') +
@@ -1667,7 +2250,74 @@ function abrirGanar(folio, estado) {
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
       '<button type="button" class="btn btn-ok" data-pide="ganar">Guardar el proyecto</button>' +
-    '</div>');
+    '</div>',
+    /* Elegir un plazo rehace el panel; el foco vuelve al chip tocado y no al primer control. */
+    focoK ? { foco: '[data-pide="ganar-plazo"][data-k="' + focoK + '"]' } : {});
+  const capa = $('pf-pide');
+  if (!capa) return;
+  cablearFechasRapidas(capa.querySelector('#ag-ganar-rapidas'), $('ag-ganar-fecha'));
+  probarPlazos(capa.querySelector('.chips[aria-labelledby="ag-ganar-plazo-l"]'), fichaDePlazoNuevo(e, tipos));
+}
+
+/* ----- Fechas rápidas (P14) -----
+   Radios con el `.chip` de siempre, que escriben en el `<input type="date">`. Las fechas se calculan
+   con `nucleo/fechas.js` y nunca con `new Date(iso)`, que en México devuelve el día anterior. Las
+   dos del medio son el próximo sábado y el próximo lunes DESPUÉS de mañana, en orden de fecha: son
+   los días que de verdad se agendan, y no repiten a «Mañana». */
+function opcionesDeFecha() {
+  const hoy = hoyISO(), man = masDias(hoy, 1);
+  const sigue = dow => { let f = masDias(man, 1); while (fechaLocal(f).getDay() !== dow) f = masDias(f, 1); return f; };
+  const numero = iso => DOW[(fechaLocal(iso).getDay() + 6) % 7] + ' ' + partesISO(iso).d;
+  return [
+    { t: 'Hoy', iso: hoy, dice: 'Hoy, ' + diaCorto(hoy) },
+    { t: 'Mañana', iso: man, dice: 'Mañana, ' + diaCorto(man) },
+    ...[sigue(6), sigue(1)].sort().map(iso => ({ t: numero(iso), iso, dice: diaCorto(iso) })),
+    { t: 'Sin fecha', iso: '', dice: 'Sin fecha por ahora' },
+  ];
+}
+
+function htmlFechasRapidas(actual, etiquetadaPor) {
+  const ops = opcionesDeFecha();
+  const alguna = ops.some(o => o.iso === actual);
+  return '<div class="chips pf-fechas-rapidas" role="radiogroup" aria-labelledby="' + etiquetadaPor + '" id="ag-ganar-rapidas">' +
+    ops.map((o, i) => {
+      const si = o.iso === actual;
+      return '<button type="button" role="radio" class="chip' + (si ? ' on' : '') + '" data-fecha-rapida="' + esc(o.iso) + '"' +
+        ' aria-checked="' + (si ? 'true' : 'false') + '" tabindex="' + (si || (!alguna && i === 0) ? '0' : '-1') + '"' +
+        ' aria-label="' + esc(o.dice) + '">' + esc(o.t) + '</button>';
+    }).join('') + '</div>';
+}
+
+/** Radios de verdad con teclado: las flechas mueven el foco Y eligen, solo el elegido está en el
+ *  tabulador. El campo manda: si se escribe o se elige otro día a mano, las fichas se ponen al día. */
+function cablearFechasRapidas(grupo, campo) {
+  if (!grupo || !campo) return;
+  const radios = () => [...grupo.querySelectorAll('[role="radio"]')];
+  const sincronizar = () => {
+    let alguno = false;
+    for (const b of radios()) {
+      const si = b.dataset.fechaRapida === campo.value;
+      b.classList.toggle('on', si);
+      b.setAttribute('aria-checked', si ? 'true' : 'false');
+      b.tabIndex = si ? 0 : -1;
+      alguno = alguno || si;
+    }
+    if (!alguno && radios()[0]) radios()[0].tabIndex = 0;
+  };
+  const elegir = b => { campo.value = b.dataset.fechaRapida; sincronizar(); };
+  grupo.addEventListener('click', ev => { const b = ev.target.closest('[role="radio"]'); if (b) elegir(b); });
+  grupo.addEventListener('keydown', ev => {
+    const d = (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') ? 1 : (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') ? -1 : 0;
+    if (!d) return;
+    const rs = radios(), i = rs.indexOf(document.activeElement);
+    if (i < 0) return;
+    ev.preventDefault();
+    const b = rs[(i + d + rs.length) % rs.length];
+    b.focus();
+    elegir(b);
+  });
+  campo.addEventListener('input', sincronizar);
+  campo.addEventListener('change', sincronizar);
 }
 
 /* ----- «No se dio» -----
@@ -1701,12 +2351,20 @@ function alTeclear(ev) {
   const t = ev.target;
   if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
   if (document.querySelector('.modal-bg.show')) return;
-  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
-    const n = ev.key === 'ArrowLeft' ? -1 : 1;
-    _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
-    _dia = null; ev.preventDefault(); return recargar();   // se espera: el foco vuelve después del repintado
+  /* RePág y AvPág son lo mismo que ← y →, pero SOLO con el foco dentro de la rejilla: en cualquier
+     otro lado son del scroll de la página y quitárselas sería peor que no tenerlas. En la rejilla,
+     el foco se queda en el mismo número de día del mes nuevo. */
+  const enRejilla = t && t.closest && t.closest('.cal-rej');
+  const pagina = enRejilla && (ev.key === 'PageUp' || ev.key === 'PageDown');
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || pagina) {
+    const n = (ev.key === 'ArrowLeft' || ev.key === 'PageUp') ? -1 : 1;
+    const celda = enRejilla && t.closest('.cal-dia[data-dia]');
+    const focoDia = celda ? Number(celda.dataset.dia.slice(8)) : 0;
+    ev.preventDefault();
+    return irAlPeriodo(anclaTrasPasos(n), { focoDia });   // se espera: el foco vuelve después del repintado
   } else if (ev.key === 't' || ev.key === 'T') {
-    _ancla = hoyISO(); _dia = null; ev.preventDefault(); return recargar();
+    ev.preventDefault();
+    return irAlPeriodo(hoyISO());
   }
 }
 
@@ -1748,7 +2406,7 @@ async function alTocarPide(ev) {
        proyecto al apretar «Guardar». */
     const k = Number(b.dataset.k);
     _pide.k = _pide.k === k ? null : k;
-    abrirGanar(_pide.folio, _pide);
+    abrirGanar(_pide.folio, _pide, k);
     return;
   }
 
@@ -1803,10 +2461,7 @@ async function alTocarPide(ev) {
     return;
   }
 
-  if (q === 'copiar') {
-    copiarTexto((_pide && _pide.texto) || '', 'Orden copiada. Pégala en el chat del instalador.');
-    return;
-  }
+  if (q === 'copiar') { copiarOrden(b); return; }
 
   if (q === 'mover') {
     const fecha = valor('pf-mv-fecha');

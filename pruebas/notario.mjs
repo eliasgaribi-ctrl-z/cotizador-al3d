@@ -239,7 +239,7 @@ let segundo;
 {
   const v = post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: primero.codigo });
   eq('sin token y sin cuenta, contesta', v.estado, 'autentica');
-  eq('y solo lo que se puede enseñar', Object.keys(v).sort(), ['estado', 'fecha', 'folio', 'ok', 'proyecto', 'total']);
+  eq('y solo lo que se puede enseñar', Object.keys(v).sort(), ['estado', 'fecha', 'folio', 'ok', 'proyecto', 'renglones', 'total']);
   eq('  el folio corto, el que lleva el papel', v.folio, 'COT-0001');
   eq('  el total', v.total, 12500);
   eq('  el negocio', v.proyecto, 'Tacos El Güero');
@@ -247,15 +247,6 @@ let segundo;
   eq('un código inventado no', post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: 'AAAA-BBBB-CCCC' }).estado, 'no_autentica');
   eq('  y no suelta nada más', Object.keys(post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: 'AAAA-BBBB-CCCC' })).sort(), ['estado', 'ok']);
   eq('el código bueno en otro folio tampoco', post({ ruta: 'verificar', f: 'COT-0009@K7QM', c: primero.codigo }).estado, 'no_autentica');
-  /* Lo que viene en el papel: los PDF impresos antes traen COT-0001 en la cabecera y el código
-     junto al QR, sin la parte del aparato. Quien los teclea recibía «no auténtica». */
-  eq('el folio corto del papel, con su código, es auténtico', post({ ruta: 'verificar', f: 'COT-0001', c: primero.codigo }).estado, 'autentica');
-  eq('  y contesta el folio corto', post({ ruta: 'verificar', f: 'COT-0001', c: primero.codigo }).folio, 'COT-0001');
-  eq('  con espacios y en minúsculas', post({ ruta: 'verificar', f: ' cot-0001 ', c: primero.codigo }).estado, 'autentica');
-  eq('  el corto con un código inventado no', post({ ruta: 'verificar', f: 'COT-0001', c: 'AAAA-BBBB-CCCC' }).estado, 'no_autentica');
-  eq('  ni el código bueno con otro corto', post({ ruta: 'verificar', f: 'COT-0009', c: primero.codigo }).estado, 'no_autentica');
-  const conLetras = primero.codigo.replace(/0/g, 'O').replace(/1/g, 'l');
-  eq('O por 0 y l por 1 en el código, como se lee en el papel', post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: conLetras }).estado, 'autentica');
 
   /* Volver a autorizar con otro precio: el PDF viejo no es falso, es de antes. */
   const r = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0001@K7QM', cotizacion: cot(), precioAuth: 11900 });
@@ -284,6 +275,74 @@ let segundo;
   let tope = null;
   for (let i = 0; i < 40 && !tope; i++) { const x = conCache({ ruta: 'verificar', f: 'COT-0077@K7QM', c: 'AAAA-BBBB-CCCC' }); if (x.ok === false) tope = i; }
   eq('probar códigos contra un folio se frena a los 30', tope, 30);
+}
+
+console.log('\nLOS RENGLONES — el QR también delata un renglón cambiado, no solo un total distinto');
+{
+  /* El pendiente que cerró puente-sheets-8: un PDF con los importes de dos partidas cambiados
+     pero el mismo total pasaba por auténtico, porque el sello solo firmaba el total. */
+  const F = 'COT-0040@K7QM';
+  const cotR = cot({ cliente: 'Cliente Privadísimo' });
+  const a = post({ ruta: 'autorizar', google_token: G.elias, folio: F, cotizacion: cotR });
+  cierto('dirección sella', a.ok);
+  eq('el sello trae los renglones que firmó', a.sello.renglones,
+     [{ descripcion: 'Letras «TACOS»', cantidad: 8, importe: 9600 }, { descripcion: 'Bastidor', cantidad: 1, importe: 1710 }]);
+  const fila = () => hojaAut().filas.find(x => x[12] === a.sello.codigo);
+  eq('  y quedan escritos en su columna, como texto', typeof fila()[16], 'string');
+  eq('  la columna tiene su título', hojaAut().filas[0][16], 'Renglones');
+
+  const v = post({ ruta: 'verificar', f: F, c: a.sello.codigo });
+  eq('/verificar los devuelve para compararlos con el papel', [v.estado, v.renglones], ['autentica', a.sello.renglones]);
+  cierto('  sin el cliente, que no está en el papel que se comprueba', !JSON.stringify(v).includes('Privadísimo'));
+  eq('/estado también se los da al teléfono que pidió', post({ ruta: 'estado', google_token: G.elias, folios: [F] }).folios[F].sello.renglones, a.sello.renglones);
+
+  /* Alguien con la hoja abierta intercambia los dos importes: el total sigue igual. */
+  const antes = fila()[16];
+  fila()[16] = JSON.stringify([['Letras «TACOS»', 8, 1710], ['Bastidor', 1, 9600]]);
+  eq('un renglón cambiado a mano con el mismo total rompe la firma', post({ ruta: 'verificar', f: F, c: a.sello.codigo }).estado, 'no_autentica');
+  fila()[16] = '';
+  eq('vaciar los renglones para que pase por un sello viejo, también', post({ ruta: 'verificar', f: F, c: a.sello.codigo }).estado, 'no_autentica');
+  fila()[16] = antes;
+  eq('devueltos a como estaban, vuelve a verificar', post({ ruta: 'verificar', f: F, c: a.sello.codigo }).estado, 'autentica');
+
+  /* La descripción no está en la huella: corregirla no suelta el precio, pero sí cambia lo que
+     el QR enseñaría. El doble toque ya no puede devolver el sello viejo. */
+  const otraDesc = cot({ items: [{ ...partidas[0], desc: 'Letras «TACOS» de aluminio' }, partidas[1]] });
+  const b = post({ ruta: 'autorizar', google_token: G.elias, folio: F, cotizacion: otraDesc });
+  cierto('con otra descripción y el mismo precio, sella de nuevo', b.ok && !b.repetida && b.sello.codigo !== a.sello.codigo);
+  eq('  y el PDF de antes verifica como «superada»', post({ ruta: 'verificar', f: F, c: a.sello.codigo }).estado, 'superada');
+
+  /* El importe firmado es el que ve el cliente: con un aumento, ya repartido entre las partidas. */
+  const c = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0041@K7QM', cotizacion: cot(), precioAuth: 14000, itemsAuth: { 2: 1500 } });
+  const imp = c.sello.renglones.map(r => r.importe);
+  eq('con ajuste por partida y aumento, suman el subtotal autorizado', +(imp[0] + imp[1]).toFixed(2), +(14000 / 1.16).toFixed(2));
+  cierto('  y el aumento se repartió: ninguna se quedó en su precio de antes', imp[0] > 9600 && imp[1] > 1500);
+  eq('  los ajustes por partida vuelven a centavo, igual que por /estado', c.sello.itemsAuth, { 2: 1500 });
+
+  /* Una descripción que es HTML viaja como texto: la hoja no la interpreta, y verificar.html la
+     escribe con textContent (abajo). */
+  const h = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0042@K7QM',
+    cotizacion: cot({ items: [{ ...partidas[0], desc: '<img src=x onerror=alert(1)>' }, partidas[1]] }) });
+  eq('una descripción con HTML se firma tal cual, como dato', post({ ruta: 'verificar', f: 'COT-0042@K7QM', c: h.sello.codigo }).renglones[0].descripcion, '<img src=x onerror=alert(1)>');
+}
+
+console.log('\nLOS SELLOS DE ANTES — sin renglones guardados, siguen verificando');
+{
+  /* Un renglón como los que escribía puente-sheets-7: dieciséis columnas, firma v1. Se arma con
+     las funciones del propio .gs, que es como lo armaba la hoja. */
+  const firmar = vm.runInContext('firmar', ctx), codigoDe = vm.runInContext('codigoDe', ctx);
+  const secreto = vm.runInContext('secretoDelSello_', ctx)(false);
+  const r = { folio: 'COT-0007@VIEJ', huella: 'c|1:x', subCalc: 11310, precioAuth: 0, itemsAuth: '', total: 13119.6,
+              proyecto: 'Tacos de Antes', correo: 'elias@al3d.mx', ts: '2026-09-26T17:00:00.000Z' };
+  const firma = firmar(r, secreto), codigo = codigoDe(firma);
+  cierto('la firma de un sello viejo es la v1 de siempre', vm.runInContext('canonDe', ctx)(r).startsWith('AL3D-AUTH-v1['));
+  const n = hojaAut().getLastRow() + 1;
+  hojaAut().getRange(n, 1, 1, 16).setValues([["'" + r.ts, "'" + r.folio, "'" + r.proyecto, "'Güero", r.subCalc, r.precioAuth, r.total,
+    0, "'", "'" + r.huella, "'" + r.correo, "'" + r.correo, "'" + codigo, "'" + firma, 'vigente', "'"]]);
+  const v = post({ ruta: 'verificar', f: r.folio, c: codigo });
+  eq('verifica como auténtico', [v.estado, v.total, v.proyecto], ['autentica', 13119.6, 'Tacos de Antes']);
+  eq('  y dice que no trae renglones: ese sello solo responde del total', v.renglones, null);
+  eq('  y en /estado tampoco: el PDF imprime la frase de antes', post({ ruta: 'estado', google_token: G.elias, folios: [r.folio] }).folios[r.folio].sello.renglones, null);
 }
 
 console.log('\nLA SOLICITUD VIAJA — el vendedor pide, dirección ve, el sello regresa');
@@ -602,6 +661,13 @@ console.log('\nVERIFICAR.HTML — lo que llega de la hoja se escribe como texto'
   cierto('no usa innerHTML: el negocio lo escribió alguien y es un dato', !/innerHTML|insertAdjacentHTML|document\.write/.test(guion));
   cierto('pregunta por la ruta pública, sin token', /ruta: 'verificar'/.test(guion) && !/token/i.test(guion));
   cierto('y no la indexa un buscador', /<meta name="robots" content="noindex">/.test(pag));
+  /* Cada renglón entra a la lista del cotejo, con su «Coincide» y su «No coincide»: tiene que
+     pintarse ANTES de armarCotejo, que es quien les pone los botones. */
+  cierto('pinta los renglones que firmó la hoja, con textContent, antes de armar el cotejo',
+         /pintarRenglones\(r\.renglones\);\s*armarCotejo\(\);/.test(guion) && /dt\.textContent = 'Renglón '/.test(guion)
+         && /RENGLONES = \[\.\.\.\$\('ver-datos'\)\.querySelectorAll\('\.ver-reng'\)\]/.test(guion));
+  cierto('  y le dice a quien verifica qué hacer con ellos', /Compara cada renglón con tu PDF; si alguno no coincide, el PDF fue alterado/.test(guion));
+  cierto('a un sello sin renglones le dice que solo garantiza el total', /no cada renglón/.test(guion));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

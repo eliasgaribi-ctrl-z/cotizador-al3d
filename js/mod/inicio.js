@@ -35,10 +35,10 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Stock from '../datos/stock.js';
 import * as Material from '../datos/material.js';
-import { masDias } from '../nucleo/fechas.js';
+import { masDias, diaSemana, partesISO, MES_CORTO } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
-         bandaFrescura, cifraQueCabe, scrollSuave, claseSiSube }
+         bandaFrescura, cifraQueCabe, scrollSuave, voz }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -51,6 +51,18 @@ let _acciones = [];
 let _pide = null;         // qué está preguntando el modal, si está abierto
 let _datos = null;        // lo último que se leyó, para repintar sin volver a leer
 let _oyendo = false;
+/* Cuántas cotizaciones sin decidir había la última vez que se pintó la tarjeta (P11). Vive FUERA
+   de `desmontar()` a propósito: lo que decide si vuelve a latir es si la cuenta SUBIÓ, y eso es
+   memoria de la sesión. Si se olvidara al salir, volver a entrar contaría como «subió de 0 a 3»
+   y la tarjeta latiría en cada visita. Es la misma regla del Tablero y de Proyectos. */
+let _nDecidir = -1;
+/* El `rid` del aviso cuyo botón tenía el foco cuando se tocó (P13): para devolverlo al renglón que
+   sigue cuando el atendido se pliega. Es de un solo uso. */
+let _focoEnAviso = null;
+
+/* Las piezas compartidas cuelgan de `window.Piezas`, que index.html carga antes que los
+   módulos. Se piden en el momento y no al importar: node también lee este archivo. */
+const piezas = () => (typeof window !== 'undefined' && window.Piezas) || null;
 
 /* ============================================================================
    Montar y desmontar
@@ -160,7 +172,7 @@ function pintar() {
   partes.push(bandaFrescura(d.fres, Sync.disponible()));
   partes.push(cuentas(d, rol, veDinero));
   if (decidir.length) partes.push(tarjetaDecidir(decidir));
-  else claseSiSube('inicio', 0);
+  else _nDecidir = 0;      // sin tarjeta, la próxima que aparezca SÍ cuenta como «subió»
   partes.push(tarjetaAvisos(resto, decidir.length));
   if (rol === 'direccion') {
     partes.push(tarjetaCola(veDinero));
@@ -172,6 +184,7 @@ function pintar() {
 
   publicarCuentas(d);
   pintarMbar(decidir.length);
+  rodarCuentas(_cont);
 }
 
 /* `bandaFrescura()` vive en nucleo/ui.js: la pinta también el Tablero. */
@@ -180,41 +193,91 @@ function pintar() {
    Los números que importan, grandes y arriba. Cuáles son depende del rol, y no por
    esconder: a Pagos la cuenta de instalaciones de hoy no le dice nada que pueda hacer, y
    un número que no lleva a una acción es un número que se aprende a saltar. Para
-   Fabricación no aparece ninguno de dinero —§8.1—: el elemento no existe, no se difumina. */
+   Fabricación no aparece ninguno de dinero —§8.1—: el elemento no existe, no se difumina.
+
+   ----- P3 · cada cuenta con algo que contar es una puerta -----
+   «Un número que no lleva a una acción es un número que se aprende a saltar», decía este mismo
+   comentario, y las cifras eran párrafos. Ahora la cuenta es un BOTÓN que abre donde se
+   atiende: las instalaciones, en el Calendario; lo que falta comprar, en Material; las ventas
+   sin cobrar, en la pestaña «Por cobrar» de Control (para Pagos); los ganados sin fecha, en la
+   lente de Taller del Calendario, que es donde tienen su grupo. Con la cuenta en 0 sigue siendo
+   un párrafo sin flecha: no lleva a ningún lado. Y solo se pinta como botón si el rol tiene esa
+   ruta: el router rebotaría el toque de vuelta y dejaría una entrada de historial de más.
+
+   Aquí no hay tarjeta a la que bajar —la lista de avisos NO es lo que cuentan estas cifras— y
+   por eso ninguna lleva las esquinas de la pieza 17: eso es del Tablero, que sí las tiene. */
 function cuentas(d, rol, veDinero) {
   const c = [];
+  const aCal = (dato, que) => puedeIr('agenda') ? { tipo: 'pasar', datos: { ruta: 'agenda', dato }, que } : null;
+  const aMat = puedeIr('material') ? { tipo: 'ir', datos: { ruta: 'material' }, que: 'abrir Material' } : null;
   if (rol === 'direccion' || rol === 'fabricacion') {
-    c.push(unaCuenta(d.instHoy.length,
-      d.instHoy.length === 1 ? 'Se instala hoy' : 'Se instalan hoy', d.instHoy.length > 0));
-    c.push(unaCuenta(d.instSemana.length, 'Esta semana', false));
+    c.push(unaCuenta('hoy', d.instHoy.length,
+      d.instHoy.length === 1 ? 'Se instala hoy' : 'Se instalan hoy', d.instHoy.length > 0,
+      aCal({ lente: 'instalaciones', vista: 'semana', dia: d.hoy }, 'abrir el Calendario')));
+    c.push(unaCuenta('semana', d.instSemana.length, 'Esta semana', false,
+      aCal({ lente: 'instalaciones', vista: 'semana', dia: d.hoy }, 'abrir el Calendario')));
   }
   if (rol === 'direccion') {
-    c.push(unaCuenta(d.sinFecha.length,
-      d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0));
+    c.push(unaCuenta('sinfecha', d.sinFecha.length,
+      d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0,
+      aCal({ lente: 'taller' }, 'abrir el Calendario')));
   }
   if (rol === 'direccion' || rol === 'fabricacion') {
-    c.push(unaCuenta(d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0));
+    c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0, aMat));
   }
   if (rol === 'pagos') {
     /* Pagos ve cobranza y ve la compra «solo costos» (§8.1). El costo puede ser null en
        todas las filas —`costo_compra` es opcional y es el default de las 19 de la semilla—
        y ahí NO se pinta un $0 que se leería como «no cuesta nada»: se pinta la cuenta de
        materiales, que es el dato que sí existe. */
-    c.push(unaCuenta(d.conSaldo.length,
-      d.conSaldo.length === 1 ? 'Proyecto con saldo' : 'Proyectos con saldo', d.conSaldo.length > 0));
+    c.push(unaCuenta('saldo', d.conSaldo.length,
+      d.conSaldo.length === 1 ? 'Proyecto con saldo' : 'Proyectos con saldo', d.conSaldo.length > 0,
+      puedeIr('control') ? { tipo: 'pasar', datos: { ruta: 'control', dato: { tab: 'cobrar' } }, que: 'abrir Por cobrar en Control' } : null));
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
       c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>');
     } else {
-      c.push(unaCuenta(d.porComprar.length, 'Materiales por comprar', false));
+      c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', false, aMat));
     }
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
 }
 
-function unaCuenta(n, etiqueta, urge) {
-  return '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b>' + Number(n || 0) + '</b>' +
-    esc(etiqueta) + '</p>';
+/* `clave` le da memoria al odómetro (P18): la cinta se rehace entera en cada repintado, y el valor
+   anterior no puede vivir en el nodo. Sin `destino`, o con la cuenta en 0, es un párrafo. */
+function unaCuenta(clave, n, etiqueta, urge, destino) {
+  const num = Number(n || 0);
+  const clase = 'pf-cuenta' + (urge ? ' urge' : '');
+  const cifra = '<b data-cuenta="' + esc(clave) + '">' + num + '</b>';
+  if (!destino || !num) {
+    return '<p class="' + clase + '">' + cifra + '<span class="pf-cuenta-t">' + esc(etiqueta) + '</span></p>';
+  }
+  const i = _acciones.push(destino) - 1;
+  return '<button type="button" class="' + clase + ' va" data-acc="' + i + '" data-cuenta-va="' + esc(clave) + '">' +
+    cifra + '<span class="pf-cuenta-t">' + esc(etiqueta) + '</span>' +
+    '<span class="solo-voz">, ' + esc(destino.que) + '</span></button>';
+}
+
+/* Si este rol tiene esa ruta: lo dice el router (`ctx.tieneRuta`), que es el único que sabe qué
+   ve cada rol. Sin contexto —no debería pasar— no se ofrece nada. */
+function puedeIr(ruta) {
+  return !!(_ctx && typeof _ctx.tieneRuta === 'function' && _ctx.tieneRuta(ruta));
+}
+
+/* ----- P18 · las cuentas ruedan cuando algo cambió, nunca al entrar -----
+   Lo mismo que el Tablero, con otro prefijo en la clave para que no se pisen: la cifra que
+   cambió porque la sincronización bajó algo rueda del valor viejo al nuevo con su «+1», y entrar
+   a la pantalla olvida todo (lo hace el router, `olvidarCifras()` en app.js), así que el primer
+   pintado nunca rueda. El importe rueda sin «+1». */
+function rodarCuentas(raiz) {
+  const P = piezas();
+  if (!P || !P.rodarCifra || !raiz) return;
+  for (const b of raiz.querySelectorAll('.pf-cuenta b')) {
+    const dinero = !b.dataset.cuenta && !!b.closest('.pf-cuenta.dinero');
+    const clave = b.dataset.cuenta || (dinero ? 'dinero' : '');
+    if (!clave) continue;
+    P.rodarCifra(b, b.textContent, { clave: 'in:' + clave, delta: !dinero });
+  }
 }
 
 /* ----- LA tarjeta -----
@@ -224,8 +287,14 @@ function unaCuenta(n, etiqueta, urge) {
    la tarjeta y el aviso dirían lo mismo con dos palabras distintas. */
 function tarjetaDecidir(lista) {
   const n = lista.length;
-  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
-  const h = ['<div class="cand-partidas pf-decidir' + claseSiSube('inicio', n) + '">',
+  /* P11 · el aro late TRES veces y se calla (`.cand-partidas` en sistema.css), pero la tarjeta se
+     rehace con innerHTML tras cada «Se ganó», cada recarga y cada sincronización, y un nodo
+     recién nacido arranca su animación otra vez. Se decide por el DATO: late cuando la cuenta
+     SUBIÓ respecto a la última vez que se pintó (o es la primera de la sesión); si baja o se
+     queda igual nace con `.quieta` y el aro no corre. */
+  const late = n > _nDecidir;
+  _nDecidir = n;
+  const h = ['<div class="cand-partidas pf-decidir' + (late ? '' : ' quieta') + '">',
     '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
     (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
     '</b> sin decidir. Sin este toque no hay proyecto, ni agenda, ni material, ni mapa: es lo único de esta pantalla que nadie más puede contestar.</p>'];
@@ -276,16 +345,24 @@ const ICONO = {
   A15_hoja: 'i-nube-off',
 };
 
+/* ----- P13 · el renglón se resuelve en su sitio -----
+   Antes, después de «Ya se instaló», «Recalcular» o «Aceptar», la lista entera se repintaba: el
+   renglón atendido desaparecía sin decir cuál fue y los demás subían de golpe, justo debajo del
+   dedo que acababa de tocar. Ahora cada aviso va en una envoltura que sabe plegarse
+   (`.av-fila > .av-fila-in`, la misma técnica de `grid-template-rows` del pliegue: el relleno
+   vive adentro, porque un grid de 0fr no se come el padding de su propio hijo) y lleva su `rid`,
+   para que `marcarYRecargar()` lo encuentre aunque la acción se haya hecho desde un modal. */
 function filaAviso(a) {
   const tono = a.tono === 'urge' ? ' mal' : (a.tono === 'av' ? ' urge' : '');
-  return '<div class="pf-fila">' +
+  return '<div class="av-fila" data-rid="' + esc(a.rid) + '" data-titulo="' + esc(a.titulo) + '"><div class="av-fila-in">' +
+  '<div class="pf-fila">' +
     '<span class="pf-fila-ico' + tono + '">' + ico(ICONO[a.regla] || 'i-aviso') + '</span>' +
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + esc(a.titulo) + fichaCuando(a) + '</p>' +
       (a.detalle ? '<p class="pf-fila-d">' + esc(a.detalle) + '</p>' : '') +
     '</div>' +
     accionesDe(a) +
-  '</div>';
+  '</div></div></div>';
 }
 
 /* La ficha de cuándo. Siempre trae palabra: un chip ámbar sin texto no le dice nada a quien
@@ -461,9 +538,16 @@ function pintarMbar(n) {
     if (!ev.target.closest('[data-decidir]')) return;
     const card = _cont && _cont.querySelector('.pf-decidir');
     if (!card) return;
-    card.scrollIntoView({ block: 'center', behavior: scrollSuave() });
+    /* Llega con las esquinas de la pieza 17 sobre el título de la tarjeta (no sobre la tarjeta
+       entera, que con varias cotizaciones es más alta que la pantalla) y el foco en el primer
+       «Se ganó». Antes el scroll llegaba y no decía a dónde. Sin la pieza, el de siempre. */
+    const titulo = card.querySelector('.cp-txt') || card;
     const primero = card.querySelector('[data-acc]');
     if (primero) { try { primero.focus({ preventScroll: true }); } catch (_) {} }
+    const P = piezas();
+    if (P && P.senalar) P.senalar(titulo, { desplazar: true });
+    else card.scrollIntoView({ block: 'center', behavior: scrollSuave() });
+    voz('Estás en Cotizaciones por decidir');
   };
   ajustarAltoBarra();
 }
@@ -479,6 +563,10 @@ async function alTocar(ev) {
   ev.preventDefault();
   const ac = _acciones[Number(b.dataset.acc)];
   if (!ac) return;
+  /* Se apunta ANTES de apagar el botón: un botón con el foco que pasa a `disabled` lo suelta, y
+     para cuando `resolverYRecargar()` pregunta ya no hay quién lo tuviera (P13). */
+  const fila = b.closest('.av-fila');
+  _focoEnAviso = (fila && document.activeElement === b) ? fila.dataset.rid : null;
   b.disabled = true;
   try { await ejecutar(ac); } catch (e) {
     /* Una mutación de la capa de datos no lanza nunca; si algo llega aquí es un error de
@@ -496,6 +584,11 @@ async function ejecutar(ac) {
     /* ----- Ir a otro módulo ----- */
     case 'ir':
       if (_ctx && dd.ruta) _ctx.ir(dd.ruta);
+      return;
+    /* ----- Ir a otro módulo DEJÁNDOLE algo (P3) ----- las cuentas de arriba: el Calendario en
+       su lente, la pestaña de Control. El pase es de un solo uso (`recibir()` lo borra). */
+    case 'pasar':
+      if (_ctx && dd.ruta) { if (_ctx.pasar) _ctx.pasar(dd.ruta, dd.dato); else _ctx.ir(dd.ruta); }
       return;
 
     /* ----- Copiar un mensaje que no tiene a quién mandarse ----- */
@@ -574,7 +667,7 @@ async function ejecutar(ac) {
     /* ----- Dejar el aviso como está ----- */
     case 'descartar_aviso': {
       const r = await Reglas.descartar(ac.rid);
-      if (avisarResultado(r, 'Listo, no vuelve a preguntar')) await recargar();
+      if (avisarResultado(r, 'Listo, no vuelve a preguntar')) await resolverYRecargar(ac.rid);
       return;
     }
 
@@ -634,7 +727,67 @@ function lineasDe(r) {
    que acaba de atender, y ahí es donde se aprende a desconfiar de la lista. */
 async function marcarYRecargar(rid) {
   if (rid) { try { await Reglas.atender(rid); } catch (_) {} }
+  await resolverYRecargar(rid);
+}
+
+/* ----- P13 · tachar, plegar y SOLO ENTONCES repintar -----
+   La acción ya se hizo y salió bien —quien llama solo llega aquí con el `Resultado` en `ok`—: lo
+   que falta es decirlo en el renglón. Si la acción falla NO se llega aquí, y por tanto no se
+   tacha nada: un renglón tachado que sigue pendiente es peor que ninguna señal.
+
+   Secuencia: el renglón toma el tono de «hecho» (la palomita se dibuja en lugar de su icono, el
+   título se tacha en la tinta secundaria —el estado no se dice con `opacity`—, y deja de
+   recibir toques), se queda a la vista lo que dura la palomita, y se pliega en 300 ms. Hasta
+   que el pliegue termina no se repinta: ahí los demás renglones ya están donde van a quedar y
+   no hay salto. `transitionend` manda, con un tope de tiempo por si no llega (pestaña oculta,
+   pliegue que no cambió nada).
+
+   Con menos movimiento no hay pliegue —ni la palomita se dibuja—, pero el renglón SÍ se queda
+   marcado un momento antes de irse: «cuál fue» es información, no adorno. Y `voz()` dice qué se
+   atendió; con retardo, porque el aviso de la acción acaba de decir su frase por la misma
+   región y escribir encima la borraría. */
+function resolverEnSitio(rid) {
+  const fila = rid && _cont ? _cont.querySelector('.av-fila[data-rid="' + CSS.escape(rid) + '"]') : null;
+  if (!fila) return Promise.resolve();
+  const P = piezas();
+  const reducido = !!(P && P.sinMovimiento && P.sinMovimiento());
+  const f = fila.querySelector('.pf-fila');
+  const titulo = fila.dataset.titulo || 'el aviso';
+  fila.classList.add('hecho');
+  if (f) {
+    f.setAttribute('inert', '');
+    const ic = f.querySelector('.pf-fila-ico');
+    if (ic && P && P.palomitaHTML) ic.innerHTML = P.palomitaHTML({ circulo: true, dibujar: !reducido });
+  }
+  setTimeout(() => voz('Atendido: ' + titulo), 1300);
+  return new Promise(fin => {
+    setTimeout(() => {
+      if (reducido || !fila.isConnected) { fin(); return; }
+      let listo = false;
+      const termina = () => { if (!listo) { listo = true; fin(); } };
+      fila.addEventListener('transitionend', e => { if (e.target === fila) termina(); });
+      setTimeout(termina, 460);
+      fila.classList.add('pliega');
+    }, reducido ? 650 : 700);
+  });
+}
+
+/* Resolver en su sitio y repintar, sin perder el lugar de quien navega con teclado: el botón
+   que se tocó se va con su renglón, y el foco caería al <body>. Pasa al primer botón del
+   renglón que le sigue o, si era el último, al título de la lista. */
+async function resolverYRecargar(rid) {
+  const fila = rid && _cont ? _cont.querySelector('.av-fila[data-rid="' + CSS.escape(rid) + '"]') : null;
+  const teniaFoco = !!rid && _focoEnAviso === rid;
+  _focoEnAviso = null;
+  const sig = fila && fila.nextElementSibling && fila.nextElementSibling.dataset.rid;
+  await resolverEnSitio(rid);
   await recargar();
+  if (!teniaFoco || !_cont) return;
+  let f = null;
+  try { f = sig && _cont.querySelector('.av-fila[data-rid="' + CSS.escape(sig) + '"] [data-acc]'); } catch (_) {}
+  if (!f) f = _cont.querySelector('.av-fila [data-acc]');
+  if (!f) { f = _cont.querySelector('.card-h h2'); if (f) f.tabIndex = -1; }
+  if (f) { try { f.focus({ preventScroll: true }); } catch (_) {} }
 }
 
 /* ============================================================================
@@ -662,13 +815,80 @@ function cabeza(titulo) {
     ico('i-cerrar') + '</button></div>';
 }
 
+/* ----- Fechas rápidas (P14) -----
+   El selector nativo viene con «hoy» ya puesto y la hora aparte: con el cliente enfrente son
+   varios toques, y es fácil dejar «hoy» por inercia sin haberlo elegido. Una fila de fichas
+   encima del campo —«Hoy · Mañana · sáb 3 · lun 5 · Sin fecha»— hace la elección visible y de un
+   toque; el campo se queda para cualquier otro día, y lo que se teclee en él enciende la ficha
+   que coincida o apaga todas.
+
+   Son RADIOS NATIVOS con la forma de `.chip`: el grupo, las flechas del teclado y el «uno
+   elegido» vienen del navegador, y el lector de pantalla lo anuncia como lo que es. Escriben en
+   el `<input>` y despachan `input`, así que `hacerGanar()` y `hacerFecha()` siguen leyendo el
+   campo como siempre y no saben que existen. El input del radio se esconde con `.solo-voz`
+   (recortado, no `display:none`: tiene que poder recibir el foco).
+
+   Los días salen de `masDias()` y `diaSemana()` —por los campos de la fecha, nunca con
+   `new Date(iso)`, que la lee como UTC y en México devuelve el día anterior— y son de
+   CALENDARIO, no hábiles: así cuenta `js/datos/taller.js` a propósito («dos semanas son catorce
+   días»), y una ficha que dijera «lun 5» y se contara distinto que el plazo del taller haría que
+   no cuadraran el aviso de después y la fecha escrita. Los dos fines que se ofrecen son el
+   próximo sábado y el próximo lunes DESPUÉS de mañana, en orden. */
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const diaCorto = iso => { const p = partesISO(iso); return p ? DIA_CORTO[diaSemana(iso)] + ' ' + p.d : ''; };
+
+function diasRapidos(hoy) {
+  const man = masDias(hoy, 1);
+  const proximo = w => { let d = masDias(man, 1); while (diaSemana(d) !== w) d = masDias(d, 1); return d; };
+  const mes = iso => MES_CORTO[partesISO(iso).m - 1];
+  return [{ t: 'Hoy', s: diaCorto(hoy), v: hoy }, { t: 'Mañana', s: diaCorto(man), v: man }]
+    .concat([proximo(6), proximo(1)].sort().map(v => ({ t: diaCorto(v), s: mes(v), v })));
+}
+
+/* Las 9, las 12, las 4 y «Noche» (10 p. m.: la ventana de las plazas, que cierran). */
+const HORAS_RAPIDAS = [
+  { t: '9 a.m.', v: '09:00' }, { t: '12 p.m.', v: '12:00' }, { t: '4 p.m.', v: '16:00' },
+  { t: 'Noche', s: '10 p.m.', v: '22:00' },
+];
+
+function rapidasHTML(nombre, etiqueta, ops) {
+  return '<div class="pf-rapidas" role="radiogroup" aria-label="' + esc(etiqueta) + '">' +
+    ops.map(o => '<label class="chip pf-rapida">' +
+      '<input type="radio" class="pf-rapida-in solo-voz" name="' + esc(nombre) + '" value="' + esc(o.v) + '">' +
+      '<span class="pf-rapida-t">' + esc(o.t) + '</span>' + (o.s ? '<small>' + esc(o.s) + '</small>' : '') +
+      '</label>').join('') + '</div>';
+}
+
+/* Después de pintar el modal: cuelga las fichas de su campo. Los nodos son nuevos cada vez que se
+   abre el modal, así que nada se acumula. */
+function armarRapidas(capa, nombre, input) {
+  if (!capa || !input) return;
+  const radios = Array.from(capa.querySelectorAll('input[name="' + nombre + '"]'));
+  const sincronizar = () => radios.forEach(r => {
+    const si = r.value === input.value;
+    r.checked = si;
+    const chip = r.closest('.chip');
+    if (chip) chip.classList.toggle('on', si);
+  });
+  radios.forEach(r => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    input.value = r.value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    sincronizar();
+  }));
+  input.addEventListener('input', sincronizar);
+  input.addEventListener('change', sincronizar);
+  sincronizar();
+}
+
 /* ----- «Se ganó» -----
    Pide UNA fecha y nada más, prellenada, igual que el campo `rv-fecha` del modal de
    Registrar Venta del cotizador: es la misma fecha que el director teclea en Notion de
    todas formas. Y se puede dejar en blanco: el proyecto es el dato irrecuperable —«esta
    cotización se vendió» no está escrito en ningún otro sistema— y perderlo por no saber
    todavía el día sería tener las prioridades al revés. Si queda sin fecha, A7 lo nombra a
-   las 48 horas. */
+   las 48 horas. Las fichas de arriba del campo (P14) hacen esa elección, incluido «Sin fecha»,
+   de un toque. */
 function abrirGanar(folio) {
   const e = Cot.porFolio(folio);
   if (!e) {
@@ -677,6 +897,7 @@ function abrirGanar(folio) {
   }
   const total = Prefs.veDinero() ? Cot.totalVendido(e) : 0;
   const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
+  const hoy = hoyISO();
 
   abrirPide(
     cabeza(String(folio) + ' se ganó') +
@@ -685,14 +906,17 @@ function abrirGanar(folio) {
       (total > 0 ? '<dl class="pf-dato"><dt>Lo autorizado</dt><dd>' + esc(money(total)) + '</dd></dl>' : '') +
       (e.entrega ? '<dl class="pf-dato"><dt>Lo que se le prometió</dt><dd>' + esc(e.entrega) + '</dd></dl>' : '') +
       '<div class="fld"><label for="pf-ganar-fecha">¿Qué día se instala?</label>' +
-        '<input type="date" id="pf-ganar-fecha" value="' + esc(hoyISO()) + '"></div>' +
-      '<p class="hintnote">Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
+        rapidasHTML('pf-rapida-ganar', 'Atajos para el día de instalación',
+          diasRapidos(hoy).concat([{ t: 'Sin fecha', s: 'la pongo luego', v: '' }])) +
+        '<input type="date" id="pf-ganar-fecha" value="' + esc(hoy) + '" aria-describedby="pf-ganar-otro"></div>' +
+      '<p class="hintnote" id="pf-ganar-otro">Para otro día, usa el campo. Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
       '<button type="button" class="btn btn-ok" data-pide="ganar">Guardar el proyecto</button>' +
     '</div>',
     { modo: 'ganar', folio: String(folio) });
+  armarRapidas($('pf-pide'), 'pf-rapida-ganar', $('pf-ganar-fecha'));
 }
 
 /* ----- «No se dio» -----
@@ -715,16 +939,23 @@ function abrirDescartar(folio) {
     { modo: 'descartar', folio: String(folio) });
 }
 
-/* ----- Poner o mover una fecha ----- */
+/* ----- Poner o mover una fecha -----
+   El día y la hora llevan sus fichas (P14). Aquí NO hay «Sin fecha»: esta pantalla existe para
+   ponerla, `hacerFecha()` contesta «Falta el día» si queda vacía, y una ficha que lleva
+   directo a ese error es una trampa. La hora sí se puede dejar en blanco —«Sin hora» es una
+   respuesta válida—, y su ficha es la única forma de volver a vaciarla con un toque. */
 function abrirFecha(est) {
   const mover = est.modo === 'reagendar';
+  const hoy = hoyISO();
   abrirPide(
     cabeza(mover ? 'Mover la instalación' : 'Poner la fecha') +
     '<div class="pf-panel-b">' +
       '<p class="pf-fila-d">' + esc(est.titulo || '') + '</p>' +
       '<div class="fld"><label for="pf-fecha-dia">Día</label>' +
-        '<input type="date" id="pf-fecha-dia" value="' + esc(hoyISO()) + '"></div>' +
+        rapidasHTML('pf-rapida-dia', 'Atajos para el día', diasRapidos(hoy)) +
+        '<input type="date" id="pf-fecha-dia" value="' + esc(hoy) + '"></div>' +
       '<div class="fld"><label for="pf-fecha-hora">Hora (se puede dejar en blanco)</label>' +
+        rapidasHTML('pf-rapida-hora', 'Atajos para la hora', [{ t: 'Sin hora', v: '' }].concat(HORAS_RAPIDAS)) +
         '<input type="time" id="pf-fecha-hora" value="' + esc(est.hora || '') + '"></div>' +
       (mover ? '<div class="fld"><label for="pf-fecha-motivo">¿Por qué se movió? (opcional)</label>' +
         '<input type="text" id="pf-fecha-motivo" placeholder="Llovió, el local estaba cerrado…"></div>' : '') +
@@ -735,6 +966,9 @@ function abrirFecha(est) {
       '<button type="button" class="btn btn-pri" data-pide="fecha">' + (mover ? 'Mover' : 'Guardar la fecha') + '</button>' +
     '</div>',
     est);
+  const capa = $('pf-pide');
+  armarRapidas(capa, 'pf-rapida-dia', $('pf-fecha-dia'));
+  armarRapidas(capa, 'pf-rapida-hora', $('pf-fecha-hora'));
 }
 
 async function alTocarPide(ev) {

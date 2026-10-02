@@ -442,9 +442,20 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    para el barrido: si no se puede usar, tampoco puede estar llamando. */
 .ai-btn:disabled>span::after,.ai-btn[disabled]>span::after{animation:none;opacity:0}
 
-/* La zona de arrastre del modal de IA y la del anidador ya no respiran mientras esperan el
-   archivo: al lado está «Cotizar con IA», que es lo único que se mueve solo, y un icono que
-   late en reposo era la segunda. Se moverá cuando alguien acerque un archivo (ficha H20). */
+/* FALLA 3 DEL BRIEF · La zona de arrastre ya no respira sola.
+   Aquí decía que el icono de las dos zonas de arrastre —la del modal de IA y la del anidador—
+   «respiran mientras esperan el archivo: es lo único que se mueve en una pantalla vacía», y esa
+   frase era el diagnóstico, no la defensa: el sistema de diseño dice que una sola pieza se mueve
+   sola —el botón «Cotizar con IA»— y ésta era una de las cuatro que lo rompían. La revisión de
+   movimiento ya la había bajado de infinita a tres vueltas; tres vueltas siguen siendo ocho
+   segundos de latido sobre un recuadro que todavía no tiene nada que decir, y en un teléfono de
+   gama media a las siete de la tarde eso se lleva el ojo hacia donde no hace falta.
+
+   El movimiento se mudó a donde sí hay algo que decir: con un archivo encima, la carpeta abre la
+   tapa y asoma una hoja que dice «Suéltalo aquí» (ficha H20, bloque «cot-ia» de sistema.css). Se
+   mueve porque alguien trajo un archivo, y se queda quieta el resto del tiempo.
+   El `@keyframes vid-respira` se va con ella: un fotograma que ya no anima nada es una invitación
+   a volver a encenderlo sin releer por qué se apagó. */
 
 /* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
 
@@ -455,7 +466,7 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    cursor con la preferencia puesta. Medido en Chromium con
    `prefers-reduced-motion:reduce`: animationName devolvía «vid-chispas». */
 @media(prefers-reduced-motion:reduce){
-  .ai-btn>span::after,.pf-ia-btn .tx::after,.ai-drop .ico{animation:none}
+  .ai-btn>span::after,.pf-ia-btn .tx::after{animation:none}
   .ai-btn:focus-visible>span::after,.ai-btn:active>span::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
     animation:none;opacity:0;
   }@media(hover:hover){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{

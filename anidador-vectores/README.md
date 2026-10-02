@@ -102,6 +102,9 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - La medida que se pide es la del **diseño** —el letrero de orilla a orilla—, no la del
   lienzo o el artboard. Con el ancho o el alto basta.
 - La separación es la distancia mínima entre piezas **y** con la orilla de la hoja.
+- «Se corta con» la escribe con un toque, con los números del taller: **láser 2 mm**, y en
+  router el diámetro de la broca más un poco de aire —**1/8″ 4.5 mm, 3/16″ 6 mm, 1/4″ 7.5 mm**—.
+  Con 3 mm, la de omisión, no pasa ni la broca más chica.
 - «Meter piezas chicas en los huecos grandes» sirve cuando hay una «O» o una «D» lo bastante
   grande para recibir otra pieza dentro. Tarda más en calcular.
 - «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)

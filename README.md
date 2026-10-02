@@ -78,14 +78,20 @@ material que hay que comprar**. Nada de eso se captura.
 - **Autorización sellada en la hoja** — solo autoriza una cuenta de Google que la hoja tiene como
   Dirección; el nombre del autorizador es ese correo, no un campo que se teclea. Al autorizar,
   la hoja **recalcula el precio con su propia copia del catálogo** y, si no coincide con el del
-  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio y el total, y lo anota
-  en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se queda para después.
-  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono;
-  el sello regresa solo. El precio vale mientras el trabajo no cambie (la huella); en cuanto
+  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio, el total y cada renglón
+  del PDF, y lo anota en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se
+  queda para después.
+  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono,
+  donde la revisa **renglón por renglón** —cada partida con su calculado y su precio autorizado,
+  y el total sale de ellos— o, de atajo, le pone un total encima; el sello regresa solo con los
+  dos. El precio vale mientras el trabajo no cambie (la huella); en cuanto
   cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre el mismo folio.
 - **Un QR que delata un PDF alterado** — la cotización sellada lleva un QR y un código. Cualquiera
   que lo escanee llega a `verificar.html`, que le pregunta a la hoja: auténtica, ya no vigente,
-  revocada o no auténtica, con folio, fecha, total y negocio para compararlos con el papel.
+  revocada o no auténtica, con folio, fecha, total, negocio y **cada renglón** —descripción,
+  piezas e importe— para compararlos con el papel. Un PDF con un renglón cambiado y el mismo total
+  ya no pasa. Los sellos de antes de `puente-sheets-8` siguen verificando, y la página dice que
+  esos solo responden del total.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
@@ -134,6 +140,11 @@ nada (el token de dispositivo de **Ajustes → El puente** queda de salida de em
 el día que Google no conteste). A partir de ahí la venta sale sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
 fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
 es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
+Y desde `puente-sheets-9` viaja también **el almacén**: el libro de movimientos, el catálogo de
+material y las listas de compra tienen su pestaña en la hoja («Almacén», «Catálogo de material»,
+«Listas de compra»), así que lo que fabricación cuenta o recibe en su teléfono lo ve Dirección en
+el suyo. Un movimiento no se descuenta dos veces —ni por un reintento ni porque dos teléfonos
+corten el mismo proyecto—, el catálogo se escribe campo por campo, y pagos no mueve el almacén.
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
 en su primera línea. Los pasos están en [`puente/README.md`](puente/README.md).
 
@@ -173,9 +184,10 @@ ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de
 
 El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: viven en la hoja.
 
-> **Un aviso:** el contador de folios también es por dispositivo. Si cotizas desde dos aparatos,
-> los dos empiezan en `COT-0001`. Mientras no haya sincronización, conviene cotizar siempre desde
-> el mismo.
+> **Los folios llevan la letra del teléfono.** El contador es de cada aparato, así que dos
+> teléfonos cuentan cada uno desde 1; por eso el folio termina en una letra —`COT-0042-B`— y dos
+> clientes ya no tienen el mismo en la mano. La letra sale sola del id del aparato y se cambia en
+> **Ajustes**: dale una distinta (A, B, C…) a cada teléfono que cotiza.
 
 ## Una sola puerta
 
@@ -195,6 +207,10 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
                               las dos familias y el cromado. Si se quita, la app vuelve a como estaba
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
+    js/piezas.js              las piezas compartidas de la interfaz, una sola vez para las cuatro
+                              superficies: el aviso con mecha y pila, el botón que dice que está
+                              trabajando, el total que rueda, el riel de pasos, las esquinas que
+                              señalan, el letrero 3D… (docs/SISTEMA-DE-DISENO.md §6.7)
     js/cotizador/             el cotizador, por dominio y en el orden en que se carga:
       catalogo.js               precios — lo único que se edita a mano cuando sube el aluminio
       nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo
@@ -212,7 +228,7 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
+eran un solo `<script>`: los 156 manejadores en línea del marcado dependen de eso, y portarlos a
 módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
@@ -301,8 +317,9 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
 
 1. Hacer commit a `main` (o fusionar el PR).
 2. Si cambió `puente/hoja-apps-script.gs`, **publicar el puente antes que la app** — ver
-   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-7` es obligatorio: la app
-   nueva no autoriza sin el notario de la hoja.
+   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Desde `puente-sheets-7` es obligatorio: la app
+   nueva no autoriza sin el notario de la hoja. Con la 9, sin publicar el puente el almacén se
+   queda esperando en cada teléfono (no se pierde) y «Probar» lo dice.
 3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
 4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue. La copia de Cloudflare Pages
@@ -310,7 +327,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento siete archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento seis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -319,8 +336,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               33 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
+    pruebas/correr.sh               50 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   44 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus
@@ -339,19 +356,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 
 ## Pendientes
 
-- **Los folios se repiten entre dispositivos.** El contador es local a cada teléfono. La
-  plataforma lo desempata por dentro con el identificador del aparato, pero el folio que el
-  cliente tiene en la mano sigue pudiendo repetirse.
-- **El puente lleva la venta, y por ahora nada más.** El almacén, el catálogo de material y las
-  listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
-  dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
-  día que existan.
-- **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el historial
-  heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de siete tamaños.
-- **La revisión de una solicitud remota ajusta el precio total, no partida por partida.** Para
-  ajustar renglón por renglón, Dirección abre la cotización en su teléfono y la autoriza ahí.
-- **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
-  cambiados pero el mismo total pasa la verificación; lo que no pasa es un total distinto.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.

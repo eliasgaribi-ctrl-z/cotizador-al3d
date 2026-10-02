@@ -535,7 +535,7 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 </button>
 ```
 
-### 2.7 `.toast` — aviso emergente (un solo `#toast` por página; en el cotizador caben dos avisos dentro)
+### 2.7 `.toast` — aviso emergente (uno solo en la página, `#toast`)
 
 ```css
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);
@@ -655,7 +655,7 @@ Modal de pantalla completa (escalador/vectorizador): armazón reutilizable `.sp-
 <div class="hintnote">Se imprime en la cotización. Vacía, sale la de arriba.</div>
 <div class="hintnote nota-av">El acrílico sin luz sale más caro que el aluminio.</div>
 ```
-Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas` (botón) y `.edit-mode-banner` (div). El latido es de **un solo disparo**: una vez al aparecer y otra con `volverALatir(el)` (`js/cotizador/nucleo.js`) cuando se toca algo bloqueado. En la plataforma, `.pf-decidir` nace quieta y lleva `.late` (tres latidos) solo al aparecer o cuando la cuenta sube: `claseSiSube(clave, n)` en `js/nucleo/ui.js`.
+Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas` (botón) y `.edit-mode-banner` (div).
 ```css
 .cand-partidas,.edit-mode-banner{border-radius:var(--rr2);border:1px solid rgba(255,255,255,.75);
   background:linear-gradient(168deg,#fffaf0,var(--av-bg));
@@ -686,8 +686,7 @@ Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas
   transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
 .prog-next{font-size:11px;color:var(--brand);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:5px}
 .prog-next:empty{display:none}
-/* capa de estructura: brillo que recorre (hoy: una pasada, solo cuando el porcentaje SUBE —
-   updProg() pone #prog-bar.destello con volverALatir()—; lo de abajo es el bucle de antes) */
+/* capa de estructura: brillo que recorre */
 .prog-track{border-radius:999px;box-shadow:var(--clay-in);background:var(--n2)}
 #prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(64,96,248,.5);position:relative;overflow:hidden;
   transition:width var(--mv)}
@@ -1310,7 +1309,7 @@ function toast(msg,type='',dur=2600,accion=null){
 | `dur` | ms | `2600` | con `accion`, se fuerza a **≥ 8000** |
 | `accion` | `{label:string, fn:function}` \| `null` | `null` | pinta un `.toast-act`; al pulsarlo cancela el temporizador, oculta el aviso y llama `fn()` |
 
-**En el cotizador, una pila de dos** (`js/cotizador/nucleo.js`, desde el 26 de septiembre de 2026): cada aviso lleva su reloj y su `.toast-fila` dentro de `#toast`; con uno solo se ve igual que siempre y con dos `#toast` toma `.pila` y cada fila pinta su color. Prioridad error > con botón > informativo: un informativo a la vista cede su lugar al que llega; un error o un aviso con botón no se pisan (si ya hay dos, el nuevo espera); el mismo aviso repetido solo vuelve a contar. La decisión es `avisosAcomodar()` / `avisosQuitar()`, sin DOM, y la prueba `pruebas/avisos.mjs`. La plataforma (`js/nucleo/ui.js`) sigue con uno solo hasta que se unifiquen. Llamadas reales:
+Un solo temporizador compartido (`_toastT`): dos avisos seguidos ya no se pisan. Llamadas reales:
 ```js
 toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
@@ -1499,6 +1498,64 @@ abrirScaler();
 `renderItems()` es el patrón: guarda el foco → repinta `innerHTML` → **`renderSummary(); updProg(); saveState();`** → devuelve el foco. `updProg()` es el único sitio donde se repintan los obligatorios, el candado y el encabezado plegado: *«los datos del proyecto cambian por muchos caminos —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del historial— y todos pasan por un repintado.»* Si tu módulo añade datos que afectan la completitud, engánchate a `updProg()`, no a cada llamador.
 
 ---
+
+### 6.7 `js/piezas.js` — las piezas compartidas, y por qué hay un archivo más
+
+Hasta octubre de 2026 había **dos** de cada cosa: dos `toast()`, dos `copiarTexto()`, dos hojas que
+se bajan con el dedo —una en `js/cotizador/nucleo.js` y otra en `js/nucleo/ui.js`—, y cada arreglo
+había que hacerlo dos veces. La segunda se olvidaba, y así es como las dos apps empezaron a
+sentirse distintas. `js/piezas.js` es la respuesta: **una sola implementación por patrón**, que
+cargan las cuatro superficies (cotizador, plataforma, anidador y `verificar.html`).
+
+Es un guion **clásico**, no un módulo, y eso es a propósito: el cotizador son guiones clásicos que
+comparten el ámbito global y llama a `toast()` mientras carga, y un módulo llega diferido. Todo
+cuelga de `window.Piezas`; la plataforma lo pide por ese nombre y `js/nucleo/ui.js` lo envuelve
+donde tiene que conservar su firma de siempre. Las dos `toast()` y las dos `copiarTexto()` siguen
+existiendo con la misma firma —nadie tuvo que cambiar sus 300 llamadas— y por dentro delegan.
+
+**No sabe de la app.** Nada que dependa de `Q`, de las partidas, de un proyecto o de la hoja vive
+aquí: esto solo sabe de pantalla. Por eso se puede cargar en node sin `window` (las pruebas lo
+comprueban) y por eso una pieza se puede usar igual en el cotizador que en el anidador.
+
+**Sin manejadores en línea.** La política de contenido de `index.html` no permite guiones en línea,
+así que todo se cuelga con `addEventListener`. El cotizador sí los usa en su marcado, pero la pieza
+no puede.
+
+Las cuatro secciones del archivo, cada una con su bloque de CSS en `css/sistema.css` («Piezas · N»)
+y su apagado en el bloque de movimiento reducido del cierre de la capa 8:
+
+| Sección | Qué trae |
+|---|---|
+| 1 · Avisos y botones | `aviso` (mecha, pausa, deslizar y **pila con prioridad**: un error nunca cede su lugar a un informativo), `trabajando` (reloj, relleno, ✓ o «Reintentar»), `deshacerEnBoton`, `cambiarRotulo` y `rotuloTemporal` (el rótulo cambia sin que brinque el ancho), `mantener` (sostener para confirmar), `palomita`, `marcaEstado` y `sello`, `copiar` |
+| 2 · Hojas y transiciones | `hojaSeCierra` (la hoja del teléfono, una sola para las dos apps), `transicion` y `flip` (la tarjeta que viaja, con View Transitions o FLIP), `temaEnCirculo`, `bordesDesvanecidos`, `desenfoqueProgresivo`, `filasDeslizables`, `listaViva` (entra lo nuevo, sale lo quitado), `plegar`, `paginas`, `silueta` |
+| 3 · Números y campos | `rodarCifra` (el odómetro), `diferenciaViva`, `fichaQueViaja`, `arrastrarMedida`, `opcionesDeslizantes`, `casillasCodigo`, `telefonoVivo`, `medidorHTML`, `deslizadorConImanes` |
+| 4 · Señalar y sellar | `vistazo` y `porqueHTML` (popover nativo), `nombres` (el icono dice su nombre con el dedo), `encenderNeon`, `traza` (los pasos de lo que está pasando), `riel`, `senalar` (las esquinas), `cargaLogo`, `letrero` (el letrero 3D), `resaltar` y `fichas` |
+
+**Tres reglas que valen para todas**, y que son las del sistema de diseño llevadas a la pieza:
+
+1. **Nada se mueve solo.** Se mueve porque alguien tocó algo, o es un momento breve que se apaga.
+   La única excepción sigue siendo el botón de «Cotizar con IA» (§2.17).
+2. **Menos movimiento apaga el adorno, no la información.** Una mecha o un relleno de avance se
+   quedan, quietos o en un fundido; el aviso con «Deshacer» sigue diciendo sus segundos en texto.
+3. **Idempotentes y desmontables.** Llamar una dos veces sobre el mismo elemento no duplica
+   oyentes, y lo que arma se puede quitar: las pantallas se repintan con `innerHTML` todo el tiempo.
+
+**Cómo se usa desde una pantalla.** Las que pintan con `innerHTML` piden el marcado y después
+cablean; las que ya tienen el nodo, solo cablean:
+
+```js
+// La pantalla arma su HTML y después engancha la pieza (riel, casillas, medidor, vistazo…)
+cont.innerHTML = Piezas.rielHTML(pasos, { modo: 'h' });
+Piezas.riel(cont, { alTocar: n => irAPaso(n) });
+
+// Y las que trabajan sobre un nodo que ya existe
+Piezas.rodarCifra('#s-neto', total, { clave: 'neto' });   // rueda solo si la cifra cambió
+Piezas.trabajando('#a-autorizar', { verbo: 'Sellando' }); // devuelve {ok(), mal(), quitar()}
+```
+
+Cada pieza devuelve algo controlable (`{ fijar(), quitar() }`, una promesa, o un objeto con sus
+acciones), nunca deja basura en el DOM y respeta el foco: el repintado en sitio
+(`repintarEnSitio`, `conservandoFoco`) sigue siendo la regla de §6.6.
 
 ## 7. El tono del proyecto
 

@@ -53,16 +53,27 @@ vm.runInContext([
   'var Q={items:[],iva:true,estado:"borrador",precioAuth:0,itemsAuth:{},huellaAuth:""};',
   'const M2_MINIMO=1;', camposPrecio,
   ...['m2Total', 'lineTotal', 'lineTotalCrudo', 'totals', 'huellaTrabajo', 'huellaOrdenada', 'authVigente',
-      'precioFinal', 'desgloseFinal'].map(n => fuente(nucleo, n)),
+      'precioFinal', 'desgloseFinal',
+      /* Lo que imprime cada renglón del PDF: el sello lo firma desde puente-sheets-8. */
+      'itemPrecio', 'subAjustado', 'netoAjustado', 'ajusteAuth', 'hayAumentoAuth', 'piezasDe',
+      'preciosCliente'].map(n => fuente(nucleo, n)),
+  /* Y los renglones como los arma el PDF antes de decidir si imprime el QR (entrega.js), con la
+     descripción que viaja a la hoja (notario.js → partidas.js). */
+  /const RENGLON_DESC_MAX=\d+;/.exec(leer('js/cotizador/entrega.js'))[0],
+  ...['renglonesDelPapel', 'selloDeOtrosRenglones'].map(n => fuente(leer('js/cotizador/entrega.js'), n)),
+  fuente(leer('js/cotizador/notario.js'), 'descParaHoja'),
+  fuente(leer('js/cotizador/partidas.js'), 'shortDescAuth'),
 ].join('\n'), cot);
 const C = vm.runInContext('({MATERIALES,COMPLEJIDAD,RECORTES,RECORTE_COMP_EXTRA,BASTIDORES,M2_MINIMO,' +
-  '_CAMPOS_PRECIO,lineTotal,huellaTrabajo,desgloseFinal,Q:()=>Q,setQ:q=>{Q=q;}})', cot);
+  '_CAMPOS_PRECIO,lineTotal,huellaTrabajo,desgloseFinal,preciosCliente,piezasDe,renglonesDelPapel,' +
+  'selloDeOtrosRenglones,descParaHoja,Q:()=>Q,setQ:q=>{Q=q;}})', cot);
 
 /* ----- El lado de la hoja: el .gs completo, sin Google ----- */
 const hoja = vm.createContext({});
 vm.runInContext(leer('puente/hoja-apps-script.gs'), hoja);
 const H = vm.runInContext('({COT_MATERIALES,COT_COMPLEJIDAD,COT_RECORTES,COT_RECORTE_COMP_EXTRA,' +
-  'COT_BASTIDORES,COT_M2_MINIMO,COT_CAMPOS_PRECIO,cotLineTotal,cotSubtotal,cotHuella,cotTotalFinal})', hoja);
+  'COT_BASTIDORES,COT_M2_MINIMO,COT_CAMPOS_PRECIO,cotLineTotal,cotSubtotal,cotHuella,cotTotalFinal,' +
+  'cotPiezas,cotPrecioFinal,cotPreciosCliente,renglonesDe,renglonesDeTexto,itemsAuthCanon,itemsAuthDeCanon,dinero2})', hoja);
 
 const mapa = (arr, campo) => Object.fromEntries(arr.map(x => [x.key, x[campo]]));
 /* Los objetos vienen de otro contexto de vm: se comparan por su JSON, no por identidad. */
@@ -135,6 +146,90 @@ for (const iva of [true, false]) {
     vm.runInContext('Q.huellaAuth=huellaTrabajo();', cot);
     eq('IVA ' + (iva ? 'sí' : 'no') + ', autorizado ' + precio, H.cotTotalFinal(sub, iva, precio), C.desgloseFinal().neto);
   }
+}
+
+/* ----- Los renglones que firma el sello (puente-sheets-8) -----
+   La hoja firma, por partida, el importe que IMPRIME el PDF: el de preciosCliente(), con el
+   ajuste por partida y el aumento repartido al centavo. Si la copia de la hoja se separara de
+   nucleo.js aunque fuera un centavo en una cotización de cada mil, verificar.html le diría a un
+   cliente con un papel legítimo que un renglón no coincide. Se arma la autorización como la
+   arma rutaAutorizar_ —precio a centavo, ajustes por su canon— y se compara contra lo que el
+   teléfono calcula después de aplicarSello. */
+function autorizarComoLaHoja(items, iva, precioTecleado, ajustesTecleados) {
+  const subCalc = H.cotSubtotal(items);
+  const precioAuth = +H.dinero2(precioTecleado);
+  const ia = plano(H.itemsAuthDeCanon(H.itemsAuthCanon(ajustesTecleados)));
+  const fin = H.cotPrecioFinal(subCalc, iva, precioAuth);
+  C.setQ({ items, iva, estado: 'autorizada', precioAuth, itemsAuth: ia, huellaAuth: '' });
+  vm.runInContext('Q.huellaAuth=huellaTrabajo();', cot);
+  return { ia, fin };
+}
+console.log('\nLOS RENGLONES — el importe que firma la hoja es el que imprime el PDF');
+for (const it of bateria) eq('piezas de la partida ' + it.id, H.cotPiezas(it), C.piezasDe(it));
+{
+  /* El caso de pruebas/precios-cliente.mjs: $5,560 + IVA autorizado en $7,200, que se reparte. */
+  const items = [{ id: 1, tipo: 'manual', pz: 5, pu: 1000 }, { id: 2, tipo: 'manual', pz: 2, pu: 280 }];
+  const { ia, fin } = autorizarComoLaHoja(items, true, 7200, {});
+  eq('un aumento se reparte igual en los dos lados', plano(H.cotPreciosCliente(items, true, ia, fin)), plano(C.preciosCliente()));
+}
+let separadas = 0, conAumento = 0, conDescuento = 0, conAjustes = 0, primeraSeparada = null;
+semilla = 20261001;
+for (let i = 0; i < 3000; i++) {
+  const n = 1 + Math.floor(azar() * 6), items = [];
+  for (let j = 0; j < n; j++) {
+    const tipo = uno(['letras', 'recorte', 'bastidor', 'caja', 'manual']);
+    const it = { id: 100 + j, tipo };
+    if (tipo === 'letras') Object.assign(it, { material: uno(C.MATERIALES).key, comp: uno(C.COMPLEJIDAD).key, luz: azar() < 0.6, altura: dec(80), n: Math.floor(azar() * 14) });
+    if (tipo === 'recorte') Object.assign(it, { acab: uno(C.RECORTES).key, recComp: azar() < 0.5, altura: dec(10), n: Math.floor(azar() * 30) });
+    if (tipo === 'bastidor') Object.assign(it, { bas: uno(C.BASTIDORES).key, ancho: dec(400), alto: dec(200) });
+    if (tipo === 'caja') Object.assign(it, { tarifa: uno([3900, 4600]), ancho: dec(300), alto: dec(200) });
+    if (tipo === 'manual') Object.assign(it, { pz: Math.floor(azar() * 9), pu: dec(9000) });
+    items.push(it);
+  }
+  const iva = azar() < 0.7;
+  const ajustes = {};
+  if (azar() < 0.35) for (const it of items) if (azar() < 0.5) ajustes[it.id] = dec(C.lineTotal(it) * 1.5 + 1);
+  if (Object.keys(ajustes).length) conAjustes++;
+  const sub = H.cotSubtotal(items), neto = iva ? sub * 1.16 : sub;
+  const precio = uno([0, 0, +(neto * (0.75 + azar() * 0.6)).toFixed(2), Math.round(neto / 100) * 100, +(neto + 0.01).toFixed(2)]);
+  const { ia, fin } = autorizarComoLaHoja(items, iva, precio, ajustes);
+  const hoja = JSON.stringify(plano(H.cotPreciosCliente(items, iva, ia, fin))), tel = JSON.stringify(plano(C.preciosCliente()));
+  if (hoja !== tel) { separadas++; if (!primeraSeparada) primeraSeparada = { items, iva, precio, ajustes, hoja, tel }; }
+  if (vm.runInContext('hayAumentoAuth()', cot)) conAumento++;
+  else if (vm.runInContext('ajusteAuth()', cot) > 0.01) conDescuento++;
+}
+eq('tres mil cotizaciones autorizadas al azar, ningún importe distinto', separadas, 0);
+if (primeraSeparada) console.log('         la primera: ' + JSON.stringify(primeraSeparada));
+/* Que la batería de verdad pase por los tres caminos: sin esto, un azar que nunca reparte daría
+   «ninguna distinta» sin haber comparado el reparto. */
+console.log('         (' + conAumento + ' con aumento repartido, ' + conDescuento + ' con descuento, ' + conAjustes + ' con ajustes por partida)');
+eq('  y el azar pasó por aumentos, descuentos y ajustes por partida', [conAumento > 300, conDescuento > 300, conAjustes > 300], [true, true, true]);
+
+console.log('\nEL PAPEL Y EL SELLO — el PDF reconoce los renglones que firmó la hoja');
+{
+  const items = [
+    { id: 1, tipo: 'letras', material: 'al-paint', comp: 'recta', luz: true, altura: 40, n: 8, desc: 'Letras «TACOS», con "comillas", y comas' },
+    { id: 2, tipo: 'bastidor', bas: 'lamina', ancho: 300, alto: 60 },                 // sin descripción: va la corta
+    { id: 3, tipo: 'manual', pz: 2, pu: 450, desc: 'Instalación '.repeat(20) },        // más de 120 letras
+  ];
+  /* Lo que viaja a la hoja (cotParaHoja → limpiarCotizacion): los campos de precio y la
+     descripción corta, cortada a 300. */
+  const aLaHoja = items.map(it => ({ ...it, desc: String(C.descParaHoja(it)).slice(0, 300) }));
+  const { ia, fin } = autorizarComoLaHoja(items, true, 15000, { 2: 1500 });
+  const firmados = plano(H.renglonesDeTexto(H.renglonesDe(aLaHoja, true, ia, fin)));
+  eq('uno por partida, en el orden del PDF', firmados.map(r => r.descripcion.slice(0, 14)), ['Letras «TACOS»', 'Bastidor · 300', 'Instalación In']);
+  eq('la descripción se corta a 120', firmados[2].descripcion.length, 120);
+  eq('las piezas, las de la columna «Pzas.»', firmados.map(r => r.cantidad), [8, 1, 2]);
+  eq('los importes suman el subtotal autorizado', +firmados.reduce((s, r) => s + r.importe, 0).toFixed(2), C.desgloseFinal().sub);
+  vm.runInContext('Q.sello={renglones:' + JSON.stringify(firmados) + '};', cot);
+  eq('el PDF los reconoce: imprime el QR', C.selloDeOtrosRenglones(), false);
+  eq('  y los arma idénticos', JSON.stringify(plano(C.renglonesDelPapel())), JSON.stringify(firmados));
+  vm.runInContext('Q.items=[Q.items[2],Q.items[0],Q.items[1]];', cot);
+  eq('reordenar las filas no lo suelta: el renglón es el mismo', C.selloDeOtrosRenglones(), false);
+  vm.runInContext('Q.items[1]=Object.assign({},Q.items[1],{desc:"Letras «TACOS» en acero"});', cot);
+  eq('una descripción corregida después de sellar sí: el QR enseñaría la de antes', C.selloDeOtrosRenglones(), true);
+  vm.runInContext('Q.sello={codigo:"X"};', cot);
+  eq('un sello de una hoja anterior, sin renglones, no tiene contra qué compararse', C.selloDeOtrosRenglones(), false);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

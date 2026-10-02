@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -15,7 +15,50 @@
 
 /* ===================== Init ===================== */
 function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
+/* ----- Lo de «cliente, folio e iconos» que se cuelga al arrancar -----
+   Cuatro cosas, todas por delegación o sobre campos que no se repintan, así que se arman una sola
+   vez y sobreviven a cada renderItems/renderSummary:
+
+   · C8, el teléfono vivo (pieza 19) sobre #f-tel. Primero de todo, ANTES de que loadState() escriba
+     el campo: la pieza envuelve su `value`, y lo que se escriba después —loadState, historial.js al
+     abrir una cotización, autocompletarCliente()— ya se formatea y se cuenta solo.
+   · C6, la lista de clientes (nucleo.js) sobre #f-cli.
+   · C25, el nombre de los botones de solo icono con el dedo (pieza «nombres»). El selector es de
+     esta zona —los de la barra de arriba, Deshacer del dock y los tres de cada partida— y no el de
+     la pieza por omisión, que cubriría también cualquier icono sin texto de otras pantallas, entre
+     ellas el asa de reordenar partidas, donde mantener presionado ya significa otra cosa. Se cuelga
+     de `document`, no de #items: las partidas se rehacen con innerHTML en cada repintado.
+     La × de una partida CON datos ya es «mantener presionado para borrar» (partidas.js,
+     _armarPartidas): sostenerla 900 ms la borra. Si el nombre saliera a los 450 ms de ESE mismo
+     gesto, quien solo quería leerlo y siguiera sosteniendo borraría la partida, que es lo que la
+     ficha prohíbe. Así que a esa × el dedo no le enseña nombre (ya trae su propia pista y su relleno
+     rojo, que es el aviso de que se está borrando); el ratón y el teclado sí, que no sostienen. La
+     × de una partida vacía, que se borra con un toque, sí lo enseña con el dedo y ese toque no
+     borra. El selector `:not([data-mantener])` se evalúa al tocar, así que sigue bien cuando
+     renderItems() rehace las partidas.
+   · C21, la isla de estado. Lo que la mueve —_sellando en proceso.js, la cola y la solicitud en
+     notario.js e historial.js— cambia en funciones de otras zonas, y en lugar de meter una llamada
+     en cada una se envuelve lo que TODAS ellas atraviesan: saveState (Q cambió), saveQueue (la cola
+     cambió) y renderAuth (el panel de autorización se repinta, que es lo que pasa al empezar y al
+     terminar de sellar). El aviso solo agenda; pintarConexion() decide si algo cambió. */
+function armarCotCliente(){
+  const P=window.Piezas;
+  if(P&&P.telefonoVivo) P.telefonoVivo('f-tel');
+  armarComboClientes();
+  if(P&&P.nombres){
+    P.nombres(document,{selector:'.btn-hist,.mbar-undo,.partida .dup,.partida .pdf-vis,.partida .del:not([data-mantener])'});
+    P.nombres(document,{selector:'.partida .del[data-mantener]',toque:false});
+  }
+  ['saveState','saveQueue','renderAuth'].forEach(n=>{
+    const f=window[n];
+    if(typeof f!=='function'||f._islaEnganchada) return;
+    const envuelta=function(){ const r=f.apply(this,arguments); programarIsla(); return r; };
+    envuelta._islaEnganchada=true;
+    window[n]=envuelta;
+  });
+}
 function init(){
+  armarCotCliente();
   loadLogo();
   aiOlvidarLlavesLocales();
   /* Plegar los datos del proyecto ya no existe —con los datos del cliente en su propia

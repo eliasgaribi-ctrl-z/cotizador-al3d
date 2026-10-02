@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -39,6 +39,39 @@ let _idsPintados=null;
 /* Cuándo fue la última tecla en un campo de partida. La lee latirTotal() (proceso.js) para no
    hacer latir el total con cada dígito. */
 let _tecleoTs=0;
+/* ----- Solo se mueve lo que se tocó (C1) -----
+   renderItems() rehace la lista entera con innerHTML, y hasta aquí eso era todo el movimiento
+   que tenían las acciones de estructura: al plegar, agregar o borrar, lo de abajo saltaba de
+   golpe y nada decía cuál era la partida que había cambiado. PR #71 ya cortó la mitad —la
+   entrada es solo de la id nueva (`.nace`) y el rebote del chip se fue—; esta es la otra: el
+   VIAJE de lo que se tocó.
+
+   Va por P.transicion (pieza 22), con cada `.partida` nombrada por su id: la nueva entra, la
+   quitada se desvanece donde estaba, las vecinas se deslizan a su sitio y la que cambia de alto
+   —abrir, plegar, cambiar de tipo— se estira en vez de brincar. Solo en las acciones que
+   cambian la ESTRUCTURA: agregar, borrar, duplicar, plegar, reordenar y cambiar de tipo.
+   Nunca en typeItem() ni en autoContarLetras(), que corren en cada tecla: fotografiar la
+   pantalla entera por cada dígito sería lo contrario de «solo se mueve lo que se tocó» (y la
+   pieza, además, se defiende sola cuando la llaman desde un evento de escritura). Tampoco en
+   un chip: elegir un material es un cambio de contenido, no de lugar.
+
+   Dos cosas que la pieza avisa y que aquí pesan. Con View Transitions `fn` NO corre en el acto
+   —el navegador primero fotografía el antes—, así que todo lo que dependa del DOM nuevo (el foco,
+   medir el scroll, llevar la partida a la vista) va en `despues`, que corre dentro, justo detrás
+   del repintado. Y con menos movimiento solo corre `fn`: ahí no hay viaje. Los guiones que
+   llaman a addItem() desde el escalador, el vectorizador o la IA no pasan por aquí: siguen
+   repintando en seco, como antes. */
+function repintarConViaje(despues){
+  const hecho=()=>{ renderItems(); if(despues) despues(); };
+  const P=window.Piezas;
+  if(!P||!P.transicion){ hecho(); return Promise.resolve(); }
+  return P.transicion(hecho,{nombres:'#items>.partida',clave:el=>el.id})
+    .catch(e=>{ try{ console.error(e); }catch(_){} });
+}
+/* El porcentaje de completitud de la pintura anterior, para que el destello de la barra pase
+   SOLO cuando sube (C19). null = no hay anterior: el arranque o abrir otra cotización, que no
+   «avanzan» nada sino que devuelven una pantalla. */
+let _pctPrevio=null;
 /* Al abrir una partida se recogen las demás: se ve el resumen de lo que ya iba y el
    formulario de lo que se está capturando, sin desplazarse a ciegas. */
 function plegarOtras(dejarAbierta){
@@ -65,30 +98,33 @@ function togglePartida(id,opts){
      se compensa el scroll AL INSTANTE: antes eran dos movimientos por un toque —la lista
      saltaba y luego un desplazamiento suave la traía de vuelta—. */
   const antes=$('p-'+id)?$('p-'+id).getBoundingClientRect().top:null;
-  renderItems();
-  const tras=$('p-'+id);
-  if(tras&&antes!==null){ const d=tras.getBoundingClientRect().top-antes; if(Math.abs(d)>1) window.scrollBy(0,d); }
-  if(teniaFoco){
-    const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
-    if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
-  }
-  /* Al plegar, lo de abajo sube de golpe. En el teléfono eso se lleva la partida fuera
-     de la pantalla y hay que traerla de vuelta a donde estaba el dedo; con ratón hay
-     sitio de sobra y casi siempre sigue a la vista, y ahí un salto de página que nadie
-     pidió estorba más que no moverse. Por eso se mira antes si de verdad se salió.
+  /* Todo lo que sigue mira el DOM NUEVO, así que corre dentro del viaje (ver repintarConViaje):
+     con View Transitions el repintado llega un cuadro después de esta línea. */
+  repintarConViaje(()=>{
+    const tras=$('p-'+id);
+    if(tras&&antes!==null){ const d=tras.getBoundingClientRect().top-antes; if(Math.abs(d)>1) window.scrollBy(0,d); }
+    if(teniaFoco){
+      const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
+      if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
+    }
+    /* Al plegar, lo de abajo sube de golpe. En el teléfono eso se lleva la partida fuera
+       de la pantalla y hay que traerla de vuelta a donde estaba el dedo; con ratón hay
+       sitio de sobra y casi siempre sigue a la vista, y ahí un salto de página que nadie
+       pidió estorba más que no moverse. Por eso se mira antes si de verdad se salió.
 
-     Ahora vale para los dos sentidos: desde que abrir recoge las demás, abrir la última
-     partida también sube todo lo que tenía encima y puede dejarla debajo de la barra
-     pegajosa. La condición no cambia —solo se actúa si de verdad se salió—, así que
-     cuando no se mueve nada, no se mueve nada. */
-  const el=$('p-'+id);
-  if(el&&el.getBoundingClientRect().top<altoTopbarFija()) irA(el);
+       Ahora vale para los dos sentidos: desde que abrir recoge las demás, abrir la última
+       partida también sube todo lo que tenía encima y puede dejarla debajo de la barra
+       pegajosa. La condición no cambia —solo se actúa si de verdad se salió—, así que
+       cuando no se mueve nada, no se mueve nada. */
+    const el=$('p-'+id);
+    if(el&&el.getBoundingClientRect().top<altoTopbarFija()) irA(el);
+  });
 }
 function togglePlegarTodas(){
   const hayAbiertas=Q.items.some(it=>!_plegadas.has(it.id));
   if(hayAbiertas) Q.items.forEach(it=>_plegadas.add(it.id));
   else _plegadas.clear();
-  renderItems();
+  repintarConViaje();
   /* Plegar N partidas de golpe se ve de un vistazo y no se oye: sin esto, quien usa
      lector de pantalla pierde —o recupera— todos los formularios sin una palabra. */
   const n=Q.items.length;
@@ -100,6 +136,10 @@ function togglePlegarTodas(){
    partidas ya capturadas son seis mil píxeles de desplazamiento antes de ver el total. */
 function sincronizarPlegado(){
   _idsPintados=null;   // llega otra cotización: no entra partida por partida
+  /* Y lo mismo con la barra de completitud: el destello y la rueda del porcentaje son de lo que
+     SUBE mientras se captura, no de una cotización que llega ya con su 80 %. */
+  _pctPrevio=null;
+  if(window.Piezas&&Piezas.rodarCifra) Piezas.rodarCifra.olvidar('cot-prog');
   _plegadas.clear();
   if(Q.items.length<2)return;
   Q.items.slice(0,-1).forEach(it=>_plegadas.add(it.id));
@@ -136,15 +176,25 @@ function addItem(opts){
   const id=++pid;
   const heredado=(opts&&opts.heredar)?prefGet(PREF_MATERIAL,''):'';
   const mat=matOf(heredado)?heredado:'';
-  Q.items.push({id,tipo:'letras',material:mat,matAuto:!!mat,comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
+  /* `opts.tipo` es de los mosaicos del estado vacío (C27): la partida nace ya del tipo que se
+     tocó, sin pasar por «Letras 3D» y cambiar. El material heredado solo se pone en las letras,
+     que son lo único que lo usa; en las otras sería un campo escrito que nadie ve. */
+  const tipo=(opts&&TIPO_NOMBRE[opts.tipo])?opts.tipo:'letras';
+  Q.items.push({id,tipo,material:tipo==='letras'?mat:'',matAuto:tipo==='letras'&&!!mat,comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   Q.sinEstrenar=false;
   plegarOtras(id);
-  renderItems();
-  /* Sin esto, quien usa lector de pantalla no se enteraba de que apareció una partida ni
-     de que las anteriores se plegaron: la lista cambia entera y no se anuncia nada. */
-  voz('Partida '+Q.items.length+' agregada'+(Q.items.length>1?' — se plegaron las anteriores':''));
-  if(!opts||opts.enfocar!==false) enfocarPartida(id);
+  const llegada=()=>{
+    /* Sin esto, quien usa lector de pantalla no se enteraba de que apareció una partida ni
+       de que las anteriores se plegaron: la lista cambia entera y no se anuncia nada. */
+    voz('Partida '+Q.items.length+' agregada'+(Q.items.length>1?' — se plegaron las anteriores':''));
+    if(!opts||opts.enfocar!==false) enfocarPartida(id);
+  };
+  /* `viaje` lo pasan SOLO los botones de la pantalla (agregarPartida, los mosaicos): la partida
+     entra y las plegadas se acomodan. Quien llama desde el escalador, el vectorizador o la IA
+     sigue repintando en seco y llenando la partida acto seguido, que es lo que esperan. */
+  if(opts&&opts.viaje) repintarConViaje(llegada);
+  else{ renderItems(); llegada(); }
   return Q.items[Q.items.length-1];
 }
 /* La puerta de «+ Agregar partida». El botón NO se deshabilita cuando faltan los datos
@@ -152,7 +202,7 @@ function addItem(opts){
    hay que hacer a continuación. Así que se queda vivo, nombra lo que falta y lleva ahí. */
 function agregarPartida(){
   if(!exigirDatosParaPartidas()) return;
-  addItem({heredar:true});
+  addItem({heredar:true,viaje:true});
 }
 /* Duplicar la última partida. Es lo que más se hace cuando un letrero trae dos
    renglones del mismo material y distinta altura, y hasta ahora vivía escondido en el
@@ -161,7 +211,7 @@ function duplicarUltima(){
   if(locked())return;
   if(!exigirDatosParaPartidas()) return;
   const last=Q.items[Q.items.length-1];
-  if(!last){ addItem({heredar:true}); return; }
+  if(!last){ addItem({heredar:true,viaje:true}); return; }
   dupItem(last.id);
 }
 /* La partida nueva se trae a la vista. En el celular «+ Agregar partida» queda al
@@ -205,13 +255,16 @@ function delItem(id,opts){
   Q.items.splice(idx,1);
   // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
   if(Q.itemsAuth) delete Q.itemsAuth[id];
-  renderItems();
   /* Sin esto el foco se caía al <body> y el «Deshacer» del aviso quedaba a decenas de
      tabulaciones. Va al ▾ de la partida vecina y no a su ×: dejar el cursor sobre un
-     botón destructivo justo después de borrar convierte un segundo Enter en otra pérdida. */
+     botón destructivo justo después de borrar convierte un segundo Enter en otra pérdida.
+     Va dentro del viaje porque la vecina todavía no existe en el DOM nuevo (ver
+     repintarConViaje): la quitada se desvanece donde estaba y las de abajo suben a su sitio. */
   const _sig=Q.items[Math.min(idx,Q.items.length-1)];
-  const _b=_sig?document.querySelector('#p-'+_sig.id+' .pfold'):$('addbtn');
-  if(_b){ try{ _b.focus({preventScroll:true}); }catch(_){ _b.focus(); } }
+  repintarConViaje(()=>{
+    const _b=_sig?document.querySelector('#p-'+_sig.id+' .pfold'):$('addbtn');
+    if(_b){ try{ _b.focus({preventScroll:true}); }catch(_){ _b.focus(); } }
+  });
   vibrar([8,40,8]);
   toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 }
@@ -231,7 +284,7 @@ function deshacerBorrado(){
   Q.items.splice(Math.min(_borrada.idx,Q.items.length),0,_borrada.item);
   if(_borrada.precioAuth!==undefined){ if(!Q.itemsAuth)Q.itemsAuth={}; Q.itemsAuth[_borrada.item.id]=_borrada.precioAuth; }
   _borrada=null;
-  renderItems();
+  repintarConViaje();
   toast('Partida restaurada','ok');
 }
 function setItem(id,k,v){
@@ -252,6 +305,9 @@ function typeItem(id,k,v){
   if(capturaBloqueada())return;
   _tecleoTs=Date.now();   // el latido del total espera a que se termine de teclear
   const it=Q.items.find(x=>x.id===id); if(!it)return;
+  /* Si había un importe espiado (C13) y se teclea, lo de verdad vuelve a su sitio: este repintado
+     escribe el total sin la tinta fantasma. */
+  if(_peek) _peekQuitar();
   undoJuntar('it:'+id+':'+k);
   const antes=it[k];
   it[k]=v;
@@ -282,6 +338,7 @@ function typeItem(id,k,v){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
+  opcionesRepintar(it);
   /* updProg además de renderSummary: la barra de completitud y el «falta esto» se quedaban
      con la cuenta de antes mientras se teclea —los campos del proyecto sí la refrescan
      desde upd(), los de la partida no—, así que decía que faltaba la altura con la altura
@@ -379,7 +436,11 @@ function setTipo(id,t){
     toast(`${it.altura} cm no se fabrica en 3D: por debajo de ${ALTURA_MIN_LETRAS} cm va como recorte de acrílico. Sube la altura para poder cotizarla como letras.`,'err',6400);
     return;
   }
-  it.tipo=t; renderItems();
+  it.tipo=t;
+  /* Cambiar el tipo SÍ cambia la estructura —otro cuerpo, otro alto—, y el viaje lo hace con un
+     fundido corto del cuerpo y las de abajo acomodándose (C1). El foco lo devuelve renderItems()
+     por la marca del onclick, que dentro del viaje corre sobre el DOM nuevo. */
+  repintarConViaje();
 }
 function dupItem(id){
   if(locked())return;
@@ -391,7 +452,8 @@ function dupItem(id){
   const idx=Q.items.findIndex(x=>x.id===id);
   Q.items.splice(idx+1,0,copy);
   plegarOtras(copy.id);
-  renderItems(); enfocarPartida(copy.id); toast('Partida duplicada');
+  /* La copia aparece debajo de su original y las de abajo se corren para hacerle sitio. */
+  repintarConViaje(()=>enfocarPartida(copy.id)); toast('Partida duplicada');
 }
 /* Ocultar una partida del PDF cambia el documento que firma el cliente, así que va con
    candado: en una cotización bloqueada el ojo seguía funcionando y el cambio no se
@@ -410,8 +472,35 @@ function setShowInPdf(id,val){
   if(locked()){ toast(msgCandadoCaptura('para ocultar partidas'),'err',4200); return; }
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.showInPdf=val;
-  renderItems();
+  /* En sitio y no con renderItems(): el botón que se tocó tiene que SEGUIR siendo el mismo para
+     que confirme en sí mismo —el ojo se tacha donde está el dedo— y para que el foco no se
+     mueva. Repintar la lista entera lo reemplazaba por uno nuevo, sin nada que mostrar el
+     cambio, y le devolvía el foco por la marca. Lo que sí hacía renderItems y sigue haciéndose
+     aquí es todo lo que depende de qué partidas salen: el conteo, el resumen y lo guardado. */
+  const caja=$('p-'+id), b=caja&&caja.querySelector('.pdf-vis');
+  if(b){
+    caja.classList.toggle('hidden-pdf',!val);
+    b.classList.toggle('off',!val);
+    b.setAttribute('aria-pressed',val?'true':'false');
+    b.setAttribute('onclick','setShowInPdf('+id+','+!val+')');
+    b.title=tituloOjoPdf(val);
+    pintarResumen(it);
+    pintarConteoPartidas();
+    pintarPlazo(); renderSummary(); updProg(); saveState();
+  }else renderItems();
+  /* Es lo único que dice el cambio a quien no ve el ojo. */
+  voz('Partida '+(Q.items.indexOf(it)+1)+(val?' visible en el PDF':' oculta del PDF'));
   if(Q.estado==='autorizada') guardarEnHistorial();
+}
+/* El ojo del PDF son DOS iconos en la misma celda: el abierto y el tachado (`i-ojo-off`, que ya
+   estaba en el sprite sin usarse). `.off` cruza uno con el otro con opacity. Antes era siempre
+   el mismo ojo y «apagado» era solo bajarlo al 40 % de opacidad, que sobre el papel de la
+   hoja deja el icono en 2:1 —y la hoja de diseño dice que el estado no se dice con opacidad—. */
+function ojoPdfHTML(){
+  return '<span class="ojo-pdf" aria-hidden="true">'+ico('i-ojo','ojo-a')+ico('i-ojo-off','ojo-b')+'</span>';
+}
+function tituloOjoPdf(visible){
+  return visible?'Sale en el PDF — toca para ocultarla (sigue sumando al total)':'Oculta del PDF — toca para mostrarla';
 }
 function toggleEditMode(){
   Q.editMode=true;
@@ -448,6 +537,7 @@ function autoContarLetras(id,texto){
   _tecleoTs=Date.now();
   const n=texto.replace(/\s/g,'').length;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
+  if(_peek) _peekQuitar();
   undoJuntar('it:'+id+':texto');
   it.textoAuto=texto;
   /* ----- El texto se teclea una vez, no dos -----
@@ -485,6 +575,10 @@ function autoContarLetras(id,texto){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
+  opcionesRepintar(it);
+  /* El letrero de C14 sigue lo que se escribe. fijar() no anima ni repinta la lista: es el único
+     sitio donde el letrero cambia a cada tecla y por eso NO pasa por renderItems(). */
+  if(it.tipo==='letras') pintarLetrero(it);
   /* updProg además de renderSummary: la barra de completitud y el «falta esto» se quedaban
      con la cuenta de antes mientras se teclea —los campos del proyecto sí la refrescan
      desde upd(), los de la partida no—, así que decía que faltaba la altura con la altura
@@ -534,9 +628,433 @@ function repintarImportes(){
   });
 }
 
+/* ===================== Lo que se arma al pintar la lista =====================
+   Cinco cosas de esta pantalla viven aquí porque comparten una condición: cuelgan de la lista
+   que renderItems() reconstruye, así que los oyentes van UNA vez en `#items` (que nunca se
+   reemplaza) y lo que sí se rehace en cada pintado se vuelve a armar en _armarPartidas().
+   Ninguna se mueve sola: todas responden a un dedo, un cursor o una tecla. */
+
+/* ----- Reordenar con el dedo (C15) -----
+   Hasta aquí el único reordenamiento era el arrastre HTML5, que con el dedo no existe: en el
+   teléfono y en el Fold no había manera de cambiar el orden —que es el de los renglones del
+   PDF— y en escritorio las vecinas saltaban de golpe al soltar. Ahora el NÚMERO de la partida
+   es el asa: mantenerlo presionado 300 ms la levanta, al arrastrar las demás se apartan para
+   hacerle hueco y al soltar viajan a su sitio (P.flip).
+
+   Pointer Events con captura y `touch-action:none` solo en el número: el resto del renglón
+   deja desplazar la página, y el gesto de la fila deslizable (pieza 9) es horizontal y vive
+   en la partida plegada, así que los dos no chocan —este es vertical y arranca en el número—.
+   Con el ratón sigue el arrastre HTML5 de siempre (el test de «reordenar» lo ejerce y sirve):
+   este camino es solo para dedo y lápiz.
+
+   Alternativa sin gesto, la que importa para teclado y lector de pantalla: «subir» y «bajar»
+   en la línea de la fórmula de cada partida, y las flechas arriba y abajo sobre el propio
+   número. Las tres terminan en el mismo splice sobre Q.items, que es el que ya corrige el
+   índice; no mueven la huella del trabajo (huellaTrabajo() ya ordena). */
+const _MOV_MS=300;
+let _mov=null;
+function _movLimpiar(){
+  const m=_mov; _mov=null;
+  if(!m) return;
+  clearTimeout(m.t);
+  if(m.raf) cancelAnimationFrame(m.raf);
+  const c=$('items');
+  if(c){ c.classList.remove('arrastrando'); c.querySelectorAll(':scope>.partida').forEach(el=>{ el.style.transform=''; el.classList.remove('armando','levantada'); }); }
+}
+function _movBajar(e){
+  const b=e.target.closest&&e.target.closest('.pmover');
+  if(!b||e.pointerType==='mouse'||e.isPrimary===false||e.button>0||capturaBloqueada()) return;
+  const d=b.closest('.partida'); if(!d) return;
+  _movLimpiar();
+  const m=_mov={id:+d.id.slice(2),d,b,pid:e.pointerId,x0:e.clientX,y0:e.clientY,s0:window.pageYOffset,y:e.clientY,
+    armado:false,i0:-1,j:-1,lista:null,r:null,paso:0,raf:0,t:0};
+  d.classList.add('armando');
+  m.t=setTimeout(()=>_movArmar(m),_MOV_MS);
+  try{ b.setPointerCapture(e.pointerId); }catch(_){}
+  b.addEventListener('pointermove',_movMover);
+  b.addEventListener('pointerup',_movSoltar);
+  b.addEventListener('pointercancel',_movSoltar);
+}
+function _movArmar(m){
+  if(_mov!==m) return;
+  const c=$('items');
+  m.lista=[...c.querySelectorAll(':scope>.partida')];
+  m.i0=m.lista.indexOf(m.d);
+  if(m.i0<0){ _movLimpiar(); return; }
+  m.j=m.i0;
+  const s=window.pageYOffset;
+  m.r=m.lista.map(el=>{ const r=el.getBoundingClientRect(); return {top:r.top+s,h:r.height}; });
+  const mb=parseFloat(getComputedStyle(m.d).marginBottom)||0;
+  m.paso=m.r[m.i0].h+mb;
+  m.armado=true;
+  m.d.classList.remove('armando'); m.d.classList.add('levantada');
+  c.classList.add('arrastrando');
+  vibrar(8);
+  voz('Partida '+(m.i0+1)+' levantada. Arrástrala a su lugar y suéltala.');
+  m.raf=requestAnimationFrame(_movBucle);
+}
+/* Dónde queda la levantada y cuántas se apartan. El destino es «cuántas de las otras tienen su
+   centro por encima del centro de la que llevas»: así el hueco se abre cuando la mitad de la
+   levantada cruza a la vecina, no cuando la punta la toca. */
+function _movPoner(m){
+  const dy=(m.y+window.pageYOffset)-(m.y0+m.s0);
+  m.d.style.transform='translateY('+dy+'px)';
+  const centro=m.r[m.i0].top+dy+m.r[m.i0].h/2;
+  let j=0;
+  m.lista.forEach((el,k)=>{ if(k!==m.i0&&m.r[k].top+m.r[k].h/2<centro) j++; });
+  if(j===m.j) return;
+  m.j=j;
+  m.lista.forEach((el,k)=>{
+    if(k===m.i0) return;
+    const baja=(j<m.i0&&k>=j&&k<m.i0), sube=(j>m.i0&&k>m.i0&&k<=j);
+    el.style.transform=baja?'translateY('+m.paso+'px)':sube?'translateY('+(-m.paso)+'px)':'';
+  });
+}
+/* Cerca del borde la página sigue sola: arrastrar una partida de un extremo a otro de una lista
+   de seis no cabe en una pantalla. Un cuadro por vez y solo mientras hay una partida levantada. */
+function _movBucle(){
+  const m=_mov; if(!m||!m.armado) return;
+  const arriba=altoTopbarFija()+60, abajo=window.innerHeight-60;
+  if(m.y<arriba) window.scrollBy({top:-Math.min(18,(arriba-m.y)/3+4),behavior:'instant'});
+  else if(m.y>abajo) window.scrollBy({top:Math.min(18,(m.y-abajo)/3+4),behavior:'instant'});
+  _movPoner(m);
+  m.raf=requestAnimationFrame(_movBucle);
+}
+function _movMover(e){
+  const m=_mov; if(!m||e.pointerId!==m.pid) return;
+  if(!m.armado){
+    /* Antes de armarse, moverse es otra cosa: alguien que pasa el dedo. Se cancela y no pasa nada. */
+    if(Math.hypot(e.clientX-m.x0,e.clientY-m.y0)>8) _movLimpiar();
+    return;
+  }
+  m.y=e.clientY;
+  _movPoner(m);
+  if(e.cancelable) e.preventDefault();
+}
+function _movSoltar(e){
+  const m=_mov; if(!m||e.pointerId!==m.pid) return;
+  m.b.removeEventListener('pointermove',_movMover);
+  m.b.removeEventListener('pointerup',_movSoltar);
+  m.b.removeEventListener('pointercancel',_movSoltar);
+  const {id,i0,j,armado}=m;
+  const cancelado=e.type==='pointercancel';
+  if(!armado||cancelado||j===i0||j<0){ _movLimpiar(); return; }
+  /* El mismo splice del arrastre HTML5: aquí `j` ya es el índice final, así que no hay que
+     corregirlo por la posición que dejó la que se sacó. */
+  clearTimeout(m.t); cancelAnimationFrame(m.raf);
+  _mov=null;
+  const c=$('items');
+  c.classList.remove('arrastrando'); m.d.classList.remove('levantada');
+  const [mv]=Q.items.splice(i0,1); Q.items.splice(j,0,mv);
+  const pinta=()=>{ renderItems(); voz('Partida movida a la posición '+(j+1)+' de '+Q.items.length); };
+  /* P.flip mide las partidas AHORA, con el transform con que las dejó el dedo, repinta y las
+     anima desde ahí: las que ya se habían apartado quedan donde estaban y solo viaja la que se
+     soltó, que es lo que se ve. Con menos movimiento repinta directo. */
+  if(window.Piezas&&Piezas.flip) Piezas.flip('#items>.partida',pinta,{clave:el=>el.id,duracion:240});
+  else pinta();
+}
+/* Subir o bajar una posición, sin gesto: los botones de la fórmula y las flechas del número. */
+function moverPartida(id,delta){
+  if(capturaBloqueada()) return;
+  const i=Q.items.findIndex(x=>x.id===id); if(i<0) return;
+  const j=i+delta;
+  if(j<0||j>=Q.items.length){ voz(j<0?'Ya es la primera partida':'Ya es la última partida'); return; }
+  const [mv]=Q.items.splice(i,1); Q.items.splice(j,0,mv);
+  /* El foco vuelve solo al mismo botón (data-foco) y la voz dice dónde quedó. */
+  repintarConViaje(()=>voz('Partida movida a la posición '+(j+1)+' de '+Q.items.length));
+}
+function _movTecla(e){
+  const b=e.target.closest&&e.target.closest('.pmover');
+  if(!b||(e.key!=='ArrowUp'&&e.key!=='ArrowDown')||e.altKey||e.ctrlKey||e.metaKey) return;
+  const d=b.closest('.partida'); if(!d) return;
+  e.preventDefault();
+  moverPartida(+d.id.slice(2),e.key==='ArrowUp'?-1:1);
+}
+/* El arrastre HTML5 del ratón se arma solo cuando el ratón se presiona sobre la partida, y no con
+   un `draggable` puesto para siempre: con el atributo fijo, el dedo largo sobre una partida
+   iniciaba un arrastre nativo en los navegadores que lo permiten al tocar —y le robaba el gesto
+   al número—, y en los campos de texto seleccionar arrastrando movía la partida entera. Sobre un
+   campo, la etiqueta que se arrastra o un cuadro de texto, no se arma. */
+function _ratonArma(e){
+  if(e.pointerType!=='mouse'||e.button!==0||capturaBloqueada()) return;
+  const d=e.target.closest&&e.target.closest('#items>.partida'); if(!d) return;
+  const libre=!!e.target.closest('input,textarea,select,.arrastrable,[data-arrastrar]');
+  if(libre){ d.removeAttribute('draggable'); return; }
+  d.setAttribute('draggable','true');
+  const quitar=()=>{ d.removeAttribute('draggable'); };
+  document.addEventListener('pointerup',quitar,{once:true,capture:true});
+  d.addEventListener('dragend',quitar,{once:true});
+}
+
+/* ----- Comparar materiales sin cambiar la partida (C13) -----
+   Saber cuánto saldría en brush obligaba a elegirlo y regresar, y eso de paso le quitaba la marca
+   de «heredado» y cambiaba la preferencia guardada (setItem la escribe). Aquí asomarse calcula
+   lineTotal({...it, material:k}) SIN escribir en Q, así que no hay nada que deshacer:
+   · ratón: pasar el cursor (pointerover);
+   · dedo: mantener 350 ms quieto —si se mueve antes, es scroll y no pasa nada—;
+   · teclado: el foco visible hace de cursor.
+   Tocar, como siempre, elige. El importe aparece en el total de la partida, en tinta fantasma, y
+   en una línea justo debajo de las fichas —en el teléfono el encabezado puede quedar fuera de la
+   pantalla cuando los chips están a la vista—, que además es la que oye el lector de pantalla.
+   No aplica con la cotización cerrada: los chips salen apagados y sin estos atributos.
+   El importe de la línea lleva `.dinero`, así que en borrador se difumina igual que el total: lo
+   que se tapa a un lado de la mesa no se destapa por la puerta de al lado. */
+let _peek=null, _peekT=0, _peekToque=null, _peekSuprimir=0;
+function _peekAttrs(it,campo,valor,nombre){
+  if(capturaBloqueada()) return '';
+  return `data-peek="${campo}" data-peek-v="${esc(String(valor))}" data-peek-id="${it.id}" data-peek-n="${esc(nombre)}"`;
+}
+function _peekFila(it){
+  return capturaBloqueada()?'':`<div class="peek-fila" id="peek-${it.id}" role="status" aria-live="polite"></div>`;
+}
+function _peekQuitar(){
+  const p=_peek; _peek=null;
+  clearTimeout(_peekT);
+  document.querySelectorAll('#items .chip.espiado').forEach(c=>c.classList.remove('espiado'));
+  if(!p) return;
+  const it=Q.items.find(x=>x.id===p.id);
+  const lt=$('lt-'+p.id);
+  if(lt&&it&&lt.classList.contains('lt-fantasma')){ lt.classList.remove('lt-fantasma'); lt.innerHTML=ltHTML(it); }
+  const f=$('peek-'+p.id); if(f) f.textContent='';
+}
+function _peekMostrar(chip){
+  const id=+chip.getAttribute('data-peek-id'), campo=chip.getAttribute('data-peek'), v=chip.getAttribute('data-peek-v');
+  const it=Q.items.find(x=>x.id===id);
+  if(!it||capturaBloqueada()||String(it[campo])===v){ _peekQuitar(); return; }
+  if(_peek&&_peek.id===id&&_peek.campo===campo&&_peek.v===v) return;
+  _peekQuitar();
+  /* Se calcula sobre una copia: el campo numérico (la tarifa de la caja) se compara como número. */
+  const valor=typeof it[campo]==='number'?Number(v):v;
+  const total=lineTotal(Object.assign({},it,{[campo]:valor}));
+  const actual=lineTotal(it);
+  const nombre=chip.getAttribute('data-peek-n')||'';
+  _peek={id,campo,v};
+  chip.classList.add('espiado');
+  const f=$('peek-'+id), lt=$('lt-'+id);
+  if(total>0){
+    if(lt){ lt.classList.add('lt-fantasma'); lt.innerHTML=money(total); }
+    const dif=total-actual;
+    if(f) f.innerHTML='Con '+esc(nombre)+': <b class="dinero">'+money(total)+'</b>'
+      +(actual>0&&Math.abs(dif)>=0.005?' <span class="peek-dif dinero">('+(dif>0?'+':'−')+money(Math.abs(dif))+')</span>':'')
+      +' — toca para elegirlo';
+  }else if(f) f.textContent='Con '+nombre+': faltan medidas para calcular el importe';
+}
+function _peekSobre(e){
+  if(e.pointerType!=='mouse') return;
+  const ch=e.target.closest&&e.target.closest('.chip[data-peek]'); if(ch) _peekMostrar(ch);
+}
+function _peekFuera(e){
+  if(e.pointerType!=='mouse') return;
+  const ch=e.target.closest&&e.target.closest('.chip[data-peek]');
+  if(ch&&!(e.relatedTarget&&ch.contains(e.relatedTarget))) _peekQuitar();
+}
+function _peekFoco(e){
+  const ch=e.target.closest&&e.target.closest('.chip[data-peek]');
+  if(!ch) return;
+  let visible=true; try{ visible=ch.matches(':focus-visible'); }catch(_){}
+  if(visible) _peekMostrar(ch);
+}
+function _peekDesenfoca(e){
+  if(e.target.closest&&e.target.closest('.chip[data-peek]')) _peekQuitar();
+}
+function _peekBajar(e){
+  if(e.pointerType==='mouse'||e.button>0||capturaBloqueada()) return;
+  const ch=e.target.closest&&e.target.closest('.chip[data-peek]'); if(!ch) return;
+  _peekToque={ch,x:e.clientX,y:e.clientY,id:e.pointerId,visto:false};
+  clearTimeout(_peekT);
+  _peekT=setTimeout(()=>{ const t=_peekToque; if(!t) return; t.visto=true; _peekMostrar(t.ch); },350);
+}
+function _peekMover(e){
+  const t=_peekToque; if(!t||e.pointerId!==t.id) return;
+  if(!t.visto&&Math.hypot(e.clientX-t.x,e.clientY-t.y)>8){ clearTimeout(_peekT); _peekToque=null; }
+}
+function _peekSubir(e){
+  const t=_peekToque; if(!t||e.pointerId!==t.id) return;
+  clearTimeout(_peekT); _peekToque=null;
+  if(!t.visto) return;
+  /* Soltar después de asomarse no es elegir: el clic que el navegador manda al levantar el dedo se
+     traga. Si lo que llegó fue pointercancel (empezó el scroll) no hay clic que tragar. */
+  if(e.type==='pointerup') _peekSuprimir=Date.now();
+  _peekQuitar();
+}
+function _peekClic(e){
+  if(!_peekSuprimir) return;
+  const ch=e.target.closest&&e.target.closest('.chip[data-peek]');
+  if(Date.now()-_peekSuprimir<500&&ch){ e.preventDefault(); e.stopPropagation(); }
+  _peekSuprimir=0;
+}
+
+/* ----- El letrero mientras se escribe (C14) -----
+   «Escribe el texto →» solo contaba letras. Debajo del campo, el texto tecleado dibujado como
+   letras con volumen (pieza 26), con la luz que le toca al material: aluminio = LED posterior
+   (cara opaca, halo en la pared) y acrílico = LED frontal (la cara brilla). La regla NO se
+   deduce del nombre del material: se lee del campo `ilum` del catálogo, que es donde la
+   escribió quien fija los precios, y no se invierte nunca. El tono sigue la ficha cálida o fría
+   y «sin iluminación» apaga el halo. Solo se mueve porque alguien escribe: fijar() no anima.
+   Dice «ilustrativo» y que no es la tipografía del cliente, porque no lo es. */
+function letreroCajaHTML(it){
+  if(locked()||!(window.Piezas&&Piezas.letrero)) return '';
+  return `<div class="letrero-caja" id="letrero-caja-${it.id}" hidden>
+      <div class="letrero-pared"><span class="letrero" id="letrero-${it.id}"></span><span class="letrero-nota" aria-hidden="true">Ilustrativo</span></div>
+      <p class="letrero-pie" id="letrero-pie-${it.id}"></p>
+    </div>`;
+}
+function pintarLetrero(it){
+  const caja=$('letrero-caja-'+it.id), P=window.Piezas;
+  if(!caja||!P||!P.letrero) return;
+  const texto=String(it.textoAuto||'').trim();
+  caja.hidden=!texto;
+  if(!texto) return;
+  const m=matOf(it.material);
+  const pared=caja.querySelector('.letrero-pared'), pie=$('letrero-pie-'+it.id);
+  /* Sin material no se sabe cómo se ilumina, y dibujar uno cualquiera sería suponerlo con
+     precio de por medio (de $30 a $55 el centímetro). Se pide, no se adivina. */
+  pared.hidden=!m;
+  if(!m){ if(pie) pie.textContent='Elige el material y ves cómo se ilumina el letrero.'; return; }
+  const frontal=/frontal/i.test(m.ilum||'');
+  P.letrero('letrero-'+it.id,{texto,material:frontal?'acrilico':'aluminio',
+    luz:it.luz?((it.ilumTipo||'fria')==='calida'?'calida':'fria'):'ninguna',ajustar:true});
+  if(pie) pie.textContent='Ilustrativo: no es la tipografía del cliente. '+(it.luz?(frontal?'Luz frontal: la cara brilla.':'Luz posterior: el halo cae en la pared.'):'Sin iluminación.');
+}
+
+/* ----- El estado vacío empieza el trabajo (C27) -----
+   Un recuadro punteado con una frase que enumera los cinco tipos decía qué se puede agregar
+   pero no lo agregaba. Ahora son cinco mosaicos tocables que crean la partida ya del tipo
+   elegido, con la tarifa DEL CATÁLOGO —la más baja de cada uno, leída de los mismos arreglos
+   que pintan los chips—: lo que depende de la medida no inventa un número, y la partida manual
+   no tiene tarifa y lo dice. Un solo resaltado se mueve de mosaico en mosaico con transform.
+   Hoy casi nunca se ve, porque el arranque siembra una partida en blanco; sale al borrar todas. */
+function _mosDesde(){
+  const min=(a,f)=>Math.min(...a.map(f));
+  const n=v=>'$'+Number(v).toLocaleString('es-MX');
+  return {
+    letras:'desde '+n(min(MATERIALES,m=>m.precio))+'/cm por letra',
+    recorte:'desde '+n(min(RECORTES,r=>r.precio))+'/cm por pieza',
+    bastidor:'desde '+n(min(BASTIDORES,b=>b.tarifa))+'/m²',
+    caja:'desde '+n(min(CAJAS,c=>c.tarifa))+'/m²',
+    manual:'tú pones el precio',
+  };
+}
+function estadoVacioNodo(){
+  const empty=document.createElement('div'); empty.className='empty';
+  if(locked()){
+    empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
+    return empty;
+  }
+  const desde=_mosDesde();
+  empty.classList.add('vacio-partidas');
+  empty.innerHTML=`<p class="vacio-t">Aún no hay partidas. Empieza por lo que vas a cotizar.</p>
+    <div class="mosaicos" role="group" aria-label="Tipo de la primera partida">
+      ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button type="button" class="mos" data-tipo="${t}" onclick="empezarConTipo('${t}')"><span class="mos-n">${TIPO_NOMBRE[t]}</span><small>${desde[t]}</small></button>`).join('')}
+      <span class="resalte-mos" aria-hidden="true"></span>
+    </div>
+    <p class="vacio-ia">¿Tienes el diseño o una foto? <button type="button" class="vacio-ia-b" onclick="aiOpen()">Cotizar con IA</button></p>`;
+  return empty;
+}
+function empezarConTipo(t){
+  if(!exigirDatosParaPartidas()) return;
+  addItem({heredar:t==='letras',tipo:t,viaje:true});
+}
+function _mosResalte(b){
+  /* La rejilla de opciones de una partida (pieza 76) es el mismo Highlight Grid con otra caja: un
+     solo resaltado, el mismo CSS y los mismos tres oyentes. */
+  const caja=b&&b.closest('.mosaicos,.opciones-rej'), r=caja&&caja.querySelector('.resalte-mos'); if(!r) return;
+  const ya=r.classList.contains('ve');
+  /* La primera vez nace en su sitio, sin recorrer el mosaico desde la esquina. */
+  if(!ya){ r.classList.add('sin-t'); }
+  r.style.width=b.offsetWidth+'px'; r.style.height=b.offsetHeight+'px';
+  r.style.transform='translate('+b.offsetLeft+'px,'+b.offsetTop+'px)';
+  if(!ya){ void r.offsetWidth; r.classList.remove('sin-t'); r.classList.add('ve'); }
+}
+function _mosSobre(e){
+  if(e.pointerType!=='mouse') return;
+  const b=e.target.closest&&e.target.closest('.mos,.op-card'); if(b) _mosResalte(b);
+}
+function _mosFuera(e){
+  const caja=e.target.closest&&e.target.closest('.mosaicos,.opciones-rej'); if(!caja) return;
+  if(e.relatedTarget&&caja.contains(e.relatedTarget)) return;
+  const r=caja.querySelector('.resalte-mos'); if(r) r.classList.remove('ve');
+}
+function _mosFoco(e){
+  const b=e.target.closest&&e.target.closest('.mos,.op-card'); if(!b) return;
+  let visible=true; try{ visible=b.matches(':focus-visible'); }catch(_){}
+  if(visible) _mosResalte(b);
+}
+
+/* ----- El aviso de «mantén presionado» de borrar una partida (C23 #5) -----
+   La × mide 38 px: la pista que la pieza escribe en el propio botón («Mantén presionado para
+   confirmar») no cabe. Va en un aviso suelto, chico, encima del dock, que se borra solo. Es solo
+   para la vista —la pieza ya la dice en voz alta—, así que va aria-hidden. */
+let _delAviso=null, _delAvisoT=0;
+function _avisoBorrar(){
+  if(_delAviso&&_delAviso.isConnected) return _delAviso;
+  const a=document.createElement('div');
+  a.className='del-pista'; a.setAttribute('aria-hidden','true');
+  document.body.appendChild(a);
+  new MutationObserver(()=>{
+    clearTimeout(_delAvisoT);
+    if(a.textContent) _delAvisoT=setTimeout(()=>{ a.textContent=''; },1800);
+  }).observe(a,{childList:true,characterData:true,subtree:true});
+  return (_delAviso=a);
+}
+
+/* Lo que hay que volver a armar después de cada pintado: la lista se reemplaza entera y con ella
+   los botones y los letreros. Los oyentes de #items se cuelgan una sola vez. */
+function _cablearItems(c){
+  if(c._cableada) return;
+  c._cableada=true;
+  const P=window.Piezas;
+  /* Pieza 3: las etiquetas «Altura», «# Letras», «# Piezas», «Ancho» y «Alto» son el asa de su
+     campo. Una sola vez sobre la tarjeta: sirve para las etiquetas de ahora y las de después, y
+     typeItem() recibe los `input` como si se tecleara. */
+  if(P&&P.arrastrarMedidas){ const card=$('card-partidas'); if(card) P.arrastrarMedidas(card); }
+  c.addEventListener('pointerdown',_ratonArma,true);
+  c.addEventListener('pointerdown',_movBajar);
+  c.addEventListener('keydown',_movTecla);
+  c.addEventListener('contextmenu',e=>{ if(e.target.closest&&e.target.closest('.pmover,.chip[data-peek]')&&e.pointerType!=='mouse') e.preventDefault(); });
+  c.addEventListener('pointerover',_peekSobre);
+  c.addEventListener('pointerout',_peekFuera);
+  c.addEventListener('focusin',_peekFoco);
+  c.addEventListener('focusout',_peekDesenfoca);
+  c.addEventListener('pointerdown',_peekBajar);
+  c.addEventListener('pointermove',_peekMover);
+  c.addEventListener('pointerup',_peekSubir);
+  c.addEventListener('pointercancel',_peekSubir);
+  c.addEventListener('click',_peekClic,true);
+  c.addEventListener('pointerover',_mosSobre);
+  c.addEventListener('pointerout',_mosFuera);
+  c.addEventListener('focusin',_mosFoco);
+  c.addEventListener('focusout',_mosFuera);
+}
+function _armarPartidas(){
+  const c=$('items'); if(!c) return;
+  _cablearItems(c);
+  const P=window.Piezas; if(!P) return;
+  /* Pieza 9: la partida plegada se desliza para descubrir Duplicar y Borrar (son atajo: los dos
+     botones siguen a la vista en su encabezado). Delegado en #items; la pista se enseña una sola
+     vez por aparato y solo si de verdad hay una fila deslizable que asomar. */
+  if(P.filasDeslizables){
+    const f=P.filasDeslizables(c,{pista:'al3d_pista_partidas'});
+    if(f&&c.querySelector('.desliza')) f.pista();
+  }
+  /* Pieza 5: borrar una partida con datos pide sostener la ×. La partida completamente vacía se
+     borra con un toque —no hay nada que perder— y el «Deshacer» del aviso sigue en todas. */
+  if(P.mantener){
+    Q.items.forEach(it=>{
+      const b=c.querySelector('#p-'+it.id+' .del');
+      if(!b||b.disabled||b.getAttribute('aria-disabled')==='true'||itemVacio(it)) return;
+      P.mantener(b,{ms:900,tono:'mal',aviso:_avisoBorrar(),pista:'mantén presionado para borrar la partida',alConfirmar:()=>delItem(it.id)});
+    });
+  }
+  Q.items.forEach(it=>{ if(it.tipo==='letras') pintarLetrero(it); });
+}
+
 /* ===================== Render partidas ===================== */
 function renderItems(){
   const _focoPrevio=_focoDeItems();
+  /* La lista se reemplaza entera: lo que estuviera a medias sobre ella —una partida levantada, un
+     importe espiado— apuntaba a nodos que ya no existen. Se suelta antes de pintar. */
+  _movLimpiar(); _peek=null; clearTimeout(_peekT); _peekToque=null;
   renderAiPreview();
   renderScalerPreview();
   const c=$('items'); c.innerHTML='';
@@ -555,9 +1073,7 @@ function renderItems(){
      alternativa repite palabra por palabra lo que ya dice la ficha. Dos avisos seguidos
      diciendo lo mismo no informan el doble: se estorban. */
   if(Q.items.length===0&&!(!locked()&&faltanDatosCliente())){
-    const empty=document.createElement('div'); empty.className='empty';
-    empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
-    c.appendChild(empty);
+    c.appendChild(estadoVacioNodo());
   }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida'; d.id='p-'+it.id;
@@ -582,7 +1098,8 @@ function renderItems(){
        enteraba y los dos eran los únicos puntos mudos que quedaban en la partida —el resto
        ya contesta—. La escritura la frenan setTipo y delItem, que preguntan ellos mismos. */
     const _off=locked()?'disabled':(faltanDatosCliente()?'aria-disabled="true"':'');
-    if(!capturaBloqueada()) d.setAttribute('draggable','true');
+    /* Sin `draggable` fijo: el arrastre del ratón lo arma _ratonArma() al presionar, y el del
+       dedo es de _movBajar(). Ver «Reordenar con el dedo». */
     const pdfVis=it.showInPdf!==false;
     const plegada=_plegadas.has(it.id);
     if(plegada) d.classList.add('folded');
@@ -600,7 +1117,7 @@ function renderItems(){
        que vivía abajo —para no esconderse al plegar y para poder espiar el importe tapado—,
        y ahora además se ve mientras se captura. Abajo se queda la fórmula sola, que es la
        explicación del número y no el número. */
-    d.innerHTML=`
+    const _cara=`
       <div class="pcab">
       <div class="partida-top">
         <div class="pnum">
@@ -610,7 +1127,9 @@ function renderItems(){
                trabajo; el title sí dice la acción, que es lo que necesita el ratón. -->
           <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="Detalle de la partida ${i+1}"><span aria-hidden="true">▾</span></button>
           ${!capturaBloqueada()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
-          <div class="n">${i+1}</div>
+          ${(!capturaBloqueada()&&Q.items.length>1)
+            ?`<button type="button" class="n pmover" data-foco="mover-${it.id}" title="Mantén presionado y arrastra para cambiar el orden" aria-label="Partida ${i+1} de ${Q.items.length}. Mantén presionado y arrastra para moverla, o usa las flechas arriba y abajo.">${i+1}</button>`
+            :`<div class="n">${i+1}</div>`}
         </div>
         <span class="ptipo"><span class="lg">${TIPO_NOMBRE[it.tipo]||''}</span><span class="sm">${TIPO_CORTO[it.tipo]||''}</span></span>
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
@@ -619,19 +1138,33 @@ function renderItems(){
         <span class="lt" id="lt-${it.id}">${ltHTML(it)}</span>
         <div class="ptop-actions">
           ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
-          <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
+          <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" aria-pressed="${pdfVis?'true':'false'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${tituloOjoPdf(pdfVis)}" aria-label="Mostrar en el PDF">${ojoPdfHTML()}</button>
           <button class="del" ${_off} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
       ${resumenHTML(it)}
       </div>
-      <div class="pbody" id="pbody-${it.id}">${bodyFor(it)}</div>
+      <div class="pbody" id="pbody-${it.id}">${cuerpoConOpciones(it)}</div>
       <!-- La fórmula va FUERA de .pbody a propósito: es lo único del cuerpo que se queda a la
            vista al plegar. El total se subió al encabezado —ver arriba— y desde ahí sigue
            fuera de .pbody y sigue siendo donde se espían los importes tapados. -->
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaHTML(it)}</span>
+        ${(!capturaBloqueada()&&Q.items.length>1)
+          ?`<span class="pmover-par" role="group" aria-label="Orden de la partida ${i+1}"><button type="button" class="pmover-b" data-foco="sube-${it.id}" ${i===0?'aria-disabled="true"':''} onclick="moverPartida(${it.id},-1)" title="Subir una posición" aria-label="Subir la partida ${i+1}"><span aria-hidden="true">↑</span></button><button type="button" class="pmover-b" data-foco="baja-${it.id}" ${i===Q.items.length-1?'aria-disabled="true"':''} onclick="moverPartida(${it.id},1)" title="Bajar una posición" aria-label="Bajar la partida ${i+1}"><span aria-hidden="true">↓</span></button></span>`
+          :''}
       </div>`;
+    /* Pieza 9: la partida PLEGADA es un renglón y se desliza a la izquierda para descubrir
+       Duplicar y Borrar. Abierta no: tiene campos, y arrastrar el dedo dentro de un campo de
+       texto no puede abrir una fila. Los dos botones siguen a la vista en el encabezado, así
+       que esto es atajo —no hay nada que solo se pueda hacer deslizando—. «Borrar» pasa por el
+       mismo delItem() y por tanto con su «Deshacer»; la × pide sostener, y aquí quien desliza y
+       toca un botón rojo ya dijo dos veces lo que quiere. */
+    if(plegada&&!capturaBloqueada()&&window.Piezas&&Piezas.filaDeslizableHTML){
+      d.innerHTML=Piezas.filaDeslizableHTML({clase:'desliza-partida',cara:_cara,acciones:[
+        {texto:'Duplicar',attrs:`onclick="dupItem(${it.id})"`},
+        {texto:'Borrar',peligro:true,attrs:`onclick="delItem(${it.id})"`}]});
+    }else d.innerHTML=_cara;
     if(!capturaBloqueada()){
       d.addEventListener('dragstart',e=>{
         dragId=it.id; d.classList.add('dragging');
@@ -667,7 +1200,7 @@ function renderItems(){
            lo peor: el mismo gesto se portaba distinto según la dirección, y el orden es el de
            los renglones del PDF, así que corregirlo arrastrando otra vez volvía a fallar. */
         Q.items.splice(fi<ti?ti-1:ti,0,moved);
-        dragId=null; renderItems();
+        dragId=null; repintarConViaje();
       });
       d.addEventListener('dragend',()=>{
         dragId=null;
@@ -676,8 +1209,7 @@ function renderItems(){
     }
     c.appendChild(d);
   });
-  const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;
-  $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'')+(_hiddenPdf?` · ${_hiddenPdf} oculta${_hiddenPdf>1?'s':''} del PDF`:'');
+  pintarConteoPartidas();
   /* «Igual que la anterior» solo tiene sentido cuando hay una anterior. */
   const dupBtn=$('dupbtn'); if(dupBtn) dupBtn.style.display=Q.items.length?'':'none';
   /* Plegar/abrir todas: solo tiene sentido con más de una partida */
@@ -690,8 +1222,13 @@ function renderItems(){
   }
   pintarPlazo();
   renderSummary(); updProg(); saveState();
+  _armarPartidas();
   _devolverFocoItems(_focoPrevio);
   _idsPintados=new Set(Q.items.map(x=>x.id));
+}
+function pintarConteoPartidas(){
+  const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;
+  $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'')+(_hiddenPdf?` · ${_hiddenPdf} oculta${_hiddenPdf>1?'s':''} del PDF`:'');
 }
 function calcProg(){
   let pts=0,max=0;
@@ -717,7 +1254,18 @@ function calcProg(){
   }
   return Math.min(100,Math.round(pts/max*100));
 }
-let _progAntes=null;   // el último porcentaje pintado: el destello solo cuando sube
+/* Reinicia el barrido aunque el anterior no haya terminado (dos teclas seguidas que suben el
+   porcentaje). `animationend` quita la clase: sin ella, el barrido no tiene de dónde volver a
+   arrancar y sin quitarla la barra se quedaría marcada. */
+function destelloDeBarra(bar){
+  bar.classList.remove('sube');
+  void bar.offsetWidth;
+  bar.classList.add('sube');
+  if(!bar._finDestello){
+    bar._finDestello=true;
+    bar.addEventListener('animationend',e=>{ if(e.animationName==='brillo-una') bar.classList.remove('sube'); });
+  }
+}
 function updProg(){
   /* Aquí y no en cada llamador: los datos del proyecto cambian por muchos caminos
      —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
@@ -734,7 +1282,19 @@ function updProg(){
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
   bar.style.transform='scaleX('+(pct/100)+')';
-  pctEl.textContent=pct+'%';
+  /* El porcentaje rueda (pieza 1) solo si CAMBIÓ: updProg() corre en cada tecla y la pieza no hace
+     nada con la misma cifra. Con `clave` porque la cifra sobrevive a que algo repinte el
+     encabezado, y sin animar la primera vez que se pinta (el arranque, abrir otra cotización). */
+  if(window.Piezas&&Piezas.rodarCifra) Piezas.rodarCifra(pctEl,pct+'%',{clave:'cot-prog'});
+  else pctEl.textContent=pct+'%';
+  /* El destello pasa UNA vez, cuando el porcentaje SUBE (C19, falla 3). Era un barrido que se
+     repetía cada vez que se repintaba el sitio —la tercera cosa que se movía sola, después del
+     botón de IA y las fichas del candado—; ahora dice «avanzaste» en el momento en que avanzas.
+     No hay destello al bajar, ni la primera vez, ni al llegar a 100 %: ahí el verde ya lo dice. Con
+     menos movimiento tampoco: el CSS lo apaga y una animación apagada nunca dispara `animationend`,
+     así que la clase se quedaría puesta; el avance se sigue viendo en el relleno, que sí se mueve. */
+  if(_pctPrevio!==null&&pct>_pctPrevio&&pct<100&&!(window.Piezas&&Piezas.sinMovimiento())) destelloDeBarra(bar);
+  _pctPrevio=pct;
   /* El color lo pone la hoja: aquí solo se dice si ya está completa. Antes se escribían tres
      degradados como estilo EN LÍNEA, que gana a cualquier regla de css/sistema.css, así que el
      color de esta barra era lo único de la app que el tema no podía cambiar —de noche seguía
@@ -742,11 +1302,6 @@ function updProg(){
      colores para una medida: el ámbar en esta app significa «falta un dato obligatorio», no
      «vas por el 30 %». */
   bar.classList.toggle('lleno',pct>=100);
-  /* El destello pasa una vez cuando el porcentaje SUBE, no en cada tecla: esto corre con cada
-     letra del nombre del cliente, y lo que se mueve en cada tecla deja de decir nada. El
-     primer pintado no cuenta —no subió nada, solo se abrió—. */
-  if(_progAntes!==null&&pct>_progAntes) volverALatir(bar,'destello');
-  _progAntes=pct;
   pintarPendiente();
 }
 
@@ -825,7 +1380,15 @@ function pintarPendiente(){
      podía salir nunca y el botón se quedaba mudo justo al final del trabajo. */
   if(box) box.disabled=false;
   if(!p){ el.textContent=''; return; }
-  el.innerHTML=`${esc(p.txt)} <span aria-hidden="true">›</span>`;
+  const html=`${esc(p.txt)} <span aria-hidden="true">›</span>`;
+  /* El renglón cruza con un fundido vertical (pieza 23) y SOLO si el texto cambió: updProg()
+     corre en cada tecla y la pieza compara antes de tocar nada, así que un renglón que sigue
+     igual no «respira». La primera vez nace ya armado; vacío vuelve a ser un nodo sin hijos,
+     que es lo que `.prog-next:empty` necesita para esconderse. */
+  const P=window.Piezas;
+  if(!P||!P.cambiarRotulo) el.innerHTML=html;
+  else if(!el.querySelector(':scope>.rotulo')) el.innerHTML=P.rotuloHTML(html);
+  else P.cambiarRotulo(el,{html});
 }
 /* Tocar el aviso del candado lleva al primer hueco y enciende el ámbar, igual que si se
    hubiera intentado agregar una partida: el aviso y el freno del botón dicen lo mismo y
@@ -848,6 +1411,8 @@ function irAlCandado(){
     else reabrir();
     return;
   }
+  /* Esta es la rama que conduce: exigirDatosParaPartidas() termina en irACampoProy(), que trae el
+     campo que falta a la vista, le pone el cursor y lo señala con las esquinas (C7). */
   exigirDatosParaPartidas();
 }
 /* ----- Ningún control mudo -----
@@ -864,14 +1429,15 @@ function irAlCandado(){
    importe tapado— y el ojo del PDF. Sin la cara plegada, abrir una partida para leerla
    funcionaba Y sacaba un aviso rojo diciendo que había fallado, en el mismo toque. */
 function _candTocarPartida(e){
+  if(locked()||!faltanDatosCliente()) return;
   const t=e.target;
   if(t&&t.closest&&t.closest('.pfold,.pdf-vis,.psum,[href]')) return;
-  /* Con el precio cerrado no se dice nada en rojo —la ficha del candado ya lo explica arriba,
-     con la puerta escrita—, pero la ficha late una vez: es la respuesta a «toqué y no pasó
-     nada», y señala dónde se abre. */
-  if(locked()){ volverALatir($('cand-partidas')); return; }
-  if(!faltanDatosCliente()) return;
   exigirDatosParaPartidas({llevar:false});
+  /* El aviso ya salió abajo; esto lo ata a la ficha de arriba, que es la que dice qué falta: late
+     otra vez y se señala SI ya está a la vista (no se arrastra la pantalla a media lectura, que
+     es justo la razón de `llevar:false`). */
+  latirCandado();
+  senalarLlegada('cand-partidas','av',true);
 }
 function irAPendiente(){
   const p=siguientePaso();
@@ -900,20 +1466,51 @@ function irACampoProy(id){
   if(_pantalla!=='cliente') irAPantalla('cliente',{subir:false});
   irA('card-proy');
   const el=$(id);
-  if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });
+  if(el&&!el.disabled) requestAnimationFrame(()=>{
+    try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+    /* Llegar es un scroll más un foco, y si el campo cae bajo la barra o bajo el dedo no se veía
+       adónde se había llegado. Cuatro esquinas se cierran sobre él, en ámbar —aquí lo que se
+       señala es lo que FALTA—, esperan a que el scroll suave termine y se van solas. */
+    senalarLlegada(el,'av');
+  });
+}
+/* Cuatro esquinas sobre lo que se acaba de traer a la vista (C7, pieza 17). Un solo sitio para
+   los cuatro caminos que llevan a algo —el campo del cliente, el hueco de una partida, el bloque
+   de un paso, la ficha del candado—, con el cuidado que a todos les toca: no señalar lo que no
+   está pintado (un campo de la pantalla que no se ve mide 0×0 y las esquinas se irían a la
+   esquina de la página) y no hacer nada si la pieza no cargó. `soloSiSeVe` es para el toque
+   que NO conduce a ningún sitio —tocar una partida congelada—: ahí no se mueve la pantalla por
+   señalar, solo se señala si ya está donde se mira. */
+function senalarLlegada(destino,tono,soloSiSeVe){
+  const P=window.Piezas; if(!P||!P.senalar) return null;
+  const el=typeof destino==='string'?$(destino):destino;
+  if(!el||!el.getClientRects||!el.getClientRects().length) return null;
+  if(soloSiSeVe){
+    const r=el.getBoundingClientRect();
+    if(r.bottom<altoTopbarFija()||r.top>window.innerHeight) return null;
+  }
+  return P.senalar(el,{tono:tono||'',pad:4});
+}
+/* La ficha del candado late una vez al aparecer —lo hace su regla de CSS, de un solo disparo— y
+   otra cuando se toca algo bloqueado, que es lo que hace esto. Quitar la animación en línea y
+   volver a ponerla es la manera de reiniciar una animación de CSS sin cambiar su nombre: con
+   una clase aparte, al quitarla el nombre cambiaría otra vez y volvería a latir. */
+function latirCandado(){
+  const b=$('cand-partidas'); if(!b||b.hidden) return;
+  b.style.animation='none'; void b.offsetWidth; b.style.animation='';
 }
 
 /* Campo de descripción "qué se cotiza", disponible en todas las partidas */
 /* ----- Opciones de la partida: chip y grupo -----
    Un solo lugar donde se decide cómo se ve una opción elegida, para que material,
    complejidad, acabado, bastidor y caja se lean todos igual. */
-function chip(on,click,label,extra,libre){
+function chip(on,click,label,extra,libre,attrs){
   /* `libre` es para los chips que no son de una partida —el plazo de taller— y que por eso no
      llevan ni el candado del precio autorizado ni el de los datos del cliente: no mueven el
      total y se pactan hasta el final, igual que los campos de _FM_PDF. */
   const dis=!libre&&capturaBloqueada();
   return `<div class="chip${on?' on':''}" role="button" aria-pressed="${on?'true':'false'}"`+
-    (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`)+
+    (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"${attrs?' '+attrs:''}`)+
     `><span class="ck" aria-hidden="true"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg></span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
 }
 /* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
@@ -1004,6 +1601,10 @@ function resumenPartida(it){
     it.pz>0?ok(it.pz+(it.pz===1?' pieza':' piezas')):falta('Faltan piezas');
     it.pu>0?push(money(it.pu)+' c/u','ok',{dinero:true}):falta('Falta precio unitario');
   }
+  /* Una partida con opciones por elegir tiene un hueco más, y es de los que frenan: mientras el
+     cliente no elija, el trabajo que se va a fabricar no está decidido (pieza 76). Por esta misma
+     lista salen la barra de completitud, el «qué sigue» y el aviso de partidas sin terminar. */
+  if(opcionesDe(it)) push(FALTA_OPCION,'falta',{opcion:true});
   return t;
 }
 /* ----- La cara de la partida plegada -----
@@ -1029,10 +1630,13 @@ function resumenPartida(it){
    primer teclazo, porque el otro reescribía el innerHTML sin ella. */
 function caraPlegadaHTML(it){
   const fichas=resumenPartida(it);
-  const huecos=fichas.filter(f=>f.estado==='falta').length;
+  /* El hueco de «elegir la opción» no es un dato que falte capturar: tiene su propia ficha, que
+     dice cuál de cuántas está abierta, y no se cuenta en el «Falta 1 dato». */
+  const huecos=fichas.filter(f=>f.estado==='falta'&&!f.opcion).length;
   const desc=(it.desc||'').trim();
   const tok=(txt,cls)=>`<span class="ptok ${cls}">${esc(txt)}</span>`;
   return `<span class="pdsc${desc?'':' vacia'}">${desc?esc(desc):'Sin descripción'}</span>`
+    +opcionFichaPlegada(it,tok)
     +(huecos?tok(huecos===1?'Falta 1 dato':`Faltan ${huecos} datos`,'falta'):'')
     +fichas.filter(f=>f.estado==='ok'||(f.estado==='off'&&f.pesa))
            .map(f=>tok(f.txt,f.estado+(f.dinero?' dinero':''))).join('')
@@ -1072,7 +1676,7 @@ function descFld(it){
 function bodyFor(it){
   const dis=capturaBloqueada()?'disabled':'';
   if(it.tipo==='letras'){
-    const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio)).join('');
+    const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio,false,_peekAttrs(it,'material',m.key,m.label))).join('');
     const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
     const mat=matOf(it.material);
     /* Material heredado: el título lo dice y la nota explica de dónde salió. Se avisa
@@ -1087,7 +1691,8 @@ function bodyFor(it){
        consejo del material que va debajo. */
     const avisos=`
       ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
-      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote nota-ok"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}`;
+      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote nota-ok"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}
+      ${_peekFila(it)}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
       ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'<span class="emo">🌅</span> Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'<span class="emo">❄️</span> Fría','6500K')
@@ -1100,19 +1705,20 @@ function bodyFor(it){
       ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
-          <label for="h-${it.id}">Altura (cm)</label>
+          <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
         <div class="fld">
-          <label for="n-${it.id}"># Letras</label>
+          <label class="arrastrable" for="n-${it.id}"># Letras</label>
           <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}
+      ${letreroCajaHTML(it)}`;
   }
   if(it.tipo==='recorte'){
-    const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
+    const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio,false,_peekAttrs(it,'acab',r.key,r.label))).join('');
     /* Los tres precios ya van en los chips; repetirlos en una lista era decir dos veces lo
        mismo dentro del mismo recuadro. Lo único que los chips no dicen es CÓMO se cobra. */
     /* Y cuando el tipo lo puso la regla de los 10 cm, se dice aquí: es la respuesta a
@@ -1120,7 +1726,7 @@ function bodyFor(it){
        Se deduce de la altura y no de una bandera guardada: subir la altura y quedarse en
        recorte es una decisión legítima, y una bandera vieja seguiría explicando algo que
        ya no manda. */
-    const hint='<div class="hintnote">Por cm de altura × pieza</div>'
+    const hint='<div class="hintnote">Por cm de altura × pieza</div>'+_peekFila(it)
       +(alturaDeRecorte(it.altura)?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no hay letra 3D que fabricar — a esta altura el taller la corta en acrílico.</div>`:'');
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
@@ -1132,35 +1738,35 @@ function bodyFor(it){
       ${compRow}
       <div class="grid3" style="margin-top:12px">
         <div class="fld">
-          <label for="h-${it.id}">Altura (cm)</label>
+          <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
-        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
+        <div class="fld"><label class="arrastrable" for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
-    const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
-    const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>';
+    const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²',false,_peekAttrs(it,'bas',b.key,b.label))).join('');
+    const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>'+_peekFila(it);
     return `
       ${descFld(it)}
       ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint,true)}
       <div class="grid2" style="margin-top:12px">
-        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
-        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
+        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
+        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
       </div>`;
   }
   if(it.tipo==='caja'){
-    const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²')).join('');
-    const hint='<div class="hintnote">Mínimo 1 m²</div>';
+    const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²',false,_peekAttrs(it,'tarifa',c.tarifa,c.label))).join('');
+    const hint='<div class="hintnote">Mínimo 1 m²</div>'+_peekFila(it);
     const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
     return `
       ${descFld(it)}
       ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint,true)}
       <div class="grid3" style="margin-top:12px">
-        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
-        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
+        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
+        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
         <div class="fld"><label for="ta-${it.id}">Tarifa ($/m²)</label><div class="inp-money"><input id="ta-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.tarifa||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'tarifa',+this.value)" onblur="saneaNum(this,${it.id},'tarifa')"></div></div>
       </div>`;
   }
@@ -1187,7 +1793,8 @@ function formulaHTML(it){
 }
 function formulaFor(it){
   // Con datos incompletos la fórmula era "$0 ($0) × 0cm × 0": mejor decir qué falta.
-  const faltan=faltantesDe(it);
+  /* «Elegir la opción» no tapa la cuenta: la fórmula es la de la opción que está abierta. */
+  const faltan=faltantesDe(it).filter(x=>x!==_FALTA_OPCION_DICE);
   /* A la partida manual que solo le falta la descripción no se le esconde la cuenta: el
      precio existe y se cobra, y taparlo con «Falta: descripción» dejaría el total del
      encabezado sin explicar. Se dice al final de la fórmula. */
@@ -1229,16 +1836,28 @@ function renderAiPreview(){
     <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
   </div>`;
 }
+/* Una imagen se abre en el visor con zoom de historial.js (visorAbrir: crece desde la miniatura
+   que se tocó, se pellizca y se arrastra); un PDF sigue siendo un <iframe>, que ya trae el zoom
+   del visor de PDF del navegador y no se puede pellizcar desde aquí. La miniatura de la que sale
+   el vuelo es la del toque: el onclick del marcado corre con `window.event`, y de ahí se saca la
+   <img>; si no hay evento —se llamó desde la consola—, el plano aparece sin vuelo. */
 function openAiFile(){
   if(!Q.aiFile||!Q.aiFile.url)return;
   const isImg=Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0;
-  const safeName=esc(Q.aiFile.name||'Archivo');
-  $('lightboxBody').innerHTML=isImg
-    ? `<img class="lightbox-img" src="${urlImagenSegura(Q.aiFile.url)}" alt="${safeName}" onclick="event.stopPropagation()">`
-    : `<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" onclick="event.stopPropagation()"></iframe>`;
+  if(isImg){
+    const ev=window.event, t=ev&&ev.target&&ev.target.closest?ev.target.closest('img'):null;
+    visorAbrir(Q.aiFile.url,Q.aiFile.name||'Archivo',t);
+    return;
+  }
+  $('lightboxBody').innerHTML=`<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" onclick="event.stopPropagation()"></iframe>`;
   $('lightbox').classList.add('show');
 }
-function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
+/* Si hay un visor con vuelo de regreso en curso, él quita la capa al aterrizar y aquí no se
+   toca nada (visorCerrar devuelve true). Sin visor —el <iframe> del PDF—, como siempre. */
+function closeLightbox(){
+  if(typeof visorCerrar==='function'&&visorCerrar()) return;
+  $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML='';
+}
 /* En un borrador esta es la ÚNICA copia de la imagen —la del historial nace al autorizar—, y
    el ✕ está a un dedo de la miniatura, con el archivo original quizá ya fuera del teléfono.
    Así que sale con Deshacer, igual que borrar una partida. */
@@ -1343,3 +1962,384 @@ function updItemAuth(id,val){
   }
 }
 
+
+/* ===================== Propuesta con opciones (pieza 76) =====================
+   Hasta aquí una cotización era UNA propuesta: para enseñarle al cliente el mismo anuncio en
+   aluminio, en acrílico y en caja de luz había que armar tres cotizaciones, o capturar una y
+   cambiarle el material con el cliente mirando la pantalla (C13 lo espía sin elegir, pero de a
+   un chip). Esto deja poner dos o tres maneras de hacer el mismo trabajo lado a lado, cada una con
+   su cuenta, y la que el cliente elige pasa a ser la partida.
+
+   ----- Por qué NO es un tipo de partida nuevo ni varias partidas marcadas como alternativas -----
+   Se midieron las dos y se descartaron.
+     · Un tipo `opciones` que contenga sus variantes deja a la partida sin los campos que todos
+       leen: lineTotal, piezasDe, itemPrecio, la huella del trabajo, la orden de trabajo, el
+       registro de la venta y la lista de material a comprar preguntan por `it.tipo` y por
+       `it.altura`, `it.ancho`… Habría que enseñarle a cada uno qué es una partida con opciones,
+       en archivos que no son de esta zona (proceso, venta, notario, historial).
+     · Varias partidas normales «alternativas entre sí» obligan a que CADA lugar que suma o que
+       lista Q.items se acuerde de saltarse las no elegidas: el total, el material a comprar, la
+       orden de trabajo, el PDF, el texto de WhatsApp. Basta con que uno se olvide y la opción que
+       el cliente NO eligió se cobra y se compra.
+   Lo que se hizo es lo contrario: la partida sigue siendo UNA partida normal, con los campos de
+   siempre, y esos campos son los de la opción que está ABIERTA. Las demás opciones viven aparte,
+   en `it.opciones`, como copias de campos que nadie suma ni lista. Cambiar de opción intercambia
+   lo que hay en la partida por la copia guardada; elegir una borra `it.opciones` y ya está: lo que
+   queda es una partida de las de siempre, sin una sola rama nueva en el total, la huella, el
+   historial, la orden de trabajo ni el registro de la venta. Nunca hay más de una opción
+   contando: las no elegidas no están en el total ni en el material a comprar porque no están en
+   ningún sitio donde se sume.
+
+   La opción abierta es la única que cuenta mientras el cliente no elige. Es un compromiso a
+   propósito: la alternativa —que mientras tanto no cuente ninguna— deja una partida en $0 en el
+   total, el PDF y el anticipo, que es peor que dejar la que se está viendo. Lo que impide que eso
+   se vaya sin querer es que la partida tiene un hueco más, «Falta elegir la opción»: sale en la
+   barra de completitud, en el «qué sigue» y en el aviso de partidas sin terminar que frena —con
+   un «de todos modos»— el mandar a autorizar y el autorizar.
+
+   ----- Forma de los datos -----
+   it.opciones = { lista:[{k, d:{…campos de la opción…}}, …], activa:k }
+     · `k` es la identidad de la opción (1, 2, 3…): la letra se saca de la POSICIÓN —A, B, C—, así
+       que quitar la B hace que la C pase a ser B sin tocar nada guardado.
+     · `d` de la opción abierta está VIEJA a propósito. Lo vivo es la partida; `opcionesVivas()`
+       lo lee de ahí. Dos fuentes de la misma cifra se desfasan en cuanto alguien teclea.
+     · Todo lo que no sea id, showInPdf u opciones es de la opción (el catálogo de campos de una
+       partida lo escriben cinco módulos y crece: una lista fija de campos perdería, sin avisar,
+       `anchoMedido` o lo que se añada mañana).
+   Una partida con una forma inválida (un respaldo viejo, un historial a medias) se trata como una
+   partida sin opciones: ni truena ni cobra de más. Los precios de cada opción salen de las
+   mismas tarifas y de la misma lineTotal() que el resto, sobre una copia: nada se escribe en Q.
+
+   ----- Lo que pasa al elegir -----
+   Es el momento de la pantalla, y se trata como tal: la tarjeta elegida se marca, el importe viaja
+   de la tarjeta al total de la partida (P.transicion, pieza 22), las otras se cierran y las
+   partidas de abajo se acomodan. Con menos movimiento solo se repinta. En los dos casos hay un
+   aviso con «Deshacer» —restituir no es capturar— y se dice en voz alta. */
+const OPC_MAX=3;
+const OPC_LETRAS=['A','B','C'];
+const FALTA_OPCION='Falta elegir la opción';
+const _FALTA_OPCION_DICE=FALTA_OPCION.replace(/^Faltan? /,'').toLowerCase();
+/* Lo que NO cambia al pasar de una opción a otra: la identidad de la partida, si sale en el PDF y
+   las propias opciones. */
+const _OPC_FUERA=['id','showInPdf','opciones'];
+
+function _opCopia(v){ return (v!==null&&typeof v==='object')?JSON.parse(JSON.stringify(v)):v; }
+/* Copia de los campos de la opción que está en la partida. */
+function _opDatos(it){
+  const d={};
+  Object.keys(it).forEach(k=>{ if(!_OPC_FUERA.includes(k)) d[k]=_opCopia(it[k]); });
+  return d;
+}
+/* La misma sanidad que normalizarItems() le da a una partida que llega de un respaldo: las cifras
+   en número, un tipo que existe. Una copia guardada es dato de fuera hasta que pasa por aquí. */
+function _opNormal(d,id){
+  const x=normalizarItems([Object.assign({},d,{id:id||1})])[0]||{};
+  delete x.id;
+  return x;
+}
+/* Pone en la partida los campos de una opción guardada. */
+function _opCargar(it,d){
+  Object.keys(it).forEach(k=>{ if(!_OPC_FUERA.includes(k)) delete it[k]; });
+  const n=_opNormal(d,it.id);
+  Object.keys(n).forEach(k=>{ if(!_OPC_FUERA.includes(k)) it[k]=_opCopia(n[k]); });
+}
+/* La propuesta de una partida, o null si no tiene una válida. */
+function opcionesDe(it){
+  const o=it&&it.opciones;
+  if(!o||typeof o!=='object'||!Array.isArray(o.lista)) return null;
+  if(o.lista.length<2||o.lista.length>OPC_MAX) return null;
+  const ks=new Set();
+  for(const x of o.lista){
+    if(!x||typeof x!=='object'||!Number.isInteger(x.k)||x.k<1||ks.has(x.k)) return null;
+    if(!x.d||typeof x.d!=='object'||Array.isArray(x.d)||!_TIPOS_PARTIDA.includes(x.d.tipo)) return null;
+    ks.add(x.k);
+  }
+  return ks.has(o.activa)?o:null;
+}
+/* Las opciones con sus campos al día, cada una como una partida suelta que se puede pasar a
+   lineTotal(), faltantesDe(), formulaHTML()… {k, letra, abierta, d}. */
+function opcionesVivas(it){
+  const o=opcionesDe(it); if(!o) return null;
+  return o.lista.map((x,i)=>{
+    const abierta=x.k===o.activa;
+    return {k:x.k,letra:OPC_LETRAS[i],abierta,d:Object.assign({id:it.id},_opNormal(abierta?_opDatos(it):x.d,it.id))};
+  });
+}
+/* ¿Dos opciones dicen lo mismo? Lo que mueve el precio, más lo que se imprime. */
+function _opFirma(d){
+  return _CAMPOS_PRECIO.concat(['ilumTipo','desc']).map(k=>d[k]===undefined?'':String(d[k])).join('~');
+}
+/* Qué es la opción, dicho con el catálogo: el material (o el tipo) como título y, debajo, la
+   medida y la iluminación. La iluminación se LEE del catálogo —aluminio posterior, acrílico
+   frontal—, no se deduce del nombre. */
+function _opRotulo(d){
+  const tipo=TIPO_NOMBRE[d.tipo]||'Partida';
+  const num=v=>Number(v)||0;
+  if(d.tipo==='letras'){
+    const m=matOf(d.material);
+    const med=[num(d.altura)>0?num(d.altura)+' cm de altura':'',num(d.n)>0?'× '+num(d.n):''].filter(Boolean).join(' ');
+    return {titulo:m?m.label:'Material sin elegir',
+      sub:[tipo+(med?' · '+med:''),d.luz?(m?m.ilum:'Con iluminación'):'Sin iluminación'].join(' · ')};
+  }
+  if(d.tipo==='recorte'){
+    const r=recOf(d.acab);
+    return {titulo:r?r.label:'Acabado sin elegir',
+      sub:tipo+(num(d.altura)>0?' · '+num(d.altura)+' cm de altura':'')+(num(d.n)>0?' × '+num(d.n):'')};
+  }
+  const medidas=num(d.ancho)>0&&num(d.alto)>0?' · '+num(d.ancho)+'×'+num(d.alto)+' cm':'';
+  if(d.tipo==='bastidor'){
+    const b=basOf(d.bas);
+    return {titulo:b?b.label:'Material sin elegir',sub:tipo+medidas};
+  }
+  if(d.tipo==='caja'){
+    const c=cajaOf(d.tarifa);
+    return {titulo:'Caja de luz'+(c?' · '+c.label:''),sub:(c?c.desc:tipo)+medidas};
+  }
+  return {titulo:(d.desc||'').trim()||'Partida manual',sub:tipo+(num(d.pz)>0?' · '+num(d.pz)+(num(d.pz)===1?' pieza':' piezas'):'')};
+}
+
+/* ----- Las operaciones, sobre la partida y sin tocar la pantalla -----
+   Cada una devuelve true si cambió algo. Separadas de las que repintan para que se puedan probar en
+   node (pruebas/cot-opciones-logica.mjs) y para que la pantalla no pueda dejar una a medias. */
+/* Convierte una partida en una propuesta de dos: la que ya estaba y una copia, que queda abierta
+   para cambiarle el material o el tipo. La copia es IGUAL a la original a propósito: elegir un
+   material por la persona es decidir un precio por ella, y esta app no lo hace. */
+function _opProponer(it){
+  if(opcionesDe(it)) return false;
+  const base=_opDatos(it);
+  it.opciones={lista:[{k:1,d:base},{k:2,d:_opCopia(base)}],activa:2};
+  return true;
+}
+function _opAgregar(it){
+  const o=opcionesDe(it); if(!o||o.lista.length>=OPC_MAX) return false;
+  const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
+  const k=Math.max(...o.lista.map(x=>x.k))+1;
+  o.lista.push({k,d:_opCopia(cur.d)}); o.activa=k;
+  return true;
+}
+function _opIr(it,k){
+  const o=opcionesDe(it); if(!o||k===o.activa) return false;
+  const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
+  const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
+  _opCargar(it,dest.d); o.activa=k;
+  return true;
+}
+/* Con una sola opción restante ya no hay propuesta: la partida vuelve a ser una de las de siempre. */
+function _opQuitar(it,k){
+  const o=opcionesDe(it); if(!o) return false;
+  const i=o.lista.findIndex(x=>x.k===k); if(i<0) return false;
+  o.lista.find(x=>x.k===o.activa).d=_opDatos(it);
+  o.lista.splice(i,1);
+  if(o.activa===k){
+    o.activa=o.lista[Math.min(i,o.lista.length-1)].k;
+    _opCargar(it,o.lista.find(x=>x.k===o.activa).d);
+  }
+  if(o.lista.length<2) delete it.opciones;
+  return true;
+}
+/* La elegida pasa a ser la partida; las demás se descartan. */
+function _opElegir(it,k){
+  const o=opcionesDe(it); if(!o) return false;
+  const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
+  if(k!==o.activa) _opCargar(it,dest.d);
+  delete it.opciones;
+  return true;
+}
+
+/* ----- Deshacer ----- */
+let _opAntes=null;
+/* Con el folio de la cotización: el aviso dura unos segundos, y si en ese tiempo se vació la
+   cotización y arrancó otra, la partida «1» de la nueva no es la «1» de la que se deshace. */
+function _opRecordar(it){ _opAntes={id:it.id,folio:Q.folio,item:JSON.parse(JSON.stringify(it))}; }
+function deshacerOpciones(){
+  const e=_opAntes; if(!e) return;
+  if(e.folio!==Q.folio){ _opAntes=null; return; }
+  if(capturaBloqueada()){ toast('La cotización está bloqueada','err'); return; }
+  const i=Q.items.findIndex(x=>x.id===e.id);
+  _opAntes=null;
+  if(i<0) return;
+  Q.items[i]=e.item;
+  repintarConViaje();
+  voz('Las opciones volvieron como estaban');
+  toast('Opciones restauradas','ok');
+}
+
+/* ----- Lo que se ve ----- */
+/* La ficha de la cara plegada: cuál está abierta y que falta elegir. */
+function opcionFichaPlegada(it,tok){
+  const v=opcionesVivas(it); if(!v) return '';
+  const a=v.find(x=>x.abierta);
+  return tok(`Opción ${a.letra} de ${v.length} · por elegir`,'falta');
+}
+/* Lo que cambia con cada tecla de una tarjeta: título, cuenta, importe. Los botones no, para no
+   quitarle el foco a nadie. */
+function _opCuerpoHTML(it,x,v){
+  const d=x.d, tot=lineTotal(d), faltan=faltantesDe(d);
+  const r=_opRotulo(d);
+  const igual=v.find(y=>y.k!==x.k&&y.letra<x.letra&&_opFirma(y.d)===_opFirma(d));
+  return `<div class="op-cab"><span class="op-letra" aria-hidden="true">${x.letra}</span><span class="op-etq">Opción ${x.letra}</span>`
+      +(x.abierta?'<span class="op-tag">Abierta</span>':'')+`</div>
+    <h4 class="op-t" id="opt-${it.id}-${x.k}">${esc(r.titulo)}</h4>
+    <p class="op-sub">${esc(r.sub)}</p>
+    <p class="op-cuenta">${formulaHTML(d)}</p>`
+    +(igual?`<p class="op-igual">Igual que la opción ${igual.letra}: cámbiale el material o el tipo.</p>`:'')
+    +`<span class="op-precio" id="opp-${it.id}-${x.k}">${faltan.length||!(tot>0)?'—':money(tot)}</span>`;
+}
+function _opCompleta(d){ return !faltantesDe(d).length&&lineTotal(d)>0; }
+function _opCardHTML(it,x,v,bloq){
+  const ok=_opCompleta(x.d);
+  const sello=window.Piezas&&Piezas.palomitaHTML?Piezas.palomitaHTML({circulo:true,dibujar:false}):'';
+  return `<article class="op-card${x.abierta?' abierta':''}" id="opc-${it.id}-${x.k}" data-k="${x.k}" role="group" aria-labelledby="opt-${it.id}-${x.k}">
+    <div class="op-cuerpo" id="opcu-${it.id}-${x.k}">${_opCuerpoHTML(it,x,v)}</div>
+    <span class="op-sello" aria-hidden="true">${sello} Elegida</span>`
+    +(bloq?'':`<div class="op-acc">
+      <button type="button" class="btn btn-pri op-elegir" data-foco="op-elegir-${it.id}-${x.k}"${ok?'':' aria-disabled="true"'} aria-label="Elegir la opción ${x.letra}" onclick="elegirOpcion(${it.id},${x.k})">Elegir esta</button>
+      ${x.abierta?'':`<button type="button" class="btn btn-gho op-ed" data-foco="op-ed-${it.id}-${x.k}" aria-label="Editar la opción ${x.letra}" onclick="abrirOpcion(${it.id},${x.k})">Editar</button>`}
+      <button type="button" class="op-quita" data-foco="op-quita-${it.id}-${x.k}" aria-label="Quitar la opción ${x.letra}" title="Quitar la opción ${x.letra}" onclick="quitarOpcion(${it.id},${x.k})"><span aria-hidden="true">×</span></button>
+    </div>`)
+    +`</article>`;
+}
+function opcionesHTML(it,v){
+  const bloq=capturaBloqueada();
+  const a=v.find(x=>x.abierta);
+  return `<section class="opciones" id="opciones-${it.id}" aria-labelledby="oph-${it.id}">
+    <div class="op-barra">
+      <h3 class="op-h" id="oph-${it.id}">Propuesta con ${v.length} opciones</h3>
+      ${(!bloq&&v.length<OPC_MAX)?`<button type="button" class="op-mas" data-foco="op-mas-${it.id}" onclick="agregarOpcion(${it.id})">+ Otra opción</button>`:''}
+    </div>
+    <div class="opciones-rej">${v.map(x=>_opCardHTML(it,x,v,bloq)).join('')}<span class="resalte-mos" aria-hidden="true"></span></div>
+    <p class="op-nota">${Q.iva?'Importes antes de I.V.A.':'Importes sin I.V.A.'} El total de la cotización suma solo la opción abierta; al elegir una, las demás se descartan.</p>
+    <h4 class="op-edita" id="opced-${it.id}" tabindex="-1">Estás editando la opción ${a.letra}</h4>
+  </section>`;
+}
+/* El botón que convierte una partida en propuesta. Una partida en blanco no tiene nada que
+   comparar, y con el candado puesto no se puede proponer. */
+function _opPieHTML(it){
+  if(capturaBloqueada()||itemVacio(it)) return '';
+  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" onclick="proponerOpciones(${it.id})">Proponer otra opción</button><small>El mismo trabajo en otro material o tipo, lado a lado.</small></div>`;
+}
+/* Lo que renderItems() pone dentro del cuerpo de la partida. */
+function cuerpoConOpciones(it){
+  const v=opcionesVivas(it);
+  return v?opcionesHTML(it,v)+bodyFor(it):bodyFor(it)+_opPieHTML(it);
+}
+/* Cada tecla en el editor cambia el importe de la opción abierta: su tarjeta lo sigue sin
+   repintar nada más. */
+function opcionesRepintar(it){
+  const v=opcionesVivas(it); if(!v) return;
+  v.forEach(x=>{
+    const c=$('opcu-'+it.id+'-'+x.k); if(c) c.innerHTML=_opCuerpoHTML(it,x,v);
+    const b=document.querySelector('#opc-'+it.id+'-'+x.k+' .op-elegir');
+    if(b){ if(_opCompleta(x.d)) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled','true'); }
+  });
+}
+
+/* ----- Las acciones de los botones ----- */
+function _opPartida(id){
+  if(capturaBloqueada()) return null;
+  return Q.items.find(x=>x.id===id)||null;
+}
+/* Después de repintar, el foco al encabezado «Estás editando…»: es lo que se acaba de abrir y
+   lo que un lector de pantalla tiene que leer. Y a la vista: las tarjetas miden unas tres
+   pantallas apiladas en un teléfono, así que el editor de la opción que se tocó queda lejos de
+   donde estaba el dedo. Solo se desplaza si de verdad quedó fuera de la parte alta de la pantalla. */
+function _opAlEditor(id){
+  const h=$('opced-'+id);
+  if(!h) return;
+  try{ h.focus({preventScroll:true}); }catch(_){ h.focus(); }
+  const y=h.getBoundingClientRect().top;
+  if(y<altoTopbarFija()||y>window.innerHeight*0.55) irA(h,56);
+}
+function proponerOpciones(id){
+  const it=_opPartida(id); if(!it||!_opProponer(it)) return;
+  _plegadas.delete(id);
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Propuesta con 2 opciones: la segunda quedó abierta para cambiarla');
+}
+function agregarOpcion(id){
+  const it=_opPartida(id); if(!it||!_opAgregar(it)) return;
+  const n=opcionesDe(it).lista.length;
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Opción '+OPC_LETRAS[n-1]+' agregada y abierta');
+}
+function abrirOpcion(id,k){
+  const it=_opPartida(id); if(!it||!_opIr(it,k)) return;
+  const l=opcionesVivas(it).find(x=>x.k===k).letra;
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Editando la opción '+l);
+}
+function quitarOpcion(id,k){
+  const it=_opPartida(id); if(!it) return;
+  const l=(opcionesVivas(it)||[]).find(x=>x.k===k);
+  if(!l) return;
+  _opRecordar(it);
+  if(!_opQuitar(it,k)) return;
+  const queda=!!opcionesDe(it);
+  repintarConViaje(()=>{ const b=queda?document.querySelector('#opciones-'+id+' .op-mas, #opciones-'+id+' .op-elegir'):null; if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } } });
+  /* El aviso ya se dice en voz alta (P.aviso): una `voz()` más lo leería dos veces. */
+  toast('Opción '+l.letra+' quitada'+(queda?'':': la partida volvió a tener una sola opción'),'',6000,{label:'Deshacer',fn:deshacerOpciones});
+}
+/* Un segundo Enter o un segundo toque mientras la transición de vista todavía no repinta no debe
+   elegir dos veces: la primera ya quitó la propuesta, pero con View Transitions el repintado llega
+   un cuadro después. */
+let _opEligiendo=false;
+function elegirOpcion(id,k){
+  if(_opEligiendo) return;
+  const it=_opPartida(id); if(!it) return;
+  const v=opcionesVivas(it); if(!v) return;
+  const x=v.find(y=>y.k===k); if(!x) return;
+  /* Una opción a medias no se elige: la partida quedaría sin material o sin medidas, que es lo
+     que esta función existe para evitar. Se dice qué falta y se abre para completarla. */
+  if(!_opCompleta(x.d)){
+    const f=faltantesDe(x.d);
+    toast(`La opción ${x.letra} no está completa: `+(f.length?'falta '+f.join(', '):'no tiene importe')+'.','err',5200);
+    if(!x.abierta) abrirOpcion(id,k); else _opAlEditor(id);
+    return;
+  }
+  _opRecordar(it);
+  const otras=v.length-1, r=_opRotulo(x.d);
+  /* La tarjeta se marca ANTES de la foto del «antes»: es la que viaja. */
+  const card=$('opc-'+id+'-'+k);
+  if(card) card.classList.add('elegida');
+  _opEligiendo=true;
+  let pintada=false;
+  const nombres={};
+  Q.items.forEach(y=>{ nombres['p-'+y.id]=()=>$('p-'+y.id); });
+  /* El importe es lo que viaja: sale de la tarjeta y llega al total de la partida. */
+  nombres['elegida-precio']=()=>pintada?$('lt-'+id):(card&&card.querySelector('.op-precio'));
+  const hecho=()=>{
+    _opEligiendo=false;
+    _opElegir(it,k);
+    pintada=true;
+    renderItems();
+    /* Las tarjetas ocupaban media pantalla y se fueron: lo que quedaba bajo el dedo era el
+       editor, con el encabezado de la partida y su total fuera de la vista. Se trae el encabezado,
+       en seco y solo si de verdad se salió (igual que togglePartida al plegar). */
+    const el=$('p-'+id);
+    if(el){ const d=el.getBoundingClientRect().top-altoTopbarFija()-8; if(d<0) window.scrollBy(0,d); }
+    const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
+    if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
+  };
+  const P=window.Piezas;
+  if(P&&P.transicion) P.transicion(hecho,{nombres}).catch(e=>{ _opEligiendo=false; try{ console.error(e); }catch(_){} });
+  else hecho();
+  /* El aviso ya se dice en voz alta (P.aviso); lleva lo que se descartó para que quien no ve la
+     pantalla sepa que las otras ya no están. */
+  toast(`Opción ${x.letra} elegida: ${r.titulo}. ${otras===1?'La otra se descartó':'Las otras '+otras+' se descartaron'}.`,'ok',7000,{label:'Deshacer',fn:deshacerOpciones});
+}
+
+/* ----- Para el PDF ----- */
+/* Las opciones que se pueden poner delante del cliente: las que tienen su cuenta completa y su
+   importe, sin repetir una que dice lo mismo que otra. Con menos de dos no hay nada que comparar
+   y devuelve null (la partida sale como cualquier otra). Las letras son las de la pantalla. */
+function opcionesParaPdf(it){
+  const v=opcionesVivas(it); if(!v) return null;
+  const vistas=new Set(), buenas=[];
+  v.forEach(x=>{
+    if(!_opCompleta(x.d)) return;
+    const f=_opFirma(x.d); if(vistas.has(f)) return;
+    vistas.add(f); buenas.push({k:x.k,letra:x.letra,abierta:x.abierta,d:x.d,total:lineTotal(x.d)});
+  });
+  return buenas.length>=2?{n:v.length,opciones:buenas}:null;
+}
+/* ===================== fin de la propuesta con opciones ===================== */

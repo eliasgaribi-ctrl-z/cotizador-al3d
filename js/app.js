@@ -15,8 +15,8 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
-import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, cerrarCapa, ajustarAltoBarra, esqueletoModulo,
-         confirmarPf }
+import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, abrirCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo,
+         confirmarPf, fmtFechaDia }
   from './nucleo/ui.js';
 import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
 
@@ -55,9 +55,16 @@ import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
    esta pantalla, en cinco palabras. No es decoración —el encabezado antes decía «Obra,
    material y agenda» en las seis— y en el teléfono no se pinta, que es donde no cabe.
 
-   `movil` marca las cinco que entran en la barra de abajo. Material se queda fuera: con seis
-   botones en una pantalla de 360 px cada uno mide 60 y el nombre no cabe debajo del icono.
-   Se llega a Material desde el Tablero, que es de donde se sale a comprar. */
+   `movil` marca las que se quedan en la barra de abajo del teléfono cuando el rol tiene más
+   rutas de las que caben. La barra son CINCO botones y no seis: con seis, cada uno mide 60 px en
+   una pantalla de 360 y el nombre no cabe debajo del icono. Así que si el rol ve más de cinco
+   rutas, se quedan las cuatro marcadas y el quinto botón es «Más», que abre una hoja con todas
+   las demás —las del rol que NO llevan `movil`—, cada una con su globo de cuenta. Si el rol ve
+   cinco o menos (pagos: Tablero, Calendario, Proyectos, Cotizador y Control), no hay «Más» y la
+   barra las lleva todas: es lo que hace que pagos tenga a un toque Control, que es SU pantalla.
+   Material, Control, la Mesa de corte y el Vectorizador solo se alcanzaban bajando hasta el pie
+   del Tablero. Quién se queda a la vista es cuestión de mover una marca aquí, que es la única
+   lista (`repartirBarra`, más abajo, es la regla). */
 const RUTAS = [
   { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
@@ -68,7 +75,7 @@ const RUTAS = [
      el marco al entrar costaba 795 KB de guiones reinterpretados por visita. Con la marca, el
      router la esconde en vez de tirarla y al volver solo la enseña. */
   { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'], conservar: true },
-  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
+  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',                   roles: ['direccion', 'fabricacion'] },
   /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
      ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
      de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
@@ -123,6 +130,9 @@ const ctx = {
   pasar: (ruta, dato) => { _pase = { ruta, dato }; ir(ruta); },
   recibir: () => { const p = (_pase && _pase.ruta === _actual) ? _pase.dato : null; _pase = null; return p; },
   sinRemonte: v => { _sinRemonte = !!v; },
+  /* ¿Este montaje es un remonte en silencio de la pantalla que ya se veía, y no una visita? Para
+     las cifras que ruedan (P18): solo tienen sentido cuando algo cambió estando ahí. */
+  esRemonte: () => _remontando,
   /* Las acciones contextuales del encabezado: hoy las teclas del calendario y el «Bajar CSV»
      de Control, que son los dos módulos que llaman aquí. Se pasa marcado ya escapado y se
      recibe el nodo para colgarle los oyentes. El router las vacía en cada montaje, así que un
@@ -192,6 +202,16 @@ let _bandaLista = false;
 
    Se apaga en cada montaje, así que no puede quedarse pegada. */
 let _sinRemonte = false;
+
+/* El montaje en curso es un remonte en silencio de la pantalla que ya estaba (sincronización,
+   cambio de rol, otra pestaña que guardó) y no una visita. Ver P18 en `montarDeVerdad`. */
+let _remontando = false;
+
+/** Olvida lo que la pieza 1 recuerda de cada cifra: el primer pintado tras entrar no rueda. */
+function olvidarCifras() {
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  if (P && P.rodarCifra && P.rodarCifra.olvidar) P.rodarCifra.olvidar();
+}
 
 /* ============================================================================
    Router
@@ -302,14 +322,84 @@ const Progreso = {
   },
 };
 
-function faseArranque(texto) {
-  const t = $('pf-arranque-tx');
-  if (t) t.textContent = texto;
+/* ----- P22 · EL ARRANQUE EN PASOS -----
+   Era una sola línea que se reescribía cuatro veces. Cuando algo se atoraba, el aviso de los
+   ocho segundos decía «tarda más de lo normal» y nada más: con la base que no abre y con un
+   import colgado por un service worker a medias se leía EXACTAMENTE igual, y son dos cosas
+   distintas de arreglar. Ahora las cuatro fases son cuatro renglones de la traza (pieza 8) que
+   se quedan puestos: el que terminó con su palomita y lo que tardó, el que trabaja con su
+   reloj corriendo —lo único que se mueve— y los que faltan en gris.
+
+   El marcado es FIJO, en index.html, por lo mismo que el resto del esqueleto: tiene que verse
+   desde el primer pintado. Aquí solo se adopta con Piezas.traza(), que lo toma tal como está.
+
+   Las claves son las del marcado y el orden ES el del arranque: al entrar en una fase, la
+   anterior que seguía trabajando se da por hecha. Una que se salta —el catálogo cuando la base
+   no abrió— se dice a propósito con `saltarArranque()`, y no se hereda del orden: un paso que
+   no corrió no es un paso que salió bien. */
+const PASOS_ARRANQUE = ['puerta', 'base', 'catalogo', 'pantalla'];
+let _traza = null;
+
+function trazaArranque() {
+  const caja = $('pf-arranque-traza');
+  if (!caja || !caja.isConnected) { _traza = null; return null; }
+  if (!_traza) {
+    const P = typeof window !== 'undefined' ? window.Piezas : null;
+    if (!P || !P.traza) return null;
+    _traza = P.traza(caja, { reloj: 's', plegar: false });
+  }
+  return _traza;
+}
+
+/** El estado que tiene un renglón del arranque ahora, leído de su marcado. */
+function estadoDeFase(clave) {
+  const caja = $('pf-arranque-traza');
+  const li = caja && caja.querySelector('[data-clave="' + clave + '"]');
+  return li ? li.dataset.estado : '';
+}
+
+/** Entra en una fase del arranque. `texto` cambia el rótulo del renglón y `detalle` le añade una
+ *  coletilla (la última fase dice a qué pantalla va); sin ellos se queda lo que trae el marcado.
+ *
+ *  Lo anterior que seguía en espera o trabajando se da por hecho, porque el orden ES el del
+ *  arranque. Pero un renglón que ya dijo otra cosa —«se saltó», «falló»— se queda como lo dijo:
+ *  sin esto, el catálogo que se saltó porque la base no abrió salía con su palomita al llegar a
+ *  la pantalla, que es exactamente la mentira que el renglón ámbar existe para no decir. */
+function faseArranque(clave, texto, detalle) {
+  const t = trazaArranque();
+  if (!t) return;
+  for (const k of PASOS_ARRANQUE) {
+    if (k === clave) break;
+    const e = estadoDeFase(k);
+    if (e === 'espera' || e === 'trabaja') t.hecho(k);
+  }
+  t.paso(clave, texto || null, 'trabaja', detalle);
+}
+
+/** Una fase que no corrió. Lleva su motivo al lado, en ámbar, para que el renglón no se quede
+ *  girando ni mienta con una palomita. */
+function saltarArranque(clave, motivo) {
+  const t = trazaArranque();
+  if (t) t.salta(clave, motivo || '');
+}
+
+/** Una fase que corrió y falló: la cruz roja con su motivo, y se queda así. */
+function fallarArranque(clave, motivo) {
+  const t = trazaArranque();
+  if (t) t.falla(clave, motivo || '');
+}
+
+/** En qué paso se quedó, para el aviso de los ocho segundos. */
+function pasoDelArranque() {
+  const t = trazaArranque();
+  const a = t && t.actual();
+  return a && a.texto ? a.texto : '';
 }
 
 function quitarArranque() {
   const a = $('pf-arranque');
   if (a) a.remove();
+  _traza = null;
   if (_lentoArranque) { clearTimeout(_lentoArranque); _lentoArranque = 0; }
 }
 
@@ -318,8 +408,13 @@ function quitarArranque() {
 function avisarLento(caja, r) {
   const t = caja && caja.querySelector('.pf-esqueleto-t');
   if (!t) return;
+  /* Y en QUÉ se atoró, cuando se sabe (P22): con la traza del arranque puesta, el renglón que
+     sigue girando es la respuesta, y repetirla aquí es lo que hace que el aviso sirva para
+     algo más que recargar a ciegas. En el esqueleto de un módulo no hay traza y la frase se
+     queda como estaba. */
+  const en = caja && caja.id === 'pf-arranque' ? pasoDelArranque() : '';
   t.innerHTML = ico('i-aviso') + ' <span>' + (r ? '«' + esc(r.nombre) + '»' : 'La plataforma') +
-    ' tarda más de lo normal. Si no aparece, recargar suele arreglarlo.</span>' +
+    ' tarda más de lo normal' + (en ? ' en «' + esc(en) + '»' : '') + '. Si no aparece, recargar suele arreglarlo.</span>' +
     '<button type="button" class="btn btn-gho" data-recargar>Recargar</button>';
   t.setAttribute('role', 'alert');
   const b = t.querySelector('[data-recargar]');
@@ -438,6 +533,25 @@ async function montarDeVerdad(ruta, opts = {}) {
      se encogía, el navegador recortaba el scroll y todo volvía a aparecer: cada 30 s, si otro
      teléfono había movido algo. */
   const enSilencio = !!opts.forzar && _actual === ruta;
+  /* ----- P18 · LAS CUENTAS RUEDAN CUANDO CAMBIAN, Y NUNCA AL ENTRAR -----
+     Cuando llega algo de otro teléfono, «Van tarde 2» pasaba a 3 en seco y nadie se daba cuenta.
+     La pieza 1 recuerda lo último que pintó cada cifra por su `clave` —no por el nodo, que el
+     remonte tira— y la hace rodar del valor viejo al nuevo, con su «+1». Lo que decide aquí
+     es CUÁNDO tiene sentido, y son dos casos distintos:
+
+       · Un remonte en silencio de la pantalla que se está mirando —la sincronización trajo
+         algo, otra pestaña guardó, se cambió el rol— NO olvida nada: la cuenta que cambió rueda
+         desde lo que la persona estaba viendo.
+       · Entrar a una pantalla SÍ olvida todo. Contar desde el valor de la última visita sería
+         movimiento sin acción, y peor, con un número que se verá mal un segundo: volver al
+         Tablero una hora después y ver «2» rodar hasta «3» dice que algo acaba de pasar cuando
+         llevaba una hora ahí. El brief lo descarta con todas sus letras (CountUp al montar).
+
+     Cada módulo pinta sus cuentas con `Piezas.rodarCifra(b, texto, {clave, delta:true})` y no
+     tiene que saber nada de esto; `ctx.esRemonte()` está por si prefiere decidir él con
+     `animar:`. Vale mientras dura ESTE montaje: `rematar()` lo apaga. */
+  _remontando = enSilencio;
+  if (!enSilencio) olvidarCifras();
 
   /* El plan: qué se desmonta, qué se esconde y si lo que hay en la sección del destino
      sirve. Es aritmética sobre nombres de ruta y vive aparte, en js/nucleo/conservar.js, para
@@ -512,6 +626,31 @@ async function montarDeVerdad(ruta, opts = {}) {
      mapa, y son botones que hacen cosas. */
   const acc = $('pf-cab-acc');
   if (acc) acc.innerHTML = '';
+
+  /* ----- P24 · LA PANTALLA ENTRA POR DONDE ESTÁ EN LA BARRA -----
+     Las ocho entraban igual, así que ir y volver entre dos pantallas se veía idéntico y la
+     barra no decía nada de dónde estabas. Con la dirección, la barra se lee como un mapa: lo
+     que está más abajo en ella llega desde la derecha; lo que está más arriba, desde la
+     izquierda. Las ocultas —Qué atender, Ajustes— no tienen lugar en la barra y se quedan con
+     el fundido de siempre, porque son «de adentro» y no un sitio al que ir de lado.
+
+     Se apoya en los `entra-der`/`entra-izq` que css/sistema.css ya tiene para el cotizador: 12
+     píxeles, no 24. La auditoría de movimiento de PR #71 dejó `.pf-mod` en un fundido de 120 ms
+     a propósito —«una entrada dice esto es nuevo; repetida en la navegación se lee como que la
+     app va lenta»— y esto no lo deshace: el desplazamiento es corto, dura 200 ms, solo se pone
+     cuando las DOS pantallas tienen sitio en la barra, y con las teclas 1-9 y con movimiento
+     reducido no hay nada.
+
+     No es `Piezas.transicion()` con `contenedor` y `direccion`, que es lo que sugería la
+     pieza: con View Transitions el navegador FOTOGRAFÍA la pantalla de antes y la de después
+     en cuanto se quita el `hidden`, y aquí la de después todavía está vacía —el módulo llega
+     por un `import()` y pinta más tarde—, así que la foto sería un hueco. Y mientras dura el
+     viaje Chrome le manda todo toque al <html>: en una barra que se toca de seguido, cada
+     segundo toque se perdía. Una animación de CSS sobre la sección que aparece no fotografía
+     nada y no bloquea nada.
+
+     Va ANTES de quitar el `hidden`, que es lo que rearranca la animación de la sección. */
+  ponerDireccion(_actual, ruta, $(r.seccion));
 
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
   _actual = ruta;
@@ -594,6 +733,7 @@ async function montarDeVerdad(ruta, opts = {}) {
    enseñar. Está aparte para que no haya dos copias que se separen: el día que una de estas
    cinco líneas cambie, cambia para los dos caminos. */
 function rematar(r, ruta, opts) {
+  _remontando = false;
   /* Idempotente: en el camino de montaje ya lo llamó `listo()`. Se repite aquí porque el de
      reutilizar no pasa por `listo()`, y dejar el esqueleto de arranque puesto es dejar la app
      tapada para siempre. */
@@ -616,6 +756,51 @@ function rematar(r, ruta, opts) {
    La barra de módulos y el segmento de rol
    ============================================================================ */
 
+/* ----- P5 · LA BARRA DEL TELÉFONO SE QUEDA EN CINCO, Y LA QUINTA ES «MÁS» -----
+   Material, Control, la Mesa de corte y el Vectorizador solo se alcanzaban bajando hasta el pie
+   del Tablero, y pagos tenía cuatro botones abajo y aun así no tenía Control, que es SU
+   pantalla. La barra se llena hasta cinco con las rutas del rol y, si sobran, el quinto botón
+   abre una hoja con las demás.
+
+   Cinco y no seis está medido y escrito desde antes en css/plataforma.css: con seis, cada botón
+   mide 60 px en una pantalla de 360 y el nombre no cabe debajo del icono. Con cinco, 72.
+
+   La regla, y no hay otra: se toman las rutas visibles del rol con las marcadas `movil` primero
+   y las demás detrás, en el orden de RUTAS. Si son cinco o menos, todas van en la barra y no hay
+   «Más» —pagos: Tablero, Calendario, Proyectos, Cotizador y Control—. Si son más, se quedan las
+   primeras cuatro y el quinto botón abre la hoja con lo que sobró —dirección: Mapa, Material,
+   Mesa de corte, Vectorizador y Control—. Los nombres, los iconos y las líneas de la hoja son
+   los de RUTAS: no hay una segunda lista que se pueda desincronizar, y un módulo nuevo aparece en
+   la barra lateral, en la de abajo o en «Más» con el mismo renglón. */
+const TOPE_BARRA = 5;
+
+/** El reparto, sin tocar nada: las rutas visibles de un rol entran, y salen las que van en la
+ *  barra y las que van dentro de «Más». Es la única regla de esta zona que se puede probar sin
+ *  pintar, y por eso es una función con nombre y no un `if` metido en `pintarNav()`. */
+export function repartirBarra(visibles, tope = TOPE_BARRA) {
+  const orden = visibles.filter(r => r.movil).concat(visibles.filter(r => !r.movil));
+  if (orden.length <= tope) return { barra: orden, mas: [] };
+  return { barra: orden.slice(0, tope - 1), mas: orden.slice(tope - 1) };
+}
+
+/** Lo mismo, ya aplicado al rol de ahora. */
+function rutasDeLaBarra() {
+  return repartirBarra(rutasDeRol().filter(r => !r.oculto));
+}
+
+/* ----- P19 · LAS BARRAS SE PINTAN UNA VEZ -----
+   `pintarNav()` reescribía las dos barras enteras en CADA montaje, así que las transiciones que
+   `.pil` y `.pf-tab` declaran desde siempre no corrían nunca: el botón nuevo nacía ya encendido
+   y la píldora aparecía de golpe en el destino. Ahora el marcado se escribe solo cuando cambia
+   lo que tiene que haber —el rol cambió, o la lista de rutas del rol— y lo demás es mover `.on`
+   y `aria-current`. Encima de eso, la pieza 2 desliza UNA marca del elegido anterior al nuevo:
+   el filete en la barra lateral y la píldora del icono en la de abajo.
+
+   `_navFirma` es lo que decide si hay que reescribir. Incluye el rol, las rutas visibles y las
+   que caben en la barra: si una de las tres cambia, los botones son otros. */
+let _navFirma = null;
+let _fichaLat = null, _fichaAbajo = null;
+
 function pintarNav() {
   /* Una ruta oculta prende la pestaña de su madre. Sin esto, estar en «Qué atender» dejaba
      la tira ENTERA apagada: la pantalla no dice dónde estás y la única salida visible es
@@ -623,14 +808,30 @@ function pintarNav() {
   const madre = (rutaPorNombre(_actual) || {}).padre || null;
   const activa = r => r.ruta === _actual || r.ruta === madre;
   const visibles = rutasDeRol().filter(r => !r.oculto);
+  const { barra, mas } = rutasDeLaBarra();
 
+  const firma = Prefs.rol() + '|' + visibles.map(r => r.ruta).join(',') + '|' + barra.map(r => r.ruta).join(',');
+  if (firma !== _navFirma) { _navFirma = firma; escribirNav(visibles, barra, mas); }
+  marcarNav(activa, mas);
+}
+
+function escribirNav(visibles, barra, mas) {
+  /* Una barra nueva son globos nuevos y vacíos: lo que se recordaba de cada cuenta ya no es de
+     nadie, y sin olvidarlo el primer llenado parecería una subida. `pintarCuentasNav()` corre
+     justo después de montar, así que se vuelven a escribir sin saltar. */
+  _cuentaAntes.clear();
   const nav = $('pf-nav');
+  /* La tecla de cada pestaña es su lugar: solo hay atajo del 1 al 9, así que una décima ruta
+     —hoy no hay— saldría con un «tecla 10» que no existe. */
   if (nav) nav.innerHTML = visibles.map((r, i) =>
-    '<button type="button" class="pf-tab' + (activa(r) ? ' on' : '') + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '"' +
-    /* El atajo va en el title, que es lo que lee el ratón en la computadora. En el teléfono
-       no hay teclado y el title no molesta. */
-    ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">' +
+    '<button type="button" class="pf-tab"' +
+    ' data-ruta="' + r.ruta + '" aria-current="false"' +
+    /* El nombre y el atajo los enseña la pieza 4 con su propio globo (P31); el `title` se
+       queda como respaldo para quien navegue sin las piezas. La pieza lo aparta mientras el
+       ratón está encima, para que los dos no se encimen. */
+    (i < 9 ? ' data-nombre="' + esc(r.nombre) + '" data-tecla="' + (i + 1) + '" aria-keyshortcuts="' + (i + 1) + '"' +
+             ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">'
+           : ' title="' + esc(r.nombre) + '">') +
     ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
     '<span class="cta" data-cta="' + r.ruta + '" hidden></span></button>'
   ).join('');
@@ -642,13 +843,150 @@ function pintarNav() {
      barra lateral; lo que hace que solo se anuncie una es que la otra está en `display:none`
      a su ancho, y eso el árbol de accesibilidad ya lo respeta. */
   const ab = $('pf-abajo');
-  if (ab) ab.innerHTML = visibles.filter(r => r.movil).map(r =>
-    '<button type="button" class="' + (activa(r) ? 'on' : '') + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '">' +
-    '<span class="pil">' + ico(r.icono) +
-    '<span class="cta" data-cta-movil="' + r.ruta + '" hidden></span></span>' +
-    esc(r.nombre) + '</button>'
-  ).join('');
+  if (ab) {
+    ab.innerHTML = barra.map(r =>
+      '<button type="button"' +
+      ' data-ruta="' + r.ruta + '" aria-current="false">' +
+      '<span class="pil">' + ico(r.icono) +
+      '<span class="cta" data-cta-movil="' + r.ruta + '" hidden></span></span>' +
+      esc(r.nombre) + '</button>'
+    ).join('') + (mas.length
+      /* «Más» lleva su palabra debajo, como los otros cuatro: un icono de tres puntos solo no
+         dice a dónde lleva, y a 360 px la palabra cabe (cada botón mide 72). Lo suyo es el globo,
+         que SUMA los de las rutas que esconde —si Material tiene tres por comprar, esconderlo
+         no puede esconder el tres— y el `aria-label`, que dice la suma porque el globo es
+         `aria-hidden` (lo escribe `pintarCuentasNav`). */
+      ? '<button type="button" class="pf-mas-btn" data-mas aria-haspopup="dialog" aria-expanded="false"' +
+        ' aria-controls="pf-mas" aria-label="Más módulos" aria-current="false">' +
+        '<span class="pil">' + ico('i-puntos') +
+        '<span class="cta" data-cta-mas hidden aria-hidden="true"></span></span>Más</button>'
+      : '');
+  }
+
+  /* La marca que se desliza (pieza 2). Se engancha una vez por barra: su observador ve el
+     cambio de `aria-current`/`.on` que hace `marcarNav()` y una sola ficha viaja del botón que
+     se apaga al que se enciende. En la de abajo lo que lleva el relleno no es el botón sino su
+     `.pil`, y por eso se mide ésa. En reposo pintan las reglas de siempre, así que el filete
+     de la barra lateral y la píldora azul siguen siendo los del CSS de este repo. */
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  if (P && P.fichaQueViaja) {
+    if (!_fichaLat && nav) _fichaLat = P.fichaQueViaja(nav);
+    if (!_fichaAbajo && ab) _fichaAbajo = P.fichaQueViaja(ab, { medir: b => b.querySelector('.pil') });
+  }
+  /* Los nombres con su tecla, en la barra lateral (P31). Delegada y una sola vez: los botones
+     se reescriben debajo y la pieza los sigue. El nombre ya está escrito en cada pestaña —no
+     es un icono solo—: lo que el globo añade es la TECLA, que hasta hoy vivía en un `title`
+     nativo que tarda un segundo en salir, no tiene estilo y no existe con el dedo. Por eso
+     `toque:false`: en un teléfono no hay teclado que enseñar. */
+  if (P && P.nombres && nav && !_nombresLat) {
+    _nombresLat = P.nombres(nav, {
+      selector: '.pf-tab[data-tecla]', siempre: true, toque: false,
+      texto: el => ({ nombre: el.dataset.nombre, tecla: el.dataset.tecla }),
+    });
+  }
+}
+
+/* ----- P5 · LA HOJA DE «MÁS» -----
+   Una capa de las de siempre —`registrarCapa()`— y no un invento aparte: así Escape, el cerco
+   del tabulador, el botón atrás del teléfono y el deslizar hacia abajo para cerrarla salen del
+   mismo sitio que en la ficha de un proyecto, sin escribir aquí ni un oyente de `document`.
+
+   La rejilla se arma en cada apertura y no una vez: las cuentas cambian solas, y una hoja que
+   enseña «Material · 3 por comprar» tiene que decir la verdad en el momento en que se abre. */
+function abrirMas() {
+  const capa = $('pf-mas');
+  const { mas } = rutasDeLaBarra();
+  if (!capa || !mas.length) return;
+  const fila = r => {
+    const n = _cuentas.get(r.ruta) || 0;
+    return '<li><button type="button" class="pf-mas-op" data-ruta="' + r.ruta + '"' +
+      ' aria-label="' + esc(r.nombre) + (n ? ', ' + n + (n === 1 ? ' cosa que atender' : ' cosas que atender') : '') + '"' +
+      (r.ruta === _actual ? ' aria-current="page"' : '') + '>' +
+      ico(r.icono) +
+      '<span class="pf-mas-n">' + esc(r.nombre) + '</span>' +
+      '<small class="pf-mas-d">' + esc(r.sub || '') + '</small>' +
+      (n ? '<span class="cta" aria-hidden="true">' + (n > 99 ? '99+' : n) + '</span>' : '') +
+      '</button></li>';
+  };
+  capa.innerHTML = '<div class="pf-panel pf-mas-panel">' +
+    '<div class="pf-panel-h"><h2 id="pf-mas-t">Más módulos</h2>' +
+    '<button type="button" class="pf-cerrar" data-mas-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
+    '<div class="pf-panel-b"><ul class="pf-mas-rej">' + mas.map(fila).join('') + '</ul></div></div>';
+  capa.setAttribute('aria-labelledby', 'pf-mas-t');
+  const btn = document.querySelector('#pf-abajo [data-mas]');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+  abrirCapa('pf-mas', { hist: true });
+}
+
+function cerrarMas() {
+  cerrarCapa('pf-mas');
+  const btn = document.querySelector('#pf-abajo [data-mas]');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+/** Mueve el encendido. Es lo único que corre en un cambio de pantalla. */
+function marcarNav(activa, mas) {
+  const enMas = mas.some(activa);
+  for (const b of document.querySelectorAll('#pf-nav [data-ruta],#pf-abajo [data-ruta]')) {
+    const r = rutaPorNombre(b.dataset.ruta);
+    const on = !!r && activa(r);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-current', on ? 'page' : 'false');
+  }
+  /* Estando en una pantalla que vive dentro de «Más», el que se enciende es «Más»: si no, la
+     barra de abajo se queda entera apagada y no dice dónde estás. */
+  const bm = document.querySelector('#pf-abajo [data-mas]');
+  /* `true` y no `page`: «Más» no es la página, es el sitio donde está. */
+  if (bm) { bm.classList.toggle('on', enMas); bm.setAttribute('aria-current', enMas ? 'true' : 'false'); }
+}
+
+/* El globo con los nombres y las teclas de la barra lateral (pieza 4, variante «nombres»). */
+let _nombresLat = null;
+
+/** En qué lugar de la barra está una ruta. −1 = no tiene sitio (las ocultas: «Qué atender» y
+ *  Ajustes, que son de adentro y no un lugar al que ir de lado). */
+function lugarEnLaBarra(ruta) {
+  return rutasDeRol().filter(r => !r.oculto).findIndex(r => r.ruta === ruta);
+}
+
+/** De qué lado entra la pantalla, o '' si no tiene lado: sale de comparar los LUGARES en la
+ *  barra, no de la historia —de Mapa a Tablero siempre es «hacia atrás», aunque se haya llegado
+ *  a Mapa desde Proyectos—. Es aritmética pura: se puede probar sin pantalla. */
+export function direccionDeEntrada(desde, hacia) {
+  /* `Number.isInteger` y no `>= 0`: `null >= 0` es verdadero en JavaScript, y una ruta sin lugar
+     entraría «hacia atrás» desde ninguna parte. */
+  if (!Number.isInteger(desde) || !Number.isInteger(hacia) || desde < 0 || hacia < 0 || desde === hacia) return '';
+  return hacia > desde ? 'adelante' : 'atras';
+}
+
+/** Pone `html.va-adelante` o `html.va-atras` y lo quita cuando la sección terminó de entrar. Si
+ *  se quedara puesto, el siguiente montaje silencioso —la sincronización, cada 30 segundos—
+ *  heredaría una dirección que nadie pidió.
+ *
+ *  CLASE y no `data-va`: `Piezas.transicion()` (pieza 22) ya escribe `html[data-va]` mientras
+ *  dura el viaje de un mes del calendario o de una tarjeta, y una regla de `.pf-mod` colgada de
+ *  ese atributo habría deslizado la pantalla ENTERA cada vez que alguien cambia de mes. Las
+ *  clases `va-adelante` y `va-atras` ya existían en css/sistema.css para el cotizador, atadas a
+ *  ids que este documento no tiene, así que aquí solo sirven a `.pf-mod`. */
+function ponerDireccion(desde, hacia, seccion) {
+  const h = document.documentElement;
+  h.classList.remove('va-adelante', 'va-atras');
+  const dir = direccionDeEntrada(lugarEnLaBarra(desde), lugarEnLaBarra(hacia));
+  /* Con las teclas 1-9 no hay lado: lo que dispara el teclado se repite cien veces y no se anima
+     (mismo criterio que el fundido de `.pf-mod`, ver `data-nav` en plataforma.css). */
+  if (!dir || !seccion || h.dataset.nav === 'teclado') return;
+  const clase = 'va-' + dir;
+  h.classList.add(clase);
+  const limpiar = () => {
+    clearTimeout(reloj);
+    seccion.removeEventListener('animationend', alFin);
+    h.classList.remove(clase);
+  };
+  function alFin(ev) { if (ev.target === seccion) limpiar(); }
+  seccion.addEventListener('animationend', alFin);
+  /* Con movimiento reducido no hay animación y `animationend` no llega nunca: el respaldo lo
+     quita igual. */
+  const reloj = setTimeout(limpiar, 600);
 }
 
 /** Las cuentas de atención de la barra. Las publica cada módulo en este mapa. */
@@ -657,18 +995,69 @@ export function ponerCuenta(ruta, n) {
   _cuentas.set(ruta, Number(n) || 0);
   pintarCuentasNav();
 }
+/* Lo que valía cada cuenta la última vez que se pintó. Sirve para dos cosas y las dos importan:
+   no saltar la PRIMERA —al arrancar, el globo pasa de vacío a «3» porque acaba de contar, no
+   porque haya llegado algo, y un globo que salta sin que nadie haya hecho nada es movimiento
+   sin acción— y saber si SUBIÓ, que es lo único que hace saltar el globo.
+
+   Va en un mapa por ruta y no en el nodo: la barra se reescribe entera al cambiar de rol, y con
+   el valor guardado en el `data-` de un botón que acaba de nacer, todas las cuentas parecerían
+   haber subido de cero. */
+const _cuentaAntes = new Map();
+
+/* ----- P20 · el globo salta cuando la cuenta SUBE -----
+   Una sola vez, y solo hacia arriba: cuando baja es porque alguien atendió algo y ya lo sabe.
+   El salto es de 380 ms (`pf-globo-sube` en plataforma.css) y la clase se va sola al terminar,
+   para que el siguiente aumento vuelva a dispararlo sobre el mismo nodo. Un cuadro de más
+   —el `offsetWidth`— es lo que hace que el navegador lo vea como una animación nueva si el
+   aumento llega antes de que acabara la anterior (dos avisos seguidos de otro teléfono).
+
+   No rueda la cifra dentro del globo, y es a propósito: el globo mide 16 px y lleva uno o dos
+   dígitos; un odómetro ahí no se lee y competiría con el salto por el mismo `transform`. Las
+   cuentas que sí ruedan son las de dentro de cada pantalla (P18, más abajo). */
+function globoSube(el) {
+  clearTimeout(el._tSube);
+  el.classList.remove('sube');
+  void el.offsetWidth;
+  el.classList.add('sube');
+  /* `animationend` no llega si el aparato pide menos movimiento (no hay animación) ni si la
+     pestaña está escondida: el reloj de 500 ms es el respaldo, y la clase no se queda pegada. */
+  const quitar = () => { clearTimeout(el._tSube); el.classList.remove('sube'); };
+  el.addEventListener('animationend', quitar, { once: true });
+  el._tSube = setTimeout(quitar, 500);
+}
+
 function pintarCuentasNav() {
-  for (const r of RUTAS) {
-    const n = _cuentas.get(r.ruta) || 0;
-    /* Las dos barras —la lateral y la de abajo— llevan la misma cuenta. Antes solo existía
-       una y el `querySelector` devolvía la primera; con dos, la del teléfono se quedaba
-       siempre en blanco porque nadie la escribía. */
-    for (const el of document.querySelectorAll('[data-cta="' + r.ruta + '"],[data-cta-movil="' + r.ruta + '"]')) {
-      el.hidden = n <= 0;
-      el.textContent = n > 99 ? '99+' : String(n);
-      if (n > 0) el.setAttribute('aria-label', (n === 1 ? '1 cosa que atender en ' : n + ' cosas que atender en ') + r.nombre);
+  const { mas } = rutasDeLaBarra();
+  /* «Más» esconde módulos, no pendientes: su globo es la suma de los que esconde. */
+  const filas = RUTAS.map(r => ({ ruta: r.ruta, nombre: r.nombre, n: _cuentas.get(r.ruta) || 0 }));
+  const sumaMas = mas.reduce((t, r) => t + (_cuentas.get(r.ruta) || 0), 0);
+  filas.push({ ruta: '__mas', nombre: 'lo que está en «Más»', n: sumaMas });
+
+  for (const f of filas) {
+    const sel = f.ruta === '__mas'
+      ? '[data-cta-mas]'
+      : '[data-cta="' + f.ruta + '"],[data-cta-movil="' + f.ruta + '"]';
+    const primera = !_cuentaAntes.has(f.ruta);
+    const antes = _cuentaAntes.get(f.ruta) || 0;
+    const texto = f.n > 99 ? '99+' : String(f.n);
+    for (const el of document.querySelectorAll(sel)) {
+      /* Con el mismo número no se toca nada: reescribir el texto de un nodo que un lector de
+         pantalla vigila lo vuelve a anunciar, y esto corre en cada `ponerCuenta`. */
+      if (el.textContent !== texto) el.textContent = texto;
+      el.hidden = f.n <= 0;
+      if (f.ruta !== '__mas') {
+        if (f.n > 0) el.setAttribute('aria-label', (f.n === 1 ? '1 cosa que atender en ' : f.n + ' cosas que atender en ') + f.nombre);
+        else el.removeAttribute('aria-label');
+      }
+      if (!primera && f.n > antes && f.n > 0) globoSube(el);
     }
+    _cuentaAntes.set(f.ruta, f.n);
   }
+  /* El botón «Más» dice la suma con palabras: su globo es `aria-hidden` y sin esto un lector de
+     pantalla oiría «Más módulos» sin saber que dentro espera algo. */
+  const bm = document.querySelector('#pf-abajo [data-mas]');
+  if (bm) bm.setAttribute('aria-label', 'Más módulos' + (sumaMas ? ', ' + sumaMas + (sumaMas === 1 ? ' cosa que atender' : ' cosas que atender') : ''));
 }
 ctx.ponerCuenta = ponerCuenta;
 
@@ -733,14 +1122,274 @@ function cambiarRol(r) {
      nuevo, se va al primero que sí; si le toca, se repinta, porque lo que ve adentro
      también cambia —los importes, sobre todo—. */
   const sigue = rutaPorNombre(_actual);
+  /* Otro rol es otra cuenta de todo —importes, pendientes—: rodar del número del rol anterior
+     al del nuevo diría que algo cambió en el taller, y lo que cambió fue quién mira. */
+  olvidarCifras();
   if (sigue && sigue.roles.includes(r)) montar(_actual, { forzar: true });
   else ir(rutasDeRol()[0].ruta);
   toast('Ahora ves la plataforma como ' + Prefs.ROL_NOMBRE[r], '', 3400);
 }
 
 /* ============================================================================
+   P6 · Buscar un proyecto desde cualquier pantalla
+   ============================================================================
+   Para contestarle al cliente «¿cómo va mi letrero?» había que ir a Proyectos, escribir en su
+   buscador y abrir la tarjeta: tres pasos y perder lo que estabas haciendo. La lupa del
+   encabezado —y la tecla «/» en la computadora, al lado de los números 1-9 que ya cambian de
+   módulo— abre una paleta que filtra en vivo y lleva a la ficha.
+
+   Tres decisiones que no son de gusto:
+
+   · LA BÚSQUEDA LA HACE `Proy.listar({texto})`, no un segundo buscador escrito aquí. Está
+     prohibido a propósito (el comentario de js/datos/proyectos.js lo dice donde se filtra): dos
+     implementaciones de «qué cuenta como coincidencia» empiezan el mismo día a dar dos
+     respuestas, y la que está mal es siempre la que no se probó. Aquí solo se RESALTA lo que
+     coincide, con Piezas.resaltar(), que es dibujo y no criterio.
+   · NINGÚN IMPORTE en los resultados. Fabricación no ve dinero en toda la app y esta paleta se
+     abre desde cualquier pantalla, también las suyas. El renglón lleva nombre, folio, etapa y
+     fecha, que es lo que hace falta para contestar el teléfono.
+   · ES UNA CAPA de las de siempre (`registrarCapa`), no un `<dialog>`: Escape, el cerco del
+     tabulador, el botón atrás del teléfono y el deslizar hacia abajo salen del mismo registro
+     que la ficha de un proyecto, sin un solo oyente de `document` escrito aquí.
+
+   La espera de 220 ms es la misma que el buscador de Proyectos: se eligió midiendo cuánto
+   tarda en escribirse un folio, y tener dos esperas distintas para la misma búsqueda se nota. */
+const MS_BUSCA = 220;
+const TOPE_BUSCA = 12;
+
+let _bus = null;   // { reloj, activo, filas, q, insts }
+
+function cerrarBuscador() {
+  if (_bus) { clearTimeout(_bus.reloj); _bus = null; }
+  cerrarCapa('pf-buscar');
+}
+
+function abrirBuscador() {
+  const capa = $('pf-buscar');
+  if (!capa || hayCapaAbierta()) return;
+  /* El campo va ARRIBA, en la cabeza de la hoja, y la cuenta y la lista en su cuerpo: es la
+     misma forma que las demás hojas (`.pf-panel-h` / `.pf-panel-b`), y por eso se baja con el
+     dedo desde su asa como ellas y la lista solo se lleva el gesto cuando está arriba del todo.
+     Sin cabecera de texto encima del campo: con el teclado abierto en un teléfono, cada renglón
+     que se gasta antes del campo es un resultado menos a la vista. */
+  capa.innerHTML =
+    '<div class="pf-panel pf-buscar-panel">' +
+      '<div class="pf-panel-h pf-buscar-cab">' +
+        ico('i-buscar', 'pf-buscar-lupa') +
+        '<input type="search" id="pf-buscar-q" class="pf-buscar-q" autocomplete="off" autocapitalize="off"' +
+          ' spellcheck="false" enterkeyhint="go" placeholder="Cliente, folio o teléfono" aria-label="Buscar un proyecto"' +
+          ' role="combobox" aria-expanded="true" aria-controls="pf-buscar-lista" aria-autocomplete="list">' +
+        '<button type="button" class="pf-cerrar" data-buscar-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button>' +
+      '</div>' +
+      '<div class="pf-panel-b pf-buscar-cuerpo">' +
+        '<p class="pf-buscar-cuenta" id="pf-buscar-cuenta" role="status" aria-live="polite">Escribe para buscar</p>' +
+        '<ul class="pf-buscar-lista" id="pf-buscar-lista" role="listbox" aria-label="Proyectos"></ul>' +
+      '</div>' +
+    '</div>';
+  /* Las fechas de instalación se leen UNA vez al abrir, en paralelo con lo que la persona tarde
+     en teclear, y no en cada pausa: son las mismas para toda la sesión de búsqueda. */
+  _bus = { reloj: 0, activo: -1, filas: [], q: null,
+    insts: import('./datos/agenda.js').then(A => A.listar({ vivas: true })).catch(() => []) };
+  abrirCapa('pf-buscar', { hist: true });
+  const campo = $('pf-buscar-q');
+  if (campo) {
+    /* `abrirCapa` enfoca el primer control tocable en el siguiente cuadro; el primero de esta
+       hoja es el campo, así que no hay que pelearse con él. */
+    campo.addEventListener('input', () => {
+      if (!_bus) return;
+      clearTimeout(_bus.reloj);
+      _bus.reloj = setTimeout(pintarBusqueda, MS_BUSCA);
+    });
+    campo.addEventListener('keydown', alTeclearBuscador);
+  }
+  pintarBusqueda();
+}
+
+/* Escape no se atiende aquí a propósito: lo cierra `vigilarCapas()` como a las demás capas, con
+   su cierre sin animación para el teclado, y como corre después de este campo, su
+   `preventDefault()` es el que evita que el navegador se coma el primer Escape vaciando el
+   `type=search`. */
+function alTeclearBuscador(ev) {
+  if (!_bus) return;
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    /* Las flechas no esperan los 220 ms: si se teclea y se baja enseguida, la lista que se
+       recorre tiene que ser la de lo que ya se escribió. */
+    if (_bus.reloj) { clearTimeout(_bus.reloj); _bus.reloj = 0; pintarBusqueda().then(() => moverActivo(ev.key === 'ArrowDown' ? 1 : -1)); }
+    else moverActivo(ev.key === 'ArrowDown' ? 1 : -1);
+    ev.preventDefault();
+    return;
+  }
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    if (_bus.reloj) { clearTimeout(_bus.reloj); _bus.reloj = 0; pintarBusqueda().then(() => abrirResultado(Math.max(0, _bus ? _bus.activo : 0))); }
+    else abrirResultado(Math.max(0, _bus.activo));
+  }
+}
+
+/** Mueve el resaltado de la lista con las flechas, dando la vuelta en los extremos. La primera
+ *  flecha hacia abajo baja del que ya venía elegido (el primero) al segundo. */
+function moverActivo(paso) {
+  if (!_bus || !_bus.filas.length) return;
+  _bus.activo = (_bus.activo + paso + _bus.filas.length) % _bus.filas.length;
+  marcarBusqueda();
+}
+
+async function pintarBusqueda() {
+  if (!_bus) return;
+  _bus.reloj = 0;
+  const campo = $('pf-buscar-q'), lista = $('pf-buscar-lista'), cuenta = $('pf-buscar-cuenta');
+  if (!campo || !lista || !cuenta) return;
+  const q = campo.value.trim();
+  _bus.q = q;
+  let filas = [], Proy = null;
+  try {
+    Proy = await import('./datos/proyectos.js');
+    /* `vivos` deja fuera los cancelados: quien busca para contestarle a un cliente busca una
+       obra que existe. La lápida se sigue viendo en Proyectos, que es donde significa algo. */
+    filas = await Proy.listar(q ? { texto: q, vivos: true } : { vivos: true });
+  } catch (e) {
+    console.warn('no se pudo buscar', e);
+    if (_bus && _bus.q === q) { cuenta.textContent = 'No se pudo leer la lista de proyectos'; lista.innerHTML = ''; }
+    return;
+  }
+  const insts = await _bus.insts;
+  /* Una carrera perdida: mientras se leía la base, la persona siguió tecleando y ya hay otra
+     búsqueda en curso, o cerró la paleta. Lo que llega tarde no pinta. */
+  if (!_bus || _bus.q !== q || !$('pf-buscar-lista')) return;
+  filas = filas.slice(0, TOPE_BUSCA);
+  _bus.filas = filas;
+  _bus.activo = filas.length ? 0 : -1;
+  /* La instalación viva más próxima de cada uno: la misma regla que la lista de Proyectos. */
+  const cuando = new Map();
+  for (const i of (insts || [])) {
+    if (!i || !i.proyecto_id || !i.fecha) continue;
+    const prev = cuando.get(i.proyecto_id);
+    if (!prev || String(i.fecha) < String(prev)) cuando.set(i.proyecto_id, i.fecha);
+  }
+  cuenta.textContent = !q
+    ? (filas.length ? 'Los últimos que se ganaron' : 'Todavía no hay proyectos')
+    : filas.length
+      ? filas.length + (filas.length === 1 ? ' proyecto' : ' proyectos')
+      : 'Nada con «' + q + '». Prueba con el folio o con parte del teléfono.';
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  const marcar = t => (P && P.resaltar && q) ? P.resaltar(t || '', q) : esc(t || '');
+  lista.innerHTML = filas.map((p, i) => {
+    const etapa = Proy.ETAPA_NOMBRE[p.etapa] || p.etapa || '';
+    const inst = cuando.get(p.id);
+    const fecha = inst
+      ? (p.etapa === 'instalado' || p.etapa === 'garantia' ? 'instalado ' : 'instala ') + fmtFechaDia(inst)
+      : (p.fecha_ganado ? 'ganado ' + fmtFechaDia(p.fecha_ganado) : '');
+    return '<li class="pf-buscar-op" id="pf-buscar-o' + i + '" role="option" aria-selected="false" data-i="' + i + '">' +
+      '<span class="pf-buscar-n">' + marcar(p.nombre) + '</span>' +
+      '<span class="pf-buscar-m">' +
+        '<span class="pf-buscar-folio">' + marcar(p.folio_local || p.folio_global) + '</span>' +
+        /* La misma píldora de etapa que la lista de Proyectos y la ficha: el ojo ya aprendió
+           qué color es «armado» y aquí tiene que decir lo mismo. */
+        (etapa ? '<span class="pf-etapa ' + esc(Proy.claseEtapa(p.etapa)) + '">' + esc(etapa) + '</span>' : '') +
+        (fecha ? '<span class="pf-buscar-fecha">' + esc(fecha) + '</span>' : '') +
+      '</span></li>';
+  }).join('');
+  marcarBusqueda();
+}
+
+function marcarBusqueda() {
+  const lista = $('pf-buscar-lista'), campo = $('pf-buscar-q');
+  if (!lista || !campo || !_bus) return;
+  const ops = lista.querySelectorAll('[role="option"]');
+  ops.forEach((li, i) => li.setAttribute('aria-selected', String(i === _bus.activo)));
+  if (_bus.activo >= 0 && ops[_bus.activo]) {
+    campo.setAttribute('aria-activedescendant', 'pf-buscar-o' + _bus.activo);
+    ops[_bus.activo].scrollIntoView({ block: 'nearest' });
+  } else campo.removeAttribute('aria-activedescendant');
+}
+
+async function abrirResultado(i) {
+  if (!_bus) return;
+  const p = _bus.filas[i];
+  if (!p) return;
+  cerrarBuscador();
+  /* Y se ESPERA al atrás que la capa acaba de disparar para consumir su entrada de historial.
+     `history.back()` es asíncrono, y escribir `location.hash` en el mismo tick aterriza en la
+     entrada de abajo: la navegación se pierde entera y tocar un resultado no hace nada. Es el
+     mismo cuidado que ya tiene `montarDeVerdad` cuando cancela una pregunta. */
+  await trasElAtrasDeUnaCapa();
+  /* El buzón de un solo uso, como desde cualquier otro módulo: Proyectos abre esa ficha al
+     montar. Así no hay un segundo camino para abrir una ficha que se pueda desincronizar. */
+  ctx.pasar('proyectos', { proyecto_id: p.id });
+}
+
+/* ============================================================================
    La banda de degradación
    ============================================================================ */
+
+/* ----- P26 · LA BANDA ENTRA SIN EMPUJAR LA PANTALLA -----
+   A mitad de sesión la banda aparecía de golpe —«Hay una versión nueva…»— y bajaba todo lo que
+   había debajo justo cuando alguien iba a tocar un renglón. Dos cosas la arreglan:
+
+     · Se despliega en 200 ms en vez de aparecer. No con `hidden`, que es `display:none` y de
+       ahí no hay transición posible: la caja de fuera pasa de 0fr a 1fr y la banda de dentro
+       queda recortada mientras tanto (ver index.html).
+     · Y si la persona ya había bajado en la pantalla, se compensa el scroll con lo que mide la
+       banda, así que lo que estaba leyendo se queda debajo del mismo dedo. Arriba del todo no
+       hace falta: ahí el contenido crece hacia abajo y nada se mueve. Al recogerse pasa lo
+       mismo al revés, y se compensa igual.
+
+   La región viva NO se esconde ni se apaga mientras está recogida: sigue en el árbol de
+   accesibilidad, vacía, y lo único que cambia es su texto. Un lector de pantalla anuncia con
+   fiabilidad el texto que llega a una región que ya estaba; con `hidden` o `inert` que se
+   quitan en el mismo cuadro en que se escribe, no siempre lo dice. El texto se vacía DESPUÉS de
+   recogerse y no antes: vaciarlo antes deja media banda en blanco encogiéndose. */
+let _bandaTimer = 0;
+const MS_BANDA = 200;
+
+/** Despliega o recoge la banda (`abre` true o false) y mueve el scroll lo que mide, en el MISMO
+ *  paso. Con movimiento reducido, de un salto. Ella misma pone o quita la clase `abierta`:
+ *  quien la llama ya no puede hacerlo en el orden equivocado (ver abajo).
+ *
+ *  El paso no lo pone un reloj sino la propia caja: en cada cuadro se lee cuánto mide YA la
+ *  banda y el scroll se lleva esa misma fracción. Con un reloj de 200 ms lineal contra una
+ *  transición que arranca rápido y frena (la curva `--ease-out`), la pantalla se adelantaba a
+ *  media entrada —la banda a 75 % y el scroll a 25 %— y el contenido daba un salto hacia abajo
+ *  justo antes de volver a su sitio: el tirón que esto viene a quitar. Leyendo la caja, las dos
+ *  cosas van juntas con la curva que sea.
+ *
+ *  Y siempre con un scroll ABSOLUTO puesto DESPUÉS de haber forzado la maquetación, nunca con
+ *  `scrollBy` antes de que la caja crezca. Chrome ya ancla el scroll por su cuenta —«scroll
+ *  anchoring»: si crece algo arriba de lo que estás mirando, te baja el scroll lo mismo— y
+ *  cuando el contenido de la pantalla tiene un ancla a la vista, la primera versión de esto
+ *  (`scrollBy` y luego cambiar la clase) sumaba SU compensación a la del navegador: al abrir
+ *  en movimiento reducido el contenido saltaba la altura de la banda hacia arriba, y al recogerla
+ *  hacia abajo. Leer la maquetación primero deja que el ancla haga lo suyo, y poner después
+ *  el valor final por encima de lo que haya hecho la deja sin efecto: gane quien gane, el
+ *  resultado es el mismo. */
+function moverBanda(caja, b, abre) {
+  const y0 = window.scrollY;
+  let alto = b.offsetHeight;
+  try { alto += parseFloat(getComputedStyle(b).marginBottom) || 0; } catch (_) {}
+  const cambiar = () => caja.classList.toggle('abierta', abre);
+  /* Arriba del todo no hay nada que compensar: el contenido crece hacia abajo. */
+  if (y0 <= 0 || alto <= 0) { cambiar(); return; }
+  const sinMov = (window.Piezas && window.Piezas.sinMovimiento && window.Piezas.sinMovimiento()) ||
+    (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  /* Recogerla no puede pedir más scroll hacia arriba del que hay. */
+  const delta = abre ? alto : -Math.min(alto, y0);
+  cambiar();
+  if (sinMov) {
+    void caja.offsetHeight;
+    window.scrollTo(0, y0 + delta);
+    return;
+  }
+  const t0 = performance.now();
+  const paso = t => {
+    const h = caja.getBoundingClientRect().height;
+    const fraccion = Math.max(0, Math.min(1, abre ? h / alto : 1 - h / alto));
+    window.scrollTo(0, y0 + delta * fraccion);
+    /* Termina cuando la caja llegó, o al pasarse del tiempo por si la pestaña se escondió. */
+    if (fraccion < 1 && t - t0 < MS_BANDA + 150) requestAnimationFrame(paso);
+    else window.scrollTo(0, y0 + delta);
+  };
+  requestAnimationFrame(paso);
+}
 
 /* `texto` es TEXTO y se escapa; `html` es marcado y no. Antes había un solo campo,
    `texto`, y se metía crudo en el innerHTML. Hoy no se puede explotar —los cuatro que
@@ -751,14 +1400,25 @@ function cambiarRol(r) {
 
    @param {{tono?:'av'|'mal', texto?:string, html?:string, accion?:{label:string,fn:Function}}|null} msg */
 export function pintarBanda(msg) {
-  const b = $('pf-banda'); if (!b) return;
+  const caja = $('pf-banda-caja'), b = $('pf-banda');
+  if (!caja || !b) return;
   const cuerpo = msg ? (msg.html != null ? msg.html : (msg.texto != null ? esc(msg.texto) : '')) : '';
-  if (!cuerpo) { b.hidden = true; b.innerHTML = ''; return; }
+  clearTimeout(_bandaTimer);
+  if (!cuerpo) {
+    if (!caja.classList.contains('abierta')) { b.innerHTML = ''; return; }
+    moverBanda(caja, b, false);
+    _bandaTimer = setTimeout(() => { b.innerHTML = ''; }, MS_BANDA + 60);
+    return;
+  }
+  const yaEstaba = caja.classList.contains('abierta');
   b.className = 'pf-banda' + (msg.tono === 'mal' ? ' mal' : '');
   b.innerHTML = ico('i-aviso') + '<span>' + cuerpo + '</span>' +
     (msg.accion ? '<button type="button" id="pf-banda-acc">' + esc(msg.accion.label) + '</button>' : '');
-  b.hidden = false;
   if (msg.accion) { const x = $('pf-banda-acc'); if (x) x.onclick = msg.accion.fn; }
+  /* Cambiar el texto de una banda que ya estaba puesta no la vuelve a desplegar ni mueve el
+     scroll: no está entrando, está diciendo otra cosa. */
+  if (yaEstaba) return;
+  moverBanda(caja, b, true);
 }
 
 /** Lo que la plataforma tiene que decir de este dispositivo antes de que se le pregunte. */
@@ -775,7 +1435,7 @@ function revisarDispositivo() {
      versión nueva encima de la vieja. */
   if (_versionNueva) {
     pintarBanda({ texto: 'Hay una versión nueva de la app. Se pone sola en cuanto cambies de pantalla, o ahora:',
-      accion: { label: 'Recargar', fn: () => location.reload() } });
+      accion: { label: 'Recargar', fn: recargarPorVersion } });
     return;
   }
   /* Lo que la puerta dejó dicho va ANTES que el recordatorio del respaldo. Las tres cosas
@@ -859,7 +1519,7 @@ async function arrancar() {
      datos del taller no pasan por aquí. */
   registrarSW();
 
-  faseArranque('Comprobando quién entra…');
+  faseArranque('puerta');
   try {
     const Puerta = await import('./nucleo/puerta.js');
     /* El callback es para un caso concreto: se entró con un pase al que le quedaban pocos
@@ -914,6 +1574,12 @@ async function arrancar() {
      abierta o sin ella. Se carga aparte y después de pintar, como el puente: quien abre la
      app a ver la agenda no paga la descarga de algo que a lo mejor no toca. */
   registrarCapa('pf-ia', () => { import('./nucleo/asistente.js').then(m => m.cerrar()).catch(() => cerrarCapa('pf-ia')); });
+  /* Las tres de este esqueleto van encima de las cinco de arriba, y entre ellas el orden da
+     igual: se abren desde el encabezado o desde la barra de abajo, que quedan inertes en
+     cuanto hay una capa puesta, así que nunca pueden apilarse una sobre otra. */
+  registrarCapa('pf-buscar', () => cerrarBuscador());
+  registrarCapa('pf-mas', () => cerrarMas());
+  registrarCapa('pf-ios', () => cerrarCapa('pf-ios'));
 
   const seg = $('pf-rolseg');
   if (seg) seg.addEventListener('click', ev => {
@@ -924,16 +1590,58 @@ async function arrancar() {
   for (const id of ['pf-nav', 'pf-abajo']) {
     const nav = $(id);
     if (nav) nav.addEventListener('click', ev => {
+      /* «Más» va primero: no lleva `data-ruta` porque no ES una ruta, es la puerta a las que no
+         cupieron. */
+      if (ev.target.closest('[data-mas]')) { abrirMas(); return; }
       const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
     });
   }
+  /* La hoja de «Más»: elegir una pantalla la cierra y navega. El cierre va ANTES de navegar
+     —para que la entrada de historial de la capa se consuma antes de empujar la del módulo— y
+     se ESPERA a que su `history.back()` aterrice: hecho en el mismo tick, el `location.hash`
+     cae en la entrada de abajo y la navegación se pierde entera. */
+  const mas = $('pf-mas');
+  if (mas) mas.addEventListener('click', async ev => {
+    if (ev.target === mas || ev.target.closest('[data-mas-cerrar]')) { cerrarMas(); return; }
+    const b = ev.target.closest('[data-ruta]');
+    if (!b) return;
+    const destino = b.dataset.ruta;
+    cerrarMas();
+    /* Elegir la pantalla en la que ya se está —el Mapa desde el Mapa— solo cierra la hoja.
+       `ir` sobre la ruta actual la vuelve a montar de cero (`forzar`), y eso aquí sería tirar
+       lo que se estaba viendo y el scroll solo por haber abierto «Más» a mirar qué había. */
+    if (destino === _actual) return;
+    await trasElAtrasDeUnaCapa();
+    ir(destino);
+  });
   /* Dos puertas a Ajustes: la del pie de la barra lateral y la del encabezado del teléfono,
      donde la barra lateral no existe. */
   for (const id of ['pf-ajustes-btn', 'pf-cab-ajustes']) {
     const aj = $(id);
     if (aj) aj.onclick = () => ir('ajustes');
   }
+  /* La lupa del encabezado (P6). */
+  const lupa = $('pf-cab-buscar');
+  if (lupa) lupa.onclick = () => abrirBuscador();
+  const bus = $('pf-buscar');
+  if (bus) bus.addEventListener('click', ev => {
+    if (ev.target === bus || ev.target.closest('[data-buscar-cerrar]')) { cerrarBuscador(); return; }
+    const li = ev.target.closest('[role="option"]');
+    if (li) abrirResultado(Number(li.dataset.i));
+  });
+  /* El ratón elige lo que señala, como en cualquier paleta: así Enter siempre abre lo que está
+     debajo del cursor y no lo que dejaron las flechas hace tres movimientos. */
+  if (bus) bus.addEventListener('pointermove', ev => {
+    const li = ev.target.closest('[role="option"]');
+    if (!li || !_bus) return;
+    const i = Number(li.dataset.i);
+    if (i !== _bus.activo) { _bus.activo = i; marcarBusqueda(); }
+  });
   for (const id of BOTONES_INSTALAR) { const ins = $(id); if (ins) ins.onclick = instalarApp; }
+  const ios = $('pf-ios');
+  if (ios) ios.addEventListener('click', ev => {
+    if (ev.target === ios || ev.target.closest('[data-ios-cerrar]')) cerrarCapa('pf-ios');
+  });
   pintarInstalar();
 
   /* ----- El teclado, para la computadora -----
@@ -946,6 +1654,10 @@ async function arrancar() {
     const t = ev.target;
     if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
     if (document.querySelector('.modal-bg.show')) return;
+    /* «/» abre la búsqueda, con la misma guarda que los números: dentro de un campo una
+       diagonal es una diagonal. Va aquí y no en su propio oyente para que la guarda sea
+       literalmente la misma y no una copia que un día se separe. */
+    if (ev.key === '/') { ev.preventDefault(); abrirBuscador(); return; }
     if (!/^[1-9]$/.test(ev.key)) return;
     const visibles = rutasDeRol().filter(r => !r.oculto);
     const r = visibles[Number(ev.key) - 1];
@@ -958,8 +1670,11 @@ async function arrancar() {
   });
   window.addEventListener('pointerdown', () => { delete document.documentElement.dataset.nav; }, { passive: true, capture: true });
 
-  faseArranque('Abriendo la base de este dispositivo…');
+  faseArranque('base');
   await DB.abrir();
+  /* La base que no abrió es un renglón rojo y no una palomita: la banda de arriba explica el
+     porqué y aquí queda dicho DÓNDE se rompió el arranque. */
+  if (!DB.estado().ok) fallarArranque('base', 'no abrió');
   _bandaLista = true;
   revisarDispositivo();
 
@@ -968,7 +1683,7 @@ async function arrancar() {
      no dice por qué está vacía. */
   if (DB.estado().ok) {
     try {
-      faseArranque('Preparando el catálogo…');
+      faseArranque('catalogo');
       const Mat = await import('./datos/material.js');
       await Mat.sembrar();
     } catch (e) { console.warn('no se pudo sembrar el catálogo', e); }
@@ -993,12 +1708,17 @@ async function arrancar() {
         '. Si se registraron en otro teléfono, hay que ganarlos desde ahí; si no, se vuelve a intentar al abrir la plataforma.',
         'err', 7500);
     } catch (e) { console.warn('no se pudo drenar el buzón', e); }
+  } else {
+    /* Sin base no hay catálogo que sembrar ni buzón que drenar. El renglón lo dice en vez de
+       quedarse girando: la banda roja de arriba ya explica el resto. */
+    saltarArranque('catalogo', 'la base no abrió');
   }
 
   window.addEventListener('hashchange', () => montar(rutaDelHash()));
-  faseArranque('Abriendo ' + ((rutaPorNombre(rutaDelHash()) || {}).nombre || 'la plataforma') + '…');
+  faseArranque('pantalla', null, (rutaPorNombre(rutaDelHash()) || {}).nombre || '');
   await montar(rutaDelHash());
   quitarArranque();
+  avisarActualizada();
 
   /* El cotizador acaba de guardar en otra pestaña. Aquí no se avisa de conflicto como hace
      el cotizador —la plataforma solo LEE su almacenamiento, así que no hay nada que pisar—:
@@ -1103,10 +1823,11 @@ async function arrancar() {
 
 /** Enchufa el relevo de la hoja si este dispositivo ya tiene URL y token en Ajustes. */
 export async function enchufarPuente() {
-  if (!Prefs.hayPuente()) { Sync.registrar(null); return false; }
+  if (!Prefs.hayPuente()) { Sync.registrar(null); pintarSync('quieto'); return false; }
   try {
     const Puente = await import('./datos/puente.js');
     Sync.registrar(Puente.desdePrefs());
+    pintarSync('quieto');
     return Sync.configurado();
   } catch (e) {
     /* Un relevo que no se pudo cargar no puede llevarse por delante la plataforma: sin él
@@ -1134,6 +1855,74 @@ let _renovarDesde = 0;
 let _sincronizando = null;
 let _repintarDebe = false;
 
+/* ----- P15 · EL INDICADOR DE SINCRONIZACIÓN -----
+   La sincronización es muda a propósito —un aviso cada 30 segundos se aprende a ignorar— y por
+   eso nadie sabía si el teléfono estaba al día antes de contestarle algo al cliente. Un glifo
+   de 20 px en el encabezado lo dice, con una regla dura: NADA se mueve en reposo ni en las
+   vueltas cortas.
+
+     · quieto    — una nube, dibujada, sin animación. Es el estado normal.
+     · trabaja   — el arco que gira, y SOLO si la vuelta pasa de un segundo. Las vueltas
+                   normales tardan menos y no llegan a encenderlo, que es justo lo que se
+                   quiere: una segunda pieza girando cada medio minuto sería otra cosa
+                   moviéndose sola.
+     · ok        — la palomita, unos segundos, y solo cuando BAJÓ algo. Si no bajó nada no hay
+                   nada que decir.
+     · sin señal — la nube tachada, quieta, en su tono de siempre. No es una falla —en una
+                   azotea es lo normal y lo que se hace se guarda aquí— pero sí es la respuesta
+                   a «¿esto que veo está al día?», que es para lo que existe el glifo: no lo
+                   está. Tampoco se anuncia por voz: no es algo que haya que hacer.
+     · mal       — la cruz, con el motivo en el `title`, y se queda hasta la siguiente vuelta
+                   buena. Es lo único que se anuncia por voz, y solo al cambiar de estado: que
+                   falle diez veces seguidas no son diez avisos.
+
+   Sin puente configurado el glifo no existe: no hay nada con qué estar al día.
+
+   El contenedor es la imagen —`role="img"` con la frase entera en su `aria-label`, que cambia
+   con el estado— y las marcas de dentro son adorno: el color nunca va solo, y el lector de
+   pantalla no recorre un glifo de 20 px. */
+const MS_SYNC_LENTO = 1000;
+const MS_SYNC_OK = 2600;
+let _syncEstado = 'quieto', _syncOkReloj = 0;
+
+/** La frase de cada estado. Pura: de aquí salen el `title`, el `aria-label` y la voz. */
+export function fraseDeSync(estado, motivo) {
+  switch (estado) {
+    case 'trabaja': return 'Sincronización: buscando lo que cambió';
+    case 'ok': return 'Sincronización: llegó lo nuevo';
+    case 'sin-senal': return 'Sin señal: lo que hagas se guarda aquí y se manda cuando vuelva';
+    case 'mal': {
+      /* El motivo puede llegar escrito como oración («No hay señal…», «La hoja no contestó»):
+         pegado detrás de dos puntos va en minúscula, salvo una sigla («HTTP 500»). */
+      const m = String(motivo || 'no se pudo');
+      return 'Sincronización: ' + (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m);
+    }
+    default: return 'Sincronización: al día';
+  }
+}
+
+function pintarSync(estado, motivo) {
+  const el = $('pf-sync');
+  if (!el) return;
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  el.hidden = !Sync.configurado();
+  clearTimeout(_syncOkReloj);
+  const antes = _syncEstado;
+  _syncEstado = estado;
+  el.dataset.sync = estado;
+  const frase = fraseDeSync(estado, motivo);
+  el.title = frase;
+  el.setAttribute('aria-label', frase);
+  /* La marca solo existe cuando hay algo que decir con ella; en reposo y sin señal se ve la nube
+     y la marca se queda en el DOM apagada por CSS. Quitarla y volver a crearla en cada vuelta
+     sería redibujar un SVG dos veces por minuto para que nadie lo vea. */
+  if (estado === 'trabaja' || estado === 'ok' || estado === 'mal') {
+    if (P && P.marcaEstado) P.marcaEstado(el, estado, { tam: 20 });
+  }
+  if (estado === 'mal' && antes !== 'mal') voz(frase, true);
+  if (estado === 'ok') _syncOkReloj = setTimeout(() => pintarSync('quieto'), MS_SYNC_OK);
+}
+
 function sincronizarCallado() {
   /* Una a la vez: el reloj de 30 s, volver a la pestaña y recuperar señal caen juntos más
      seguido de lo que parece. Quien llega segundo espera la misma. */
@@ -1152,8 +1941,12 @@ function puedeRepintar() {
 }
 
 async function sincronizarDeVerdad() {
-  if (!Sync.configurado()) return;
-  if (navigator.onLine === false) return;
+  if (!Sync.configurado()) { pintarSync('quieto'); return; }
+  if (navigator.onLine === false) { pintarSync('sin-senal'); return; }
+  /* El arco solo si la vuelta se pasa del segundo. Con el reloj puesto aquí y no al empezar a
+     pintar, una vuelta de 200 ms no lo enciende nunca. */
+  const lento = setTimeout(() => pintarSync('trabaja'), MS_SYNC_LENTO);
+  let falla = '', sinRed = false;
   /* La identidad NO se renueva aquí. Renovarla abre la ventana de Google, y esto corre solo,
      sin clic: el navegador la bloquearía cada 30 segundos. Se renueva en el siguiente clic
      —ver el oyente de `click` en el arranque— y mientras tanto la petición sale con el token
@@ -1165,18 +1958,40 @@ async function sincronizarDeVerdad() {
      está pintado —se pintó al escribirlo aquí—; lo único que puede cambiar la pantalla es lo
      que BAJA. */
   let movio = 0;
-  try { await Sync.bombear(); } catch (_) {}
+  try {
+    /* `bombear()` no lanza: contesta un Resultado, y lo que falló va en `fallidas`. De ellas,
+       las `rechazadas` son las que el otro lado dijo que no para siempre: ya están apartadas
+       con su propio aviso en Ajustes, y una cruz en el encabezado cada 30 s por algo que no se
+       va a arreglar solo es un aviso que se aprende a ignorar. Lo que sí es un fallo del
+       indicador son las que se van a reintentar y todavía no salieron. */
+    const b = await Sync.bombear();
+    if (b && b.ok === false) falla = b.mensaje || 'no se pudo mandar lo que quedó';
+    else if (b && b.valor && (b.valor.fallidas || 0) > (b.valor.rechazadas || 0)) {
+      const n = b.valor.fallidas - (b.valor.rechazadas || 0);
+      falla = 'no se pudo mandar ' + (n === 1 ? '1 cambio' : n + ' cambios');
+    }
+  } catch (e) { falla = (e && e.message) || 'no se pudo mandar lo que quedó'; }
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
      a la plataforma van primero en el orden por edición y con una sola página por apertura
      hacían falta cuatro aperturas para llegar a las nuevas. */
   try {
     for (let vuelta = 0; vuelta < 10; vuelta++) {
       const r = await Sync.jalar();
-      if (!r.ok) break;
+      if (!r.ok) {
+        /* `SIN_RED` es el código con que `jalar()` dice «no llegué a la hoja», con señal del
+           teléfono o sin ella: es el mismo caso que apagar los datos, y se pinta igual. Los
+           demás códigos —el puente contestó que no, el pase venció— sí son una cruz. */
+        if (r.codigo === 'SIN_RED') sinRed = true; else falla = r.mensaje || 'la hoja no contestó';
+        break;
+      }
       movio += (Number(r.valor.nuevos) || 0) + (Number(r.valor.actualizados) || 0);
       if (!r.valor.hay_mas) break;
     }
-  } catch (_) {}
+  } catch (e) { falla = (e && e.message) || 'la hoja no contestó'; }
+  clearTimeout(lento);
+  /* La palomita solo cuando BAJÓ algo. Una vuelta que no trajo nada terminó bien y no tiene
+     nada que decir: volver a la nube ES decirlo. */
+  pintarSync(sinRed ? 'sin-senal' : falla ? 'mal' : (movio ? 'ok' : 'quieto'), falla);
   if (movio) { _repintarDebe = true; contarTodo(); }
   if (_repintarDebe && _actual && puedeRepintar()) {
     _repintarDebe = false;
@@ -1192,6 +2007,45 @@ ctx.sincronizar = sincronizarCallado;
 /* La versión nueva ya controla la página y está esperando a que se recargue. Lo lee
    `revisarDispositivo`, que es quien lo dice en la banda. */
 let _versionNueva = false;
+
+/* ----- A22 · Y AL VOLVER, DECIRLO -----
+   La versión nueva recarga la página sola, y quien la estaba usando ve un parpadeo entero sin
+   explicación —puede ser delante del cliente—. La página que se va no puede avisar de nada: se
+   va. Así que deja una marca y el arranque de la que llega la lee, la borra y lo dice en un
+   aviso breve, de los que se despiden deslizando (pieza 12).
+
+   `sessionStorage` y no `localStorage`: es de ESTA pestaña y de este momento, y una marca que
+   sobreviviera a cerrar la app diría «se actualizó» un día después. Y lleva la HORA y no un
+   «sí»: si la recarga se cancela —un `beforeunload` que pregunta si de verdad quieres salir—
+   la marca se queda escrita, y sin caducidad el aviso saldría en la siguiente recarga, que
+   quizá ni es de versión. Pasado un minuto ya no vale.
+
+   El número de versión no se pone: esta página no conoce APP_VERSION, y un número inventado en
+   un aviso es peor que ningún número. Tampoco sale en la primera instalación: ahí el `claim()`
+   del worker recién instalado no recarga nada (`ignorarUno` en `registrarSW`), así que la marca
+   ni se escribe. */
+const MARCA_ACTUALIZADA = 'al3d_pf_actualizada';
+const MS_MARCA_ACTUALIZADA = 60000;
+
+/** Recarga la página dejando dicho que fue por una versión nueva. La usan las dos puertas:
+ *  la recarga sola de `registrarSW` y el botón «Recargar» de la banda. */
+function recargarPorVersion() {
+  try { sessionStorage.setItem(MARCA_ACTUALIZADA, String(Date.now())); } catch (_) {}
+  location.reload();
+}
+
+/** Lo dice una vez y borra la marca. Se llama con la primera pantalla ya pintada: un aviso
+ *  encima del esqueleto del arranque se lo lleva por delante el primer repintado. */
+function avisarActualizada() {
+  let hubo = false;
+  try {
+    const marca = sessionStorage.getItem(MARCA_ACTUALIZADA);
+    if (marca == null) return;
+    sessionStorage.removeItem(MARCA_ACTUALIZADA);
+    hubo = Date.now() - Number(marca) < MS_MARCA_ACTUALIZADA;
+  } catch (_) { return; }
+  if (hubo) toast('Se puso la versión nueva de la app', 'ok', 5000);
+}
 
 /* ¿Recargar ahora tiraría algo? Una capa abierta —una ficha a medio llenar, una pregunta—, un
    campo con el foco, el foco DENTRO de un marco —ahí `activeElement` es el <iframe>, no el
@@ -1221,7 +2075,7 @@ function registrarSW() {
      memoria y cada import() dinámico llegaba de la versión nueva. Se ignora uno, no todos. */
   let ignorarUno = !navigator.serviceWorker.controller;
   let recargado = false, aplazada = false;
-  const recargar = () => { if (recargado) return; recargado = true; location.reload(); };
+  const recargar = () => { if (recargado) return; recargado = true; recargarPorVersion(); };
   /* En la siguiente pausa natural: al cambiar de pantalla —que desmonta lo que había de
      todos modos— o al irse la app a segundo plano. Y solo si en ese momento ya no estorba. */
   const enLaPausa = () => { if (!recargado && !estorbaRecargar()) recargar(); };
@@ -1299,6 +2153,65 @@ window.addEventListener('beforeinstallprompt', ev => {
   ev.preventDefault(); _instalar = ev; pintarInstalar();
 });
 window.addEventListener('appinstalled', () => { _instalar = null; pintarInstalar(); toast('La app quedó instalada', 'ok', 3000); });
+/* ----- A18 · LOS DOS PASOS DE SAFARI, DIBUJADOS -----
+   En iPhone no existe `beforeinstallprompt` y lo único que se puede hacer es enseñar el gesto.
+   Se explicaba con un aviso de nueve segundos que se iba solo mientras la persona buscaba el
+   botón de Compartir en la barra de Safari — o sea que el texto desaparecía justo cuando hacía
+   falta. Ahora es una hoja que se queda hasta que se cierra, con los dos pasos como riel
+   (pieza 16) y el icono de cada uno dibujado: el cuadrado con la flecha de Compartir y el
+   cuadrado con el más de «Agregar a inicio».
+
+   Los dos SVG van en línea y no en el sprite de arriba: son dibujos de la interfaz de OTRA app
+   —Safari— y no iconos de ésta; mezclarlos con los 31 del repo invitaría a usarlos en un botón.
+
+   La flecha que dice DÓNDE está el botón depende del aparato, y por eso no es una imagen fija:
+   en el iPhone Compartir vive en la barra de abajo, y allí apunta la flecha; en el iPad vive
+   arriba, junto a la dirección, y ahí no se dibuja flecha hacia abajo —sería señalar un sitio
+   equivocado— sino que la nota lo dice con palabras. En las versiones de iOS con la barra
+   compacta, Compartir cuelga del menú «•••»: la nota lo dice también, porque es lo primero que
+   la persona no encuentra.
+
+   Los dos pasos son «pendiente» y no «actual/hecho»: esto es una instrucción, no un progreso, y
+   pintar el primero como el paso en que se va sería afirmar algo que la app no puede saber. */
+const G_COMPARTIR = '<svg class="pf-ios-g" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M12 3v11"/><path d="M8.4 6.6 12 3l3.6 3.6"/><path d="M7 10.5H5.6A1.6 1.6 0 0 0 4 12.1v7.3A1.6 1.6 0 0 0 5.6 21h12.8a1.6 1.6 0 0 0 1.6-1.6v-7.3a1.6 1.6 0 0 0-1.6-1.6H17"/></svg>';
+const G_AGREGAR = '<svg class="pf-ios-g" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+  '<rect x="3.5" y="3.5" width="17" height="17" rx="4.2"/><path d="M12 8.2v7.6M8.2 12h7.6"/></svg>';
+const G_ABAJO = '<svg class="pf-ios-g" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M12 4v14"/><path d="M6.5 12.8 12 18.4l5.5-5.6"/></svg>';
+const esIPad = () => /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function abrirPasosIOS() {
+  const capa = $('pf-ios');
+  if (!capa) {
+    toast('En iPhone: toca Compartir y luego «Agregar a inicio». Queda como app, a pantalla completa.', '', 9000);
+    return;
+  }
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  const ipad = esIPad();
+  const pasos = [
+    { texto: 'Toca Compartir',
+      nota: ipad ? 'El cuadro con la flecha hacia arriba, arriba en Safari, junto a la dirección.'
+                 : 'El cuadro con la flecha hacia arriba, en la barra de abajo de Safari. Si no lo ves, toca ••• primero.',
+      estado: 'pendiente',
+      extra: '<span class="pf-ios-ico">' + G_COMPARTIR + '</span>' + (ipad ? '' : '<span class="pf-ios-abajo">' + G_ABAJO + '</span>') },
+    { texto: 'Toca «Agregar a inicio»', nota: 'Está en la lista que sale, más abajo. Puede decir «Añadir a pantalla de inicio».',
+      estado: 'pendiente', extra: '<span class="pf-ios-ico">' + G_AGREGAR + '</span>' },
+  ];
+  const riel = (P && P.rielHTML)
+    ? P.rielHTML(pasos, { etiqueta: 'Instalar en ' + (ipad ? 'este iPad' : 'este iPhone') })
+    : '<ol class="pf-ios-simple">' + pasos.map(x => '<li><b>' + esc(x.texto) + '</b><span>' + esc(x.nota) + '</span></li>').join('') + '</ol>';
+  capa.innerHTML = '<div class="pf-panel pf-ios-panel">' +
+    '<div class="pf-panel-h"><h2 id="pf-ios-t">Dejar la app en la pantalla de inicio</h2>' +
+    '<button type="button" class="pf-cerrar" data-ios-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
+    '<div class="pf-panel-b">' + riel +
+    '<p class="pf-nota">Queda con su icono y se abre a pantalla completa, sin la barra del navegador. ' +
+    'Es la misma app: no se descarga nada.</p></div>' +
+    '<div class="pf-panel-f"><button type="button" class="btn btn-pri" data-ios-cerrar>Entendido</button></div></div>';
+  capa.setAttribute('aria-labelledby', 'pf-ios-t');
+  abrirCapa('pf-ios', { hist: true });
+}
+
 async function instalarApp() {
   if (_instalar) {
     const ev = _instalar; _instalar = null;
@@ -1306,7 +2219,7 @@ async function instalarApp() {
     pintarInstalar();
     return;
   }
-  toast('En iPhone: toca Compartir y luego «Agregar a inicio». Queda como app, a pantalla completa.', '', 9000);
+  abrirPasosIOS();
 }
 
 /* ----- Arrancar, y arrancar de todas formas -----

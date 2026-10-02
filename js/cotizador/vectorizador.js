@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -43,6 +43,8 @@ const VT={
   pal:[], labels:null, fondoIdx:-1, keep:[],
   layers:[],                        // [{idx,color,loops:[{closed,area,segs}],area}]
   svg:'', hecho:false, sucio:false, corriendo:false,
+  pendiente:false,                  // H9: se soltó un ajuste mientras corría el trazo anterior
+  cifrasQuietas:true,               // H26 #1: la primera vez de cada imagen las cifras no ruedan
   formas:0, nodos:0, trazos:0, perimPx:0, ink:null,
   cmPorPx:0, altoCm:0, anchoCm:0,
   vista:'cmp', split:.5, z:1, fitW:0, fitH:0,
@@ -70,6 +72,7 @@ function abrirVector(){
   $('vt-zoom').style.display=VT.img?'flex':'none';
   if(!VT.img) $('vt-overlay').classList.remove('hide');
   $('vectormodal').classList.add('show');
+  vtCablearPiezas();
   // Una entrada de historial, igual que el escalador: en el celular el gesto para
   // regresar es el botón "atrás" del teléfono y sin esto se salía de la cotización.
   if(!VT.hist){ _sellarScrollDePantalla(); try{history.pushState({vt:1},'');VT.hist=true;}catch(_){} }
@@ -91,9 +94,17 @@ window.addEventListener('popstate',()=>{
 });
 
 /* ---------- Entrada de imagen ---------- */
+/* Cuál es la apertura de PDF vigente (H12). Se pide otro archivo mientras el anterior sigue
+   bajando el lector o pintando su hoja —es lo que hace quien eligió el equivocado—, y los dos
+   terminaban: el más lento pisaba al más nuevo con su imagen y su recuadro. Cada apertura anota
+   su número al empezar y, al volver de cada espera, si ya no es el vigente calla y se va. Es el
+   mismo mecanismo del escalador (_scPdfSeq), con su propio contador porque los dos modales
+   abren archivos por separado. */
+let _vtPdfSeq=0;
 function vtCargarImagen(input){
   const f=input.files[0]; if(!f)return;
   if(f.type==='application/pdf'){ vtLoadPDF(f); input.value=''; return; }
+  vtSoltarPdf();   // una imagen elegida ahora gana a un PDF que todavía se esté abriendo
   const r=new FileReader();
   r.onload=ev=>vtLoadImgSrc(ev.target.result,f.name);
   r.readAsDataURL(f);
@@ -108,31 +119,106 @@ function vtOnDrop(e){
 function vtUsarImagenAI(){
   if(!(Q.aiFile&&Q.aiFile.url)) return;
   if(scEsPdfIA()){
+    /* El mismo recuadro del lienzo que el PDF elegido a mano (H12): traer el archivo que analizó
+       la IA es un paso más de la misma traza, y el error se queda ahí y no en un aviso que se va
+       solo mientras el lienzo sigue invitando a cargar una imagen. */
+    const t=vtOverlayPdf(true),mio=_vtPdfSeq;
+    if(t)t.paso('traer','Trayendo el plano que analizó la IA','trabaja');
     fetch(Q.aiFile.url).then(r=>r.blob())
-      .then(b=>vtLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'})))
-      .catch(()=>toast('No se pudo abrir el PDF analizado — ábrelo de nuevo con «Cargar imagen»','err',5200));
+      .then(b=>{
+        if(mio!==_vtPdfSeq)return;   // se pidió otro archivo mientras este venía
+        if(t)t.hecho('traer');
+        return vtLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'}),t,mio);
+      })
+      .catch(()=>{ if(mio===_vtPdfSeq)vtOverlayPdfFalla(t,'traer','No se pudo traer el PDF analizado — ábrelo de nuevo con «Cargar imagen»'); });
     return;
   }
+  vtSoltarPdf();
   vtLoadImgSrc(Q.aiFile.url,'imagen IA');
 }
-function vtUsarImagenScaler(){ if(SC.img) vtLoadImgSrc(SC.img.src,'imagen del escalador'); }
-async function vtLoadPDF(f){
-  toast('Cargando PDF…','',8000);
+function vtUsarImagenScaler(){ if(SC.img){ vtSoltarPdf(); vtLoadImgSrc(SC.img.src,'imagen del escalador'); } }
+/* ----- H12 · el PDF se abre DENTRO del lienzo, con su reloj y su error en su sitio -----
+   Abrir un plano en PDF puede tardar: la primera vez se baja el lector de cdnjs y luego se
+   renderiza una hoja que puede pesar. Todo eso se anunciaba con un aviso abajo de 8 s —«Cargando
+   PDF…»— mientras el recuadro del lienzo seguía diciendo «Carga el logotipo del cliente». Los dos
+   síntomas eran del mismo defecto: se veía como que el toque no había hecho nada, así que se
+   volvía a tocar; y cuando fallaba, el motivo llegaba en OTRO aviso, lejos de donde se estaba
+   mirando y sin decir qué hacer a continuación.
+
+   Es el recuadro del escalador, sin copiarlo: las mismas clases `sp-overlay-*`, la misma traza
+   (pieza 8, con reloj de décimas) y las mismas dos salidas. Con una imagen ya cargada hay además
+   una forma de dejarla como estaba: el error no puede secuestrar un trazo a medias.
+   La rejilla 3×3 que latía por fases, de la muestra, no se hizo: la traza ya dice en qué paso va
+   y cuánto lleva, que es lo que la rejilla quería decir, y una segunda animación de espera sería
+   una segunda implementación del mismo patrón. */
+function vtOverlayPdf(ver){
+  const ov=$('vt-overlay'),vacio=$('vt-overlay-vacio'),pdf=$('vt-overlay-pdf');
+  if(!ov||!vacio||!pdf)return null;
+  pdf.classList.remove('mal');
+  if(!ver){
+    pdf.hidden=true; vacio.hidden=false;
+    $('vt-overlay-mal').hidden=true;
+    if(VT.img)ov.classList.add('hide');
+    return null;
+  }
+  _vtPdfSeq++;
+  ov.classList.remove('hide');
+  vacio.hidden=true; pdf.hidden=false;
+  $('vt-overlay-mal').hidden=true;
+  $('vt-overlay-seguir').hidden=!VT.img;
+  const pasos=$('vt-overlay-pasos');
+  const t=(window.Piezas&&Piezas.traza)?Piezas.traza(pasos,{reloj:'ds'}):null;
+  /* La traza es la misma de siempre sobre el mismo nodo: sin vaciarla, el segundo PDF del día
+     arrancaba con los pasos del primero ya marcados. Sin la pieza (no debería pasar: la carga
+     cotizador.html) queda al menos una línea que diga qué está pasando. */
+  if(t)t.limpiar(); else pasos.textContent='Abriendo el PDF…';
+  return t;
+}
+/* Otra cosa gana a un PDF que todavía se abre: se anota para que calle y se detiene su reloj.
+   Sin detenerlo, el intervalo de décimas de la traza seguía contando escondido hasta que
+   alguien abriera otro PDF. */
+function vtSoltarPdf(){
+  _vtPdfSeq++;
+  const pdf=$('vt-overlay-pdf');
+  if(pdf&&!pdf.hidden&&window.Piezas&&Piezas.traza){ try{ Piezas.traza('vt-overlay-pasos',{reloj:'ds'}).limpiar(); }catch(_){} }
+}
+/* La salida cuando el PDF falló y ya había una imagen cargada: se vuelve a lo que había. */
+function vtCerrarOverlayPdf(){ vtSoltarPdf(); vtOverlayPdf(false); }
+/* El paso que falló lleva solo la ✕ y su nombre; el motivo, completo y con lo que hay que hacer,
+   va debajo con las dos salidas. Escrito en las dos partes se leía dos veces seguidas. */
+function vtOverlayPdfFalla(t,clave,motivo){
+  if(t){ t.falla(clave,null); t.terminar({ok:false}); }   // terminar: que ningún paso se quede girando
+  const caja=$('vt-overlay-mal'),p=$('vt-overlay-motivo');
+  if(p)p.textContent=motivo;
+  if(caja)caja.hidden=false;
+  const pdf=$('vt-overlay-pdf'); if(pdf)pdf.classList.add('mal');
+  $('vt-overlay-seguir').hidden=!VT.img;
+  voz('No se pudo abrir el PDF. '+motivo,true);
+}
+async function vtLoadPDF(f,traza,mio){
+  if(mio===undefined){ traza=vtOverlayPdf(true); mio=_vtPdfSeq; }
+  const t=traza,vigente=()=>mio===_vtPdfSeq;
   try{
     if(!window.pdfjsLib){
+      if(t)t.paso('lector','Bajando el lector de PDF','trabaja');
       /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
          —el caso más común es simplemente estar sin señal, porque el lector se descarga la
          primera vez— y no había forma de saber qué había pasado ni qué hacer. */
       /* Con la misma huella que el escalador (PDFJS_SRI, escalador.js, que carga antes). */
       await new Promise((res,rej)=>{const s=document.createElement('script');s.integrity=PDFJS_SRI;s.crossOrigin='anonymous';s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      if(!vigente())return;
+      if(t)t.hecho('lector');
     }
+    if(t)t.paso('hoja','Abriendo la primera hoja','trabaja');
+    const ab=await f.arrayBuffer();
+    if(!vigente())return;
     /* El documento se destruye al terminar de pintarlo, como en scLoadPDF: cada uno tiene
        su propio Web Worker y sin destroy() se quedaba vivo, uno más por PDF. */
     const oc=document.createElement('canvas');
     let pdf;
     try{
-      pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer(),isEvalSupported:false}).promise;
+      pdf=await pdfjsLib.getDocument({data:ab,isEvalSupported:false}).promise;
       const page=await pdf.getPage(1);
       const base=page.getViewport({scale:1});
       // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,
@@ -144,10 +230,19 @@ async function vtLoadPDF(f){
       await page.render({canvasContext:cx,viewport:vp}).promise;
     }finally{ try{ pdf&&pdf.destroy(); }catch(_){} }
     const url=await new Promise(res=>{try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}catch(_){res(oc.toDataURL());}});
-    vtLoadImgSrc(url,f.name);
-  }catch(e){ toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000); }
+    if(!vigente())return;
+    if(t)t.terminar({ok:true});
+    /* vtLoadImgSrc esconde el recuadro en cuanto la imagen carga. Si la hoja se pintó pero el
+       navegador no la decodifica, el motivo se queda en el recuadro, con sus salidas. */
+    vtLoadImgSrc(url,f.name,m=>{ if(vigente())vtOverlayPdfFalla(t,'hoja',m); });
+  }catch(e){
+    if(!vigente())return;
+    vtOverlayPdfFalla(t,window.pdfjsLib?'hoja':'lector',(e&&e.message)||'el archivo no se pudo leer');
+  }
 }
-function vtLoadImgSrc(src,name){
+/* `alFallar(mensaje)`: quien abre la imagen decide dónde se dice que no se pudo. Sin él, el
+   aviso de siempre; el PDF lo usa para dejar el motivo dentro del recuadro (H12). */
+function vtLoadImgSrc(src,name,alFallar){
   const img=new Image();
   img.crossOrigin='anonymous';
   img.onload=()=>{
@@ -159,7 +254,12 @@ function vtLoadImgSrc(src,name){
     /* La tinta y las cuentas son de la imagen ANTERIOR: con ellas puestas, vtEscala calculaba el
        alto tecleado antes de vectorizar contra la otra imagen, y la partida salía de otra altura. */
     VT.ink=null; VT.formas=0; VT.nodos=0; VT.trazos=0; VT.perimPx=0;
+    /* Y las cifras que ruedan también: las del trazo nuevo no tienen por qué rodar desde las del
+       logotipo anterior —no es «el número cambió», es otra imagen—. Lo pendiente de la imagen
+       anterior tampoco se rehace sobre esta. */
+    VT.cifrasQuietas=true; VT.pendiente=false;
     $('vt-alto-cm').value=''; $('vt-ancho-cm').value='';
+    vtOverlayPdf(false);
     $('vt-overlay').classList.add('hide');
     $('vt-stage').style.display='';
     $('vt-zoom').style.display='flex';
@@ -170,7 +270,7 @@ function vtLoadImgSrc(src,name){
     vtFit(); vtRender();
     toast('Imagen cargada · '+(name||''),'ok');
   };
-  img.onerror=()=>toast(errImagen(name),'err',6400);
+  img.onerror=()=>{ if(alFallar)alFallar(errImagen(name)); else toast(errImagen(name),'err',6400); };
   img.src=src;
 }
 
@@ -195,7 +295,16 @@ function vtZoomBy(f){ VT.z=Math.max(.25,Math.min(8,VT.z*f)); $('vt-stage').style
 function vtZoomReset(){ VT.z=1; $('vt-stage').style.transform='scale(1)'; vtColocarSplit(); }
 function vtSetVista(v){
   VT.vista=v;
-  ['orig','cmp','vec'].forEach(x=>$('vt-view-'+x).classList.toggle('active',x===v));
+  /* Los tres nacían con `disabled` en el marcado y nada los encendía jamás: quien quería ver solo
+     el vector, o solo la imagen, no tenía cómo —el único camino era arrastrar el asa de la
+     comparación—. Se encienden aquí, que corre al cargar una imagen y al terminar de trazar:
+     «Original» en cuanto hay imagen; «Comparar» y «Vector» cuando hay trazo que enseñar. Y es lo
+     que deja que la ficha que viaja (H26 #2) tenga entre qué botones viajar. */
+  ['orig','cmp','vec'].forEach(x=>{
+    const b=$('vt-view-'+x);
+    b.classList.toggle('active',x===v);
+    b.disabled=!(VT.img&&(x==='orig'||VT.hecho));
+  });
   segAria('#vt-view-orig,#vt-view-cmp,#vt-view-vec');
   const out=$('vt-cvs-out'), src=$('vt-cvs-src');
   const hay=VT.hecho;
@@ -286,6 +395,94 @@ function vtSucio(){
 function vtBadge(txt,cls){
   $('vt-badge-txt').textContent=txt;
   $('vt-badge').className='sp-calib-badge'+(cls==='ok'?' ok':'');
+}
+
+/* ---------- Las piezas compartidas ----------
+   Todo lo que este archivo le suma al modal se engancha AQUÍ, la primera vez que se abre, con
+   addEventListener y llamando a js/piezas.js: cotizador.html lleva contados sus manejadores en
+   línea y cada `onclick` nuevo movería esa cuenta, que la documentación afirma. Al abrir y no al
+   cargar porque el modal está escondido hasta entonces —sin caja, los deslizadores no pueden
+   medir su pulgar ni acomodar sus marcas—; las piezas son idempotentes, así que abrirlo otra vez
+   no duplica nada. Si js/piezas.js no hubiera cargado, el modal sigue siendo el de siempre. */
+let _vtCableado=false;
+function vtCablearPiezas(){
+  if(_vtCableado) return;
+  _vtCableado=true;
+  /* H12 · las dos salidas del recuadro cuando el PDF falla. */
+  const mal=$('vt-overlay-mal');
+  if(mal) mal.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-vt-accion]'); if(!b) return;
+    if(b.dataset.vtAccion==='elegir') $('vt-img-input').click();
+    else if(b.dataset.vtAccion==='dejar') vtCerrarOverlayPdf();
+  });
+  const P=window.Piezas;
+  if(!P) return;
+  /* H9 · marcas, pastilla pegada al pulgar y el trazo que se rehace al SOLTAR. Cada deslizador
+     dice cómo se llama su valor: el mismo texto que ya salía en la etiqueta de arriba. El de
+     Colores va de 2 a 24 y con una rayita por paso cabe a 360 px: la pieza no pinta los
+     rótulos que no caben, y las rayitas sí. «Quitar motas» va de 0 a 40: una marca cada diez. */
+  if(P.deslizadorConImanes){
+    const alSoltar=()=>vtRetrazarAlSoltar();
+    P.deslizadorConImanes('vt-colores',{marcas:true,pastilla:true,alSoltar});
+    P.deslizadorConImanes('vt-detalle',{marcas:true,pastilla:true,etiqueta:v=>VT_DETALLE[v],alSoltar});
+    P.deslizadorConImanes('vt-ruido',{marcas:[0,10,20,30,40],pastilla:true,etiqueta:v=>v?v+' px':'nada',alSoltar});
+    P.deslizadorConImanes('vt-esq',{marcas:true,pastilla:true,etiqueta:v=>VT_ESQ[v],alSoltar});
+  }
+  /* H26 #2 · la ficha que viaja en los dos selectores de este modal: el modo de vectorizar y la
+     vista. Antes el resaltado saltaba de un botón al otro sin que se viera de dónde a dónde. */
+  if(P.fichaQueViaja){
+    const modo=document.querySelector('#vectormodal .vt-modo');
+    if(modo) P.fichaQueViaja(modo);
+    const vista=$('vt-view-orig');
+    if(vista&&vista.parentElement) P.fichaQueViaja(vista.parentElement);
+  }
+  /* H26 #3 · arrastrar sobre la etiqueta mueve los centímetros. */
+  vtMedidaArrastrable('vt-alto-cm');
+  vtMedidaArrastrable('vt-ancho-cm');
+}
+/* ----- H9 · soltar un ajuste vuelve a trazar ----- */
+/* Antes, mover un ajuste solo decía «Ajustes cambiados» y había que ir a tocar «Volver a
+   vectorizar» para ver el efecto: justo lo que alguien está probando con el cliente al lado. Al
+   SOLTAR —el `change`, no el `input`: vectorizar a cada píxel del arrastre congela el dedo en un
+   teléfono de gama media— se vuelve a trazar solo, pero únicamente si ya había trazo: sin él,
+   «Vectorizar» sigue siendo del botón, que además se queda por si se prefiere a mano.
+   Si todavía corre el trazo anterior, no se pierde el ajuste ni se empalman dos corridas: se anota
+   que quedó uno pendiente y, al terminar, se rehace UNA vez con los valores de ese momento (tres
+   ajustes seguidos son una sola corrida más, no tres). */
+function vtRetrazarAlSoltar(){
+  if(!VT.img||!VT.hecho) return;
+  if(VT.corriendo){ VT.pendiente=true; return; }
+  vtVectorizar();
+}
+/* ----- H26 #3 · arrastrar sobre la etiqueta mueve los centímetros -----
+   Sin abrir el teclado, que en el teléfono tapa medio panel. Se mueve de centímetro en
+   centímetro y no de décima en décima —el `step` del campo—: un letrero mide 40, 120 o 300, y a
+   0.1 por cada 4 px ir de 40 a 120 eran ocho mil píxeles de dedo. Las décimas siguen
+   tecleándose. Es la misma pieza y los mismos números que usa el escalador para la referencia.
+
+   Con el campo VACÍO —que es como queda hasta que se teclea una medida— el gesto arrancaba en 0.1,
+   el mínimo del campo. Se le da el punto de partida que el propio campo propone en su
+   `placeholder` («Ej. 40»), pero SOLO si el dedo de verdad arrastra: un toque en la etiqueta es
+   enfocar el campo, y dejarle escrito un «40» que nadie eligió sería que el teclado abriera sobre
+   una cifra ajena. Si al soltar no hubo movimiento, se borra. */
+function vtMedidaArrastrable(id){
+  const P=window.Piezas, et=document.querySelector('label[for="'+id+'"]'), campo=$(id);
+  if(!P||!P.arrastrarMedida||!et||!campo) return;
+  P.arrastrarMedida(et,null,{paso:1,px:4});
+  const semilla=((/\d+(?:\.\d+)?/.exec(campo.placeholder||'')||['40'])[0]);
+  et.addEventListener('pointerdown',e=>{
+    if(campo.value!==''||(e.button!=null&&e.button>0)) return;
+    let hubo=false;
+    const alInput=()=>{ hubo=true; };
+    const fin=()=>{
+      window.removeEventListener('pointerup',fin,true); window.removeEventListener('pointercancel',fin,true);
+      campo.removeEventListener('input',alInput);
+      if(!hubo&&campo.value===semilla) campo.value='';
+    };
+    campo.value=semilla;
+    campo.addEventListener('input',alInput);
+    window.addEventListener('pointerup',fin,true); window.addEventListener('pointercancel',fin,true);
+  });
 }
 
 /* ===================== 1 · Cuantización ===================== */
@@ -829,8 +1026,18 @@ const vtRespirar=()=>new Promise(r=>setTimeout(r,0));
 async function vtVectorizar(){
   if(!VT.img||VT.corriendo) return;
   VT.corriendo=true;
+  /* La primera vez de esta imagen no hay nada que mirar todavía, y el velo oscuro es lo que
+     corresponde. Pero un re-trazo —sobre todo el que sale solo al soltar un ajuste (H9)— tiene el
+     trazo anterior a la vista, y es justo lo que se está comparando con el ajuste nuevo: taparlo
+     con un velo es esconder lo que se quería ver. Ahí la espera es una barra fina arriba del
+     lienzo (`.fina`) que no cubre nada ni intercepta el dedo. */
+  const primera=!VT.hecho;
+  const prog=$('vt-prog');
   $('vt-go').disabled=true;
-  $('vt-prog').classList.add('on');
+  prog.classList.toggle('fina',!primera);
+  prog.classList.add('on');
+  $('vt-canvas-area').setAttribute('aria-busy','true');
+  if(!primera) vtBadge('Trazando de nuevo…','');
   vtProg(4,'Preparando la imagen…');
   await vtRespirar();
   try{
@@ -918,19 +1125,121 @@ async function vtVectorizar(){
     VT.hecho=true; VT.sucio=false;
     $('vt-go').innerHTML=ico('i-vector')+' Volver a vectorizar';
     vtBadge(VT.formas+(VT.formas===1?' forma':' formas')+' · '+VT.nodos+' nodos','ok');
+    /* El velo se quita ANTES del momento del trazo, no en el `finally`: lo que sigue necesita
+       que se vea la imagen. El panel de resultados se pinta ya, para que las cifras estén a la
+       vista mientras el trazo se dibuja. */
+    prog.classList.remove('on'); vtProg(0);
+    vtPintarResultado(); vtPintarEscala(); vtHabilitarSalidas();
+    /* H10 · SOLO la primera vez de cada imagen: es el «esto es lo que corta la máquina». Con cada
+       ajuste soltado sería una espera de casi un segundo antes de ver el resultado de lo que se
+       está probando, y ahí lo que se quiere es el cambio, no el espectáculo. */
+    const dibujo=primera?vtDibujarCorte():null;
+    if(dibujo) await dibujo.fin;
     vtSetVista('cmp');
     vtRender();
-    vtPintarResultado(); vtPintarEscala(); vtHabilitarSalidas();
+    if(dibujo) dibujo.cerrar();
     toast(recortados
       ? 'Vectorizado · '+VT.trazos+' trazos · se dejaron fuera '+recortados+' manchas sueltas de la imagen'
       : 'Vectorizado · '+VT.trazos+' trazos y '+VT.nodos+' nodos','ok',recortados?5200:3600);
   }catch(e){
+    /* El letrero «Trazando de nuevo…» no puede quedarse puesto: lo que se ve es el trazo anterior,
+       que ya no corresponde a los ajustes. */
+    if(VT.hecho) vtBadge('Ajustes cambiados','warn');
     toast('No se pudo vectorizar: '+e.message,'err',4200);
   }finally{
     VT.corriendo=false;
     $('vt-go').disabled=false;
     $('vt-prog').classList.remove('on');
     vtProg(0);
+    $('vt-canvas-area').removeAttribute('aria-busy');
+    /* Se soltó otro ajuste mientras corría este: se rehace UNA vez, con lo que hay ahora. */
+    if(VT.pendiente){ VT.pendiente=false; vtRetrazarAlSoltar(); }
+  }
+}
+/* ----- H10 · el trazo de corte se dibuja al terminar de vectorizar -----
+   Hasta ahora se quitaba el velo y el vector aparecía de golpe en la comparación. Este momento
+   de menos de un segundo hace ver lo que la máquina va a cortar: el contorno recorre cada forma
+   sobre la imagen, luego se rellenan, y entonces se abre la comparación. Es un <svg> encima del
+   escenario —dentro de #vt-stage, así que escala con el zoom— con los mismos caminos que el SVG
+   que se entrega (vtLazoD): lo que se ve dibujarse es lo que se descarga.
+
+   Un trazo por lazo, no por color. Un color es un solo camino con todos sus lazos, y el patrón de
+   guiones se reinicia en cada subtrazo: dibujados juntos, todos los lazos avanzaban a la vez y los
+   cortos terminaban en el primer instante mientras el largo seguía. Por lazo, cada uno se recorre
+   completo y con un escalón corto respecto del anterior. Los rellenos sí van por color, con
+   evenodd, porque el hueco de una «O» tiene que seguir vacío.
+
+   Es un momento que disparó el usuario y se apaga solo. Se salta, sin dibujar nada:
+     · con menos movimiento;
+     · con más de VT_DIBUJO_NODOS nodos o VT_DIBUJO_LAZOS lazos: getTotalLength() y esa cantidad
+       de animaciones cuestan en un teléfono de gama media, y una foto vectorizada no es el caso
+       que se quiere enseñar;
+     · con la pestaña escondida o el modal cerrado: nadie lo vería;
+     · y un toque sobre el lienzo lo termina en el acto.
+   El perímetro de corte que se enseña en «Medida real» sigue saliendo de vtMetricas(), que no
+   necesita DOM y corre aunque nada se dibuje: el dibujo no es la fuente de ningún número. */
+const VT_DIBUJO_NODOS=3000, VT_DIBUJO_LAZOS=150;
+function vtDibujarCorte(){
+  let svg=null;
+  try{
+    const P=window.Piezas;
+    const quieto=(P&&P.sinMovimiento)?P.sinMovimiento():matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const st=$('vt-stage'), area=$('vt-canvas-area');
+    if(quieto||document.visibilityState==='hidden'||!$('vectormodal').classList.contains('show')) return null;
+    if(!st||!area||st.style.display==='none'||typeof st.animate!=='function') return null;
+    if(!(VT.nodos>0)||VT.nodos>VT_DIBUJO_NODOS||VT.trazos>VT_DIBUJO_LAZOS) return null;
+    const NS='http://www.w3.org/2000/svg', r=vtRedondeo();
+    const crea=(n,c)=>{ const e=document.createElementNS(NS,n); if(c) e.setAttribute('class',c); return e; };
+    svg=crea('svg','vt-corte');
+    svg.setAttribute('viewBox','0 0 '+VT.imgW+' '+VT.imgH);
+    svg.setAttribute('aria-hidden','true'); svg.setAttribute('focusable','false');
+    const gRel=crea('g'), gTra=crea('g'), trazos=[], rellenos=[];
+    for(const L of VT.layers){
+      if(!VT.keep[L.idx]) continue;
+      let d='';
+      for(const lp of L.loops){
+        const ld=vtLazoD(lp,r); d+=ld;
+        const t=crea('path','vt-corte-trazo'); t.setAttribute('d',ld); gTra.appendChild(t); trazos.push(t);
+      }
+      const f=crea('path','vt-corte-relleno'); f.setAttribute('d',d); f.setAttribute('fill',vtHex(L.color)); gRel.appendChild(f); rellenos.push(f);
+    }
+    if(!trazos.length){ return null; }
+    svg.append(gRel,gTra);
+    /* El grosor está en unidades de la imagen: ~2 px de pantalla, con el zoom que haya. */
+    svg.style.setProperty('--vt-sw',(2*VT.imgW/Math.max(1,(VT.fitW||VT.imgW)*VT.z)).toFixed(3));
+    st.appendChild(svg);
+    const DUR=420, RELL=180, esc=trazos.length>1?Math.min(50,200/(trazos.length-1)):0;
+    const anims=[];
+    trazos.forEach((t,i)=>{
+      const L=t.getTotalLength();
+      t.style.strokeDasharray=L+' '+L;
+      anims.push(t.animate([{strokeDashoffset:L+'px'},{strokeDashoffset:'0px'}],{duration:DUR,delay:i*esc,easing:'cubic-bezier(.45,.05,.3,1)',fill:'both'}));
+    });
+    const finTrazos=DUR+(trazos.length-1)*esc;
+    rellenos.forEach(f=>anims.push(f.animate([{fillOpacity:0},{fillOpacity:1}],{duration:RELL,delay:finTrazos,fill:'both'})));
+    const saltar=()=>anims.forEach(a=>{ try{ a.finish(); }catch(_){} });
+    area.addEventListener('pointerdown',saltar,{once:true});
+    /* El respaldo existe para que `await dibujo.fin` no pueda colgar la corrida si el navegador
+       no entrega nunca el cuadro final de una animación. */
+    const fin=new Promise(res=>{
+      Promise.all(anims.map(a=>a.finished)).then(res,res);
+      setTimeout(res,finTrazos+RELL+700);
+    });
+    let cerrado=false;
+    const cerrar=()=>{
+      area.removeEventListener('pointerdown',saltar);
+      if(cerrado) return;
+      cerrado=true;
+      /* La comparación ya está abierta debajo: la mitad derecha es el mismo vector, así que el
+         trazo se desvanece y lo que cambia a la vista es la izquierda, que vuelve a la imagen. */
+      const quita=()=>svg.remove();
+      try{ svg.animate([{opacity:1},{opacity:0}],{duration:160,easing:'ease-out',fill:'forwards'}).finished.then(quita,quita); }catch(_){ quita(); }
+      setTimeout(quita,500);
+    };
+    return {fin,cerrar};
+  }catch(_){
+    if(svg&&svg.parentNode) svg.remove();
+    return null;
   }
 }
 /* Lo que la cotización necesita saber del trazo. "Formas" cuenta solo los contornos
@@ -961,18 +1270,27 @@ function vtMetricas(){
   VT.ink=(x1>=x0)?{x0,y0,x1,y1,w:x1-x0,h:y1-y0}:null;
 }
 const vtHex=c=>'#'+[c[0],c[1],c[2]].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
+/* El camino de un lazo, en coordenadas de la imagen y con dos decimales. Lo usan el SVG que se
+   entrega (vtArmarSVG) y el trazo que se dibuja al terminar (vtDibujarCorte, H10): es el mismo
+   dato, y que sean la misma función es lo que garantiza que lo que se ve dibujarse es lo que se
+   descarga. */
+function vtRedondeo(){
+  const k=VT.imgW/VT.wW;
+  return v=>{const n=Math.round(v*k*100)/100; return Object.is(n,-0)?0:n;};
+}
+function vtLazoD(lp,r){
+  const s0=lp.segs[0];
+  let d='M'+r(s0[0].x)+' '+r(s0[0].y);
+  for(const s of lp.segs) d+='C'+r(s[1].x)+' '+r(s[1].y)+' '+r(s[2].x)+' '+r(s[2].y)+' '+r(s[3].x)+' '+r(s[3].y);
+  return d+'Z';
+}
 function vtArmarSVG(){
-  const k=VT.imgW/VT.wW, r=v=>{const n=Math.round(v*k*100)/100; return Object.is(n,-0)?0:n;};
+  const r=vtRedondeo();
   const paths=[];
   for(const L of VT.layers){
     if(!VT.keep[L.idx]) continue;
     let d='';
-    for(const lp of L.loops){
-      const s0=lp.segs[0];
-      d+='M'+r(s0[0].x)+' '+r(s0[0].y);
-      for(const s of lp.segs) d+='C'+r(s[1].x)+' '+r(s[1].y)+' '+r(s[2].x)+' '+r(s[2].y)+' '+r(s[3].x)+' '+r(s[3].y);
-      d+='Z';
-    }
+    for(const lp of L.loops) d+=vtLazoD(lp,r);
     if(d) paths.push('  <path fill="'+vtHex(L.color)+'" fill-rule="evenodd" d="'+d+'"/>');
   }
   // Con medida real el SVG trae width/height en cm y el viewBox en píxeles: así abre
@@ -1020,23 +1338,66 @@ function vtPintarResultado(){
   $('vt-res-empty').style.display=hay?'none':'';
   $('vt-res').style.display=hay?'':'none';
   if(!hay)return;
-  $('vt-st-formas').textContent=VT.formas;
-  $('vt-st-nodos').textContent=VT.nodos;
-  $('vt-st-trazos').textContent=VT.trazos;
-  $('vt-st-colores').textContent=VT.keep.filter(Boolean).length;
-  const cont=$('vt-swatches');
-  cont.innerHTML=VT.layers.map((L,i)=>
-    '<button class="vt-sw'+(VT.keep[L.idx]?'':' off')+'" style="background:'+vtHex(L.color)+'" '+
-    'onclick="vtToggleColor('+L.idx+')" aria-pressed="'+(VT.keep[L.idx]?'true':'false')+'" '+
-    'aria-label="Color '+(i+1)+' '+vtHex(L.color)+(L.idx===VT.fondoIdx?' (el fondo)':'')+
-    (VT.keep[L.idx]?' — incluido, toca para quitarlo':' — quitado, toca para incluirlo')+'" '+
-    'title="'+vtHex(L.color)+(L.idx===VT.fondoIdx?' — fondo':'')+'"></button>').join('');
+  /* H26 #1 · las cuatro cifras ruedan al cambiar: quitar un color o re-trazar con otro detalle
+     cambia cuántas formas, nodos y trazos quedan, y el número que salta no dice cuánto. La
+     primera vez de cada imagen no rueda (no es «el número cambió», es otra imagen). */
+  const quieta=VT.cifrasQuietas; VT.cifrasQuietas=false;
+  vtCifra('formas',VT.formas,quieta);
+  vtCifra('nodos',VT.nodos,quieta);
+  vtCifra('trazos',VT.trazos,quieta);
+  vtCifra('colores',VT.keep.filter(Boolean).length,quieta);
+  vtPintarMuestras();
   $('vt-sw-note').style.display=VT.layers.length>1?'':'none';
+}
+function vtCifra(k,n,quieta){
+  const el=$('vt-st-'+k), t=String(n), P=window.Piezas;
+  if(!P||!P.rodarCifra){ if(el.textContent!==t) el.textContent=t; return; }
+  P.rodarCifra(el,t,{clave:'vt-st-'+k,animar:!quieta});
+}
+/* ----- H22 · las muestras de color dicen su estado -----
+   Eran cuadritos de 24 px que, quitados, se ponían al 25 % de opacidad con una raya: el estado
+   se decía con la opacidad —lo que §4.3 prohíbe, y de noche un cuadro apagado no se distinguía de
+   uno encendido sobre fondo oscuro— y cuál era el fondo solo se sabía por el `title`, que en el
+   teléfono no existe. Ahora cada color es una ficha de 44 px con su muestra, su nombre («Color 2»
+   o «Fondo») y un ✓ que se vuelve ✕ al quitarlo, con el nombre tachado: el estado lo dicen el
+   icono y la palabra, y la muestra se queda del color de verdad.
+
+   Las fichas se rehacen solo cuando cambian los colores del trazo; quitar o poner uno cambia el
+   estado EN SU SITIO. Con innerHTML cada toque soltaba el foco —quien recorre con el teclado
+   perdía su lugar— y el ✓ no tenía de dónde cambiar a ✕. Con muchos colores (el modo Foto llega
+   a 24) los nombres se abrevian al número, para que no sean ocho renglones de fichas. */
+function vtPintarMuestras(){
+  const cont=$('vt-swatches');
+  const firma=VT.layers.map(L=>L.idx+':'+vtHex(L.color)).join(',')+'|'+VT.fondoIdx;
+  const nombre=(L,i)=>L.idx===VT.fondoIdx?'Fondo':(VT.layers.length>8?String(i+1):'Color '+(i+1));
+  if(cont.dataset.firma!==firma){
+    cont.dataset.firma=firma;
+    cont.innerHTML=VT.layers.map((L,i)=>{
+      const hex=vtHex(L.color);
+      return '<button type="button" class="vt-sw" data-idx="'+L.idx+'" onclick="vtToggleColor('+L.idx+')" '+
+        'title="'+hex+(L.idx===VT.fondoIdx?' — fondo':'')+'">'+
+        '<span class="vt-sw-m" style="background:'+hex+'" aria-hidden="true"></span>'+
+        '<span class="vt-sw-e" aria-hidden="true">'+ico('i-check','vt-sw-si')+ico('i-cerrar','vt-sw-no')+'</span>'+
+        '<span class="vt-sw-n">'+nombre(L,i)+'</span></button>';
+    }).join('');
+  }
+  cont.classList.toggle('denso',VT.layers.length>8);
+  VT.layers.forEach((L,i)=>{
+    const b=cont.querySelector('[data-idx="'+L.idx+'"]');
+    if(!b) return;
+    const on=!!VT.keep[L.idx];
+    b.classList.toggle('off',!on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+    b.setAttribute('aria-label','Color '+(i+1)+' '+vtHex(L.color)+(L.idx===VT.fondoIdx?' (el fondo)':'')+
+      (on?' — incluido, toca para quitarlo':' — quitado, toca para incluirlo'));
+  });
 }
 function vtToggleColor(idx){
   VT.keep[idx]=!VT.keep[idx];
   vtMetricas(); vtArmarSVG(); vtRender(); vtPintarResultado(); vtPintarEscala();
   vtBadge(VT.formas+(VT.formas===1?' forma':' formas')+' · '+VT.nodos+' nodos','ok');
+  const i=VT.layers.findIndex(L=>L.idx===idx);
+  if(i>=0) voz((VT.layers[i].idx===VT.fondoIdx?'Fondo':'Color '+(i+1))+(VT.keep[idx]?' incluido en el trazo':' quitado del trazo'));
 }
 
 /* ---------- Medida real ---------- */
