@@ -855,35 +855,35 @@ function fondoElegido() {
 /* El marcado de cada fondo. Todo es decoración —`aria-hidden`, sin texto que leer— y los
    estilos y los `@keyframes pf-*` viven en css/plataforma.css (bloque F10). Lo que sigue al
    cursor lee `--px` y `--py`, que escribe `montarFondo()`. */
-const VINETA = '<i class="pf-vineta"></i>';
-const GRANO = '<i class="pf-grano"></i>';
+const VINETA = '<i class="pfo-vineta"></i>';
+const GRANO = '<i class="pfo-grano"></i>';
 const AL3D_FILA = '<span>AL3D</span>'.repeat(8);
-const CABEZAL = '<i class="pf-cabeza"><b></b><s class="s1"></s><s class="s2"></s><s class="s3"></s></i>';
-const CORTE = '<i class="pf-guia"></i><i class="pf-bar t"></i><i class="pf-bar r"></i><i class="pf-bar b"></i><i class="pf-bar l"></i>' + CABEZAL;
+const CABEZAL = '<i class="pfo-cabeza"><b></b><s class="s1"></s><s class="s2"></s><s class="s3"></s></i>';
+const CORTE = '<i class="pfo-guia"></i><i class="pfo-bar t"></i><i class="pfo-bar r"></i><i class="pfo-bar b"></i><i class="pfo-bar l"></i>' + CABEZAL;
 function fondoHTML(clave) {
   switch (clave) {
-    case 'neon': return '<i class="pf-cielo"></i><i class="pf-neon-a"></i><i class="pf-neon-b"></i>' +
-      '<i class="pf-sigue"><b class="pf-neon-foco"></b></i><i class="pf-neon-tubo"></i>' + VINETA + GRANO;
-    case 'plano': return '<i class="pf-rejilla"></i><i class="pf-aro1"></i><i class="pf-aro2"><b></b></i>' +
-      '<i class="pf-cota-x"><s></s><em></em><span>1 200 mm</span><em></em><s></s></i>' +
-      '<i class="pf-cota-y"><s></s><em></em><span>800 mm</span><em></em><s></s></i>' +
-      '<i class="pf-mira-x"></i><i class="pf-mira-y"></i><i class="pf-sigue"><b class="pf-rombo"></b></i>';
-    case 'led': return '<i class="pf-cielo"></i><i class="pf-led-base"></i><i class="pf-led-barre"></i><i class="pf-led-dedo"></i>' + VINETA;
-    case 'circulos': return '<i class="pf-capa c1"><b></b></i><i class="pf-capa c2"><b></b></i>' +
-      '<i class="pf-capa c3"><b></b></i><i class="pf-capa c4"><b></b><b></b></i>';
-    case 'letras': return '<i class="pf-cielo"></i>' +
-      '<i class="pf-fila f1"><i>' + AL3D_FILA + '</i></i><i class="pf-fila f2"><i>' + AL3D_FILA + '</i></i>' +
-      '<i class="pf-fila f3"><i>' + AL3D_FILA + '</i></i><i class="pf-sigue"><b class="pf-letras-luz"></b></i>' +
-      '<i class="pf-letras-borde"></i>' + VINETA + GRANO;
-    case 'cnc': return '<i class="pf-mesa"></i><i class="pf-corte k1">' + CORTE + '</i><i class="pf-corte k2">' + CORTE + '</i>' +
-      '<i class="pf-aro1"></i><i class="pf-sigue"><b class="pf-mira"></b></i>';
-    case 'particulas': return '<i class="pf-cielo"></i><canvas class="pf-lienzo"></canvas>' + VINETA;
-    case 'ondas': return '<i class="pf-cielo"></i><i class="pf-sigue">' +
-      '<b class="pf-onda o1"></b><b class="pf-onda o2"></b><b class="pf-onda o3"></b><b class="pf-onda o4"></b>' +
-      '<b class="pf-punto"></b><b class="pf-late"></b></i><i class="pf-bruma"></i>';
-    case 'acrilico': return '<i class="pf-cielo"></i><i class="pf-laminas">' +
+    case 'neon': return '<i class="pfo-cielo"></i><i class="pfo-neon-a"></i><i class="pfo-neon-b"></i>' +
+      '<i class="pfo-sigue"><b class="pfo-neon-foco"></b></i><i class="pfo-neon-tubo"></i>' + VINETA + GRANO;
+    case 'plano': return '<i class="pfo-rejilla"></i><i class="pfo-aro1"></i><i class="pfo-aro2"><b></b></i>' +
+      '<i class="pfo-cota-x"><s></s><em></em><span>1 200 mm</span><em></em><s></s></i>' +
+      '<i class="pfo-cota-y"><s></s><em></em><span>800 mm</span><em></em><s></s></i>' +
+      '<i class="pfo-mira-x"></i><i class="pfo-mira-y"></i><i class="pfo-sigue"><b class="pfo-rombo"></b></i>';
+    case 'led': return '<i class="pfo-cielo"></i><i class="pfo-led-base"></i><i class="pfo-led-barre"></i><i class="pfo-led-dedo"></i>' + VINETA;
+    case 'circulos': return '<i class="pfo-capa c1"><b></b></i><i class="pfo-capa c2"><b></b></i>' +
+      '<i class="pfo-capa c3"><b></b></i><i class="pfo-capa c4"><b></b><b></b></i>';
+    case 'letras': return '<i class="pfo-cielo"></i>' +
+      '<i class="pfo-fila f1"><i>' + AL3D_FILA + '</i></i><i class="pfo-fila f2"><i>' + AL3D_FILA + '</i></i>' +
+      '<i class="pfo-fila f3"><i>' + AL3D_FILA + '</i></i><i class="pfo-sigue"><b class="pfo-letras-luz"></b></i>' +
+      '<i class="pfo-letras-borde"></i>' + VINETA + GRANO;
+    case 'cnc': return '<i class="pfo-mesa"></i><i class="pfo-corte k1">' + CORTE + '</i><i class="pfo-corte k2">' + CORTE + '</i>' +
+      '<i class="pfo-aro1"></i><i class="pfo-sigue"><b class="pfo-mira"></b></i>';
+    case 'particulas': return '<i class="pfo-cielo"></i><canvas class="pfo-lienzo"></canvas>' + VINETA;
+    case 'ondas': return '<i class="pfo-cielo"></i><i class="pfo-sigue">' +
+      '<b class="pfo-onda o1"></b><b class="pfo-onda o2"></b><b class="pfo-onda o3"></b><b class="pfo-onda o4"></b>' +
+      '<b class="pfo-punto"></b><b class="pfo-late"></b></i><i class="pfo-bruma"></i>';
+    case 'acrilico': return '<i class="pfo-cielo"></i><i class="pfo-laminas">' +
       '<i class="l1"><b></b></i><i class="l2"><b></b></i><i class="l3"><b></b></i><i class="l4"><b></b></i></i>' +
-      '<i class="pf-brillo"></i><i class="pf-bruma"></i>';
+      '<i class="pfo-brillo"></i><i class="pfo-bruma"></i>';
   }
   return '';
 }
@@ -920,19 +920,19 @@ function montarFondo(caja) {
   const tocar = ev => {
     if (clave !== 'ondas' || sinMovimiento()) return;
     const o = document.createElement('b');
-    o.className = 'pf-onda-clic';
+    o.className = 'pfo-onda-clic';
     o.style.left = (ev.clientX / (window.innerWidth || 1) * 100).toFixed(2) + '%';
     o.style.top = (ev.clientY / (window.innerHeight || 1) * 100).toFixed(2) + '%';
     o.addEventListener('animationend', () => o.remove(), { once: true });
     f.appendChild(o);
-    const todas = f.querySelectorAll('.pf-onda-clic');
+    const todas = f.querySelectorAll('.pfo-onda-clic');
     for (let i = 0; i < todas.length - 6; i++) todas[i].remove();
   };
   caja.addEventListener('pointermove', mover, { passive: true });
   caja.addEventListener('pointerleave', salir);
   caja.addEventListener('pointerdown', tocar, { passive: true });
 
-  const lienzo = f.querySelector('.pf-lienzo');
+  const lienzo = f.querySelector('.pfo-lienzo');
   const pararLienzo = lienzo ? constelacion(lienzo, () => pt) : () => {};
   return () => {
     pararLienzo();

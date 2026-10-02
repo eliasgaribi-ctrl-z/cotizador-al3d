@@ -2732,19 +2732,19 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 /* La entrada, una vez (~0.9 s): los tres azules llegan desde ±46 px y se juntan en 0.7 s; a los
    850 ms se van y aparece el logo; título, texto, botón y pie suben 6 px en cascada. */
 .puerta-caja.entra .puerta-goo{animation:pf-se-va .3s var(--pf-ease) .85s both}
-.puerta-caja.entra .puerta-logo{animation:pf-aparece .3s var(--pf-ease) .85s both}
+.puerta-caja.entra .puerta-logo{animation:pf-puerta-aparece .3s var(--pf-ease) .85s both}
 .puerta-caja.entra .g1{animation:pf-goo-izq-in .7s var(--pf-ease) both}
 .puerta-caja.entra .g2{animation:pf-goo-cen-in .7s var(--pf-ease) both}
 .puerta-caja.entra .g3{animation:pf-goo-der-in .7s var(--pf-ease) both}
 .puerta-caja.entra h1{animation:pf-sube .24s var(--pf-ease) .45s both}
 .puerta-caja.entra .puerta-sub{animation:pf-sube .24s var(--pf-ease) .52s both}
 .puerta-caja.entra .puerta-btn{animation:pf-sube .24s var(--pf-ease) .6s both}
-.puerta-caja.entra .puerta-pie{animation:pf-aparece .24s var(--pf-ease) .7s both}
+.puerta-caja.entra .puerta-pie{animation:pf-puerta-aparece .24s var(--pf-ease) .7s both}
 @keyframes pf-goo-izq-in{from{transform:translateX(-46px)}to{transform:translateX(0)}}
 @keyframes pf-goo-der-in{from{transform:translateX(46px)}to{transform:translateX(0)}}
 @keyframes pf-goo-cen-in{from{transform:scale(.4)}to{transform:scale(1)}}
 @keyframes pf-se-va{from{opacity:1}to{opacity:0}}
-@keyframes pf-aparece{from{opacity:0}to{opacity:1}}
+@keyframes pf-puerta-aparece{from{opacity:0}to{opacity:1}}
 @keyframes pf-sube{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ----- Los nueve fondos -----
@@ -2752,20 +2752,20 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
    sin recibir toques: los toques los oye #pf-puerta. Lo que sigue al cursor lee --px/--py. */
 .puerta-fondo{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:var(--fondo)}
 .puerta-fondo i,.puerta-fondo b,.puerta-fondo s,.puerta-fondo em,.puerta-fondo canvas{position:absolute;display:block}
-.puerta-fondo .pf-sigue{left:calc(var(--px)*100%);top:calc(var(--py)*100%);width:0;height:0;
+.puerta-fondo .pfo-sigue{left:calc(var(--px)*100%);top:calc(var(--py)*100%);width:0;height:0;
   transition:left var(--pf-t,.9s) var(--pf-ease),top var(--pf-t,.9s) var(--pf-ease)}
-.pf-vineta{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 50%,rgba(3,4,18,0) 45%,rgba(3,4,18,.65) 100%)}
-.pf-grano{inset:0;opacity:.07;background-size:160px 160px;
+.pfo-vineta{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 50%,rgba(3,4,18,0) 45%,rgba(3,4,18,.65) 100%)}
+.pfo-grano{inset:0;opacity:.07;background-size:160px 160px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-.pf-bruma{inset:0;background:radial-gradient(ellipse 80% 75% at 50% 50%,rgba(52,30,253,0) 55%,rgba(52,30,253,.08) 100%)}
+.pfo-bruma{inset:0;background:radial-gradient(ellipse 80% 75% at 50% 50%,rgba(52,30,253,0) 55%,rgba(52,30,253,.08) 100%)}
 @keyframes pf-gira{to{transform:rotate(360deg)}}
 
 /* 2a · Neón: resplandor de letrero que respira; el foco sigue al dedo. */
-[data-fondo="neon"] .pf-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#12145a 0%,#0a0b26 55%,#05061a 100%)}
-.pf-neon-a{left:4%;top:4%;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(98,144,255,.45) 0%,rgba(10,11,38,0) 70%);animation:pf-neon-a 9s ease-in-out infinite alternate}
-.pf-neon-b{right:0;bottom:0;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(52,30,253,.6) 0%,rgba(10,11,38,0) 70%);animation:pf-neon-b 11s ease-in-out infinite alternate}
-.pf-neon-foco{width:680px;height:680px;left:-340px;top:-340px;border-radius:50%;background:radial-gradient(circle,rgba(66,103,254,.55) 0%,rgba(52,30,253,.2) 40%,rgba(10,11,38,0) 70%);animation:pf-respira 4s ease-in-out infinite}
-.pf-neon-tubo{left:50%;top:50%;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;border:2px solid #a9bcff;
+[data-fondo="neon"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#12145a 0%,#0a0b26 55%,#05061a 100%)}
+.pfo-neon-a{left:4%;top:4%;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(98,144,255,.45) 0%,rgba(10,11,38,0) 70%);animation:pf-neon-a 9s ease-in-out infinite alternate}
+.pfo-neon-b{right:0;bottom:0;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle,rgba(52,30,253,.6) 0%,rgba(10,11,38,0) 70%);animation:pf-neon-b 11s ease-in-out infinite alternate}
+.pfo-neon-foco{width:680px;height:680px;left:-340px;top:-340px;border-radius:50%;background:radial-gradient(circle,rgba(66,103,254,.55) 0%,rgba(52,30,253,.2) 40%,rgba(10,11,38,0) 70%);animation:pf-respira 4s ease-in-out infinite}
+.pfo-neon-tubo{left:50%;top:50%;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;border:2px solid #a9bcff;
   box-shadow:0 0 10px #6290ff,0 0 40px #4267fe,0 0 90px #341efd,inset 0 0 10px #6290ff,inset 0 0 40px #4267fe;animation:pf-tubo 6s linear infinite}
 @keyframes pf-neon-a{to{transform:translate(60px,80px) scale(1.15)}}
 @keyframes pf-neon-b{to{transform:translate(-80px,-60px) scale(.9)}}
@@ -2774,92 +2774,92 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 
 /* 2b · Plano: la cuadrícula avanza, los círculos giran y una cruz de taller marca el cursor. */
 [data-fondo="plano"]{--pf-t:.3s}
-.pf-rejilla{inset:0;background-image:linear-gradient(rgba(66,103,254,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.18) 1px,transparent 1px),
+.pfo-rejilla{inset:0;background-image:linear-gradient(rgba(66,103,254,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.18) 1px,transparent 1px),
   linear-gradient(rgba(66,103,254,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.07) 1px,transparent 1px);
   background-size:120px 120px,120px 120px,24px 24px,24px 24px;animation:pf-rejilla 16s linear infinite;
   -webkit-mask-image:radial-gradient(ellipse at center,#000 30%,transparent 85%);mask-image:radial-gradient(ellipse at center,#000 30%,transparent 85%)}
 @keyframes pf-rejilla{to{background-position:120px 120px,120px 120px,24px 24px,24px 24px}}
-[data-fondo="plano"] .pf-aro1{left:50%;top:50%;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;border:1px dashed rgba(66,103,254,.45);animation:pf-gira 60s linear infinite}
-.pf-aro2{left:50%;top:50%;width:760px;height:760px;margin:-380px 0 0 -380px;border-radius:50%;border:1px solid rgba(66,103,254,.22);animation:pf-gira 24s linear infinite}
-.pf-aro2>b{left:50%;top:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 4px rgba(66,103,254,.18),0 0 14px #6290ff}
-.puerta-fondo :is(.pf-cota-x,.pf-cota-y){display:flex;align-items:center;gap:8px;color:#4267fe;font:600 12px/1 var(--f-cifra);letter-spacing:.06em}
-.puerta-fondo .pf-cota-x{left:8%;right:8%;top:5%;height:12px}
-.puerta-fondo .pf-cota-y{top:12%;bottom:12%;left:4%;width:12px;flex-direction:column}
-.puerta-fondo :is(.pf-cota-x,.pf-cota-y) s,.puerta-fondo :is(.pf-cota-x,.pf-cota-y) em{position:static;background:#4267fe}
-.puerta-fondo .pf-cota-x s{width:1px;height:9px}
-.puerta-fondo .pf-cota-y s{width:9px;height:1px}
-.puerta-fondo .pf-cota-x em{flex:1;height:1px;background:rgba(66,103,254,.45)}
-.puerta-fondo .pf-cota-y em{flex:1;width:1px;background:rgba(66,103,254,.45)}
-.pf-cota-y span{writing-mode:vertical-rl;transform:rotate(180deg)}
-.pf-mira-x{top:0;bottom:0;left:calc(var(--px)*100%);width:1px;background:rgba(66,103,254,.5);transition:left .3s var(--pf-ease)}
-.pf-mira-y{left:0;right:0;top:calc(var(--py)*100%);height:1px;background:rgba(66,103,254,.5);transition:top .3s var(--pf-ease)}
-.pf-rombo{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border:2px solid #4267fe;background:var(--fondo);transform:rotate(45deg)}
+[data-fondo="plano"] .pfo-aro1{left:50%;top:50%;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;border:1px dashed rgba(66,103,254,.45);animation:pf-gira 60s linear infinite}
+.pfo-aro2{left:50%;top:50%;width:760px;height:760px;margin:-380px 0 0 -380px;border-radius:50%;border:1px solid rgba(66,103,254,.22);animation:pf-gira 24s linear infinite}
+.pfo-aro2>b{left:50%;top:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 4px rgba(66,103,254,.18),0 0 14px #6290ff}
+.puerta-fondo :is(.pfo-cota-x,.pfo-cota-y){display:flex;align-items:center;gap:8px;color:#4267fe;font:600 12px/1 var(--f-cifra);letter-spacing:.06em}
+.puerta-fondo .pfo-cota-x{left:8%;right:8%;top:5%;height:12px}
+.puerta-fondo .pfo-cota-y{top:12%;bottom:12%;left:4%;width:12px;flex-direction:column}
+.puerta-fondo :is(.pfo-cota-x,.pfo-cota-y) s,.puerta-fondo :is(.pfo-cota-x,.pfo-cota-y) em{position:static;background:#4267fe}
+.puerta-fondo .pfo-cota-x s{width:1px;height:9px}
+.puerta-fondo .pfo-cota-y s{width:9px;height:1px}
+.puerta-fondo .pfo-cota-x em{flex:1;height:1px;background:rgba(66,103,254,.45)}
+.puerta-fondo .pfo-cota-y em{flex:1;width:1px;background:rgba(66,103,254,.45)}
+.pfo-cota-y span{writing-mode:vertical-rl;transform:rotate(180deg)}
+.pfo-mira-x{top:0;bottom:0;left:calc(var(--px)*100%);width:1px;background:rgba(66,103,254,.5);transition:left .3s var(--pf-ease)}
+.pfo-mira-y{left:0;right:0;top:calc(var(--py)*100%);height:1px;background:rgba(66,103,254,.5);transition:top .3s var(--pf-ease)}
+.pfo-rombo{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border:2px solid #4267fe;background:var(--fondo);transform:rotate(45deg)}
 
 /* 2c · Módulo LED: una franja barre la matriz; los puntos se encienden alrededor del dedo. */
-[data-fondo="led"] .pf-cielo{inset:0;background:radial-gradient(ellipse at 50% 45%,#141766 0%,#0d0f2e 60%,#06071a 100%)}
-.pf-led-base{inset:0;background-image:radial-gradient(circle,rgba(98,144,255,.2) 1.7px,transparent 2.3px);background-size:14px 14px}
-.pf-led-barre{inset:0;opacity:.6;background-image:radial-gradient(circle,#fff 1.7px,transparent 2.3px);background-size:14px 14px;filter:drop-shadow(0 0 3px #6290ff);
+[data-fondo="led"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 45%,#141766 0%,#0d0f2e 60%,#06071a 100%)}
+.pfo-led-base{inset:0;background-image:radial-gradient(circle,rgba(98,144,255,.2) 1.7px,transparent 2.3px);background-size:14px 14px}
+.pfo-led-barre{inset:0;opacity:.6;background-image:radial-gradient(circle,#fff 1.7px,transparent 2.3px);background-size:14px 14px;filter:drop-shadow(0 0 3px #6290ff);
   -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 50%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0%,#000 50%,transparent 100%);
   -webkit-mask-size:35% 100%;mask-size:35% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:pf-led 5s linear infinite}
-.pf-led-dedo{inset:0;background-image:radial-gradient(circle,#b9c9ff 1.9px,transparent 2.5px);background-size:14px 14px;filter:drop-shadow(0 0 4px #4267fe) drop-shadow(0 0 10px #341efd);
+.pfo-led-dedo{inset:0;background-image:radial-gradient(circle,#b9c9ff 1.9px,transparent 2.5px);background-size:14px 14px;filter:drop-shadow(0 0 4px #4267fe) drop-shadow(0 0 10px #341efd);
   -webkit-mask-image:radial-gradient(circle 180px at calc(var(--px)*100%) calc(var(--py)*100%),#000 0%,transparent 100%);
   mask-image:radial-gradient(circle 180px at calc(var(--px)*100%) calc(var(--py)*100%),#000 0%,transparent 100%)}
 @keyframes pf-led{from{-webkit-mask-position:-60% 0;mask-position:-60% 0}to{-webkit-mask-position:160% 0;mask-position:160% 0}}
 
 /* 2d · Círculos: los tres azules del logo flotan en capas que se desplazan con el cursor. */
-.pf-capa{inset:0;transition:transform .8s var(--pf-ease)}
-.pf-capa.c1{transform:translate(calc((var(--px) - .5) * -60px),calc((var(--py) - .5) * -60px))}
-.pf-capa.c2{transform:translate(calc((var(--px) - .5) * 20px),calc((var(--py) - .5) * 20px))}
-.pf-capa.c3{transform:translate(calc((var(--px) - .5) * 30px),calc((var(--py) - .5) * 30px))}
-.pf-capa.c4{transform:translate(calc((var(--px) - .5) * -110px),calc((var(--py) - .5) * -110px))}
-.pf-capa.c1>b{left:-180px;top:-200px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#8eaeff 0%,#6290ff 55%,#4f7bf5 100%);box-shadow:0 30px 60px -20px rgba(52,30,253,.35);animation:pf-flota1 12s ease-in-out infinite alternate}
-.pf-capa.c2>b{left:50%;top:50%;width:640px;height:640px;margin:-320px 0 0 -320px;border-radius:50%;border:1.5px dashed rgba(52,30,253,.25);animation:pf-gira 50s linear infinite}
-.pf-capa.c3>b{right:-260px;bottom:-240px;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4b3cff 0%,#341efd 50%,#2412d6 100%);box-shadow:0 -30px 80px -30px rgba(52,30,253,.5);animation:pf-flota2 14s ease-in-out infinite alternate}
-.pf-capa.c4>b:first-child{right:18%;bottom:24%;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#6f8fff 0%,#4267fe 60%);box-shadow:0 24px 40px -14px rgba(52,30,253,.55);animation:pf-flota3 8s ease-in-out infinite alternate}
-.pf-capa.c4>b+b{left:14%;bottom:12%;width:46px;height:46px;border-radius:50%;background:#6290ff;opacity:.5;filter:blur(2px);animation:pf-flota1 9s ease-in-out infinite alternate-reverse}
+.pfo-capa{inset:0;transition:transform .8s var(--pf-ease)}
+.pfo-capa.c1{transform:translate(calc((var(--px) - .5) * -60px),calc((var(--py) - .5) * -60px))}
+.pfo-capa.c2{transform:translate(calc((var(--px) - .5) * 20px),calc((var(--py) - .5) * 20px))}
+.pfo-capa.c3{transform:translate(calc((var(--px) - .5) * 30px),calc((var(--py) - .5) * 30px))}
+.pfo-capa.c4{transform:translate(calc((var(--px) - .5) * -110px),calc((var(--py) - .5) * -110px))}
+.pfo-capa.c1>b{left:-180px;top:-200px;width:440px;height:440px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#8eaeff 0%,#6290ff 55%,#4f7bf5 100%);box-shadow:0 30px 60px -20px rgba(52,30,253,.35);animation:pf-flota1 12s ease-in-out infinite alternate}
+.pfo-capa.c2>b{left:50%;top:50%;width:640px;height:640px;margin:-320px 0 0 -320px;border-radius:50%;border:1.5px dashed rgba(52,30,253,.25);animation:pf-gira 50s linear infinite}
+.pfo-capa.c3>b{right:-260px;bottom:-240px;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4b3cff 0%,#341efd 50%,#2412d6 100%);box-shadow:0 -30px 80px -30px rgba(52,30,253,.5);animation:pf-flota2 14s ease-in-out infinite alternate}
+.pfo-capa.c4>b:first-child{right:18%;bottom:24%;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#6f8fff 0%,#4267fe 60%);box-shadow:0 24px 40px -14px rgba(52,30,253,.55);animation:pf-flota3 8s ease-in-out infinite alternate}
+.pfo-capa.c4>b+b{left:14%;bottom:12%;width:46px;height:46px;border-radius:50%;background:#6290ff;opacity:.5;filter:blur(2px);animation:pf-flota1 9s ease-in-out infinite alternate-reverse}
 @keyframes pf-flota1{to{transform:translate(40px,60px)}}
 @keyframes pf-flota2{to{transform:translate(-50px,-40px) scale(1.05)}}
 @keyframes pf-flota3{to{transform:translate(-60px,40px)}}
 
 /* 2e · Letras de canal: tres filas de «AL3D» en tubo de neón corren de lado y parpadean. */
 [data-fondo="letras"]{--pf-t:.5s}
-[data-fondo="letras"] .pf-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,#0f1150 0%,#07081f 65%)}
-.pf-fila{left:0;display:flex;padding-right:64px;white-space:nowrap;font:600 150px/1 var(--f-cifra);letter-spacing:-.02em;color:transparent;-webkit-text-stroke:2px var(--pf-tubo)}
-.pf-fila>i{position:static!important;display:flex!important;gap:64px}
-.pf-fila.f1{--pf-tubo:#4267fe;top:3%;opacity:.75;animation:pf-marquesina 48s linear infinite}
-.pf-fila.f2{--pf-tubo:#6290ff;top:36%;font-size:210px;animation:pf-marquesina-r 62s linear infinite}
-.pf-fila.f3{--pf-tubo:#7b6bff;top:76%;opacity:.75;animation:pf-marquesina 54s linear infinite}
-.pf-fila{filter:drop-shadow(0 0 6px var(--pf-tubo)) drop-shadow(0 0 22px var(--pf-tubo))}
-.pf-fila>i{animation:pf-enciende 7s linear infinite}
-.pf-fila.f2>i{animation-delay:1.6s}
-.pf-fila.f3>i{animation-delay:3.1s}
-.pf-letras-luz{width:460px;height:460px;left:-230px;top:-230px;border-radius:50%;background:radial-gradient(circle,rgba(157,180,255,.38) 0%,rgba(7,8,31,0) 70%);mix-blend-mode:screen}
-.pf-letras-borde{inset:0;background:linear-gradient(180deg,#07081f 0%,rgba(7,8,31,0) 18%,rgba(7,8,31,0) 82%,#07081f 100%)}
+[data-fondo="letras"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,#0f1150 0%,#07081f 65%)}
+.pfo-fila{left:0;display:flex;padding-right:64px;white-space:nowrap;font:600 150px/1 var(--f-cifra);letter-spacing:-.02em;color:transparent;-webkit-text-stroke:2px var(--pf-tubo)}
+.pfo-fila>i{position:static!important;display:flex!important;gap:64px}
+.pfo-fila.f1{--pf-tubo:#4267fe;top:3%;opacity:.75;animation:pf-marquesina 48s linear infinite}
+.pfo-fila.f2{--pf-tubo:#6290ff;top:36%;font-size:210px;animation:pf-marquesina-r 62s linear infinite}
+.pfo-fila.f3{--pf-tubo:#7b6bff;top:76%;opacity:.75;animation:pf-marquesina 54s linear infinite}
+.pfo-fila{filter:drop-shadow(0 0 6px var(--pf-tubo)) drop-shadow(0 0 22px var(--pf-tubo))}
+.pfo-fila>i{animation:pf-enciende 7s linear infinite}
+.pfo-fila.f2>i{animation-delay:1.6s}
+.pfo-fila.f3>i{animation-delay:3.1s}
+.pfo-letras-luz{width:460px;height:460px;left:-230px;top:-230px;border-radius:50%;background:radial-gradient(circle,rgba(157,180,255,.38) 0%,rgba(7,8,31,0) 70%);mix-blend-mode:screen}
+.pfo-letras-borde{inset:0;background:linear-gradient(180deg,#07081f 0%,rgba(7,8,31,0) 18%,rgba(7,8,31,0) 82%,#07081f 100%)}
 @keyframes pf-marquesina{to{transform:translateX(-50%)}}
 @keyframes pf-marquesina-r{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 @keyframes pf-enciende{0%{opacity:.2}3%{opacity:1}5%{opacity:.35}7%,100%{opacity:1}}
 
 /* 2f · Corte CNC: el cabezal recorre el contorno y deja el corte; el cursor es la mira. */
 [data-fondo="cnc"]{--pf-t:.25s}
-.pf-mesa{inset:0;background-image:linear-gradient(rgba(66,103,254,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.08) 1px,transparent 1px);background-size:24px 24px}
-.pf-corte{inset:0;--pf-c:#4267fe;--pf-g:2px;--pf-d:10s;--pf-r:0s}
-.pf-corte.k2{inset:9%;--pf-c:#341efd;--pf-g:1.5px;--pf-d:13s;--pf-r:-6s}
-.pf-guia{left:6%;top:6%;right:6%;bottom:6%;border:1px dashed rgba(66,103,254,.28);border-radius:4px}
-.pf-bar{background:var(--pf-c);box-shadow:0 0 8px var(--pf-c);animation-duration:var(--pf-d);animation-delay:var(--pf-r);animation-timing-function:linear;animation-iteration-count:infinite}
-.pf-bar.t{left:6%;top:6%;width:88%;height:var(--pf-g);transform-origin:left;animation-name:pf-bar-t}
-.pf-bar.r{left:94%;top:6%;width:var(--pf-g);height:88%;transform-origin:top;animation-name:pf-bar-r}
-.pf-bar.b{left:6%;top:94%;width:88%;height:var(--pf-g);transform-origin:right;animation-name:pf-bar-b}
-.pf-bar.l{left:6%;top:6%;width:var(--pf-g);height:88%;transform-origin:bottom;animation-name:pf-bar-l}
-.pf-cabeza{width:0;height:0;animation:pf-cabeza var(--pf-d) linear var(--pf-r) infinite}
-.pf-cabeza>b{width:12px;height:12px;left:-6px;top:-6px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--pf-c),0 0 16px 5px #6290ff}
-.pf-cabeza>s{width:3px;height:3px;border-radius:50%;background:#fff;animation:pf-chispa .5s ease-out infinite}
-.pf-cabeza>s.s1{--cx:14px;--cy:-12px}
-.pf-cabeza>s.s2{--cx:-10px;--cy:-16px;background:#9db4ff;animation-duration:.7s;animation-delay:.2s}
-.pf-cabeza>s.s3{--cx:6px;--cy:16px;width:2px;height:2px;animation-duration:.6s;animation-delay:.35s}
-[data-fondo="cnc"] .pf-aro1{left:50%;top:50%;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;border:1px dashed rgba(66,103,254,.3);animation:pf-gira 40s linear infinite}
-.pf-mira{width:0;height:0}
-.pf-mira::before{content:"";position:absolute;width:48px;height:48px;left:-24px;top:-24px;box-sizing:border-box;border-radius:50%;border:1.5px solid #4267fe;box-shadow:0 0 0 6px rgba(66,103,254,.08)}
-.pf-mira::after{content:"";position:absolute;width:72px;height:72px;left:-36px;top:-36px;
+.pfo-mesa{inset:0;background-image:linear-gradient(rgba(66,103,254,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.08) 1px,transparent 1px);background-size:24px 24px}
+.pfo-corte{inset:0;--pf-c:#4267fe;--pf-g:2px;--pf-d:10s;--pf-r:0s}
+.pfo-corte.k2{inset:9%;--pf-c:#341efd;--pf-g:1.5px;--pf-d:13s;--pf-r:-6s}
+.pfo-guia{left:6%;top:6%;right:6%;bottom:6%;border:1px dashed rgba(66,103,254,.28);border-radius:4px}
+.pfo-bar{background:var(--pf-c);box-shadow:0 0 8px var(--pf-c);animation-duration:var(--pf-d);animation-delay:var(--pf-r);animation-timing-function:linear;animation-iteration-count:infinite}
+.pfo-bar.t{left:6%;top:6%;width:88%;height:var(--pf-g);transform-origin:left;animation-name:pf-bar-t}
+.pfo-bar.r{left:94%;top:6%;width:var(--pf-g);height:88%;transform-origin:top;animation-name:pf-bar-r}
+.pfo-bar.b{left:6%;top:94%;width:88%;height:var(--pf-g);transform-origin:right;animation-name:pf-bar-b}
+.pfo-bar.l{left:6%;top:6%;width:var(--pf-g);height:88%;transform-origin:bottom;animation-name:pf-bar-l}
+.pfo-cabeza{width:0;height:0;animation:pf-cabeza var(--pf-d) linear var(--pf-r) infinite}
+.pfo-cabeza>b{width:12px;height:12px;left:-6px;top:-6px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--pf-c),0 0 16px 5px #6290ff}
+.pfo-cabeza>s{width:3px;height:3px;border-radius:50%;background:#fff;animation:pf-chispa .5s ease-out infinite}
+.pfo-cabeza>s.s1{--cx:14px;--cy:-12px}
+.pfo-cabeza>s.s2{--cx:-10px;--cy:-16px;background:#9db4ff;animation-duration:.7s;animation-delay:.2s}
+.pfo-cabeza>s.s3{--cx:6px;--cy:16px;width:2px;height:2px;animation-duration:.6s;animation-delay:.35s}
+[data-fondo="cnc"] .pfo-aro1{left:50%;top:50%;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;border:1px dashed rgba(66,103,254,.3);animation:pf-gira 40s linear infinite}
+.pfo-mira{width:0;height:0}
+.pfo-mira::before{content:"";position:absolute;width:48px;height:48px;left:-24px;top:-24px;box-sizing:border-box;border-radius:50%;border:1.5px solid #4267fe;box-shadow:0 0 0 6px rgba(66,103,254,.08)}
+.pfo-mira::after{content:"";position:absolute;width:72px;height:72px;left:-36px;top:-36px;
   background:linear-gradient(#4267fe,#4267fe) center/72px 1px no-repeat,linear-gradient(#4267fe,#4267fe) center/1px 72px no-repeat}
 @keyframes pf-cabeza{0%,100%{left:6%;top:6%}22%{left:94%;top:6%}44%{left:94%;top:94%}66%{left:6%;top:94%}88%{left:6%;top:6%}}
 @keyframes pf-bar-t{0%{transform:scaleX(0);opacity:1}22%,94%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
@@ -2869,38 +2869,38 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 @keyframes pf-chispa{0%{transform:translate(0,0);opacity:1}100%{transform:translate(var(--cx),var(--cy));opacity:0}}
 
 /* 2g · Constelación: el lienzo lo pinta js/nucleo/puerta.js (constelacion()). */
-[data-fondo="particulas"] .pf-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#13166b 0%,#0a0b26 60%,#05061a 100%)}
-.pf-lienzo{inset:0;width:100%;height:100%}
+[data-fondo="particulas"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#13166b 0%,#0a0b26 60%,#05061a 100%)}
+.pfo-lienzo{inset:0;width:100%;height:100%}
 
 /* 2h · Ondas: anillos que salen del cursor sin parar; cada toque suelta una propia. */
 [data-fondo="ondas"]{--pf-t:1.2s}
-[data-fondo="ondas"] .pf-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,var(--sup) 0%,var(--fondo) 70%)}
-.pf-onda{width:1000px;height:1000px;left:-500px;top:-500px;box-sizing:border-box;border-radius:50%;border:2px solid rgba(66,103,254,.45);
+[data-fondo="ondas"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,var(--sup) 0%,var(--fondo) 70%)}
+.pfo-onda{width:1000px;height:1000px;left:-500px;top:-500px;box-sizing:border-box;border-radius:50%;border:2px solid rgba(66,103,254,.45);
   background:radial-gradient(circle,rgba(66,103,254,0) 62%,rgba(66,103,254,.07) 100%);animation:pf-onda 8s cubic-bezier(.3,.5,.4,1) infinite both}
-.pf-onda.o2{border-color:rgba(52,30,253,.35);animation-delay:2s}
-.pf-onda.o3{border-color:rgba(98,144,255,.55);animation-delay:4s}
-.pf-onda.o4{border-color:rgba(66,103,254,.4);animation-delay:6s}
-.pf-punto{width:14px;height:14px;left:-7px;top:-7px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 5px rgba(66,103,254,.18)}
-.pf-late{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-late 2s ease-out infinite}
-.puerta-fondo .pf-onda-clic{width:360px;height:360px;margin:-180px 0 0 -180px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-onda-clic 1.4s var(--pf-ease) forwards}
+.pfo-onda.o2{border-color:rgba(52,30,253,.35);animation-delay:2s}
+.pfo-onda.o3{border-color:rgba(98,144,255,.55);animation-delay:4s}
+.pfo-onda.o4{border-color:rgba(66,103,254,.4);animation-delay:6s}
+.pfo-punto{width:14px;height:14px;left:-7px;top:-7px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 5px rgba(66,103,254,.18)}
+.pfo-late{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-late 2s ease-out infinite}
+.puerta-fondo .pfo-onda-clic{width:360px;height:360px;margin:-180px 0 0 -180px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-onda-clic 1.4s var(--pf-ease) forwards}
 @keyframes pf-onda{from{transform:scale(.05);opacity:1}to{transform:scale(1.5);opacity:0}}
 @keyframes pf-onda-clic{from{transform:scale(.05);opacity:1}to{transform:scale(1);opacity:0}}
 @keyframes pf-late{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.8);opacity:0}}
 
 /* 2i · Acrílico: láminas que se mecen, con un brillo que cruza; se inclinan hacia el cursor. */
-[data-fondo="acrilico"] .pf-cielo{inset:0;background:linear-gradient(160deg,var(--sup) 0%,var(--a-suave) 100%)}
-.pf-laminas{inset:-10%;transform:perspective(900px) rotateY(calc((var(--px) - .5) * 14deg)) rotateX(calc((.5 - var(--py)) * 14deg));transition:transform .8s var(--pf-ease)}
-.pf-laminas>i{left:-30%;width:160%;height:22%;transform:rotate(-18deg)}
-.pf-laminas>.l1{top:4%;--pf-l:52,30,253;--pf-a:.18}
-.pf-laminas>.l2{top:28%;--pf-l:66,103,254;--pf-a:.24}
-.pf-laminas>.l3{top:52%;--pf-l:98,144,255;--pf-a:.3}
-.pf-laminas>.l4{top:76%;--pf-l:52,30,253;--pf-a:.16}
-.pf-laminas>i>b{inset:0;background:linear-gradient(180deg,rgba(var(--pf-l),var(--pf-a)),rgba(var(--pf-l),calc(var(--pf-a) / 3.5)));
+[data-fondo="acrilico"] .pfo-cielo{inset:0;background:linear-gradient(160deg,var(--sup) 0%,var(--a-suave) 100%)}
+.pfo-laminas{inset:-10%;transform:perspective(900px) rotateY(calc((var(--px) - .5) * 14deg)) rotateX(calc((.5 - var(--py)) * 14deg));transition:transform .8s var(--pf-ease)}
+.pfo-laminas>i{left:-30%;width:160%;height:22%;transform:rotate(-18deg)}
+.pfo-laminas>.l1{top:4%;--pf-l:52,30,253;--pf-a:.18}
+.pfo-laminas>.l2{top:28%;--pf-l:66,103,254;--pf-a:.24}
+.pfo-laminas>.l3{top:52%;--pf-l:98,144,255;--pf-a:.3}
+.pfo-laminas>.l4{top:76%;--pf-l:52,30,253;--pf-a:.16}
+.pfo-laminas>i>b{inset:0;background:linear-gradient(180deg,rgba(var(--pf-l),var(--pf-a)),rgba(var(--pf-l),calc(var(--pf-a) / 3.5)));
   border-top:1px solid rgba(255,255,255,.95);box-shadow:0 -24px 50px -24px rgba(52,30,253,.35);animation:pf-vaiven 9s ease-in-out infinite alternate}
-.pf-laminas>.l2>b{animation-duration:12s;animation-delay:-4s;animation-direction:alternate-reverse}
-.pf-laminas>.l3>b{animation-duration:10s;animation-delay:-2s}
-.pf-laminas>.l4>b{animation-duration:14s;animation-direction:alternate-reverse}
-.pf-brillo{top:-50%;height:200%;width:28%;left:-50%;transform:rotate(18deg);background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));animation:pf-barrido 7s ease-in-out infinite}
+.pfo-laminas>.l2>b{animation-duration:12s;animation-delay:-4s;animation-direction:alternate-reverse}
+.pfo-laminas>.l3>b{animation-duration:10s;animation-delay:-2s}
+.pfo-laminas>.l4>b{animation-duration:14s;animation-direction:alternate-reverse}
+.pfo-brillo{top:-50%;height:200%;width:28%;left:-50%;transform:rotate(18deg);background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));animation:pf-barrido 7s ease-in-out infinite}
 @keyframes pf-vaiven{to{transform:translateX(60px)}}
 @keyframes pf-barrido{0%{left:-50%}60%,100%{left:150%}}
 /* ── fin de pf-puerta ── */

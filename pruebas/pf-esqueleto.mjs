@@ -47,6 +47,7 @@ const app = leer('js/app.js');
 const html = leer('index.html').replace(/<!--[\s\S]*?-->/g, '');
 const sinBloques = s => s.replace(/\/\*[\s\S]*?\*\//g, '');
 const css = leer('css/plataforma.css');
+const sistema = leer('css/sistema.css');
 const cuenta = leer('js/nucleo/cuenta.js');
 const puerta = leer('js/nucleo/puerta.js');
 
@@ -234,8 +235,19 @@ console.log('\nLA HOJA DE ESTILOS: NADA SE MUEVE SOLO, Y TODO TIENE SU APAGADO')
   const pa = css.indexOf('/* ── Plataforma · la puerta animada (F10 v2) ──'), pb = css.indexOf('/* ── fin de pf-puerta ── */');
   cierto('la puerta animada tiene su bloque, con su marca de fin', pa > 0 && pb > pa);
   const reglas = css.slice(pa, pb).replace(/\/\*[\s\S]*?\*\//g, '').split('}').filter(r => /infinite/.test(r));
-  const fuera = reglas.filter(r => !/\.pf-|\[data-fondo|\.puerta-fondo|\[data-goo="espera"\]/.test(r.split('{')[0]));
+  const fuera = reglas.filter(r => !/\.pfo-|\[data-fondo|\.puerta-fondo|\[data-goo="espera"\]/.test(r.split('{')[0]));
   cierto('y ahí lo que se mueve solo es el fondo o la espera del logo (' + reglas.length + ' reglas)' + (fuera.length ? ': ' + fuera.map(r => r.split('{')[0].trim()).join(' | ') : ''), reglas.length > 0 && !fuera.length);
+  /* `.pf-` es el apellido de las clases de la plataforma: el fondo «Letras» se llamó `.pf-fila`,
+     como los renglones de toda la app, y les puso letra de 150 px y `nowrap` (pf-tablero lo vio
+     como «Qué atender» desbordado). Las piezas del fondo van con `.pfo-`, y sus @keyframes no
+     pueden repetir un nombre que ya existe en otra parte de las hojas. */
+  const puertaCss = css.slice(pa, pb).replace(/\/\*[\s\S]*?\*\//g, '');
+  const ajenas = [...new Set((puertaCss.match(/\.pf-[a-z0-9-]+/g) || []).filter(c => c !== '.pf-puerta'))];
+  cierto('la puerta no declara clases `.pf-` (son de la plataforma)' + (ajenas.length ? ': ' + ajenas.join(' ') : ''), !ajenas.length);
+  const resto = css.slice(0, pa) + css.slice(pb) + sistema;
+  const repetidas = [...new Set((puertaCss.match(/@keyframes\s+([\w-]+)/g) || []).map(k => k.split(/\s+/)[1]))]
+    .filter(k => new RegExp('@keyframes\\s+' + k + '\\b').test(resto));
+  cierto('y sus @keyframes no pisan a ninguno de fuera' + (repetidas.length ? ': ' + repetidas.join(' ') : ''), !repetidas.length);
 
   const ra = '/* ── rm · pf-esqueleto ── */';
   const rb = '/* ── fin de rm · pf-esqueleto ── */';
