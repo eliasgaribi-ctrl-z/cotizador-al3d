@@ -602,8 +602,13 @@ function pedirEntrada(av, pendiente, echando) {
     }).catch(() => {});
 
     caja.addEventListener('click', async ev => {
-      const b = ev.target.closest('[data-puerta]');
-      if (!b) return;
+      /* Solo los dos botones abren Google, y tienen que estar DENTRO de la caja. Aquí había un
+         `closest('[data-puerta]')` a secas, y el <html> de index.html también lleva `data-puerta`
+         —es lo que le dice a js/tema.js que ponga la antepuerta—: cualquier toque subía hasta él
+         y contaba como «Entrar con Google». Tocar el fondo para jugar con él, el título o el
+         enlace de «Privacidad» abría la ventana de cuentas de Google. */
+      const b = ev.target.closest('button[data-puerta]');
+      if (!b || !caja.contains(b)) return;
       /* El botón que cuenta lo que pasa es SIEMPRE el principal, se toque el que se toque: «Entrar
          con otra cuenta» arranca la misma entrada, y que el progreso saliera en un botón chico
          de texto subrayado no lo habría visto nadie. */

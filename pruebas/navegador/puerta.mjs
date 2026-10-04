@@ -142,6 +142,16 @@ console.log('\nEN EL DOMINIO PÚBLICO, SIN PASE');
     cierto(e.enlaces.includes(pag), 'el pie enlaza ' + pag);
   }
   cierto(e.logo === 'logo-al3d.svg', 'de día, el logotipo de tinta');
+  /* El fondo se mueve con el dedo: tocarlo es jugar con él, no entrar. El <html> lleva
+     `data-puerta` y un toque cualquiera subía hasta él y abría la ventana de Google. */
+  await p.mouse.click(20, 20);
+  await p.click('.puerta-sub');
+  const tras = await p.evaluate(() => {
+    const b = document.querySelector('[data-puerta="entrar"]');
+    const pasos = document.querySelector('.puerta-pasos');
+    return { trabaja: !!b && b.dataset.estado === 'trabajando', pasos: !!pasos && !pasos.hidden };
+  });
+  cierto(!tras.trabaja && !tras.pasos, 'tocar el fondo o el texto no arranca «Entrar con Google»');
   cierto(!errores.length, 'cero errores de página' + (errores.length ? ': ' + errores.join(' | ') : ''));
   await ctx.close();
 }
