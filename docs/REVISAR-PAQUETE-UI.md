@@ -102,6 +102,31 @@ Dos cosas que pidió el paquete y se ajustaron al medir:
   antes que la animación. Letras (texto de 150–210 px con dos sombras) y Constelación (lienzo) son
   los más pesados.
 
+### ✅ Hecho · Los nueve fondos contestan al toque
+
+**Pedido (Elías, 4-oct-2026):** que el fondo de la puerta sea interactivo en todos los diseños.
+Antes solo Ondas contestaba al toque, y en el teléfono casi no se notaba que el fondo siguiera al
+dedo: tocar no lo movía, al levantar el dedo regresaba al centro y arrastrar se lo quedaba el
+navegador. Ahora el fondo va a donde toca el dedo y se queda ahí, se puede arrastrar mientras la
+caja quepa en la pantalla, y cada fondo suelta algo de su oficio donde cae el dedo:
+
+| Fondo | Al tocar |
+| --- | --- |
+| Neón | un chispazo de tubo, y el letrero parpadea como al encenderse |
+| Plano | una cota con su medida en la lámina de 1 200 × 800 mm |
+| LED | los focos se encienden en un círculo que se abre desde el dedo |
+| Círculos | una burbuja en uno de los tres azules del logo, que sube flotando |
+| Letras | las tres filas de «AL3D» parpadean, una tras otra |
+| CNC | el cabezal corta un círculo y suelta chispas |
+| Constelación | los puntos cercanos salen disparados y se calman solos |
+| Ondas | un anillo por toque, y arrastrar deja estela |
+| Acrílico | un destello de luz |
+
+Tocar la caja (el botón, el texto) no suelta nada. Con movimiento reducido, nada. Dónde:
+`TOQUES` y `montarFondo()` en `js/nucleo/puerta.js`; los estilos, al final del bloque de la puerta
+en `css/plataforma.css`. **Falta probarlo con el dedo en un teléfono de verdad**: cuánto dura cada
+efecto y qué tan fuerte se ve se decidió en emulación.
+
 ---
 
 ## Cotizador · partidas y completitud (cot-partidas)

@@ -897,8 +897,23 @@ function fondoHTML(clave) {
  * Pone el fondo detrás de la caja y conecta el dedo. Devuelve con qué pararlo: la puerta lo
  * llama al entrar, y entonces se van el lienzo, sus cuadros y los oyentes.
  *
- * El dedo no repinta nada: `pointermove` escribe `--px` y `--py` (0–1) en la puerta y el CSS
- * los lee. `pointerleave` los regresa al centro.
+ * El dedo no repinta nada: moverlo escribe `--px` y `--py` (0–1) en el fondo y el CSS los lee.
+ * Y tocar el fondo —no la caja— hace que cada uno de los nueve conteste a su manera (TOQUES).
+ *
+ * ── En el teléfono ──────────────────────────────────────────────────────────
+ * La primera versión se pensó con ratón y en el teléfono casi no se notaba, por tres cosas:
+ *   · `pointermove` solo llega con el dedo ARRASTRANDO, así que tocar no movía nada. Ahora el
+ *     toque también lleva el fondo a donde cayó el dedo.
+ *   · Al levantar el dedo el navegador manda `pointerleave`, y eso lo regresaba al centro en el
+ *     acto. Ahora solo el ratón que sale de la ventana lo regresa; el dedo lo deja donde quedó.
+ *   · Arrastrar se lo quedaba el navegador para desplazar la página: un `pointercancel` a los
+ *     pocos píxeles y el fondo dejaba de seguir. Mientras la caja cabe en la pantalla no hay
+ *     nada que desplazar, y el gesto es del fondo (`puerta-arrastra`, que deja el pellizco para
+ *     hacer zoom). Si no cabe —un teléfono acostado—, desplazar gana: poder llegar al botón
+ *     importa más que el juego.
+ *
+ * Las variables van en el FONDO y no en la puerta: escritas en #pf-puerta, cada movimiento del
+ * puntero recalculaba el estilo de la caja entera —el botón, el texto, los pasos—, que no las usa.
  */
 function montarFondo(caja) {
   const clave = fondoElegido();
@@ -911,62 +926,221 @@ function montarFondo(caja) {
   f.innerHTML = fondoHTML(clave);
   caja.prepend(f);
 
-  let pt = null;
+  let pt = null, apretado = false, ultimaEstela = 0;
+  const lienzo = f.querySelector('.pfo-lienzo');
+  const cons = lienzo ? constelacion(lienzo, () => pt) : null;
+  /* La curva de la puerta (--pf-ease en css/plataforma.css), leída de ahí para no tener dos. */
+  const c = { curva: (getComputedStyle(caja).getPropertyValue('--pf-ease') || '').trim() || 'cubic-bezier(.2,.7,.3,1)', lienzo: cons };
+
+  const poner = (x, y) => { f.style.setProperty('--px', x.toFixed(3)); f.style.setProperty('--py', y.toFixed(3)); };
   const mover = ev => {
     const x = Math.min(1, Math.max(0, ev.clientX / (window.innerWidth || 1)));
     const y = Math.min(1, Math.max(0, ev.clientY / (window.innerHeight || 1)));
-    caja.style.setProperty('--px', x.toFixed(3));
-    caja.style.setProperty('--py', y.toFixed(3));
+    poner(x, y);
     pt = { x, y };
+    /* Ondas: arrastrar deja estela, una onda chica cada 110 ms. */
+    if (apretado && clave === 'ondas' && !sinMovimiento() && Date.now() - ultimaEstela > 110) {
+      ultimaEstela = Date.now();
+      TOQUES.ondas(f, ev.clientX, ev.clientY, { ...c, chica: true });
+    }
   };
-  const salir = () => { caja.style.setProperty('--px', '.5'); caja.style.setProperty('--py', '.5'); pt = null; };
-  /* Ondas: cada toque suelta su anillo, y el anillo se borra solo al terminar. Seis a la vez
-     como mucho: un dedo nervioso no llena la pantalla de nodos. */
   const tocar = ev => {
-    if (clave !== 'ondas' || sinMovimiento()) return;
-    const o = document.createElement('b');
-    o.className = 'pfo-onda-clic';
-    o.style.left = (ev.clientX / (window.innerWidth || 1) * 100).toFixed(2) + '%';
-    o.style.top = (ev.clientY / (window.innerHeight || 1) * 100).toFixed(2) + '%';
-    o.addEventListener('animationend', () => o.remove(), { once: true });
-    f.appendChild(o);
-    const todas = f.querySelectorAll('.pfo-onda-clic');
-    for (let i = 0; i < todas.length - 6; i++) todas[i].remove();
+    /* Lo que se aprieta en la caja es el botón o el texto: el fondo se acerca, pero no suelta nada. */
+    apretado = !(ev.target && ev.target.closest && ev.target.closest('.puerta-caja'));
+    ultimaEstela = Date.now();     // antes de `mover`: el toque ya suelta su anillo, no también el de la estela
+    mover(ev);
+    if (!apretado || sinMovimiento()) return;
+    const toque = TOQUES[clave];
+    if (toque) { try { toque(f, ev.clientX, ev.clientY, c); } catch (_) { /* un adorno que falla no estorba la entrada */ } }
+  };
+  const soltar = ev => {
+    apretado = false;
+    if (ev.pointerType !== 'mouse') pt = null;
+  };
+  const salir = ev => {
+    apretado = false;
+    pt = null;
+    if (ev.pointerType === 'mouse') poner(.5, .5);
   };
   caja.addEventListener('pointermove', mover, { passive: true });
-  caja.addEventListener('pointerleave', salir);
   caja.addEventListener('pointerdown', tocar, { passive: true });
+  caja.addEventListener('pointerup', soltar);
+  caja.addEventListener('pointercancel', soltar);
+  caja.addEventListener('pointerleave', salir);
 
-  const lienzo = f.querySelector('.pfo-lienzo');
-  const pararLienzo = lienzo ? constelacion(lienzo, () => pt) : () => {};
+  /* El gesto es del fondo solo mientras la caja cabe (ver arriba). Se vuelve a medir cuando la
+     pantalla cambia de tamaño y cuando la caja crece —el aviso, los dos pasos—, que es justo
+     cuando un teléfono chico se queda sin sitio. Lo que el propio fondo suelta no cuenta. */
+  const medir = () => caja.classList.toggle('puerta-arrastra', caja.scrollHeight <= caja.clientHeight + 1);
+  const vigia = typeof MutationObserver === 'function' ? new MutationObserver(lista => {
+    if (lista.every(m => f.contains(m.target) || (m.target === caja && m.type === 'attributes'))) return;
+    medir();
+  }) : null;
+  if (vigia) vigia.observe(caja, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  window.addEventListener('resize', medir);
+  medir();
+
   return () => {
-    pararLienzo();
+    if (cons) cons.parar();
+    if (vigia) vigia.disconnect();
+    window.removeEventListener('resize', medir);
+    caja.classList.remove('puerta-arrastra');
     caja.removeEventListener('pointermove', mover);
-    caja.removeEventListener('pointerleave', salir);
     caja.removeEventListener('pointerdown', tocar);
-    caja.style.removeProperty('--px');
-    caja.style.removeProperty('--py');
+    caja.removeEventListener('pointerup', soltar);
+    caja.removeEventListener('pointercancel', soltar);
+    caja.removeEventListener('pointerleave', salir);
   };
 }
+
+/* ----- Lo que contesta cada fondo cuando lo tocan -----
+   Un toque suelta una pieza que entra, se anima y se borra sola. Todo va con `animate()` y solo
+   mueve transform, opacity y clip-path —lo que el navegador anima sin volver a acomodar la
+   página—; los estilos de cada pieza están en css/plataforma.css, junto a su fondo. Diez vivas
+   a la vez como mucho: un dedo nervioso no llena la pantalla de nodos. Con movimiento reducido
+   no se llama ninguno (ver `tocar` en montarFondo). Cada uno es del oficio de su fondo: la
+   medida en el plano, el corte en la mesa CNC, el chispazo en el neón. */
+const TOPE_TOQUES = 10;
+
+function pieza(f, clase, x, y) {
+  const n = document.createElement('i');
+  n.className = 'pfo-toque ' + clase;
+  if (x != null) { n.style.left = x + 'px'; n.style.top = y + 'px'; }
+  f.appendChild(n);
+  const vivas = f.querySelectorAll('.pfo-toque');
+  for (let i = 0; i < vivas.length - TOPE_TOQUES; i++) vivas[i].remove();
+  return n;
+}
+
+/** Anima la pieza y la borra al terminar. Sin `animate()` (un navegador muy viejo) se borra y ya. */
+function anima(n, cuadros, opciones) {
+  if (typeof n.animate !== 'function') { n.remove(); return; }
+  n.animate(cuadros, opciones).onfinish = () => n.remove();
+}
+
+/** Lo mismo para algo que ya estaba en el fondo y se queda: un parpadeo encima de lo suyo. Los
+ *  cuadros sin principio ni final arrancan y terminan en el valor que ya tenía, así que no hay
+ *  salto al acabar aunque esa pieza tenga su propia animación corriendo. */
+function parpadea(el, cuadros, opciones) {
+  if (!el || typeof el.animate !== 'function') return;
+  try { el.animate(cuadros, opciones); } catch (_) { /* sin cuadros implícitos: sin parpadeo */ }
+}
+
+const mm = v => String(Math.round(v / 10) * 10).replace(/\B(?=(\d{3})+$)/g, ' ');
+
+const TOQUES = {
+  /* Un chispazo de tubo donde cae el dedo, y el letrero parpadea como al encenderse. */
+  neon(f, x, y, c) {
+    anima(pieza(f, 'pfo-neon-chispa', x, y),
+      [{ transform: 'scale(.3)', opacity: 1, easing: c.curva }, { transform: 'scale(1.3)', opacity: 0 }],
+      { duration: 700 });
+    parpadea(f.querySelector('.pfo-neon-tubo'),
+      [{ opacity: .25, offset: .15 }, { opacity: 1, offset: .3 }, { opacity: .5, offset: .5 }, { opacity: 1, offset: .65 }],
+      { duration: 450 });
+  },
+  /* Una cota donde cae el dedo, con su medida en la lámina de 1 200 × 800 mm que dibujan las
+     cotas del borde. Cerca de la orilla derecha la etiqueta se voltea para no salirse. */
+  plano(f, x, y, c) {
+    const W = window.innerWidth || 1, H = window.innerHeight || 1;
+    const n = pieza(f, 'pfo-marca' + (x > W - 160 ? ' izq' : ''), x, y);
+    const s = document.createElement('span');
+    s.textContent = mm(x / W * 1200) + ' × ' + mm(y / H * 800) + ' mm';
+    n.append(document.createElement('b'), s);
+    anima(n, [
+      { opacity: 0, transform: 'translateY(6px)', easing: c.curva },
+      { opacity: 1, transform: 'none', offset: .12 },
+      { opacity: 1, offset: .8, easing: c.curva },
+      { opacity: 0 }], { duration: 1800 });
+  },
+  /* Los focos se encienden en un círculo que se abre desde el dedo y se apagan. La capa es de
+     pantalla completa para que sus puntos caigan exactos sobre los de la matriz. */
+  led(f, x, y, c) {
+    const en = r => 'circle(' + r + 'px at ' + x + 'px ' + y + 'px)';
+    anima(pieza(f, 'pfo-led-destello'), [
+      { clipPath: en(0), opacity: 1, easing: c.curva },
+      { opacity: 1, offset: .35 },
+      { clipPath: en(260), opacity: 0 }], { duration: 900 });
+  },
+  /* Una burbuja con uno de los tres azules del logo: aparece donde cae el dedo y sube flotando. */
+  circulos(f, x, y, c) {
+    const t = 36 + Math.round(Math.random() * 48);
+    const n = pieza(f, 'pfo-burbuja b' + (1 + Math.floor(Math.random() * 3)), x, y);
+    n.style.width = n.style.height = t + 'px';
+    n.style.margin = (-t / 2) + 'px 0 0 ' + (-t / 2) + 'px';
+    const lado = Math.round((Math.random() - .5) * 40), sube = 50 + Math.round(Math.random() * 40);
+    anima(n, [
+      { transform: 'scale(.6)', opacity: 0, easing: c.curva },
+      { transform: 'scale(1)', opacity: 1, offset: .12, easing: c.curva },
+      { transform: 'translate(' + lado + 'px,' + (-sube) + 'px) scale(1)', opacity: 0 }], { duration: 2400 });
+  },
+  /* Las tres filas parpadean como un letrero que se enciende, una tras otra, y la luz del dedo
+     crece un momento. */
+  letras(f, x, y, c) {
+    f.querySelectorAll('.pfo-fila').forEach((r, i) => parpadea(r,
+      [{ opacity: .15, offset: .1 }, { opacity: 1, offset: .3 }, { opacity: .35, offset: .5 }, { opacity: 1, offset: .7 }],
+      { duration: 520, delay: i * 70 }));
+    parpadea(f.querySelector('.pfo-letras-luz'),
+      [{ transform: 'scale(1)', easing: c.curva }, { transform: 'scale(1.5)', offset: .3, easing: c.curva }],
+      { duration: 800 });
+  },
+  /* El cabezal corta un círculo donde cae el dedo —a velocidad constante, como corta una
+     máquina— y suelta chispas. */
+  cnc(f, x, y, c) {
+    const n = pieza(f, 'pfo-perfora', x, y);
+    n.innerHTML = '<svg viewBox="-30 -30 60 60" width="60" height="60"><circle r="22"></circle></svg>' + '<s></s>'.repeat(5);
+    const circ = n.querySelector('circle');
+    if (circ.animate) circ.animate([{ strokeDashoffset: 138.3 }, { strokeDashoffset: 0 }], { duration: 450, fill: 'forwards' });
+    n.querySelectorAll('s').forEach((s, i) => {
+      if (!s.animate) return;
+      const ang = i / 5 * 6.283 + Math.random() * .8, r = 16 + Math.random() * 18;
+      s.animate([{ transform: 'translate(0,0)', opacity: 1, easing: c.curva },
+        { transform: 'translate(' + (Math.cos(ang) * r).toFixed(1) + 'px,' + (Math.sin(ang) * r).toFixed(1) + 'px)', opacity: 0 }],
+        { duration: 500 });
+    });
+    anima(n, [{ opacity: 1 }, { opacity: 1, offset: .55 }, { opacity: 0 }], { duration: 1100 });
+  },
+  /* Los puntos que estaban cerca salen disparados, y se calman solos (ver constelacion()). */
+  particulas(f, x, y, c) {
+    if (c.lienzo) c.lienzo.empujar(x, y);
+  },
+  /* Un anillo por toque; los chicos son la estela de arrastrar (ver `mover`). */
+  ondas(f, x, y, c) {
+    anima(pieza(f, 'pfo-onda-clic' + (c.chica ? ' chica' : ''), x, y),
+      [{ transform: 'scale(.05)', opacity: 1, easing: c.curva }, { transform: 'scale(1)', opacity: 0 }],
+      { duration: c.chica ? 1000 : 1400 });
+  },
+  /* Un destello sobre las láminas, como la luz que pega en el acrílico. */
+  acrilico(f, x, y, c) {
+    anima(pieza(f, 'pfo-destello', x, y),
+      [{ transform: 'scale(.4)', opacity: .9, easing: c.curva }, { transform: 'scale(1.4)', opacity: 0 }],
+      { duration: 800 });
+  },
+};
 
 /* La constelación: puntos que se unen con líneas a menos de 120 px; el cursor los aparta en
    110 px y se conecta con los que tiene cerca. De 30 a 120 puntos según el área, para que un
    teléfono no cargue con los mismos que una pantalla de escritorio, y `devicePixelRatio` con
    tope de 2. Con movimiento reducido se pinta un cuadro y ya; con la pestaña escondida no se
-   pinta ninguno y vuelve cuando la pestaña regresa. */
+   pinta ninguno y vuelve cuando la pestaña regresa.
+
+   Un toque (`empujar`) avienta los puntos que tiene a menos de 200 px —más fuerte cuanto más
+   cerca— y suelta un aro de luz. Cada punto recuerda su velocidad de crucero y vuelve a ella poco
+   a poco: sin eso, tres toques dejaban la constelación corriendo para siempre. */
 function constelacion(c, cursor) {
   const ctx = c.getContext && c.getContext('2d');
-  if (!ctx) return () => {};
+  if (!ctx) return { parar() {}, empujar() {} };
   let w = 0, h = 0, raf = 0, vivo = true;
-  const pts = [];
+  const pts = [], aros = [];
   const ajusta = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     w = c.clientWidth; h = c.clientHeight;
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const n = Math.round(Math.max(30, Math.min(120, w * h / 8000)));
-    while (pts.length < n) pts.push({ x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - .5) * .5, vy: (Math.random() - .5) * .5, r: Math.random() * 1.4 + .9 });
+    while (pts.length < n) {
+      const vx = (Math.random() - .5) * .5, vy = (Math.random() - .5) * .5;
+      pts.push({ x: Math.random() * w, y: Math.random() * h, vx, vy, crucero: Math.hypot(vx, vy), r: Math.random() * 1.4 + .9 });
+    }
     pts.length = n;
   };
   const COL = ['#6290ff', '#9db4ff', '#7b6bff'];
@@ -974,9 +1148,13 @@ function constelacion(c, cursor) {
     ctx.clearRect(0, 0, w, h);
     const p = cursor(), mx = p ? p.x * w : null, my = p ? p.y * h : null;
     if (mueve) for (const a of pts) {
+      const v = Math.hypot(a.vx, a.vy);
+      if (v > a.crucero) { const k = Math.max(a.crucero / v, .95); a.vx *= k; a.vy *= k; }
       a.x += a.vx; a.y += a.vy;
-      if (a.x < 0 || a.x > w) a.vx *= -1;
-      if (a.y < 0 || a.y > h) a.vy *= -1;
+      /* Rebota hacia DENTRO y no solo cambiando el signo: con el empujón un punto podía quedar
+         dos cuadros fuera, y cambiar el signo dos veces lo dejaba pegado al otro lado del borde. */
+      if (a.x < 0) { a.x = 0; a.vx = Math.abs(a.vx); } else if (a.x > w) { a.x = w; a.vx = -Math.abs(a.vx); }
+      if (a.y < 0) { a.y = 0; a.vy = Math.abs(a.vy); } else if (a.y > h) { a.y = h; a.vy = -Math.abs(a.vy); }
       if (mx != null) {
         const dx = a.x - mx, dy = a.y - my, d = Math.hypot(dx, dy);
         if (d < 110 && d > 0) { a.x += dx / d * 1.4; a.y += dy / d * 1.4; }
@@ -1002,6 +1180,15 @@ function constelacion(c, cursor) {
       g.addColorStop(0, 'rgba(98,144,255,.35)'); g.addColorStop(1, 'rgba(98,144,255,0)');
       ctx.fillStyle = g; ctx.fillRect(mx - 160, my - 160, 320, 320);
     }
+    /* Los aros de los toques: crecen frenando (la curva de la puerta, cúbica) y se apagan. */
+    const ahora = performance.now();
+    for (let i = aros.length - 1; i >= 0; i--) {
+      const t = (ahora - aros[i].t0) / 700;
+      if (t >= 1) { aros.splice(i, 1); continue; }
+      ctx.strokeStyle = 'rgba(157,180,255,' + ((1 - t) * .7).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(aros[i].x, aros[i].y, 12 + 190 * (1 - Math.pow(1 - t, 3)), 0, 6.283); ctx.stroke();
+    }
     ctx.shadowBlur = 8;
     pts.forEach((a, i) => { ctx.fillStyle = ctx.shadowColor = COL[i % 3]; ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, 6.283); ctx.fill(); });
     ctx.shadowBlur = 0;
@@ -1023,11 +1210,21 @@ function constelacion(c, cursor) {
   if (ro) ro.observe(c);
   document.addEventListener('visibilitychange', alVolver);
   arrancar();
-  return () => {
-    vivo = false;
-    if (raf) cancelAnimationFrame(raf);
-    if (ro) ro.disconnect();
-    document.removeEventListener('visibilitychange', alVolver);
+  return {
+    parar() {
+      vivo = false;
+      if (raf) cancelAnimationFrame(raf);
+      if (ro) ro.disconnect();
+      document.removeEventListener('visibilitychange', alVolver);
+    },
+    empujar(x, y) {
+      for (const a of pts) {
+        const dx = a.x - x, dy = a.y - y, d = Math.hypot(dx, dy);
+        if (d < 200 && d > 0) { const k = (1 - d / 200) * 7; a.vx += dx / d * k; a.vy += dy / d * k; }
+      }
+      aros.push({ x, y, t0: performance.now() });
+      if (aros.length > 4) aros.shift();
+    },
   };
 }
 
