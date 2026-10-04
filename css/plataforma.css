@@ -2749,11 +2749,18 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 
 /* ----- Los nueve fondos -----
    Fijo a la pantalla (no se desplaza con la caja cuando el teclado la empuja), detrás de todo y
-   sin recibir toques: los toques los oye #pf-puerta. Lo que sigue al cursor lee --px/--py. */
-.puerta-fondo{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:var(--fondo)}
+   sin recibir toques: los toques los oye #pf-puerta. Lo que sigue al cursor lee --px/--py, que
+   js/nucleo/puerta.js escribe en el propio fondo.
+
+   Lo que sigue al dedo se mueve con `transform` y no con left/top: con left/top cada movimiento
+   del puntero volvía a acomodar la capa. Las unidades `cq` son el tamaño del fondo mismo (por eso
+   es contenedor); `vw`/`vh` van antes para el navegador que no las conoce. */
+.puerta-fondo{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:var(--fondo);container-type:size}
 .puerta-fondo i,.puerta-fondo b,.puerta-fondo s,.puerta-fondo em,.puerta-fondo canvas{position:absolute;display:block}
-.puerta-fondo .pfo-sigue{left:calc(var(--px)*100%);top:calc(var(--py)*100%);width:0;height:0;
-  transition:left var(--pf-t,.9s) var(--pf-ease),top var(--pf-t,.9s) var(--pf-ease)}
+.puerta-fondo .pfo-sigue{left:0;top:0;width:0;height:0;
+  transform:translate(calc(var(--px)*100vw),calc(var(--py)*100vh));
+  transform:translate(calc(var(--px)*100cqw),calc(var(--py)*100cqh));
+  transition:transform var(--pf-t,.9s) var(--pf-ease)}
 .pfo-vineta{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 50%,rgba(3,4,18,0) 45%,rgba(3,4,18,.65) 100%)}
 .pfo-grano{inset:0;opacity:.07;background-size:160px 160px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
@@ -2791,8 +2798,10 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .puerta-fondo .pfo-cota-x em{flex:1;height:1px;background:rgba(66,103,254,.45)}
 .puerta-fondo .pfo-cota-y em{flex:1;width:1px;background:rgba(66,103,254,.45)}
 .pfo-cota-y span{writing-mode:vertical-rl;transform:rotate(180deg)}
-.pfo-mira-x{top:0;bottom:0;left:calc(var(--px)*100%);width:1px;background:rgba(66,103,254,.5);transition:left .3s var(--pf-ease)}
-.pfo-mira-y{left:0;right:0;top:calc(var(--py)*100%);height:1px;background:rgba(66,103,254,.5);transition:top .3s var(--pf-ease)}
+.pfo-mira-x{top:0;bottom:0;left:0;width:1px;background:rgba(66,103,254,.5);transition:transform .3s var(--pf-ease);
+  transform:translateX(calc(var(--px)*100vw));transform:translateX(calc(var(--px)*100cqw))}
+.pfo-mira-y{left:0;right:0;top:0;height:1px;background:rgba(66,103,254,.5);transition:transform .3s var(--pf-ease);
+  transform:translateY(calc(var(--py)*100vh));transform:translateY(calc(var(--py)*100cqh))}
 .pfo-rombo{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border:2px solid #4267fe;background:var(--fondo);transform:rotate(45deg)}
 
 /* 2c · Módulo LED: una franja barre la matriz; los puntos se encienden alrededor del dedo. */
@@ -2834,6 +2843,9 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-fila.f2>i{animation-delay:1.6s}
 .pfo-fila.f3>i{animation-delay:3.1s}
 .pfo-letras-luz{width:460px;height:460px;left:-230px;top:-230px;border-radius:50%;background:radial-gradient(circle,rgba(157,180,255,.38) 0%,rgba(7,8,31,0) 70%);mix-blend-mode:screen}
+/* El `transform` de .pfo-sigue la vuelve un grupo aislado y la luz ya solo se mezclaría consigo
+   misma: la mezcla tiene que ir en el grupo para seguir aclarando las letras de detrás. */
+[data-fondo="letras"] .pfo-sigue{mix-blend-mode:screen}
 .pfo-letras-borde{inset:0;background:linear-gradient(180deg,#07081f 0%,rgba(7,8,31,0) 18%,rgba(7,8,31,0) 82%,#07081f 100%)}
 @keyframes pf-marquesina{to{transform:translateX(-50%)}}
 @keyframes pf-marquesina-r{from{transform:translateX(-50%)}to{transform:translateX(0)}}
@@ -2872,7 +2884,8 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 [data-fondo="particulas"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#13166b 0%,#0a0b26 60%,#05061a 100%)}
 .pfo-lienzo{inset:0;width:100%;height:100%}
 
-/* 2h · Ondas: anillos que salen del cursor sin parar; cada toque suelta una propia. */
+/* 2h · Ondas: anillos que salen del cursor sin parar; cada toque suelta uno propio y arrastrar
+   deja estela de anillos chicos. Los de los toques los anima js/nucleo/puerta.js. */
 [data-fondo="ondas"]{--pf-t:1.2s}
 [data-fondo="ondas"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,var(--sup) 0%,var(--fondo) 70%)}
 .pfo-onda{width:1000px;height:1000px;left:-500px;top:-500px;box-sizing:border-box;border-radius:50%;border:2px solid rgba(66,103,254,.45);
@@ -2882,9 +2895,9 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-onda.o4{border-color:rgba(66,103,254,.4);animation-delay:6s}
 .pfo-punto{width:14px;height:14px;left:-7px;top:-7px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 5px rgba(66,103,254,.18)}
 .pfo-late{width:14px;height:14px;left:-7px;top:-7px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-late 2s ease-out infinite}
-.puerta-fondo .pfo-onda-clic{width:360px;height:360px;margin:-180px 0 0 -180px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe;animation:pf-onda-clic 1.4s var(--pf-ease) forwards}
+.puerta-fondo .pfo-onda-clic{width:360px;height:360px;margin:-180px 0 0 -180px;box-sizing:border-box;border-radius:50%;border:2px solid #4267fe}
+.puerta-fondo .pfo-onda-clic.chica{width:140px;height:140px;margin:-70px 0 0 -70px;border-width:1.5px}
 @keyframes pf-onda{from{transform:scale(.05);opacity:1}to{transform:scale(1.5);opacity:0}}
-@keyframes pf-onda-clic{from{transform:scale(.05);opacity:1}to{transform:scale(1);opacity:0}}
 @keyframes pf-late{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.8);opacity:0}}
 
 /* 2i · Acrílico: láminas que se mecen, con un brillo que cruza; se inclinan hacia el cursor. */
@@ -2903,6 +2916,44 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-brillo{top:-50%;height:200%;width:28%;left:-50%;transform:rotate(18deg);background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));animation:pf-barrido 7s ease-in-out infinite}
 @keyframes pf-vaiven{to{transform:translateX(60px)}}
 @keyframes pf-barrido{0%{left:-50%}60%,100%{left:150%}}
+
+/* ----- Lo que contesta cada fondo al toque -----
+   Las piezas las suelta js/nucleo/puerta.js (TOQUES) y las anima con `animate()`: aquí solo va
+   cómo se ve cada una, en reposo. Mientras la caja cabe en la pantalla, arrastrar el dedo es del
+   fondo y no de la página —si no, el navegador se queda el gesto para desplazar y el fondo deja
+   de seguir a los pocos píxeles—; el pellizco para hacer zoom se queda. */
+.pf-puerta.puerta-arrastra{touch-action:pinch-zoom}
+/* En el plano y en la mesa de corte el puntero es una mira; sobre la caja, el de siempre. */
+.pf-puerta:has(>.puerta-fondo:is([data-fondo="plano"],[data-fondo="cnc"])){cursor:crosshair}
+.pf-puerta>.puerta-caja{cursor:auto}
+/* Neón: el chispazo, con el mismo brillo que el tubo. */
+.puerta-fondo .pfo-neon-chispa{width:180px;height:180px;margin:-90px 0 0 -90px;box-sizing:border-box;border-radius:50%;
+  border:2px solid #a9bcff;box-shadow:0 0 10px #6290ff,0 0 32px #4267fe,inset 0 0 10px #6290ff}
+/* Plano: la cota que se deja, con el rombo de la mira y su medida. */
+.puerta-fondo .pfo-marca{width:0;height:0}
+.puerta-fondo .pfo-marca>b{width:12px;height:12px;left:-6px;top:-6px;box-sizing:border-box;border:2px solid #4267fe;background:var(--fondo);transform:rotate(45deg)}
+.pfo-marca>span{position:absolute;left:12px;bottom:10px;white-space:nowrap;padding:4px 7px;border-radius:4px;
+  background:#4267fe;color:#fff;font:600 11px/1 var(--f-cifra);letter-spacing:.04em}
+.pfo-marca.izq>span{left:auto;right:12px}
+/* LED: la matriz encendida, a pantalla completa para caer sobre los mismos puntos. El halo va en
+   el degradado y no en un `filter`: con filtro, cada cuadro del círculo que se abre repintaba la
+   pantalla entera. */
+.puerta-fondo .pfo-led-destello{inset:0;background-size:14px 14px;
+  background-image:radial-gradient(circle,#fff 1.6px,rgba(157,180,255,.55) 2.6px,transparent 4.6px)}
+/* Círculos: las burbujas, en los tres azules de las esferas del fondo. */
+.puerta-fondo .pfo-burbuja{border-radius:50%;box-shadow:0 18px 30px -12px rgba(52,30,253,.45)}
+.pfo-burbuja.b1{background:radial-gradient(circle at 35% 35%,#8eaeff 0%,#6290ff 55%,#4f7bf5 100%)}
+.pfo-burbuja.b2{background:radial-gradient(circle at 30% 30%,#4b3cff 0%,#341efd 50%,#2412d6 100%)}
+.pfo-burbuja.b3{background:radial-gradient(circle at 35% 35%,#6f8fff 0%,#4267fe 60%)}
+/* CNC: el corte (un trazo que se dibuja desde arriba) y sus chispas. En azul y no en blanco:
+   este fondo va sobre --fondo, que de día es claro. */
+.puerta-fondo .pfo-perfora{width:0;height:0}
+.pfo-perfora>svg{position:absolute;left:-30px;top:-30px;overflow:visible;filter:drop-shadow(0 0 4px #6290ff)}
+.pfo-perfora circle{fill:none;stroke:#4267fe;stroke-width:2;stroke-dasharray:138.3;stroke-dashoffset:138.3;transform:rotate(-90deg)}
+.puerta-fondo .pfo-perfora>s{width:4px;height:4px;left:-2px;top:-2px;border-radius:50%;background:#6290ff;box-shadow:0 0 6px #4267fe;opacity:0}
+/* Acrílico: el destello, blanco al centro y con orilla azul para que se vea también de día. */
+.puerta-fondo .pfo-destello{width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.95) 0%,rgba(255,255,255,.45) 30%,rgba(98,144,255,.18) 50%,rgba(98,144,255,0) 70%)}
 /* ── fin de pf-puerta ── */
 
 /* ── Plataforma · Hoy y Tablero ── */

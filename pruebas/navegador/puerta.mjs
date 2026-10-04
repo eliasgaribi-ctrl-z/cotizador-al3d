@@ -57,7 +57,7 @@ async function sinAl3d(base, que) {
 /* El día de hoy en el reloj del aparato, como lo cuenta hoyISO() en js/nucleo/fechas.js. */
 const diaISO = (ms = Date.now()) => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
-async function abrir(base, { tema = 'claro', pase = null, entrada = null, ctx: ctxDado = null } = {}) {
+async function abrir(base, { tema = 'claro', pase = null, entrada = null, ctx: ctxDado = null, q = '' } = {}) {
   const ctx = ctxDado || await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block',
     colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
   if (!ctxDado) {
@@ -78,7 +78,7 @@ async function abrir(base, { tema = 'claro', pase = null, entrada = null, ctx: c
   const errores = [];
   p.on('pageerror', e => errores.push(e.message));
   let resp;
-  try { resp = await p.goto(base + '/', { waitUntil: 'load' }); }
+  try { resp = await p.goto(base + '/' + q, { waitUntil: 'load' }); }
   catch (e) { await sinAl3d(base, String(e.message).split('\n')[0]); }
   const titulo = await p.title();
   const marcado = await p.evaluate(() => !!document.getElementById('pf-puerta') && !!document.getElementById('mod-tablero'));
@@ -142,6 +142,16 @@ console.log('\nEN EL DOMINIO PÚBLICO, SIN PASE');
     cierto(e.enlaces.includes(pag), 'el pie enlaza ' + pag);
   }
   cierto(e.logo === 'logo-al3d.svg', 'de día, el logotipo de tinta');
+  /* El fondo se mueve con el dedo: tocarlo es jugar con él, no entrar. El <html> lleva
+     `data-puerta` y un toque cualquiera subía hasta él y abría la ventana de Google. */
+  await p.mouse.click(20, 20);
+  await p.click('.puerta-sub');
+  const tras = await p.evaluate(() => {
+    const b = document.querySelector('[data-puerta="entrar"]');
+    const pasos = document.querySelector('.puerta-pasos');
+    return { trabaja: !!b && b.dataset.estado === 'trabajando', pasos: !!pasos && !pasos.hidden };
+  });
+  cierto(!tras.trabaja && !tras.pasos, 'tocar el fondo o el texto no arranca «Entrar con Google»');
   cierto(!errores.length, 'cero errores de página' + (errores.length ? ': ' + errores.join(' | ') : ''));
   await ctx.close();
 }
@@ -191,6 +201,56 @@ console.log('\nLA SESIÓN DURA UN DÍA');
   }
   const seguidos = vistos.some((f, i) => i && f === vistos[i - 1]);
   cierto(vistos.every(Boolean) && !seguidos, 'cada vez que sale la puerta trae otro fondo, nunca el mismo dos veces seguidas: ' + vistos.join(' → '));
+  await ctx.close();
+}
+
+console.log('\nEL FONDO CONTESTA AL TOQUE, EN UN TELÉFONO');
+{
+  /* Cada fondo suelta algo suyo donde cae el dedo y lo borra al terminar. Constelación pinta en
+     su lienzo y no deja nada que contar en el documento: de ella se mira que el toque no truene y
+     que el fondo vaya a donde cayó el dedo. El fondo se QUEDA ahí al levantarlo: regresarlo al
+     centro con el `pointerleave` del dedo era lo que hacía que en el teléfono no se notara nada. */
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: true, isMobile: true });
+  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+  const contar = () => {
+    const f = document.querySelector('.puerta-fondo');
+    const b = document.querySelector('[data-puerta="entrar"]');
+    return {
+      piezas: document.querySelectorAll('.pfo-toque').length,
+      anims: document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest &&
+        a.effect.target.closest('.puerta-fondo') && a.effect.getComputedTiming().iterations !== Infinity).length,
+      px: f ? f.style.getPropertyValue('--px') : '',
+      google: (!!b && b.dataset.estado === 'trabajando') || !document.querySelector('.puerta-pasos').hidden,
+      arrastra: document.getElementById('pf-puerta').classList.contains('puerta-arrastra'),
+    };
+  };
+  for (const fondo of ['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico']) {
+    const { p, errores } = await abrir(PUBLICO, { ctx, q: '?fondo=' + fondo });
+    await p.touchscreen.tap(40, 120);
+    const d = await p.evaluate(contar);
+    await p.waitForTimeout(2700);
+    const t = await p.evaluate(contar);
+    const contesta = fondo === 'particulas' ? true : fondo === 'letras' ? d.anims > 0 : d.piezas > 0 && d.anims > 0;
+    cierto(contesta && !t.piezas && Number(t.px) > 0 && Number(t.px) < .2 && !t.google && !errores.length,
+      fondo + ': contesta al toque (' + d.piezas + ' piezas, ' + d.anims + ' animaciones), lo borra al terminar (' + t.piezas +
+      '), se queda donde cayó el dedo (--px ' + t.px + ') y no abre Google' + (errores.length ? ': ' + errores.join(' | ') : ''));
+    if (fondo === 'neon') {
+      cierto(d.arrastra, 'con la caja entera en pantalla, arrastrar es del fondo y no de la página');
+      await p.setViewportSize({ width: 844, height: 340 });
+      await p.waitForTimeout(200);
+      cierto(!(await p.evaluate(contar)).arrastra, 'con el teléfono acostado la caja no cabe: arrastrar vuelve a desplazar, para poder llegar al botón');
+    }
+    await p.close();
+  }
+  await ctx.close();
+}
+{
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
+  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+  const { p } = await abrir(PUBLICO, { ctx, q: '?fondo=ondas' });
+  await p.touchscreen.tap(40, 120);
+  const n = await p.evaluate(() => document.querySelectorAll('.pfo-toque').length);
+  cierto(n === 0, 'con menos movimiento el toque no suelta nada');
   await ctx.close();
 }
 

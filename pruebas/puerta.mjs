@@ -381,5 +381,19 @@ console.log('\nSOLO UNA CUENTA DE GOOGLE ABRE LA PLATAFORMA');
   cierto('si la puerta no carga, app.js tampoco entra', !app.includes("via: 'roto'"));
 }
 
+console.log('\nSOLO LOS BOTONES ABREN GOOGLE');
+{
+  /* El <html> de index.html lleva `data-puerta` para js/tema.js. Un `closest('[data-puerta]')`
+     sin más subía hasta él desde cualquier toque, y tocar el fondo abría la ventana de Google. */
+  const pu = readFileSync(join(aqui, '..', 'js', 'nucleo', 'puerta.js'), 'utf8');
+  const idx = readFileSync(join(aqui, '..', 'index.html'), 'utf8');
+  const clic = (pu.match(/caja\.addEventListener\('click'[\s\S]{0,900}?if \(!b[^\n]*/) || [''])[0];
+  cierto('el <html> sigue marcado con data-puerta (por eso importa lo de abajo)', /<html[^>]*\bdata-puerta\b/.test(idx));
+  cierto('el clic de la puerta solo cuenta si viene de un BOTÓN con data-puerta',
+         clic.includes("closest('button[data-puerta]')"));
+  cierto('y ese botón tiene que estar dentro de la caja, no en un ancestro',
+         clic.includes('caja.contains(b)'));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);
