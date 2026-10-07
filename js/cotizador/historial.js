@@ -141,6 +141,9 @@ function guardarEnHistorial(extra){
     items:Q.items.map(it=>Object.assign(JSON.parse(JSON.stringify(it)),{_lt:+lineTotal(it).toFixed(2)})),
     itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
     aiFile:(Q.aiFile&&Q.aiFile.url)?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:imgPrevia,
+    /* Los ids de los renders y de la propuesta visual (imagenes.js). Los planos viajan dentro
+       de cada partida, en it.plano. */
+    renders:(Q.renders||[]).slice(), propuesta:(Q.propuesta||[]).slice(),
     /* Qué aparato emitió este folio. Es lo único que desempata dos COT-0042 pegados en el
        mismo Sheet, que es el escenario real del CSV. */
     disp:dispositivo(),
@@ -893,6 +896,7 @@ async function reabrirDeHistorial(folio,o){
   Q.fecha=o.fechaNueva?hoy():(e.fecha||Q.fecha);
   Q.items=normalizarItems(JSON.parse(JSON.stringify(e.items||[])));
   Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
+  Q.renders=(e.renders||[]).slice(); Q.propuesta=(e.propuesta||[]).slice();
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
   /* Si la entrada es de antes de que existiera la huella, se sella con el trabajo tal como
@@ -987,6 +991,8 @@ async function usarComoBase(folio){
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
   Q.estado='borrador'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
+  /* Los renders y la propuesta sí viajan: son del mismo anuncio, que es por lo que se duplica. */
+  Q.renders=(e.renders||[]).slice(); Q.propuesta=(e.propuesta||[]).slice();
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
   sincronizarPlegado();

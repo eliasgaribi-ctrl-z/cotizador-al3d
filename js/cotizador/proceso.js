@@ -987,8 +987,8 @@ function quitarDesdeFaltantes(id){
    teléfono completo (10 dígitos)» se cortaba en «Falta el teléfono completo (…» y se comía
    justo la mitad que sirve. El detalle no se pierde, lo dice el aviso al tocarla. */
 const OBLIGATORIOS=[
-  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
   {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente',corto:'el teléfono'},
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
   {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto',            corto:'el proyecto'}
 ];
 /* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
@@ -2238,7 +2238,7 @@ function nueva(){
          a medias, que son de aquella captura y no de ésta.
      Así que se sueltan aquí, a mano, sin esperar a un folio que no va a cambiar. */
   _deAntes=null; _vaciadoAMano=null; Q.reauth=null; paBorradorLimpiar();
-  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;
+  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;Q.renders=[];Q.propuesta=[];
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});

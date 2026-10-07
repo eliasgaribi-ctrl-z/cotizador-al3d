@@ -683,6 +683,9 @@ function verificacionHTML(neto){
 
 /* ===================== Generador de PDF ===================== */
 function generarPDF(){
+  /* Las imágenes viven en IndexedDB y esto es síncrono: si alguna no está en memoria todavía,
+     se trae y se vuelve a empezar (imagenes.js). */
+  if(typeof imgFaltanParaPdf==='function' && imgFaltanParaPdf(generarPDF)) return;
   const itemsForPDF = Q.items.filter(it=>it.showInPdf!==false);
   /* Con todas las partidas ocultas salía un documento con el total completo y cero
      renglones: nada que enseñarle al cliente y un total sin sustento. */
@@ -806,8 +809,42 @@ function generarPDF(){
      Solo imágenes. Si el archivo de referencia es un PDF no se incrusta: un <iframe> dentro de
      la hoja que se manda a imprimir sale en blanco en casi todos los navegadores, y una hoja
      con un recuadro vacío es peor que una hoja sin recuadro. */
-  const imgTrabajo = (Q.aiFile && Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0)
+  /* ----- Con las cotas, siempre que existan -----
+     La foto con cotas solo llegaba aquí por un camino: «Cotizar con IA» desde el escalador. Si
+     se medía en el escalador y las partidas se agregaban con «Agregar medidas como partidas», o
+     si la IA ya había leído la foto ANTES de medirla, Q.aiFile seguía siendo la foto limpia y el
+     PDF salía sin una sola cota —y eso al cliente no le sirve: el plano cotado es lo que pegan en
+     Canva—. Ahora, si el escalador tiene medidas trazadas, la figura es esa foto con sus cotas,
+     y se guarda en Q.aiFile para que el historial la conserve al reabrir la cotización. */
+  const cotada = typeof scPlanoCotado==='function' ? scPlanoCotado() : '';
+  if(cotada && !(Q.aiFile && Q.aiFile.url===cotada)){
+    Q.aiFile = {name:'medidas-al3d.jpg', type:'image/jpeg', url:cotada, deEscalador:true};
+    try{ saveState(); renderAiPreview(); }catch(_){}
+  }
+  const imgGeneral = (Q.aiFile && Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0)
     ? urlImagenSegura(Q.aiFile.url) : '';
+
+  /* ----- Las imágenes como en Canva -----
+     Las 10 cotizaciones de Canva de septiembre y octubre de 2026 que se revisaron llevan, debajo
+     de la nota, el plano con sus cotas de ancho y alto y dos renders lado a lado; cuando hay varios
+     anuncios, un plano por anuncio; y varias traen una hoja aparte solo de renders.
+       · planos: el de cada partida visible (it.plano). Si ninguna trae el suyo, el de siempre:
+         la foto del escalador con cotas o la imagen que leyó la IA.
+       · Con UN plano va en la hoja de la cotización, con los renders debajo —o a un lado si el
+         plano es alto y angosto—. Con dos o más, cada uno va en las hojas de «Planos», dos por
+         hoja, con el nombre de su partida, y en la cotización quedan los renders.
+       · La propuesta visual es una hoja aparte, hasta seis renders y ningún precio. */
+  const _url = id => (typeof imgUrl==='function' && imgUrl(id)) ? urlImagenSegura(imgUrl(id)) : '';
+  const planosP = itemsForPDF.filter(it=>_url(it.plano)).map(it=>({it, url:_url(it.plano), alta:typeof imgEsAlta==='function'&&imgEsAlta(it.plano)}));
+  const rendersU = (Array.isArray(Q.renders)?Q.renders:[]).map(_url).filter(Boolean).slice(0,2);
+  const propU = (Array.isArray(Q.propuesta)?Q.propuesta:[]).map(_url).filter(Boolean).slice(0,6);
+  const variosPlanos = planosP.length>1;
+  const planoCot = variosPlanos ? null : (planosP[0] || (imgGeneral?{url:imgGeneral,alta:false}:null));
+  /* El de la orden de trabajo y la de instalación: el primero que haya. */
+  const imgTrabajo = planosP.length ? planosP[0].url : imgGeneral;
+  const trozosPlanos = [];
+  if(variosPlanos) for(let i=0;i<planosP.length;i+=2) trozosPlanos.push(planosP.slice(i,i+2));
+  const hayProp = propU.length>0;
 
   /* ---- Reparto de las filas por hoja ----
      El .pg pone min-height:100vh pero ningún techo, y el pie va en position:absolute
@@ -834,7 +871,7 @@ function generarPDF(){
      Son 312 px: el MÍNIMO que se le reserva. La figura crece por encima de eso cuando la hoja
      le deja hueco —con una sola partida, que es la mediana real, se lleva media hoja— porque
      va en flex:1; lo que no puede es bajar de aquí, que es donde un plano deja de leerse. */
-  const ALTO_IMG = imgTrabajo ? 312 : 0;
+  const ALTO_IMG = (planoCot||rendersU.length) ? 312 : 0;
   /* Medido sobre el diseño nuevo, en la caja útil de 942 px (1 056 menos 30 de padding
      arriba y 84 abajo): el bloque de identidad con sus dos reglas ocupa 67, la ficha de
      datos 75 con la dirección en dos renglones, el encabezado de la tabla 25 y su margen 14.
@@ -969,9 +1006,11 @@ function generarPDF(){
   const opcPdf = itemsForPDF.map(it=>({it,op:opcionesParaPdf(it)})).filter(x=>x.op);
   const trozosOpc = [];
   for(let i=0;i<opcPdf.length;i+=2) trozosOpc.push(opcPdf.slice(i,i+2));
-  const TOTAL_HOJAS = trozos.length + trozosOpc.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
-  const HOJA_OPC = trozos.length + 1;
-  const HOJA_TERMINOS = trozos.length + trozosOpc.length + 1;
+  const TOTAL_HOJAS = trozos.length + trozosPlanos.length + (hayProp?1:0) + trozosOpc.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
+  const HOJA_PLANOS = trozos.length + 1;
+  const HOJA_PROP = HOJA_PLANOS + trozosPlanos.length;
+  const HOJA_OPC = HOJA_PROP + (hayProp?1:0);
+  const HOJA_TERMINOS = HOJA_OPC + trozosOpc.length;
   const HOJA_TRABAJO  = HOJA_TERMINOS + 1;
   const HOJA_INSTAL   = HOJA_TRABAJO + trozosOT.length;
   const HOJA_RECIBO   = HOJA_INSTAL + (hayInstal?1:0);
@@ -1128,6 +1167,25 @@ function generarPDF(){
       <div class="fig-box"><img src="${imgTrabajo}" alt="Plano del anuncio cotizado"></div>
     </div>`
     : '';
+  /* La de la hoja de la cotización: el plano y, debajo, los renders lado a lado. Si el plano es
+     alto y angosto, los renders se apilan a su derecha, como en Canva. */
+  const figuraCot = () => {
+    if(!planoCot && !rendersU.length) return '';
+    const lado = planoCot && planoCot.alta && rendersU.length;
+    const rend = rendersU.length ? `<div class="fig-r">${rendersU.map(u=>`<div class="fig-rc"><img src="${u}" alt="Render del anuncio"></div>`).join('')}</div>` : '';
+    return `<div class="fig${lado?' fig-lado':''}${planoCot&&rendersU.length?' fig-con-r':''}">
+      <span class="lbl">${planoCot?'Plano y referencia del proyecto':'Referencia del proyecto'}</span>
+      <div class="fig-in">
+        ${planoCot?`<div class="fig-box"><img src="${planoCot.url}" alt="Plano del anuncio cotizado"></div>`:''}
+        ${rend}
+      </div>
+    </div>`;
+  };
+  const tituloPartida = it => {
+    const n = Q.items.indexOf(it)+1;
+    const d = String(it.desc||'').trim();
+    return 'Partida '+n+' · '+(d ? esc(d.length>70?d.slice(0,68)+'…':d) : esc(TIPO_NOMBRE[it.tipo]||''));
+  };
 
   /* Los ocho apartados de términos, como datos y no como ocho bloques de HTML repetido.
      El texto es el mismo, carácter por carácter, que el que se venía imprimiendo: solo salió
@@ -1301,6 +1359,23 @@ td.c{color:var(--ink2)}
    ya se ve a tamaño de trabajo sin comerse la hoja entera. */
 .fig-box{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
 .fig-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+/* Plano + renders (imagenes.js). El plano se lleva tres quintos del alto y los renders dos,
+   lado a lado. Con un plano alto y angosto, los renders se apilan a la derecha. */
+.fig-in{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+.fig-con-r .fig-box{flex:3 1 0;min-height:150px}
+.fig-r{flex:2 1 0;min-height:120px;display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+.fig-rc{min-height:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.fig-rc img{width:100%;height:100%;object-fit:cover;display:block}
+.fig-lado .fig-in{flex-direction:row}
+.fig-lado .fig-box{flex:3 1 0;min-width:0;max-height:none}
+.fig-lado .fig-r{flex:2 1 0;min-width:0;grid-template-columns:1fr;grid-auto-rows:1fr}
+.fig-pl{flex:1 1 0;margin-bottom:12px}
+.fig-pl .fig-box{max-height:none}
+.prop-g{flex:1 1 auto;min-height:0;display:grid;gap:8px;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;margin-bottom:6px}
+.prop-g1,.prop-g2{grid-template-columns:1fr}
+.prop-g3>.prop-c:first-child,.prop-g5>.prop-c:first-child{grid-column:1/-1}
+.prop-c{min-height:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.prop-c img{width:100%;height:100%;object-fit:cover;display:block}
 .sigue{text-align:center;font-size:9px;color:var(--ink3);letter-spacing:.03em;margin-bottom:12px}
 /* Hoja de opciones (pieza 76). Solo papel: sin transiciones ni sombras. Cada tarjeta tiene un alto
    máximo para que un texto largo no empuje el pie fuera de la carta. */
@@ -1682,10 +1757,34 @@ ${trozos.map((trozo,ti)=>{
       </div>`:''}
     </div>
   </div>
-  ${figura()}`:`<div class="sigue">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
+  ${figuraCot()}`:`<div class="sigue">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
   ${footerCot(ti+1)}
 </div>`;
 }).join('')}
+
+<!-- HOJAS DE PLANOS · solo con dos o más partidas que traen su plano. Dos por hoja, cada uno
+     con el nombre de su partida, para que el cliente sepa qué anuncio está viendo. -->
+${trozosPlanos.map((grupo,gi)=>`
+<div class="pg">
+  ${deco}
+  ${hdr('Planos',Q.fecha)}
+  ${fichaDatos()}
+  ${grupo.map(p=>`<div class="fig fig-pl">
+    <span class="lbl">${tituloPartida(p.it)}</span>
+    <div class="fig-box"><img src="${p.url}" alt="Plano de la partida"></div>
+  </div>`).join('')}
+  ${footerCot(HOJA_PLANOS+gi)}
+</div>`).join('')}
+
+<!-- HOJA DE PROPUESTA VISUAL · solo imágenes, sin precios. -->
+${hayProp?`
+<div class="pg">
+  ${deco}
+  ${hdr('Propuesta visual',Q.fecha)}
+  ${fichaDatos()}
+  <div class="prop-g prop-g${propU.length}">${propU.map(u=>`<div class="prop-c"><img src="${u}" alt="Render del anuncio"></div>`).join('')}</div>
+  ${footerCot(HOJA_PROP)}
+</div>`:''}
 
 <!-- HOJAS DE OPCIONES · solo si alguna partida lleva una propuesta con opciones (pieza 76).
      Cada partida con opciones enseña sus tarjetas lado a lado, con la cuenta de cada una y la
