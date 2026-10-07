@@ -312,6 +312,13 @@ document.documentElement.classList.add('arrancando');
              pintarCandadoCliente(). -->
         <div class="cand-cliente" id="cli-candado" role="region" aria-label="Estado de los datos del cliente" hidden></div>
         <div class="grid2">
+          <!-- El teléfono va primero: es lo primero que se tiene del cliente (llega por WhatsApp)
+               y con él se encuentra su cuaderno. Luego el nombre y el proyecto.
+               El teléfono se ve completo mientras se teclea (C8): Piezas.telefonoVivo('f-tel') lo envuelve en
+               arranque.js y le da el formato «33 1234 5678» y el contador del borde. El contador se come el
+               final del texto de ejemplo en este campo angosto —«33 0000 0000» se leía «33 0000 000(»—,
+               así que el ejemplo dice lo que se pide, «10 dígitos», y el formato lo enseña el campo al llenarse. -->
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="10 dígitos" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
           <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="cli-lista" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)">
             <!-- La lista de clientes que ya tienen cuaderno (C6). Sustituye al <datalist> nativo, que en
                  Android salía como una tira sobre el teclado, sin teléfono y sin decir cuál de dos
@@ -319,11 +326,6 @@ document.documentElement.classList.add('arrancando');
                  recorta ninguna tarjeta, y el foco nunca sale del campo. La arma armarComboClientes()
                  en js/cotizador/nucleo.js. -->
             <div class="combo-menu" id="cli-menu" popover="manual"><div class="combo-lista"><span class="combo-pil" aria-hidden="true"></span><div role="listbox" id="cli-lista" aria-label="Clientes con cuaderno"></div></div></div></div>
-          <!-- El teléfono se ve completo mientras se teclea (C8): Piezas.telefonoVivo('f-tel') lo envuelve en
-               arranque.js y le da el formato «33 1234 5678» y el contador del borde. El contador se come el
-               final del texto de ejemplo en este campo angosto —«33 0000 0000» se leía «33 0000 000(»—,
-               así que el ejemplo dice lo que se pide, «10 dígitos», y el formato lo enseña el campo al llenarse. -->
-          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="10 dígitos" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
         <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
@@ -331,7 +333,7 @@ document.documentElement.classList.add('arrancando');
                vez —con los campos que falten por nombre— en el momento en que estorba. Un
                párrafo aquí era la tercera vez, y la única que nadie había pedido. Se queda
                para el lector de pantalla, que del asterisco decorativo no se entera. -->
-          <span class="solo-voz" id="hint-oblig">Sin cliente, teléfono y proyecto no se pueden capturar partidas.</span>
+          <span class="solo-voz" id="hint-oblig">Sin teléfono, cliente y proyecto no se pueden capturar partidas.</span>
         </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>

@@ -2597,6 +2597,12 @@ function scImagenParaIA(){
   scDrawDims(ctx,oc.width,oc.height,{s});
   return oc.toDataURL('image/jpeg',0.9);
 }
+/* La misma foto con sus cotas, para la figura del PDF (generarPDF). Vacío si no hay foto o si
+   todavía no se trazó ninguna medida: una foto sin cotas no es un plano. */
+function scPlanoCotado(){
+  if(typeof SC==='undefined'||!SC.img||!SC.items.length) return '';
+  try{ return scImagenParaIA(); }catch(_){ return ''; }
+}
 function scCotizarConIA(){
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
   /* Antes que nada: de aquí se sale a la IA, que crea partidas. Se pregunta ANTES de

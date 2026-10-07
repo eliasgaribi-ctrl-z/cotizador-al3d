@@ -806,6 +806,18 @@ function generarPDF(){
      Solo imágenes. Si el archivo de referencia es un PDF no se incrusta: un <iframe> dentro de
      la hoja que se manda a imprimir sale en blanco en casi todos los navegadores, y una hoja
      con un recuadro vacío es peor que una hoja sin recuadro. */
+  /* ----- Con las cotas, siempre que existan -----
+     La foto con cotas solo llegaba aquí por un camino: «Cotizar con IA» desde el escalador. Si
+     se medía en el escalador y las partidas se agregaban con «Agregar medidas como partidas», o
+     si la IA ya había leído la foto ANTES de medirla, Q.aiFile seguía siendo la foto limpia y el
+     PDF salía sin una sola cota —y eso al cliente no le sirve: el plano cotado es lo que pegan en
+     Canva—. Ahora, si el escalador tiene medidas trazadas, la figura es esa foto con sus cotas,
+     y se guarda en Q.aiFile para que el historial la conserve al reabrir la cotización. */
+  const cotada = typeof scPlanoCotado==='function' ? scPlanoCotado() : '';
+  if(cotada && !(Q.aiFile && Q.aiFile.url===cotada)){
+    Q.aiFile = {name:'medidas-al3d.jpg', type:'image/jpeg', url:cotada, deEscalador:true};
+    try{ saveState(); renderAiPreview(); }catch(_){}
+  }
   const imgTrabajo = (Q.aiFile && Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0)
     ? urlImagenSegura(Q.aiFile.url) : '';
 

@@ -987,8 +987,8 @@ function quitarDesdeFaltantes(id){
    teléfono completo (10 dígitos)» se cortaba en «Falta el teléfono completo (…» y se comía
    justo la mitad que sirve. El detalle no se pierde, lo dice el aviso al tocarla. */
 const OBLIGATORIOS=[
-  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
   {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente',corto:'el teléfono'},
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
   {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto',            corto:'el proyecto'}
 ];
 /* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
