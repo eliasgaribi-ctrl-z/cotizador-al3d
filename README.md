@@ -34,13 +34,31 @@ de archivos publicado:
 |---|---|---|
 | **Cotizador** | Captura el trabajo delante del cliente y saca el precio, el PDF y el WhatsApp | `#/cotizador` |
 | **Plataforma** | Lo que pasa después: calendario, obra, material, mapa, cobranza | la raíz, `#/hoy` |
-| **Anidador** | Acomoda las piezas en la lámina antes de cortar | `/anidador-vectores/` |
+| **Mesa de corte** | Acomoda las piezas en la lámina antes de cortar (el anidador) | `#/anidador` |
 | **Publicaciones** | Plantillas de marca para redes: textos y fotos encima, y baja PNG o video | `#/publicaciones` |
 
 Todo corre en el navegador. **Sin servidor, sin cuenta, sin instalar nada y sin build**: son
 archivos estáticos que se sirven tal cual, desde GitHub Pages
 (`eliasgaribi-ctrl-z.github.io/cotizador-al3d/`) y desde Cloudflare Pages
-(`cotizador-al3d.pages.dev`). Los datos viven en el dispositivo.
+(`cotizador-al3d.pages.dev`). Los datos viven en el dispositivo, y lo que tiene que ser de todos
+—ventas, cobranza, almacén, autorizaciones— viaja a la hoja de Google del negocio.
+
+### Lo más reciente (octubre de 2026)
+
+- **La carpeta de los diseños, en la ficha del proyecto.** La hoja lee «Trabajos Pendientes» de
+  Drive y cada proyecto del taller enseña su carpeta, el `.cdr` y el PDF de órdenes de
+  fabricación. Tablero, Proyectos y el taller marcan **Órdenes listas / Sin órdenes / Sin
+  carpeta**, y Dirección abre con un toque la carpeta que falte.
+- **El PDF se parece al que se manda de verdad.** Cada partida lleva su plano —del escalador, con
+  sus cotas, o subido ya acotado— y hasta dos renders; con varios planos salen hojas de Planos, y
+  la hoja de **propuesta visual** junta hasta seis renders sin precios.
+- **El teléfono se pide primero.** Los datos del cliente van en orden: teléfono, cliente, proyecto.
+- **La puerta de Google entra animada**, con uno de dieciocho fondos que no se repite hasta que
+  salieron todos, y **la sesión se cierra cada día**: así se sabe quién usó cada aparato.
+- **Cambiar de pantalla se siente como ir a otro lugar**: la que se va sale hacia un lado y la
+  nueva entra desde el suyo.
+- **Las tarjetas que la hoja ya cobra** (COBRANDO / LIQUIDADO) pasan solas a «Instalado» y salen
+  del tablero.
 
 ## El eslabón: de la cotización al taller
 
@@ -53,7 +71,7 @@ de Google Maps, el tipo de trabajo derivado de las partidas, la fecha de instala
 material que hay que comprar**. Nada de eso se captura.
 
 <p align="center">
-  <img src="docs/pantalla-plataforma.png" alt="El tablero de proyectos por etapa de obra, con los trabajos ganados" width="920">
+  <img src="docs/pantalla-plataforma.png" alt="Proyectos: el tablero por etapa de obra, de Ganado a Listo para instalar" width="920">
 </p>
 
 ## Lo que hace el cotizador
@@ -63,6 +81,7 @@ material que hay que comprar**. Nada de eso se captura.
 
 - **Cuatro pasos: Cliente · Partidas · Precio · Entrega.** La barra dice en cuál estás, cuáles
   están hechos y cuál no toca todavía. Ninguno se deshabilita: tocar el que no toca dice qué falta.
+  En Cliente lo primero es el **teléfono**, luego el cliente y el proyecto.
 - **Partidas por tipo** — letras 3D, recorte de acrílico, bastidor, caja de luz o captura manual,
   cada una con su catálogo de materiales y tarifas. Por debajo de 10 cm no hay letras 3D: la
   regla se aplica sola y la partida se convierte en recorte de acrílico, diciendo por qué.
@@ -92,8 +111,11 @@ material que hay que comprar**. Nada de eso se captura.
   piezas e importe— para compararlos con el papel. Un PDF con un renglón cambiado y el mismo total
   ya no pasa. Los sellos de antes de `puente-sheets-8` siguen verificando, y la página dice que
   esos solo responden del total.
-- **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
-  pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
+- **PDF de cotización** con **un plano por partida** —la foto con las cotas del escalador, o un
+  plano subido ya acotado— y hasta dos renders debajo de cada uno, la hoja de **propuesta
+  visual** (hasta seis renders, sin precios), la orden de trabajo del taller y el recibo de pago
+  con talón. Las imágenes se guardan aparte (IndexedDB) y la cotización solo lleva sus ids. Un
+  descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
   Borrar una partida o una cotización del historial se deshace desde el aviso.
 - **Se porta como app** — las preguntas son de la app y no del navegador; en el teléfono las
@@ -111,20 +133,30 @@ material que hay que comprar**. Nada de eso se captura.
 
 ## La plataforma
 
+<p align="center">
+  <img src="docs/pantalla-tablero.png" alt="El Tablero: lo que hay en el taller, lo que va tarde y lo que se instala esta semana" width="920">
+</p>
+
 - **Calendario** — dos lentes: **Taller**, la fila de lo que está en fabricación con su ventana
   contada hacia atrás desde el día de instalación; e **Instalaciones**, el mes con su semáforo.
 - **Tablero** — lo que se rompe primero, en orden: «falta material y esto se instala en 2 días».
-- **Proyectos** — el tablero por etapa de obra, con la orden de trabajo de fabricación.
+- **Proyectos** — el tablero por etapa de obra, con la orden de trabajo de fabricación y **la
+  carpeta de Drive del trabajo**: el `.cdr` con las escalas y el PDF de órdenes de fabricación.
+  La carpeta se empareja por el nombre del negocio, con tolerancia a erratas, y lo que no alcanza
+  el umbral no se adivina: la ficha lo dice y deja la liga a «Trabajos Pendientes».
 - **Material** — de «8 letras de 40 cm de acero» a «1 lámina de acrílico, 44 módulos LED, 1
   fuente», con la cuenta a la vista y su etiqueta de confianza.
 - **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
+- **Mesa de corte y Vectorizador** — las herramientas del taller, como pestañas de la plataforma.
+- **Publicaciones** — plantillas de marca para redes: se escriben los textos, se ponen las fotos
+  y baja un PNG o un video. Ver [`publicaciones/README.md`](publicaciones/README.md).
 - **Control** — el dinero: lo vendido contra el mes anterior, la conversión, los últimos doce
   meses, la cartera con el WhatsApp de cobro ya escrito, y la bitácora de quién movió qué. **El
   récord de ventas es el de la hoja de finanzas**: el puente baja la pestaña Ventas entera
   —también lo que se registró desde otro teléfono o en la propia hoja— y Control la suma con lo
   de este aparato, dice de cuándo son los datos y los vuelve a traer con un botón (y solo, al
   entrar, si tienen más de diez minutos).
-- **El asistente** — un botón que flota en las ocho pantallas. Las siete preguntas de siempre se
+- **El asistente** — un botón que flota en todas las pantallas. Las siete preguntas de siempre se
   contestan **aquí, sin IA y sin señal**; lo que no se puede calcular va a la IA sin teléfonos
   ni direcciones.
 
@@ -140,6 +172,8 @@ nada (el token de dispositivo de **Ajustes → El puente** queda de salida de em
 el día que Google no conteste). A partir de ahí la venta sale sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
 fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
 es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
+Desde `puente-sheets-10` la hoja lee además la carpeta de Drive **«Trabajos Pendientes»** y,
+solo a Dirección, le abre carpeta al proyecto que no la tenga, sin duplicar.
 Y desde `puente-sheets-9` viaja también **el almacén**: el libro de movimientos, el catálogo de
 material y las listas de compra tienen su pestaña en la hoja («Almacén», «Catálogo de material»,
 «Listas de compra»), así que lo que fabricación cuenta o recibe en su teléfono lo ve Dirección en
@@ -148,11 +182,11 @@ corten el mismo proyecto—, el catálogo se escribe campo por campo, y pagos no
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
 en su primera línea. Los pasos están en [`puente/README.md`](puente/README.md).
 
-## El anidador de vectores
+## La mesa de corte (el anidador de vectores)
 
 Antes de mandar las piezas al láser o al CNC conviene acomodarlas para gastar el menor material
 posible. Vive en [su propia página](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/anidador-vectores/)
-porque es del taller y no de la venta, y se llega desde el botón **Anidador** de la plataforma o
+porque es del taller y no de la venta, y se llega desde la pestaña **Mesa de corte** de la plataforma o
 desde **Acomodar en hoja** del vectorizador, que lo abre con el trazo ya puesto.
 
 Trabaja en milímetros y lo que no es una medida lo pregunta: si el SVG declara mm, cm, pulgadas
@@ -193,11 +227,15 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
 
 | Por dónde se entra | A dónde llega |
 |---|---|
-| La liga de siempre, `…/cotizador-al3d/` | El **Tablero** del taller, con el Cotizador como pestaña |
+| La liga de siempre, `…/cotizador-al3d/` | La **puerta de Google** y, ya adentro, el **Tablero** del taller, con el Cotizador como pestaña |
 | El icono de la app instalada | El Tablero |
 | Una liga vieja o un marcador a `cotizador.html` | Reenvía a `./#/cotizador` |
 | `cotizador.html?solo=1` | El cotizador solo, sin la app alrededor. Lo usan las pruebas |
 | Doble clic en `cotizador.html` desde el disco | El cotizador solo, como siempre |
+
+Se entra con la cuenta de Google que Dirección dio de alta en la pestaña «Accesos» de la hoja, y
+**la sesión se cierra sola cada día**: la primera apertura de un día nuevo vuelve a pedir la
+cuenta. En el teléfono la barra de abajo lleva Tablero · Calendario · Proyectos · Cotizador · **Más**.
 
 ## Cómo está acomodado el código
 
@@ -332,7 +370,9 @@ mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
 Si cambia el catálogo de precios (`js/cotizador/catalogo.js`), hay que regenerar su copia para la
-plataforma con `herramientas/extraer-catalogo.sh`.
+plataforma con `herramientas/extraer-catalogo.sh`. Si `pruebas/publicacion.mjs` dice que las
+cifras de la documentación se quedaron atrás (los manejadores en línea del cotizador), las pone
+al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
@@ -352,6 +392,7 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 | [`docs/SISTEMA-DE-DISENO.md`](docs/SISTEMA-DE-DISENO.md) | Tokens, escalas y las ocho capas de `css/sistema.css` |
 | [`docs/INVESTIGACION-TECNICA.md`](docs/INVESTIGACION-TECNICA.md) | Lo que se verificó antes de decidir: OAuth, cuotas, límites |
 | [`docs/ESTRUCTURA-COTIZACION-CANVA.md`](docs/ESTRUCTURA-COTIZACION-CANVA.md) | El papel que se manda de verdad, hoja por hoja |
+| [`docs/REVISAR-PAQUETE-UI.md`](docs/REVISAR-PAQUETE-UI.md) | Lo que quedó por revisar del paquete de UI, y las decisiones abiertas |
 | [`puente/README.md`](puente/README.md) | El puente a la hoja: caminos, roles y cómo está cerrado |
 
 ## Pendientes
@@ -359,6 +400,11 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.
+- **Mandar una cotización con opciones sin elegir.** Hoy se puede autorizar con aluminio,
+  acrílico y caja de luz lado a lado «de todos modos». Falta decidir si se deja así o se cierra
+  (ver [`docs/REVISAR-PAQUETE-UI.md`](docs/REVISAR-PAQUETE-UI.md)).
+- **Nada se ha probado en un teléfono real.** Los gestos se ejercitaron en Chromium; falta un
+  Android de gama media y un iPhone.
 
 ---
 

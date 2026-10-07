@@ -102,7 +102,7 @@ const CUBO_POR_TIPO = {
 /* La lámina estándar del mercado mexicano mide 1.22 × 2.44 m; es el `largo_cm` de la
    semilla de material. Una pieza más larga que eso no cabe en una lámina: son dos paneles,
    una junta, alineación y refuerzo, y eso es tiempo real. El caso existe: «Andrey -
-   Healthylicious, Medidas 1 m x 2.95 m» (docs/LO-QUE-YA-EXISTE.md). */
+   Healthylicious, Medidas 1 m x 2.95 m», un proyecto real de 2026. */
 const LARGO_LAMINA_CM = 244;
 
 /** La medida más larga de una partida, en cm. Letras y recorte cotizan por altura; caja y
