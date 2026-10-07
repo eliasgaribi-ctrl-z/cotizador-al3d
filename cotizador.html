@@ -423,6 +423,8 @@ document.documentElement.classList.add('arrancando');
           <button class="addbtn" id="addbtn" onclick="agregarPartida()">+ Agregar partida</button>
           <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
         </div>
+        <!-- Renders y propuesta visual del PDF (imagenes.js). El plano va en cada partida. -->
+        <div id="imgsPdf"></div>
       </div>
     </div>
   </main>
@@ -1099,6 +1101,7 @@ document.documentElement.classList.add('arrancando');
 <script src="js/cotizador/entrega.js"></script>
 <script src="js/cotizador/historial.js"></script>
 <script src="js/cotizador/escalador.js"></script>
+<script src="js/cotizador/imagenes.js"></script>
 <script src="js/cotizador/venta.js"></script>
 <script src="js/cotizador/vectorizador.js"></script>
 <script src="js/cotizador/notario.js"></script>

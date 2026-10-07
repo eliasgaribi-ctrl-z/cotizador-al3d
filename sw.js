@@ -15,7 +15,7 @@
    están en ESE teléfono— quedaban inalcanzables por no poder cargar el HTML que los lee.
 
    Durante un año su estrategia fue «red primero, caché de respaldo», porque era UN archivo
-   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más doce guiones
+   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más trece guiones
    en js/cotizador/ y la hoja css/sistema.css que comparte con la plataforma. Un HTML nuevo con
    un guion viejo no es un cotizador viejo: es uno roto —exactamente el problema que se
    describe abajo para la plataforma—. Así que el cotizador entra al conjunto versionado y se
@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 36 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 37 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 83;
+const APP_VERSION = 84;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -76,7 +76,7 @@ const APP_FILES = [
   './js/tema.js',
   /* Las piezas compartidas: las cargan el cotizador, la plataforma, el anidador y verificar. */
   './js/piezas.js',
-  /* El cotizador: la página y sus doce guiones. Van juntos porque se cargan en orden y se
+  /* El cotizador: la página y sus trece guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
   './cotizador.html',
   './js/cotizador/catalogo.js',
@@ -87,6 +87,7 @@ const APP_FILES = [
   './js/cotizador/entrega.js',
   './js/cotizador/historial.js',
   './js/cotizador/escalador.js',
+  './js/cotizador/imagenes.js',
   './js/cotizador/venta.js',
   './js/cotizador/vectorizador.js',
   './js/cotizador/notario.js',
@@ -501,7 +502,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 36 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 37 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

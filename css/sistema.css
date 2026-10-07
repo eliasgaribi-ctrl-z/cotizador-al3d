@@ -1633,6 +1633,28 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 .sc-prev-head .ttl{font-size:var(--t1);font-weight:700;color:var(--brand);line-height:1.4}
 .sc-prev-head .chev{font-size:var(--t1);font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
 .sc-prev-img{display:block;width:100%;height:auto;max-height:420px;margin-top:var(--e2);border-radius:var(--rr2);border:1px solid var(--line);background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px;cursor:pointer;object-fit:contain}
+/* Imágenes del PDF (imagenes.js): el plano de cada partida y, abajo de las partidas, los
+   renders y la hoja de propuesta visual. Mismo marco que la vista previa del escalador. */
+.plano-p{display:flex;align-items:center;gap:var(--e3);flex-wrap:wrap;margin-top:var(--e3);padding:var(--e2) var(--e3);border:1px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
+.plano-t{font-size:var(--t1);font-weight:700;color:var(--brand);display:inline-flex;align-items:center;gap:6px}
+.plano-mini{height:44px;max-width:90px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:#fff}
+.plano-nota{font-size:var(--t1);color:var(--muted)}
+.plano-acc{display:inline-flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.plano-b{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:var(--t1);font-weight:600;cursor:pointer}
+.plano-b[aria-disabled="true"]{opacity:.55}
+.plano-b.quitar{padding:0 11px;font-size:16px;color:var(--muted)}
+.imgs-pdf{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:var(--e3);margin-top:var(--e4)}
+.imgs-cab{font-size:var(--t1);font-weight:700;color:var(--brand);display:flex;align-items:center;gap:6px;margin-bottom:var(--e2)}
+.imgs-sec+.imgs-sec{margin-top:var(--e3);padding-top:var(--e3);border-top:1px solid var(--line)}
+.imgs-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.imgs-t{font-size:13px;font-weight:700;color:var(--ink)}
+.imgs-n{font-size:var(--t1);color:var(--muted)}
+.imgs-ayuda{font-size:var(--t1);color:var(--muted);margin:2px 0 var(--e2)}
+.imgs-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.imgs-c{position:relative;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center}
+.imgs-c img{width:100%;height:100%;object-fit:cover;display:block}
+.imgs-x{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:1;cursor:pointer}
+.imgs-add{aspect-ratio:4/3;border-radius:8px;border:1.5px dashed var(--line);background:var(--card);color:var(--brand);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .sc-prev-box .sub{font-size:var(--t1);color:var(--muted);margin-top:var(--e2);text-align:center}
 .lightbox-close{position:fixed;top:max(20px,calc(env(safe-area-inset-top,0px) + 8px));right:max(24px,calc(env(safe-area-inset-right,0px) + 8px));width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:background var(--mv-s)}
 @media(hover:hover){.lightbox-close:hover{background:rgba(255,255,255,.28)}}

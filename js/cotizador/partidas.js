@@ -1144,7 +1144,7 @@ function renderItems(){
       </div>
       ${resumenHTML(it)}
       </div>
-      <div class="pbody" id="pbody-${it.id}">${cuerpoConOpciones(it)}</div>
+      <div class="pbody" id="pbody-${it.id}">${cuerpoConOpciones(it)}${planoPartidaHTML(it)}</div>
       <!-- La fórmula va FUERA de .pbody a propósito: es lo único del cuerpo que se queda a la
            vista al plegar. El total se subió al encabezado —ver arriba— y desde ahí sigue
            fuera de .pbody y sigue siendo donde se espían los importes tapados. -->
@@ -1225,6 +1225,7 @@ function renderItems(){
   _armarPartidas();
   _devolverFocoItems(_focoPrevio);
   _idsPintados=new Set(Q.items.map(x=>x.id));
+  imgAsegurar();
 }
 function pintarConteoPartidas(){
   const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;

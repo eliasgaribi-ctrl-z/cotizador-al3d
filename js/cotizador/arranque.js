@@ -60,6 +60,8 @@ function armarCotCliente(){
 function init(){
   armarCotCliente();
   loadLogo();
+  /* Las imágenes del PDF que ya nadie usa se tiran sin estorbar al arranque (imagenes.js). */
+  setTimeout(()=>{ try{ imgLimpiar(); }catch(_){} },8000);
   aiOlvidarLlavesLocales();
   /* Plegar los datos del proyecto ya no existe —con los datos del cliente en su propia
      pantalla, plegarlos la dejaba en blanco—. La clave que guardaba esa preferencia dejó de

@@ -44,6 +44,9 @@ const Q = {
      diciendo todavía que la autorizó Elías. En Q sobrevive a la recarga. Ver reautorizar(). */
   reauth:null,
   aiFile:null,
+  /* Las imágenes del PDF que no son de una partida: los renders debajo del plano (hasta 2) y la
+     hoja de propuesta visual (hasta 6). Solo ids; la imagen vive en IndexedDB (imagenes.js). */
+  renders:[], propuesta:[],
   /* «Esta cotización nunca ha tenido una partida». Va en Q y no en una variable suelta
      porque tiene que sobrevivir a una recarga: se captura el cliente, se recarga la
      página con el candado todavía puesto y al escribir el teléfono la partida en blanco

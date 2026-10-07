@@ -2238,7 +2238,7 @@ function nueva(){
          a medias, que son de aquella captura y no de ésta.
      Así que se sueltan aquí, a mano, sin esperar a un folio que no va a cambiar. */
   _deAntes=null; _vaciadoAMano=null; Q.reauth=null; paBorradorLimpiar();
-  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;
+  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;Q.renders=[];Q.propuesta=[];
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
