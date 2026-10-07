@@ -97,12 +97,20 @@ const GOO_PUERTA =
 /* ── El fondo de la puerta ──────────────────────────────────────────────────────
    La ÚNICA excepción a «nada se mueve solo»: la aprobó Elías para esta pantalla y para ninguna
    otra. Corre en loop y sigue al dedo o al cursor; con movimiento reducido se queda fijo. Los
-   nueve están en el paquete de animaciones («Fondos Puerta v2»), lado a lado y a tamaño de
+   dieciocho están en el paquete de animaciones («Fondos Puerta v2»), lado a lado y a tamaño de
    teléfono, tableta y escritorio.
 
    Cada vez que sale la puerta toca uno al azar, y nunca el mismo dos veces seguidas (Elías,
-   2-oct-2026). Para ver uno en concreto: `?fondo=led` (o cualquiera de la lista) en la liga. */
-const FONDOS_PUERTA = ['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'];
+   2-oct-2026). Para ver uno en concreto: `?fondo=led` (o cualquiera de la lista) en la liga.
+
+   Son dieciocho: los nueve de CSS de la tanda 2 y los nueve de lienzo de la tanda 3, que se
+   dibujan en js/nucleo/puerta-fondos.js (FONDOS_LIENZO). */
+const FONDOS_CSS = ['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'];
+const FONDOS_LIENZO = ['impresion', 'semitono', 'flujo', 'laser', 'mosaico', 'malla', 'persianas', 'gotas', 'curvas'];
+/* Los de lienzo con fondo oscuro llevan viñeta oscura; los claros, una azul tenue. Es la misma
+   lista que OSCUROS en puerta-fondos.js, aquí para no esperar al import() para pintar la viñeta. */
+const LIENZO_OSCURO = ['impresion', 'flujo', 'laser', 'malla', 'persianas'];
+const FONDOS_PUERTA = [...FONDOS_CSS, ...FONDOS_LIENZO];
 
 /* ── La sesión dura un día ────────────────────────────────────────────────────
    Decisión de Elías (2-oct-2026): cada día se vuelve a entrar con Google, para saber quién está
@@ -844,7 +852,7 @@ const sinMovimiento = () => {
    El fondo
    ---------------------------------------------------------------------------- */
 
-/* Cuál de los nueve: el de la liga (`?fondo=`) si es uno de ellos; si no, uno al azar que no
+/* Cuál de los dieciocho: el de la liga (`?fondo=`) si es uno de ellos; si no, uno al azar que no
    sea el de la vez pasada. */
 function fondoElegido() {
   let q = '';
@@ -890,6 +898,8 @@ function fondoHTML(clave) {
       '<i class="l1"><b></b></i><i class="l2"><b></b></i><i class="l3"><b></b></i><i class="l4"><b></b></i></i>' +
       '<i class="pfo-brillo"></i><i class="pfo-bruma"></i>';
   }
+  if (FONDOS_LIENZO.includes(clave)) return '<canvas class="pfo-lienzo2"></canvas>' +
+    (LIENZO_OSCURO.includes(clave) ? VINETA : '<i class="pfo-bruma"></i>');
   return '';
 }
 
@@ -898,7 +908,8 @@ function fondoHTML(clave) {
  * llama al entrar, y entonces se van el lienzo, sus cuadros y los oyentes.
  *
  * El dedo no repinta nada: moverlo escribe `--px` y `--py` (0–1) en el fondo y el CSS los lee.
- * Y tocar el fondo —no la caja— hace que cada uno de los nueve conteste a su manera (TOQUES).
+ * Y tocar el fondo —no la caja— hace que cada uno conteste a su manera (TOQUES, o el `tocar` de
+ * los de lienzo).
  *
  * ── En el teléfono ──────────────────────────────────────────────────────────
  * La primera versión se pensó con ratón y en el teléfono casi no se notaba, por tres cosas:
@@ -929,6 +940,20 @@ function montarFondo(caja) {
   let pt = null, apretado = false, ultimaEstela = 0;
   const lienzo = f.querySelector('.pfo-lienzo');
   const cons = lienzo ? constelacion(lienzo, () => pt) : null;
+  /* Los de lienzo (tanda 3) viven en su propio archivo y llegan con import(): la puerta abre
+     aunque ése no cargue, con el color de fondo y la viñeta. `lz` queda vivo hasta `parar`. */
+  let lz = null, parado = false;
+  const lienzo2 = f.querySelector('.pfo-lienzo2');
+  if (lienzo2) {
+    import('./puerta-fondos.js').then(m => {
+      if (parado) return;
+      lz = m.lienzoAnimado(lienzo2, clave, {
+        cursor: () => pt,
+        caja: () => caja.querySelector('.puerta-caja'),
+        quieto: sinMovimiento,
+      });
+    }).catch(err => console.warn('no cargaron los fondos de lienzo de la puerta', err));
+  }
   /* La curva de la puerta (--pf-ease en css/plataforma.css), leída de ahí para no tener dos. */
   const c = { curva: (getComputedStyle(caja).getPropertyValue('--pf-ease') || '').trim() || 'cubic-bezier(.2,.7,.3,1)', lienzo: cons };
 
@@ -950,6 +975,7 @@ function montarFondo(caja) {
     ultimaEstela = Date.now();     // antes de `mover`: el toque ya suelta su anillo, no también el de la estela
     mover(ev);
     if (!apretado || sinMovimiento()) return;
+    if (lz) { lz.tocar(ev.clientX, ev.clientY); return; }
     const toque = TOQUES[clave];
     if (toque) { try { toque(f, ev.clientX, ev.clientY, c); } catch (_) { /* un adorno que falla no estorba la entrada */ } }
   };
@@ -981,6 +1007,8 @@ function montarFondo(caja) {
   medir();
 
   return () => {
+    parado = true;
+    if (lz) lz.parar();
     if (cons) cons.parar();
     if (vigia) vigia.disconnect();
     window.removeEventListener('resize', medir);

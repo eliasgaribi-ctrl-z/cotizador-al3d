@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 82;
+const APP_VERSION = 83;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -105,6 +105,9 @@ const APP_FILES = [
      que ésta conteste, así que una copia sin este archivo es una copia que entra por el
      camino de emergencia y lo dice en la banda de arriba. */
   './js/nucleo/puerta.js',
+  /* Los nueve fondos de lienzo de la puerta (tanda 3). Llegan con import() y la puerta abre sin
+     ellos, pero sin red el fondo se quedaría liso. */
+  './js/nucleo/puerta-fondos.js',
   './js/nucleo/cuenta.js',
   './js/nucleo/asistente.js',
   './js/datos/db.js',
