@@ -82,8 +82,9 @@ Se enciende: los eventos entran solos al calendario, con las tres personas como 
 > escritura total sobre todo el workspace y no podía vivir en un HTML publicado. El dinero se
 > mudó a la hoja **«Finanzas AL3D — Ventas y Comisiones»** y con Notion fuera desapareció el
 > secreto: un Apps Script corre **dentro de la hoja**, con los permisos de su dueño. Una cuenta
-> menos, un secreto menos y un salto de red menos. `puente/worker.js` y `puente/wrangler.jsonc`
-> se borraron del repo. Los pasos completos están en [`puente/DESPLIEGUE.md`](../puente/DESPLIEGUE.md).
+> menos, un secreto menos y un salto de red menos. `puente/worker.js` se borró del repo; `puente/wrangler.jsonc`
+> volvió solo para publicar `puente/retirado.js`, un Worker que contesta 410 a todo (ver
+> `puente/DESPLIEGUE.md`). Los pasos completos están en [`puente/DESPLIEGUE.md`](../puente/DESPLIEGUE.md).
 
 1. En la hoja: **Extensiones → Apps Script**, pegar `puente/hoja-apps-script.gs` y guardar.
 2. **Implementar → Nueva implementación → Aplicación web**, *Ejecutar como* **Yo** y *Quién tiene
