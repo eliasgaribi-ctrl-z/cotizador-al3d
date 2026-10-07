@@ -15,6 +15,7 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
+import * as Carpetas from './datos/carpetas.js';
 import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, abrirCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo,
          confirmarPf, fmtFechaDia }
   from './nucleo/ui.js';
@@ -1956,8 +1957,15 @@ const MS_SYNC_LENTO = 1000;
 const MS_SYNC_OK = 2600;
 let _syncEstado = 'quieto', _syncOkReloj = 0;
 
-/** La frase de cada estado. Pura: de aquí salen el `title`, el `aria-label` y la voz. */
-export function fraseDeSync(estado, motivo) {
+/* Cuándo bajó la hoja por última vez en ESTE aparato, completa y sin error. «Al día» solo se
+   dice si fue hace poco: en octubre de 2026 un aparato llevaba cinco días sin bajar —nadie había
+   entrado con Google— y el glifo seguía diciendo «al día». */
+const K_ULTIMA_BAJADA = 'al3d_pf_ultima_bajada';
+let _ultimaBajada = (() => { try { return Number(localStorage.getItem(K_ULTIMA_BAJADA)) || 0; } catch (_) { return 0; } })();
+
+/** La frase de cada estado. Pura: de aquí salen el `title`, el `aria-label` y la voz. `ultima` es
+ *  cuándo bajó la hoja por última vez (ms) y `ahora`, el reloj; sin `ultima` no se juzga. */
+export function fraseDeSync(estado, motivo, ultima, ahora) {
   switch (estado) {
     case 'trabaja': return 'Sincronización: buscando lo que cambió';
     case 'ok': return 'Sincronización: llegó lo nuevo';
@@ -1968,7 +1976,14 @@ export function fraseDeSync(estado, motivo) {
       const m = String(motivo || 'no se pudo');
       return 'Sincronización: ' + (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(m) ? m.charAt(0).toLowerCase() + m.slice(1) : m);
     }
-    default: return 'Sincronización: al día';
+    default: {
+      const u = Number(ultima) || 0, t = Number(ahora) || 0;
+      if (u && t && t - u > 10 * 60 * 1000) {
+        return 'Sincronización: lo último de la hoja llegó el ' + new Date(u).toLocaleString('es-MX',
+          { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      }
+      return 'Sincronización: al día';
+    }
   }
 }
 
@@ -1981,7 +1996,7 @@ function pintarSync(estado, motivo) {
   const antes = _syncEstado;
   _syncEstado = estado;
   el.dataset.sync = estado;
-  const frase = fraseDeSync(estado, motivo);
+  const frase = fraseDeSync(estado, motivo, _ultimaBajada, Date.now());
   el.title = frase;
   el.setAttribute('aria-label', frase);
   /* La marca solo existe cuando hay algo que decir con ella; en reposo y sin señal se ve la nube
@@ -2059,6 +2074,23 @@ async function sincronizarDeVerdad() {
       if (!r.valor.hay_mas) break;
     }
   } catch (e) { falla = (e && e.message) || 'la hoja no contestó'; }
+  if (!falla && !sinRed) {
+    _ultimaBajada = Date.now();
+    try { localStorage.setItem(K_ULTIMA_BAJADA, String(_ultimaBajada)); } catch (_) {}
+  }
+  /* La carpeta de los diseños, después de la hoja: con los proyectos ya al día. Casi siempre
+     contesta de su caché; en el teléfono de Dirección abre la carpeta que le falte a un proyecto
+     del taller. Va en su propio try: Drive no le pone una cruz a la sincronización de la hoja. */
+  if (!sinRed) {
+    try {
+      const c = await Carpetas.alDia(await DB.listar('proyectos'), Prefs.rol());
+      if (c.cambio) _repintarDebe = true;
+      if (c.creadas.length) {
+        toast(c.creadas.length === 1 ? 'Se abrió en Drive la carpeta «' + c.creadas[0] + '»'
+          : 'Se abrieron en Drive ' + c.creadas.length + ' carpetas de proyectos en fabricación', 'ok', 4200);
+      }
+    } catch (e) { console.warn('carpetas', e); }
+  }
   clearTimeout(lento);
   /* La palomita solo cuando BAJÓ algo. Una vuelta que no trajo nada terminó bien y no tiene
      nada que decir: volver a la nube ES decirlo. */

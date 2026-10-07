@@ -351,7 +351,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 9', VERSION_ESPERADA, 'puente-sheets-9');
+  eq('la plataforma espera la 10', VERSION_ESPERADA, 'puente-sheets-10');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
   eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);
@@ -1384,6 +1384,24 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const salidasS = (await DB.listar('movimientos')).filter(m => m.requerimiento_id === 'req-S');
   eq('6 · dos cortes a la vez restan el material UNA vez', [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado],
      [true, true, 1, 'consumido']);
+
+  /* 7 · La hoja ya cobra la venta de una tarjeta importada: sale de la línea del taller. Se
+     quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cobradas pidiendo
+     taller—. La que alguien ya pasó a garantía no se toca, y nada de esto sube a la hoja. */
+  H.filas.push(fila('V-730', 'Cafetería Alba - Letras'), fila('V-731', 'Gimnasio Roca - Caja'), fila('V-732', 'Dental Mar - Letras'));
+  await jalarTodo();
+  const g732 = await DB.obtener('proyectos', 'proy-hoja-V-732');
+  await DB.poner('proyectos', { ...g732, etapa: 'garantia' });
+  ponerFila('V-730', { 'Estatus': 'COBRANDO' });
+  ponerFila('V-731', { 'Estatus': 'LIQUIDADO' });
+  ponerFila('V-732', { 'Estatus': 'LIQUIDADO' });
+  const a73 = H.empujadas.length;
+  await jalarTodo();
+  await S.bombear();
+  eq('7 · cobrada o liquidada en la hoja, la tarjeta importada pasa a «Instalado»; la de garantía se queda',
+     await Promise.all(['V-730', 'V-731', 'V-732'].map(async f => (await DB.obtener('proyectos', 'proy-hoja-' + f)).etapa)),
+     ['instalado', 'instalado', 'garantia']);
+  eq('7 · y no se manda nada a la hoja por eso', H.empujadas.length - a73, 0);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

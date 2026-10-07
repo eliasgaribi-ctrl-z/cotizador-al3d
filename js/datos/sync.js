@@ -185,6 +185,23 @@ export function configurado() {
  *  renombra a mitad de una construcción en paralelo rompe al que ya la importó. */
 export const disponible = configurado;
 
+/** Las subcarpetas de «Trabajos Pendientes» en Drive, por la hoja (ver js/datos/carpetas.js).
+ *  No pasa por la bandeja: es una lectura, y si no hay puente o señal se dice y ya. */
+export async function carpetas() {
+  if (!configurado() || typeof _adaptador.carpetas !== 'function') {
+    return { ok: false, codigo: 'SIN_CONFIG', mensaje: 'Sin puente a la hoja no se puede leer la carpeta de Drive.' };
+  }
+  return _adaptador.carpetas();
+}
+
+/** Le abre su carpeta de Drive a un proyecto (solo Dirección; la hoja lo vuelve a comprobar). */
+export async function crearCarpeta(nombre) {
+  if (!configurado() || typeof _adaptador.crearCarpeta !== 'function') {
+    return { ok: false, codigo: 'SIN_CONFIG', mensaje: 'Sin puente a la hoja no se puede abrir una carpeta en Drive.' };
+  }
+  return _adaptador.crearCarpeta(nombre);
+}
+
 /** Instantáneo, sin red y sin await. Es lo que la banda de la barra superior consulta en
  *  cada pintada, y una banda no puede esperar una transacción. */
 export function estado() {

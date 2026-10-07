@@ -1720,8 +1720,13 @@ function dialogoTokens() {
    puente-sheets-9: el almacén, el catálogo de material y las listas de compra tienen pestaña
    («Almacén», «Catálogo de material», «Listas de compra») y viajan por /empujar_almacen y
    /jalar_almacen (ver la sección del almacén, al final). Hasta la 8 se quedaban apartados en
-   cada teléfono. */
-var PUENTE_VERSION = 'puente-sheets-9';
+   cada teléfono.
+   puente-sheets-10 (7 de octubre de 2026): /carpetas. La plataforma enseña, en la ficha de cada
+   proyecto, su carpeta de «Trabajos Pendientes» en Drive —el PDF de órdenes de fabricación y los
+   .cdr— para abrirlos desde cualquier teléfono; y /crear_carpeta, con la que el teléfono de
+   Dirección le abre su carpeta al proyecto en fabricación que todavía no la tiene. Pide permiso
+   de Drive: al pegar esta versión Google vuelve a pedir la autorización. */
+var PUENTE_VERSION = 'puente-sheets-10';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1939,6 +1944,8 @@ function doPost(e) {
     if (ruta === 'ia')         return responder(rutaIA_(cuerpo, ingreso ? 'g:' + ingreso.correo : 't:' + token));
     if (ruta === 'empujar_almacen') return responder(rutaEmpujarAlmacen_(cuerpo, rol, ingreso ? ingreso.correo : ''));
     if (ruta === 'jalar_almacen')   return responder(rutaJalarAlmacen_(cuerpo, rol));
+    if (ruta === 'carpetas')        return responder(rutaCarpetas_());
+    if (ruta === 'crear_carpeta')   return responder(rutaCrearCarpeta_(cuerpo, rol));
 
     return responder({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
   } catch (err) {
@@ -5194,4 +5201,99 @@ function rutaJalarAlmacen_(cuerpo, rol) {
   } finally {
     candado.releaseLock();
   }
+}
+
+
+/* =========================================================================================
+   LA CARPETA DE LOS DISEÑOS — /carpetas (puente-sheets-10)
+
+   Elías sube los diseños de cada trabajo a «Trabajos Pendientes», una carpeta de Drive con una
+   subcarpeta por venta («Diego - Herrajes Innova 2», «José - Kelvarion»…): el .cdr con las
+   escalas, sus copias de seguridad y el PDF de órdenes de fabricación. La plataforma los enseña
+   en la ficha del proyecto, y quien está en el taller los abre sin pedirlos por WhatsApp.
+
+   Va por aquí y no desde el teléfono porque este script ya corre con la cuenta dueña de la hoja,
+   que ve la carpeta. Desde el navegador haría falta pedirle a cada persona el permiso de Drive,
+   que Google cuenta como sensible —pantalla de «app no verificada»—. Aquí se pide UNA vez, al
+   pegar esta versión.
+
+   /carpetas solo LEE: nombres, ligas y fechas, nunca el contenido de un archivo. No hay dinero
+   en ella, así que contesta igual a los tres roles. /crear_carpeta es lo único que escribe, y
+   solo crea —nunca mueve, renombra ni borra—: una subcarpeta vacía con el nombre del proyecto,
+   y solo si Dirección la pide. Quien abre una liga necesita,
+   además, que la carpeta esté compartida con su cuenta: eso lo decide Drive, no este puente.
+
+   Se guarda cinco minutos en la caché del script: la ficha se abre seguido y recorrer Drive
+   cuesta segundos. Una carpeta nueva aparece a más tardar en cinco minutos.
+   ========================================================================================= */
+var CARPETA_TRABAJOS = '1XfM5KMFn5p87LI_W-IglmflaZcs3y_wB';   // «Trabajos Pendientes»
+var CARPETAS_CACHE = 'carpetas-trabajos-v1';
+var CARPETAS_MAX = 150;         // subcarpetas
+var ARCHIVOS_MAX = 60;          // archivos por subcarpeta
+
+function rutaCarpetas_() {
+  var cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (_) { cache = null; }
+  var guardado = cache ? cache.get(CARPETAS_CACHE) : null;
+  if (guardado) { try { return JSON.parse(guardado); } catch (_) { /* se vuelve a leer */ } }
+
+  var raiz;
+  try { raiz = DriveApp.getFolderById(CARPETA_TRABAJOS); }
+  catch (err) {
+    return { ok: false, codigo: 'NO_ENCONTRADO',
+      mensaje: 'La hoja no alcanza la carpeta «Trabajos Pendientes» de Drive. Tiene que estar compartida con la cuenta dueña de la hoja.' };
+  }
+  var carpetas = [];
+  var it = raiz.getFolders();
+  while (it.hasNext() && carpetas.length < CARPETAS_MAX) {
+    var c = it.next();
+    carpetas.push({ id: c.getId(), nombre: c.getName(), url: c.getUrl(),
+                    modificado: c.getLastUpdated().getTime(), archivos: archivosDeCarpeta_(c) });
+  }
+  var out = { ok: true, ts: Date.now(), raiz: raiz.getUrl(), carpetas: carpetas };
+  /* La caché guarda hasta 100 KB por llave; si no cabe, se contesta igual sin guardarla. */
+  try { if (cache) cache.put(CARPETAS_CACHE, JSON.stringify(out), 300); } catch (_) {}
+  return out;
+}
+
+function archivosDeCarpeta_(carpeta) {
+  var lista = [];
+  var it = carpeta.getFiles();
+  while (it.hasNext() && lista.length < ARCHIVOS_MAX) {
+    var f = it.next();
+    lista.push({ nombre: f.getName(), url: f.getUrl(), tipo: f.getMimeType(),
+                 modificado: f.getLastUpdated().getTime() });
+  }
+  return lista;
+}
+
+/* ---------------------------------------------------------------- /crear_carpeta
+   La carpeta del proyecto en fabricación que no tiene una. La pide el teléfono de Dirección al
+   sincronizar (js/datos/carpetas.js, `alDia`), con el nombre del proyecto: «Contacto - Negocio».
+   Bajo el candado y comparando el nombre sin acentos ni mayúsculas, para que dos teléfonos que la
+   pidan a la vez no hagan dos: si ya hay una que se llama igual, devuelve ésa. */
+function nombreDeCarpeta_(s) {
+  return String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function rutaCrearCarpeta_(cuerpo, rol) {
+  if (rol !== 'direccion') return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Las carpetas nuevas las abre el teléfono de Dirección.' };
+  var nombre = String((cuerpo && cuerpo.nombre) || '').replace(/[\/\\:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!nombre || nombre.length > 120) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Falta el nombre de la carpeta, o es demasiado largo.' };
+  var raiz;
+  try { raiz = DriveApp.getFolderById(CARPETA_TRABAJOS); }
+  catch (err) { return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no alcanza la carpeta «Trabajos Pendientes» de Drive.' }; }
+  return conCandado(function () {
+    var buscado = nombreDeCarpeta_(nombre);
+    var it = raiz.getFolders();
+    while (it.hasNext()) {
+      var c = it.next();
+      if (nombreDeCarpeta_(c.getName()) === buscado) {
+        return { ok: true, creada: false, carpeta: { id: c.getId(), nombre: c.getName(), url: c.getUrl(), modificado: c.getLastUpdated().getTime(), archivos: archivosDeCarpeta_(c) } };
+      }
+    }
+    var nueva = raiz.createFolder(nombre);
+    try { CacheService.getScriptCache().remove(CARPETAS_CACHE); } catch (_) {}
+    return { ok: true, creada: true, carpeta: { id: nueva.getId(), nombre: nueva.getName(), url: nueva.getUrl(), modificado: Date.now(), archivos: [] } };
+  });
 }

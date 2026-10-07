@@ -28,6 +28,7 @@ import * as Agenda from '../datos/agenda.js';
 /* Solo para mandar en el momento el alta de una venta que se vuelve a dar de alta en la hoja
    (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
 import * as Sync from '../datos/sync.js';
+import * as Carpetas from '../datos/carpetas.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
@@ -771,6 +772,14 @@ function tablero() {
   }).join('') + '</div>';
 }
 
+/* La carpeta de Drive del proyecto, vista desde el tablero: si ya están las órdenes de
+   fabricación, si la carpeta está pero sin ellas, o si no hay carpeta. Sale de lo último que se
+   supo de Drive (`Carpetas.ultima`), sin esperar a la red; sin nada sabido, no se dice nada. */
+function marcaCarpeta(p) {
+  const m = Carpetas.MARCA[Carpetas.estadoDe(p, Carpetas.ultima())];
+  return m ? '<span class="pf-sem ' + m[0] + '">' + esc(m[1]) + '</span>' : '';
+}
+
 function tarjeta(p) {
   const inst = FECHA.get(p.id) || null;
   const sem = SEM.get(p.id) || null;
@@ -796,6 +805,7 @@ function tarjeta(p) {
       (avisoDe(p) === 'perdida' ? '<span class="pf-sem grave">Ya no está en la hoja</span>'
         : avisoDe(p) === 'repetida' ? '<span class="pf-sem grave">Repetida</span>'
         : avisoDe(p) === 'doble' ? '<span class="pf-sem grave">Dos veces en la hoja</span>' : '') +
+      marcaCarpeta(p) +
       (inst
         ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
         : '<span class="pj-tarj-inst">' + ico('i-camion') + 'sin fecha</span>') +
@@ -835,6 +845,7 @@ function fila(p) {
         fechaTx + ' ' +
         (sem ? '<span class="pf-sem ' + sem.estado + '" title="' + esc(sem.detalle) + '">' + esc(sem.palabra) + '</span> ' : '') +
         (cambio ? '<span class="pf-sem grave">Se editó después de ganarse</span> ' : '') +
+        (marcaCarpeta(p) ? marcaCarpeta(p) + ' ' : '') +
       '</div>' +
       '<div class="pf-fila-d">' + (tipos.length ? esc(tipos.join(' · ')) : 'Sin tipo derivado') + dinero + '</div>' +
     '</div>' +
@@ -1061,6 +1072,7 @@ function cablearFicha() {
   /* Los renglones internos nacen de nuevo en cada pintado: hay que volver a decirles si son
      una parada de tabulador (solo lo son con el modo cliente encendido). */
   marcarTapados();
+  pintarCarpeta();
   const p = P();
   const ol = $('pj-etapas');
   if (!p || !p.riel || !ol) return;
@@ -1073,6 +1085,51 @@ function cablearFicha() {
      que hay más de un lado, y `revelarEtapaActual()` trae el paso encendido a la vista. */
   if (p.bordesDesvanecidos) _bordesRiel = p.bordesDesvanecidos(ol, { eje: 'x' });
   revelarEtapaActual();
+}
+
+/* ----- La carpeta de los diseños (Trabajos Pendientes, en Drive) -----
+   Va aparte de `htmlFicha` porque espera a la hoja. Si en lo que contesta ya se abrió otra ficha,
+   no pinta nada: el hueco es de la que se abrió después. */
+const TIPO_ARCHIVO = { 'application/pdf': 'PDF' };
+function etiquetaArchivo(a) {
+  const ext = /\.([a-z0-9]{2,4})$/i.exec(String(a.nombre || ''));
+  return TIPO_ARCHIVO[a.tipo] || (ext ? ext[1].toUpperCase() : 'Archivo');
+}
+const linkSeguro = u => (/^https:\/\/(drive|docs)\.google\.com\//i.test(String(u || '')) ? String(u) : '');
+
+async function pintarCarpeta() {
+  if (!$('pj-carpeta') || !fichaId) return;
+  const id = fichaId;
+  const [p, r] = await Promise.all([Proy.obtener(id), Carpetas.listar()]);
+  const caja = $('pj-carpeta');
+  if (!caja || fichaId !== id || !p) return;
+  const lab = '<div class="fld-lab">Archivos del diseño</div>';
+  const raiz = linkSeguro(r && r.raiz);
+  const aRaiz = raiz ? '<div class="btn-fila"><a class="btn btn-gho" href="' + esc(raiz) +
+    '" target="_blank" rel="noopener">' + ico('i-doc') + ' Abrir Trabajos Pendientes</a></div>' : '';
+  if (!r || !r.ok) {
+    caja.innerHTML = lab + '<p class="hintnote">' + esc(r && r.mensaje || 'No se pudo leer la carpeta de Drive.') + '</p>';
+    return;
+  }
+  const c = Carpetas.carpetaDe(p, r.carpetas);
+  if (!c) {
+    caja.innerHTML = lab + '<p class="hintnote">No encontré su carpeta en «Trabajos Pendientes». ' +
+      'Se encuentra sola si se llama como el proyecto («Contacto - Negocio»).</p>' + aRaiz;
+    return;
+  }
+  const { vistos, copias } = Carpetas.ordenarArchivos(c.archivos);
+  const filas = vistos.map(a => {
+    const u = linkSeguro(a.url);
+    return u ? '<li><a href="' + esc(u) + '" target="_blank" rel="noopener">' + ico('i-doc') + ' ' + esc(a.nombre) +
+      '<small>' + esc(etiquetaArchivo(a)) + '</small></a></li>' : '';
+  }).join('');
+  const url = linkSeguro(c.url);
+  caja.innerHTML = lab +
+    (filas ? '<ul class="pj-archivos">' + filas + '</ul>' : '<p class="hintnote">La carpeta «' + esc(c.nombre) + '» está vacía.</p>') +
+    (copias ? '<p class="hintnote">Y ' + (copias === 1 ? 'una copia de seguridad' : copias + ' copias de seguridad') + ' de Corel, en la carpeta.</p>' : '') +
+    (r.vieja ? '<p class="hintnote">Es lo último que se vio: ahora mismo no se pudo preguntar a la hoja.</p>' : '') +
+    (url ? '<div class="btn-fila"><a class="btn btn-gho" href="' + esc(url) + '" target="_blank" rel="noopener">' +
+      ico('i-doc') + ' Abrir la carpeta «' + esc(c.nombre) + '»</a></div>' : '');
 }
 
 /* Sin desplazar la ficha: la pieza 10 mueve solo la tira. Con la capa todavía cerrada la tira no
@@ -1239,6 +1296,13 @@ function htmlFicha(p) {
   if (mapa) {
     partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
+  }
+
+  /* La carpeta de Drive con los diseños: se llena sola después de abrir (`pintarCarpeta`), porque
+     hay que preguntarle a la hoja. Sin puente no hay a quién preguntar y ni el hueco sale. */
+  if (Sync.configurado()) {
+    partes.push('<div class="pj-carpeta" id="pj-carpeta" aria-live="polite">' +
+      '<div class="fld-lab">Archivos del diseño</div><p class="hintnote">Buscando su carpeta en Drive…</p></div>');
   }
 
   if (o.notaCliente) {
