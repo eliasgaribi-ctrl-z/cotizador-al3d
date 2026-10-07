@@ -1,5 +1,7 @@
 # Instrucciones para Cowork: poner el puente de la hoja en `puente-sheets-10`
 
+> **Ya no se usa:** la hoja resultó estar en `puente-sheets-7`, no en la 9. Las instrucciones buenas son [COWORK-PUENTE-7-A-10.md](COWORK-PUENTE-7-A-10.md).
+
 **Para quién:** Claude Cowork, actuando en la computadora de Elías, en su Chrome con su sesión de Google.
 **Qué se logra:** que la hoja «Finanzas AL3D — Ventas y Comisiones» pueda leer la carpeta de Drive
 «Trabajos Pendientes» y abrirle carpeta a los proyectos en fabricación que no tienen una.
