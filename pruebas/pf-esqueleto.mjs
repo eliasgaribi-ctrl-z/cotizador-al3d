@@ -134,6 +134,10 @@ console.log('\nLA PANTALLA ENTRA POR DONDE ESTÁ EN LA BARRA');
 console.log('\nLA FRASE DEL INDICADOR DE SINCRONIZACIÓN');
 {
   eq('en reposo', fraseDeSync('quieto'), 'Sincronización: al día');
+  const T = Date.UTC(2026, 9, 7, 18, 0);
+  eq('en reposo, con la hoja bajada hace cinco minutos', fraseDeSync('quieto', '', T - 5 * 60000, T), 'Sincronización: al día');
+  cierto('con la hoja bajada hace cinco días ya no dice «al día»: dice cuándo llegó lo último',
+    /^Sincronización: lo último de la hoja llegó el /.test(fraseDeSync('quieto', '', T - 5 * 86400000, T)));
   eq('mientras trabaja', fraseDeSync('trabaja'), 'Sincronización: buscando lo que cambió');
   eq('cuando bajó algo', fraseDeSync('ok'), 'Sincronización: llegó lo nuevo');
   cierto('sin señal dice qué pasa con lo que se hace: se guarda aquí', /Sin señal:.*se guarda aquí/.test(fraseDeSync('sin-senal')));

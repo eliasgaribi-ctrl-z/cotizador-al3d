@@ -300,7 +300,7 @@ console.log('\nLA PUERTA — los dos caminos pasan por doPost, con rol y cupo');
   eq('/empujar_almacen entra por la puerta con el rol del token', [r.ok, r.resultados[0].ok], [true, true]);
   eq('/jalar_almacen también', H.doPost({ ruta: 'jalar_almacen', token: tok, desde: 0 }).registros.length, 1);
   eq('sin token, ninguno de los dos', H.doPost({ ruta: 'jalar_almacen', desde: 0 }).codigo, 'ROL_SIN_PERMISO');
-  eq('la versión del .gs es la del almacén', H.run('PUENTE_VERSION'), 'puente-sheets-9');
+  eq('la versión del .gs trae el almacén y la carpeta', H.run('PUENTE_VERSION'), 'puente-sheets-10');
   eq('las rutas son privadas (guion bajo): google.script.run no las alcanza', ['rutaEmpujarAlmacen', 'rutaJalarAlmacen'].map(f => H.run('typeof ' + f)), ['undefined', 'undefined']);
   /* prepararHojaParaElPuente las crea antes de la primera subida. */
   H.run('prepararPestanasDelAlmacen()');

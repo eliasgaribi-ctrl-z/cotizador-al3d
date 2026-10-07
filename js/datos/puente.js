@@ -119,6 +119,9 @@ export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
    no llena el tablero: lo llena de lo que de verdad está en el taller.
    Va aquí, al lado del vocabulario, para que quien toque la lista de estatus vea esta. */
 export const VIVAS_EN_TALLER = ['FABRICACION', 'REPARANDO'];
+/* Las etapas de la línea del taller, antes de «Instalado»: de éstas sale sola una tarjeta
+   importada cuando la hoja ya cobra su venta (ver `bajar()`). */
+const EN_LA_LINEA = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
 
 /* Quita las llaves que no traen valor. Un `undefined` en un parche NO es «ponlo en nada»:
    `sync.fusionar` conserva lo que ya estaba cuando el campo no viene, y dejarlo pasar
@@ -498,7 +501,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-9';
+export const VERSION_ESPERADA = 'puente-sheets-10';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -509,6 +512,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 9 */ 'la ficha de cada proyecto no enseña los archivos de su carpeta en «Trabajos Pendientes» de Drive: esa versión no tiene el camino /carpetas',
   /* 8 */ 'el almacén, el catálogo de material y las listas de compra no viajan: esa versión no tiene sus pestañas, y se quedan esperando en cada teléfono —sin perderse— hasta que la hoja se actualice',
   /* 7 */ 'el QR de un PDF autorizado solo responde del total y del negocio, no de cada renglón: un PDF con los importes de las partidas cambiados pero el mismo total pasa por auténtico. Se autoriza y se verifica igual; lo que falta es que el sello firme los renglones',
   /* 6 */ 'nadie puede autorizar un precio —el cotizador ya no autoriza sin el sello de la hoja— ni solicitar autorización a dirección, y Cotizar con IA no tiene llaves: desde puente-sheets-7 viven en la hoja (⚡ AL3D → Preparar las autorizaciones selladas y ⚡ AL3D → Llaves de IA)',
@@ -1026,6 +1030,38 @@ export function crear(cfg0) {
       }
     },
 
+    /** Las subcarpetas de «Trabajos Pendientes» con sus archivos (puente-sheets-10). Una hoja
+     *  anterior contesta «Camino desconocido.»: eso se dice como lo que es, la hoja vieja. */
+    async carpetas() {
+      try {
+        const r = await pedir(cfg, '/carpetas');
+        const c = r.cuerpo || {};
+        if (c.ok) return { ok: true, raiz: String(c.raiz || ''), carpetas: Array.isArray(c.carpetas) ? c.carpetas : [] };
+        if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {
+          return { ok: false, codigo: 'HOJA_VIEJA', mensaje: 'La hoja todavía no lee la carpeta de Drive: falta pegarle el Apps Script puente-sheets-10.' };
+        }
+        return { ok: false, codigo: c.codigo || 'DESCONOCIDO', mensaje: c.mensaje || 'La hoja no pudo leer la carpeta de Drive.' };
+      } catch (e) {
+        return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
+      }
+    },
+
+    /** Le abre carpeta a un proyecto en «Trabajos Pendientes» (puente-sheets-10, solo Dirección).
+     *  Si ya hay una con ese nombre, la hoja devuelve ésa y `creada` viene en false. */
+    async crearCarpeta(nombre) {
+      try {
+        const r = await pedir(cfg, '/crear_carpeta', { body: JSON.stringify({ nombre: String(nombre || '') }) });
+        const c = r.cuerpo || {};
+        if (c.ok && c.carpeta) return { ok: true, creada: !!c.creada, carpeta: c.carpeta };
+        if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {
+          return { ok: false, codigo: 'HOJA_VIEJA', mensaje: 'La hoja todavía no abre carpetas: falta pegarle el Apps Script puente-sheets-10.' };
+        }
+        return { ok: false, codigo: c.codigo || 'DESCONOCIDO', mensaje: c.mensaje || 'La hoja no pudo abrir la carpeta.' };
+      } catch (e) {
+        return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
+      }
+    },
+
     /**
      * Sube. `sync.js` manda de una en una, así que este arreglo trae una y el bucle está
      * escrito para más por si eso cambia.
@@ -1384,6 +1420,17 @@ export function crear(cfg0) {
           pct_comision: aCero(venta.pct_comision),
         }) : null);
         if (!aplicar) continue;
+
+        /* Una tarjeta IMPORTADA cuya venta la hoja ya pasó a COBRANDO o LIQUIDADO: el trabajo se
+           entregó. Su etapa no la mueve nadie más —nació en la hoja, no hay cotización ni
+           instalación agendada que la empuje— y se quedaba en el tablero como «Ganado» para
+           siempre: en octubre de 2026 eran ocho obras cobradas o cerradas pidiendo taller. Se
+           pasa a «Instalado», solo de este lado (`sync.jalar` escribe sin encolar) y solo si
+           seguía en la línea del taller: una que alguien ya movió a garantía o canceló, se queda. */
+        if (venta && esImportadoLocal(local) && ESTATUS_DE_PAGOS.includes(String(venta.estatus || '')) &&
+            EN_LA_LINEA.includes(String(local.etapa || ''))) {
+          aplicar.etapa = 'instalado';
+        }
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.

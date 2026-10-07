@@ -42,6 +42,7 @@ import * as Agenda from '../datos/agenda.js';
 import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
+import * as Carpetas from '../datos/carpetas.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
@@ -693,6 +694,7 @@ function noLlegan(d) {
   const filas = vs.map(v => filaTaller(v, d.hoy, {
     icono: 'i-aviso',
     plazoEditable: false,
+    extraHTML: conMarcaCarpeta(d.porId.get(v.proyecto_id)),
     accionesHTML:
       btn('Mover la fecha', 'btn btn-gho pf-btn-corto', { tipo: 'agendar', id: v.proyecto_id }) +
       btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'abrir', id: v.proyecto_id }),
@@ -869,6 +871,14 @@ function ordenar(a, b) {
    camina es justo como se equivoca uno de renglón. Tampoco donde el rol no puede mover esa
    etapa: ahí el renglón dice quién la marca, igual que antes, y solo queda el lado de las
    acciones. */
+/* Si el diseño ya está en Drive: las órdenes de fabricación, la carpeta sin ellas, o nada. De lo
+   último que se supo (`Carpetas.ultima`), sin red: esta pantalla no pide nada al pintar. */
+const conMarcaCarpeta = p => { const m = marcaCarpeta(p); return m ? '<p class="ag-sem">' + m.trim() + '</p>' : ''; };
+function marcaCarpeta(p) {
+  const m = p ? Carpetas.MARCA[Carpetas.estadoDe(p, Carpetas.ultima())] : null;
+  return m ? ' <span class="pf-sem ' + m[0] + '">' + esc(m[1]) + '</span>' : '';
+}
+
 function renglon(v, d) {
   const sem = d.semDe(v.proyecto_id);
   const extra = '<p class="ag-sem">' +
@@ -879,6 +889,7 @@ function renglon(v, d) {
     (v.atraso_dias > 0
       ? ' <span class="pf-cuando tarde">+' + v.atraso_dias + ' d</span>'
       : (v.holgura_dias === 0 ? ' <span class="pf-cuando hoy">hoy</span>' : '')) +
+    marcaCarpeta(d.porId.get(v.proyecto_id)) +
     '</p>';
   const ac = accionesRenglon(v);
   const cara = filaTaller(v, d.hoy, {

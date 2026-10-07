@@ -74,6 +74,8 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/empujar_almacen` | dirección y fabricación; pagos solo lo derivado | Hasta 25 operaciones del almacén —renglones del libro, materiales del catálogo, líneas de la lista de compra— en un viaje, en orden y bajo el candado (desde `puente-sheets-9`). Ver «El almacén», abajo |
 | `/jalar_almacen` | cualquier rol | Lo que las tres pestañas del almacén recibieron después de la secuencia que el teléfono manda (`desde`), en páginas de 1500. **Los costos solo para quien ve el dinero** |
 | `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 200 por persona al día. Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
+| `/carpetas` | cualquier rol | Las subcarpetas de «Trabajos Pendientes» en Drive con sus archivos —nombre, liga, tipo y fecha, nunca el contenido— para que la ficha de cada proyecto enseñe su PDF de órdenes de fabricación y sus `.cdr` (desde `puente-sheets-10`). Solo lee. Cinco minutos de caché del lado de la hoja. Es la razón de que esa versión pida permiso de **leer Drive** al pegarla |
+| `/crear_carpeta` | solo Dirección | Abre en «Trabajos Pendientes» la carpeta «Contacto - Negocio» del proyecto del taller que no tiene una; la pide sola la sincronización del teléfono de Dirección. Bajo el candado y sin distinguir acentos ni mayúsculas: si ya hay una con ese nombre, devuelve ésa. Solo crea; nunca mueve, renombra ni borra |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 

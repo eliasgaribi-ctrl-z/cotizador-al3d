@@ -65,6 +65,7 @@ import * as Gcal from '../nucleo/gcal.js';
 import * as Taller from '../datos/taller.js';
 import * as Cot from '../datos/cotizador.js';
 import * as Material from '../datos/material.js';
+import * as Carpetas from '../datos/carpetas.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, voz, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
@@ -324,6 +325,7 @@ async function leer() {
     ]);
     const instDe = new Map();
     for (const i of (insts || [])) if (i && i.proyecto_id && !instDe.has(i.proyecto_id)) instDe.set(i.proyecto_id, i);
+    d.proyDe = new Map((proys || []).map(p => [p.id, p]));
     d.ventanas = (proys || [])
       .map(p => Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts }))
       .filter(v => v.estado !== 'cancelado' && v.estado !== 'hecho');
@@ -713,6 +715,14 @@ function pintarLente() {
 /* `VERBO_TALLER`, `TONO_TALLER`, `corta()` y `filaTaller()` viven en nucleo/ui.js: el mismo
    renglón lo pinta el Tablero, y con una copia aquí los dos habrían divergido. */
 
+/* Si el diseño ya está en Drive («Trabajos Pendientes»): lo mismo que dicen el Tablero y
+   Proyectos, de lo último que se supo, sin red. */
+function marcaCarpeta(d, v) {
+  const p = d.proyDe && d.proyDe.get(v.proyecto_id);
+  const m = p ? Carpetas.MARCA[Carpetas.estadoDe(p, Carpetas.ultima())] : null;
+  return m ? '<p class="ag-sem"><span class="pf-sem ' + m[0] + '">' + esc(m[1]) + '</span></p>' : '';
+}
+
 function pintarTaller(d) {
   const vs = (d.ventanas || []).slice().sort((a, b) => {
     /* Lo que ya va tarde primero; después por el día en que tiene que estar listo; lo que
@@ -739,14 +749,14 @@ function pintarTaller(d) {
   if (conFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller <span class="n">' + conFecha.length + '</span></div>' +
             conFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
-              accionesHTML: accionAnidar(v) })).join('');
+              accionesHTML: accionAnidar(v), extraHTML: marcaCarpeta(d, v) })).join('');
   }
   if (sinFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-reloj') +
       (sinFecha.length === 1 ? 'Ganado sin fecha, con el reloj corriendo' : 'Ganados sin fecha, con el reloj corriendo') +
       ' <span class="n">' + sinFecha.length + '</span></div>' +
             sinFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
-              accionesHTML: accionAnidar(v) })).join('');
+              accionesHTML: accionAnidar(v), extraHTML: marcaCarpeta(d, v) })).join('');
   }
   return html + '</div></div>';
 }
