@@ -351,7 +351,8 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 9', VERSION_ESPERADA, 'puente-sheets-9');
+  eq('la plataforma espera la 10', VERSION_ESPERADA, 'puente-sheets-10');
+  cierto('a la 9 le dice que no encuentra las carpetas de diseño', /carpetas/.test(avisoVersion('puente-sheets-9')));
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
   eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);

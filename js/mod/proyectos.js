@@ -28,6 +28,7 @@ import * as Agenda from '../datos/agenda.js';
 /* Solo para mandar en el momento el alta de una venta que se vuelve a dar de alta en la hoja
    (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
 import * as Sync from '../datos/sync.js';
+import * as Carpetas from '../datos/carpetas.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
@@ -1043,6 +1044,7 @@ async function abrirFicha(id) {
   const capa = $('pf-ficha'); if (!capa) return;
   capa.innerHTML = htmlFicha(p);
   cablearFicha();
+  buscarCarpeta(p);
   /* La hoja del teléfono (P10) sube desde abajo y se cierra deslizando sin una línea más, y no
      hay nada de esta zona que lo haga: `abrirCapa` le pone `.entra` y sistema.css (PR #71) la
      hace nacer en `translateY(100%)`; `P.hojasDeslizables()`, colgado una vez en ui.js, trata a
@@ -1240,6 +1242,10 @@ function htmlFicha(p) {
     partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
   }
+
+  /* Los diseños. Se pinta con lo último que se supo de este proyecto y `buscarCarpeta` lo
+     completa cuando contesta la hoja: la ficha no espera a Drive para abrirse. */
+  partes.push('<div id="pj-carpeta" class="pj-carpeta">' + htmlCarpeta(p, CARPETA.get(p.id)) + '</div>');
 
   if (o.notaCliente) {
     partes.push('<div class="fld-lab">Nota al cliente, la de la cotización</div>' +
@@ -2196,6 +2202,8 @@ async function clicFicha(ev) {
   const otro = t.closest('[data-abrir-otro]');
   if (otro) { cerrarCapa('pf-ficha'); fichaId = null; await abrirFicha(otro.dataset.abrirOtro); return; }
 
+  if (t.closest('[data-carpeta-accion]')) { await tocarCarpeta(t.closest('[data-carpeta-accion]')); return; }
+
   const canc = t.closest('[data-cancelar]');
   if (canc) {
     const p = await Proy.obtener(canc.dataset.cancelar);
@@ -2207,12 +2215,130 @@ async function clicFicha(ev) {
   }
 }
 
+/* ============================================================================
+   La carpeta de diseños (js/datos/carpetas.js, /carpetas de la hoja).
+
+   Un botón que abre la carpeta de Drive del proyecto, en el teléfono de cualquiera del equipo.
+   Se encuentra sola por el nombre «Contacto - Empresa» que Dirección ya le pone al subir los
+   diseños; cuando el nombre no alcanza, Dirección elige o pega el enlace y queda para todos.
+   ============================================================================ */
+
+/* Lo último que se supo de cada proyecto: `{estado, carpeta?, opciones?, viejo?, mensaje?}`.
+   Vive en memoria para que repintar la ficha no la deje parpadeando en «Buscando…». */
+const CARPETA = new Map();
+/* Qué ficha tiene abierto el campo de pegar enlace. */
+let carpetaPegando = null;
+
+function htmlCarpeta(p, r) {
+  const dir = Prefs.rol() === 'direccion';
+  const tit = '<div class="fld-lab">' + ico('i-carpeta') + ' Diseños</div>';
+  if (!Prefs.hayPuente()) {
+    return tit + '<p class="hintnote">Las carpetas de diseño se leen de Drive a través de la hoja, y este aparato no está conectado a ella.</p>';
+  }
+  if (!r) return tit + '<p class="hintnote">Buscando su carpeta en Drive…</p>';
+
+  const pegar = dir && carpetaPegando === p.id
+    ? '<div class="fld"><label for="pj-carpeta-url">Enlace de la carpeta en Drive</label>' +
+        '<input type="url" id="pj-carpeta-url" inputmode="url" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off"></div>' +
+      '<div class="btn-fila">' +
+        '<button type="button" class="btn btn-gho" data-carpeta-accion="cancelar">Cancelar</button>' +
+        '<button type="button" class="btn btn-pri" data-carpeta-accion="guardar">Usar esta carpeta</button>' +
+      '</div>'
+    : '';
+  const viejo = r.viejo ? '<p class="hintnote">Sin señal: es la lista de la última vez que se pudo preguntar.</p>' : '';
+
+  if (r.estado === 'error') {
+    return tit + '<p class="hintnote">' + ico('i-aviso') + ' ' + esc(r.mensaje || 'No se pudo leer la lista de carpetas.') + '</p>' +
+      '<div class="btn-fila"><button type="button" class="btn btn-gho" data-carpeta-accion="buscar">Intentar otra vez</button></div>';
+  }
+
+  if (r.estado === 'una' || r.estado === 'fija') {
+    const c = r.carpeta;
+    const url = Carpetas.enlace(c);
+    return tit +
+      '<div class="btn-fila"><a class="btn btn-pri" href="' + esc(url) + '" target="_blank" rel="noopener">' +
+        ico('i-carpeta') + ' Abrir diseños</a></div>' +
+      '<p class="hintnote">' + esc(c.nombre || '') + (c.ruta ? ' · ' + esc(c.ruta) : '') +
+        (r.estado === 'fija' ? ' · elegida a mano' : '') + '</p>' + viejo +
+      (dir && !pegar
+        ? '<div class="btn-fila"><button type="button" class="btn btn-gho" data-carpeta-accion="pegar">¿No es esta? Pegar el enlace</button>' +
+          (r.estado === 'fija' ? '<button type="button" class="btn btn-gho" data-carpeta-accion="soltar">Buscar por nombre</button>' : '') +
+          '</div>'
+        : '') + pegar;
+  }
+
+  if (r.estado === 'varias') {
+    return tit +
+      '<p class="hintnote">Hay ' + r.opciones.length + ' carpetas que se parecen a este proyecto' +
+        (dir ? '. Elige la buena y queda para todo el equipo:' : '. Ábrelas para ver cuál es, o pídele a Dirección que elija la buena:') + '</p>' +
+      r.opciones.map(c =>
+        '<div class="btn-fila">' +
+          '<a class="btn btn-gho" href="' + esc(Carpetas.enlace(c)) + '" target="_blank" rel="noopener">' + ico('i-carpeta') + ' ' + esc(c.nombre) + '</a>' +
+          (dir ? '<button type="button" class="btn btn-gho" data-carpeta-accion="elegir" data-carpeta-id="' + esc(c.id) + '">Es esta</button>' : '') +
+        '</div>').join('') + viejo +
+      (dir && !pegar ? '<div class="btn-fila"><button type="button" class="btn btn-gho" data-carpeta-accion="pegar">Ninguna: pegar el enlace</button></div>' : '') + pegar;
+  }
+
+  /* ninguna */
+  return tit +
+    '<p class="hintnote">Todavía no hay carpeta de diseños con el nombre de este cliente. Se encuentra sola cuando se suba a Drive como «Contacto - Empresa».</p>' + viejo +
+    '<div class="btn-fila"><button type="button" class="btn btn-gho" data-carpeta-accion="buscar">Buscar otra vez</button>' +
+      (dir && !pegar ? '<button type="button" class="btn btn-gho" data-carpeta-accion="pegar">Pegar el enlace</button>' : '') + '</div>' + pegar;
+}
+
+function pintarCarpeta(p) {
+  if (!p || fichaId !== p.id) return;
+  const caja = $('pj-carpeta');
+  if (caja) caja.innerHTML = htmlCarpeta(p, CARPETA.get(p.id));
+}
+
+async function buscarCarpeta(p, forzar = false) {
+  if (!p || !Prefs.hayPuente()) return;
+  const r = await Carpetas.indice({ forzar });
+  CARPETA.set(p.id, r.ok
+    ? { ...Carpetas.buscar(p, r.datos), viejo: !!r.viejo }
+    : { estado: 'error', mensaje: r.mensaje });
+  pintarCarpeta(p);
+}
+
+async function tocarCarpeta(b) {
+  const p = fichaId ? await Proy.obtener(fichaId) : null;
+  if (!p) return;
+  const que = b.dataset.carpetaAccion;
+  if (que === 'pegar') {
+    carpetaPegando = p.id; pintarCarpeta(p);
+    const inp = $('pj-carpeta-url'); if (inp) inp.focus();
+    return;
+  }
+  if (que === 'cancelar') { carpetaPegando = null; pintarCarpeta(p); return; }
+  if (que === 'buscar') {
+    CARPETA.delete(p.id); pintarCarpeta(p);
+    await buscarCarpeta(p, true);
+    return;
+  }
+  let valor;
+  if (que === 'elegir') valor = b.dataset.carpetaId;
+  else if (que === 'soltar') valor = null;
+  else if (que === 'guardar') {
+    valor = String(($('pj-carpeta-url') || {}).value || '').trim();
+    if (!valor) { toast('Pega el enlace de la carpeta de Drive', 'err'); return; }
+  } else return;
+
+  b.disabled = true;
+  const r = await Carpetas.fijar(p, valor);
+  b.disabled = false;
+  if (!avisarResultado(r, valor === null ? 'Se vuelve a buscar por nombre' : 'Carpeta guardada para todo el equipo')) return;
+  carpetaPegando = null;
+  await buscarCarpeta(p);
+}
+
 async function refrescarFicha() {
   if (!fichaId) return;
   const p = await Proy.obtener(fichaId);
   const capa = $('pf-ficha');
   if (!p || !capa) return;
   repintarEnSitio(capa, htmlFicha(p));   // sin volver arriba ni perder el foco en cada toque
+  buscarCarpeta(p);
   cablearFicha();
 }
 

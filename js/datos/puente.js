@@ -498,7 +498,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-9';
+export const VERSION_ESPERADA = 'puente-sheets-10';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -509,6 +509,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 9 */ 'la ficha de un proyecto no encuentra su carpeta de diseños en Drive: esa versión no tiene /carpetas',
   /* 8 */ 'el almacén, el catálogo de material y las listas de compra no viajan: esa versión no tiene sus pestañas, y se quedan esperando en cada teléfono —sin perderse— hasta que la hoja se actualice',
   /* 7 */ 'el QR de un PDF autorizado solo responde del total y del negocio, no de cada renglón: un PDF con los importes de las partidas cambiados pero el mismo total pasa por auténtico. Se autoriza y se verifica igual; lo que falta es que el sello firme los renglones',
   /* 6 */ 'nadie puede autorizar un precio —el cotizador ya no autoriza sin el sello de la hoja— ni solicitar autorización a dirección, y Cotizar con IA no tiene llaves: desde puente-sheets-7 viven en la hoja (⚡ AL3D → Preparar las autorizaciones selladas y ⚡ AL3D → Llaves de IA)',

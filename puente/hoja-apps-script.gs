@@ -1720,8 +1720,12 @@ function dialogoTokens() {
    puente-sheets-9: el almacén, el catálogo de material y las listas de compra tienen pestaña
    («Almacén», «Catálogo de material», «Listas de compra») y viajan por /empujar_almacen y
    /jalar_almacen (ver la sección del almacén, al final). Hasta la 8 se quedaban apartados en
-   cada teléfono. */
-var PUENTE_VERSION = 'puente-sheets-9';
+   cada teléfono.
+   puente-sheets-10 (7 de octubre de 2026): las carpetas de diseño. /carpetas devuelve el índice
+   de las carpetas de proyecto que cuelgan de «AL3D» en Drive, para que cada ficha encuentre la
+   suya por el nombre, y /carpeta_fijar deja a Dirección decir cuál es cuando el nombre no
+   alcanza (ver la sección de las carpetas, al final). Pide permiso de leer Drive una vez. */
+var PUENTE_VERSION = 'puente-sheets-10';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1939,6 +1943,8 @@ function doPost(e) {
     if (ruta === 'ia')         return responder(rutaIA_(cuerpo, ingreso ? 'g:' + ingreso.correo : 't:' + token));
     if (ruta === 'empujar_almacen') return responder(rutaEmpujarAlmacen_(cuerpo, rol, ingreso ? ingreso.correo : ''));
     if (ruta === 'jalar_almacen')   return responder(rutaJalarAlmacen_(cuerpo, rol));
+    if (ruta === 'carpetas')        return responder(rutaCarpetas_(cuerpo));
+    if (ruta === 'carpeta_fijar')   return responder(rutaCarpetaFijar_(cuerpo, rol, ingreso ? ingreso.correo : ''));
 
     return responder({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
   } catch (err) {
@@ -5194,4 +5200,145 @@ function rutaJalarAlmacen_(cuerpo, rol) {
   } finally {
     candado.releaseLock();
   }
+}
+
+/* ============================================================================
+   LAS CARPETAS DE DISEÑO (puente-sheets-10)
+
+   Los diseños viven en Drive, bajo la carpeta «AL3D»: «2026 › Trabajos Pendientes ›
+   Juan Carlos - Centro Dental», y los años de antes en «Proyectos 22-25 › 2024 › …». Dirección
+   sube los archivos a mano cuando el cliente paga —a propósito: el cotizador todavía no es la
+   única fuente, y una carpeta creada por la app para cada cotización llenaría Drive de
+   trabajos que nunca se dieron—. Lo que faltaba era el camino de vuelta: desde la ficha del
+   proyecto, en el teléfono de quien sea del equipo, llegar a SU carpeta sin buscarla.
+
+   Por eso aquí no se crea ni se mueve nada: se LEE. /carpetas devuelve el índice —nombre, id y
+   dónde está cada carpeta de proyecto— y el teléfono decide cuál es la de cada ficha
+   comparando nombres (js/datos/carpetas.js). Se decide allá y no aquí porque el teléfono es el
+   que sabe el contacto y el negocio de SUS proyectos, y porque así esta ruta contesta lo mismo
+   a todos y se puede guardar en caché.
+
+   Cuando el nombre no alcanza —dos carpetas «Parentesis», o una que se llama distinto—
+   Dirección elige la buena y /carpeta_fijar la anota por folio en las propiedades del script.
+   No va en una columna de «Ventas»: una columna nueva ahí obliga a realinear Y:AD y a tocar el
+   reacomodo, y esto es un dato que solo se lee de vuelta por folio.
+   ============================================================================ */
+
+/* La carpeta «AL3D» de Drive. Si se muda, se cambia aquí —un renglón— y se vuelve a implementar. */
+var CARPETA_DISENOS_RAIZ = '1MJXS9yVbQXj1rvnsCOF4SJ5LwBS4TJ9N';
+/* Hasta dónde se baja: AL3D › 2026 › Trabajos Pendientes › «Contacto - Empresa» son tres
+   niveles; uno más de holgura por si un año se parte en meses. */
+var CARPETAS_HONDURA = 4;
+/* Recorrer Drive cuesta segundos por cada carpeta que se abre. El índice se guarda media hora:
+   una carpeta recién creada tarda eso en aparecer, o lo que tarde alguien en tocar «Buscar otra
+   vez», que se salta la caché. */
+var CARPETAS_CACHE_S = 1800;
+var CARPETAS_CLAVE = 'carpetas:indice:v1';
+/* El recorrido se corta antes de que Apps Script corte la petición. Un índice incompleto lo
+   dice, y no se guarda en caché. */
+var CARPETAS_TIEMPO_MS = 20000;
+var CARPETA_FIJA_PREFIJO = 'carpeta:';
+
+/* Una carpeta de PROYECTO se reconoce por el nombre «Contacto - Empresa»: dentro de ésas no se
+   baja, porque lo que hay adentro son los .cdr y sus respaldos, y bajar ahí es lo que haría
+   que el recorrido tardara minutos. Las demás —años, Pendientes, Terminados— son estantes. */
+function esCarpetaDeProyecto_(nombre) {
+  var s = String(nombre || '');
+  return /\S\s*-\s*\S/.test(s) && !/^\s*proyectos\s+\d/i.test(s);
+}
+
+function indiceDeCarpetas_(forzar) {
+  var cache = CacheService.getScriptCache();
+  if (!forzar) {
+    var guardado = cache.get(CARPETAS_CLAVE);
+    if (guardado) { try { return JSON.parse(guardado); } catch (_) {} }
+  }
+  var inicio = Date.now();
+  var lista = [];
+  var completo = true;
+  var raiz;
+  try { raiz = DriveApp.getFolderById(CARPETA_DISENOS_RAIZ); }
+  catch (err) {
+    return { ok: false, codigo: 'NO_ENCONTRADO',
+      mensaje: 'La hoja no alcanza a ver la carpeta «AL3D» de Drive. Compártela con la cuenta dueña de esta hoja.' };
+  }
+  /* A lo ancho, para que si el tiempo se acaba lo que falte sean los rincones hondos y no
+     un año entero. */
+  var cola = [{ f: raiz, ruta: [], hondura: 0 }];
+  while (cola.length) {
+    if (Date.now() - inicio > CARPETAS_TIEMPO_MS) { completo = false; break; }
+    var x = cola.shift();
+    var it = x.f.getFolders();
+    while (it.hasNext()) {
+      var c = it.next();
+      var nombre = c.getName();
+      if (esCarpetaDeProyecto_(nombre)) {
+        lista.push({ id: c.getId(), nombre: nombre, ruta: x.ruta.join(' › '),
+                     mod: c.getLastUpdated().getTime() });
+      } else if (x.hondura + 1 < CARPETAS_HONDURA) {
+        cola.push({ f: c, ruta: x.ruta.concat([nombre]), hondura: x.hondura + 1 });
+      }
+    }
+  }
+  var r = { ok: true, ts: Date.now(), completo: completo, carpetas: lista };
+  if (completo) {
+    var txt = JSON.stringify(r);
+    /* 100 KB es el tope de un valor en la caché. Si no cabe, no se guarda: se recorre cada vez,
+       que es más lento pero no es un error. */
+    if (txt.length < 95000) { try { cache.put(CARPETAS_CLAVE, txt, CARPETAS_CACHE_S); } catch (_) {} }
+  }
+  return r;
+}
+
+function carpetasFijas_() {
+  var todas = PropertiesService.getScriptProperties().getProperties() || {};
+  var fijas = {};
+  for (var k in todas) {
+    if (k.indexOf(CARPETA_FIJA_PREFIJO) === 0) {
+      try { fijas[k.slice(CARPETA_FIJA_PREFIJO.length)] = JSON.parse(todas[k]); } catch (_) {}
+    }
+  }
+  return fijas;
+}
+
+/* Cualquier rol: ver dónde están los diseños es justo lo que necesita el taller. */
+function rutaCarpetas_(cuerpo) {
+  var idx = indiceDeCarpetas_(!!(cuerpo && cuerpo.forzar));
+  if (!idx.ok) return idx;
+  return { ok: true, ts: idx.ts, completo: idx.completo, carpetas: idx.carpetas, fijas: carpetasFijas_() };
+}
+
+/* El id de una carpeta de Drive, venga suelto o dentro de un enlace (…/folders/ID?usp=…,
+   …/open?id=ID). */
+function idDeCarpeta_(v) {
+  var s = String(v || '').trim();
+  var m = s.match(/\/folders\/([A-Za-z0-9_-]{10,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  if (m) return m[1];
+  return /^[A-Za-z0-9_-]{10,}$/.test(s) ? s : '';
+}
+
+/* Solo Dirección: decir cuál es la carpeta de un proyecto le cambia el botón a todo el equipo. */
+function rutaCarpetaFijar_(cuerpo, rol, correo) {
+  if (rol !== 'direccion') {
+    return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'La carpeta de un proyecto la elige Dirección.' };
+  }
+  var folio = String((cuerpo && cuerpo.folio) || '').trim();
+  if (!folio || folio.length > 80) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Falta el folio del proyecto.' };
+  var props = PropertiesService.getScriptProperties();
+  var clave = CARPETA_FIJA_PREFIJO + folio;
+  /* null quita la elección y el proyecto vuelve a buscarse por nombre. */
+  if (cuerpo.carpeta === null || cuerpo.carpeta === '') {
+    props.deleteProperty(clave);
+    return { ok: true, folio: folio, carpeta: null };
+  }
+  var id = idDeCarpeta_(cuerpo.carpeta);
+  if (!id) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Eso no parece el enlace de una carpeta de Drive. Cópialo desde Drive con «Compartir › Copiar enlace».' };
+  var nombre = '';
+  try { nombre = DriveApp.getFolderById(id).getName(); }
+  catch (err) {
+    return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no alcanza a ver esa carpeta. Revisa que el enlace sea de una carpeta dentro de «AL3D».' };
+  }
+  var dato = { id: id, nombre: nombre, por: correo || '', ts: Date.now() };
+  props.setProperty(clave, JSON.stringify(dato));
+  return { ok: true, folio: folio, carpeta: dato };
 }
