@@ -54,7 +54,8 @@ export const CLAVES = {
      Google. La sesión vale ese día y nada más: al día siguiente la puerta se vuelve a poner.
      Ver CIERRE_DIARIO en js/nucleo/puerta.js. */
   ENTRADA:    'al3d_pf_entrada',
-  /* El último fondo que enseñó la puerta, para que el siguiente sea otro. Adorno puro. */
+  /* La bolsa barajada de fondos que le faltan por salir a la puerta, y el último que salió.
+     Adorno puro. */
   FONDO:      'al3d_pf_fondo',
 };
 
