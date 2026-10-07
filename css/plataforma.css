@@ -2884,6 +2884,14 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 [data-fondo="particulas"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 40%,#13166b 0%,#0a0b26 60%,#05061a 100%)}
 .pfo-lienzo{inset:0;width:100%;height:100%}
 
+/* 3a–3i · Los nueve de lienzo: los dibuja js/nucleo/puerta-fondos.js en un solo <canvas>.
+   Mientras llega el import() se ve el color de su cielo, para que no destelle el --fondo claro. */
+.pfo-lienzo2{inset:0;width:100%;height:100%}
+.puerta-fondo:is([data-fondo="impresion"],[data-fondo="flujo"],[data-fondo="laser"],[data-fondo="malla"],[data-fondo="persianas"]){background:#07081f}
+.puerta-fondo:is([data-fondo="semitono"],[data-fondo="mosaico"],[data-fondo="gotas"],[data-fondo="curvas"]){background:#eef1ff}
+.puerta-fondo:is([data-fondo="impresion"],[data-fondo="flujo"],[data-fondo="laser"],[data-fondo="malla"],[data-fondo="persianas"]) .pfo-vineta{
+  background:radial-gradient(ellipse 75% 70% at 50% 50%,rgba(3,4,18,0) 45%,rgba(3,4,18,.6) 100%)}
+
 /* 2h · Ondas: anillos que salen del cursor sin parar; cada toque suelta uno propio y arrastrar
    deja estela de anillos chicos. Los de los toques los anima js/nucleo/puerta.js. */
 [data-fondo="ondas"]{--pf-t:1.2s}

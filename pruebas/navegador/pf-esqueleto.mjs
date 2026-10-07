@@ -895,15 +895,18 @@ async function puerta({ tema, reducido }) {
     const f = document.querySelector('#pf-puerta > .puerta-fondo');
     const caja = document.querySelector('.puerta-caja');
     const anims = document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.puerta-fondo'));
-    return { fondo: f && f.dataset.fondo, oculto: f && f.getAttribute('aria-hidden'), fija: f && getComputedStyle(f).position,
+    /* Los nueve de lienzo (tanda 3) no tienen animaciones CSS: se mueven en su <canvas>. */
+    const lienzo = f && f.querySelector('.pfo-lienzo2');
+    return { fondo: f && f.dataset.fondo, lienzo: !!lienzo, oculto: f && f.getAttribute('aria-hidden'), fija: f && getComputedStyle(f).position,
       toques: f && getComputedStyle(f).pointerEvents, anims: anims.length, entra: caja.classList.contains('entra'),
       marca: !!document.querySelector('.puerta-marca .puerta-logo') && !!document.querySelector('.puerta-marca .puerta-goo') };
   });
-  cierto(['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico'].includes(v2.fondo) && v2.oculto === 'true' && v2.fija === 'fixed' && v2.toques === 'none',
+  cierto(['neon', 'plano', 'led', 'circulos', 'letras', 'cnc', 'particulas', 'ondas', 'acrilico',
+    'impresion', 'semitono', 'flujo', 'laser', 'mosaico', 'malla', 'persianas', 'gotas', 'curvas'].includes(v2.fondo) && v2.oculto === 'true' && v2.fija === 'fixed' && v2.toques === 'none',
     'detrás va el fondo de la puerta («' + v2.fondo + '»), fijo, mudo para el lector y sin robar toques', v2);
   cierto(v2.marca, 'el logo y sus tres manchas comparten lugar', v2);
   if (reducido) cierto(v2.anims === 0 && !v2.entra, 'con menos movimiento el fondo se queda fijo y no hay entrada', v2);
-  else cierto(v2.anims > 0, 'con movimiento el fondo se mueve (' + v2.anims + ' animaciones): la única excepción aprobada', v2);
+  else cierto(v2.anims > 0 || v2.lienzo, 'con movimiento el fondo se mueve (' + v2.anims + ' animaciones): la única excepción aprobada', v2);
   await p.waitForTimeout(1000);
   cierto(await ev(() => !document.querySelector('.puerta-caja.entra')), 'la entrada pasa una vez y la caja se queda quieta');
   /* El primer intento se hace con el TECLADO: el foco tiene que quedarse en el botón. */

@@ -244,6 +244,49 @@ console.log('\nEL FONDO CONTESTA AL TOQUE, EN UN TELÉFONO');
   }
   await ctx.close();
 }
+
+console.log('\nLOS NUEVE DE LIENZO (TANDA 3)');
+{
+  /* Se dibujan en un <canvas>: de cada uno se mira que el lienzo tenga tamaño y se pinte, que
+     cambie de un momento a otro (se mueve), que el toque cambie lo pintado y que nada truene. */
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: true, isMobile: true });
+  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+  const foto = () => {
+    const c = document.querySelector('.puerta-fondo .pfo-lienzo2');
+    if (!c || !c.width) return null;
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let suma = 0, pintado = 0;
+    for (let i = 0; i < d.length; i += 4 * 97) { suma = (suma * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) % 1e9; if (d[i + 3]) pintado++; }
+    return { suma, pintado, w: c.width };
+  };
+  for (const fondo of ['impresion', 'semitono', 'flujo', 'laser', 'mosaico', 'malla', 'persianas', 'gotas', 'curvas']) {
+    const { p, errores } = await abrir(PUBLICO, { ctx, q: '?fondo=' + fondo });
+    await p.waitForTimeout(600);
+    const a = await p.evaluate(foto);
+    await p.waitForTimeout(400);
+    const b = await p.evaluate(foto);
+    await p.touchscreen.tap(60, 140);
+    await p.waitForTimeout(300);
+    const google = await p.evaluate(() => !document.querySelector('.puerta-pasos').hidden);
+    cierto(a && a.pintado > 0 && b && a.suma !== b.suma && !google && !errores.length,
+      fondo + ': el lienzo se pinta (' + (a ? a.w + ' px' : 'sin lienzo') + '), se mueve, aguanta el toque y no abre Google' +
+      (errores.length ? ': ' + errores.join(' | ') : ''));
+    await p.close();
+  }
+  await ctx.close();
+}
+{
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion: 'reduce' });
+  await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());
+  const { p } = await abrir(PUBLICO, { ctx, q: '?fondo=laser' });
+  await p.waitForTimeout(500);
+  const huella = () => { const c = document.querySelector('.pfo-lienzo2'); return c && c.width ? c.toDataURL().length + ':' + c.toDataURL().slice(-40) : ''; };
+  const a = await p.evaluate(huella);
+  await p.waitForTimeout(700);
+  const b = await p.evaluate(huella);
+  cierto(a && a === b, 'con menos movimiento el fondo de lienzo se pinta una vez y se queda fijo');
+  await ctx.close();
+}
 {
   const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
   await ctx.route(/^https?:\/\/(?!al3d\.prueba|127\.0\.0\.1)/, r => r.abort());

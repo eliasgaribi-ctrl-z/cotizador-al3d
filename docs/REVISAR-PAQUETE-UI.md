@@ -82,6 +82,16 @@ juntan al entrar, la caja es de vidrio, el logo se separa en sus manchas mientra
 seguidas. Para ver uno en concreto se le pone `?fondo=` a la liga: `neon`, `plano`, `led`,
 `circulos`, `letras`, `cnc`, `particulas`, `ondas` o `acrilico`.
 
+**Tanda 3 (6-oct-2026):** entraron los nueve fondos de lienzo del paquete, y la rifa ahora es entre
+los dieciocho: `impresion`, `semitono`, `flujo`, `laser`, `mosaico`, `malla`, `persianas`, `gotas`
+y `curvas`. Viven en `js/nucleo/puerta-fondos.js` y llegan con `import()`: si ese archivo no carga,
+la puerta abre igual con el fondo liso. Medidos con el procesador 4× y 8× más lento (un Android
+de gama media y uno viejo): todos se sostienen entre 54 y 60 cuadros por segundo. Gotas y Semitono
+eran los pesados; Gotas ahora salta lo que no tiene tinta, y si un aparato tarda más de 12 ms por
+cuadro el fondo baja solo a 30 por segundo. Impresión 3D acomoda sus piezas alrededor de la caja
+real y las quita si la caja crece (aviso, pasos) y ya no caben. Queda pendiente de Elías: confirmar
+los servicios del tablero de paletas (`PALABRAS`).
+
 ### ✅ Resuelta · La sesión dura un día
 
 **Decidido (Elías, 2-oct-2026):** cada día se vuelve a entrar con Google, para llevar el control de
