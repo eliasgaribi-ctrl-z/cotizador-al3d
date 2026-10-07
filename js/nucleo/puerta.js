@@ -852,16 +852,30 @@ const sinMovimiento = () => {
    El fondo
    ---------------------------------------------------------------------------- */
 
-/* Cuál de los dieciocho: el de la liga (`?fondo=`) si es uno de ellos; si no, uno al azar que no
-   sea el de la vez pasada. */
+/* Cuál fondo: el de la liga (`?fondo=`) si es uno de ellos; si no, el siguiente de una bolsa
+   barajada. Ninguno se repite hasta que salieron todos, y al rebarajar el primero de la bolsa
+   nueva no puede ser el último de la vieja. Antes solo se evitaba el de la vez pasada, y con
+   tantos fondos unos salían una y otra vez mientras otros casi no aparecían.
+   Lo guardado era un texto (el último fondo); si eso es lo que hay, se arranca bolsa nueva. */
 function fondoElegido() {
   let q = '';
   try { q = new URLSearchParams(location.search).get('fondo') || ''; } catch (_) {}
   if (FONDOS_PUERTA.includes(q)) return q;
-  const antes = Prefs.get(Prefs.CLAVES.FONDO, '');
-  const otros = FONDOS_PUERTA.filter(f => f !== antes);
-  const f = otros[Math.floor(Math.random() * otros.length)];
-  Prefs.set(Prefs.CLAVES.FONDO, f);
+  const g = Prefs.get(Prefs.CLAVES.FONDO, null);
+  const ult = g && typeof g === 'object' ? g.ult : (typeof g === 'string' ? g : '');
+  /* Se filtra contra la lista actual: un fondo retirado no sale, y uno recién agregado entra
+     en la próxima barajada. */
+  let bolsa = g && Array.isArray(g.bolsa) ? g.bolsa.filter(f => FONDOS_PUERTA.includes(f)) : [];
+  if (!bolsa.length) {
+    bolsa = FONDOS_PUERTA.slice();
+    for (let i = bolsa.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bolsa[i], bolsa[j]] = [bolsa[j], bolsa[i]];
+    }
+    if (bolsa.length > 1 && bolsa[0] === ult) bolsa.push(bolsa.shift());
+  }
+  const f = bolsa.shift();
+  Prefs.set(Prefs.CLAVES.FONDO, { bolsa, ult: f });
   return f;
 }
 
