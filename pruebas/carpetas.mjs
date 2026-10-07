@@ -115,6 +115,17 @@ console.log('\nLA HOJA — /carpetas y /crear_carpeta contra un Drive de mentira
   eq('pedirla otra vez (otro teléfono, otra mayúscula) devuelve la misma: no hay dos', [b.creada, b.carpeta.id, hijas.length], [false, a.carpeta.id, 2]);
   eq('un nombre con diagonales no hace subcarpetas', run('rutaCrearCarpeta_({ nombre: "Ana / Café: Luna" }, "direccion")').carpeta.nombre, 'Ana Café Luna');
   eq('sin nombre no se crea nada', run('rutaCrearCarpeta_({ nombre: "  " }, "direccion")').codigo, 'DATO_INVALIDO');
+
+  /* Si Google no la da por su id, se busca por nombre; y si tampoco, el error viaja. */
+  ctx.DriveApp = { getFolderById: () => { throw new Error('No se encontró el elemento con el ID especificado'); },
+    searchFolders: () => { const l = [raiz]; raiz.getId = () => '1XfM5KMFn5p87LI_W-IglmflaZcs3y_wB'; return { hasNext: () => l.length > 0, next: () => l.shift() }; } };
+  cache.clear();
+  eq('por id falla y por nombre la encuentra', run('rutaCarpetas_()').ok, true);
+  ctx.DriveApp = { getFolderById: () => { throw new Error('Acceso denegado: DriveApp'); },
+    searchFolders: () => ({ hasNext: () => false, next: () => null }) };
+  cache.clear();
+  const f = run('rutaCarpetas_()');
+  eq('y si no, dice el error de Google', [f.ok, /Acceso denegado/.test(f.detalle), /ninguna carpeta/.test(f.detalle)], [false, true, true]);
 }
 
 console.log('');

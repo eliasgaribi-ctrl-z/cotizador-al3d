@@ -5231,18 +5231,41 @@ var CARPETAS_CACHE = 'carpetas-trabajos-v1';
 var CARPETAS_MAX = 150;         // subcarpetas
 var ARCHIVOS_MAX = 60;          // archivos por subcarpeta
 
+/* «Trabajos Pendientes», por su id y, si Google no la da así, buscándola por nombre entre lo que
+   esta cuenta ve. La primera versión se tragaba el error y contestaba «no alcanza la carpeta» sin
+   decir por qué: el 7 de octubre de 2026 la carpeta —de otra cuenta, compartida con la de la hoja—
+   no salía y no había cómo saber la causa. Ahora el error de Google viaja en `detalle` y queda en
+   Ejecuciones. */
+function carpetaDeTrabajos_() {
+  var porId = '';
+  try { return { ok: true, carpeta: DriveApp.getFolderById(CARPETA_TRABAJOS) }; }
+  catch (err) { porId = String(err && err.message || err); console.error('carpetas: getFolderById: ' + porId); }
+  var porNombre = '';
+  try {
+    var it = DriveApp.searchFolders('title = "Trabajos Pendientes" and trashed = false');
+    var hallada = null, n = 0;
+    while (it.hasNext() && n < 20) {
+      var c = it.next(); n++;
+      if (c.getId() === CARPETA_TRABAJOS) return { ok: true, carpeta: c };
+      if (!hallada) hallada = c;
+    }
+    if (hallada && n === 1) return { ok: true, carpeta: hallada };
+    porNombre = n ? n + ' carpetas se llaman así y ninguna es la de siempre' : 'ninguna carpeta se llama así';
+  } catch (err2) { porNombre = String(err2 && err2.message || err2); console.error('carpetas: searchFolders: ' + porNombre); }
+  return { ok: false, codigo: 'NO_ENCONTRADO',
+    mensaje: 'La hoja no alcanza la carpeta «Trabajos Pendientes» de Drive.',
+    detalle: 'Por id: ' + porId + ' · Por nombre: ' + porNombre };
+}
+
 function rutaCarpetas_() {
   var cache = null;
   try { cache = CacheService.getScriptCache(); } catch (_) { cache = null; }
   var guardado = cache ? cache.get(CARPETAS_CACHE) : null;
   if (guardado) { try { return JSON.parse(guardado); } catch (_) { /* se vuelve a leer */ } }
 
-  var raiz;
-  try { raiz = DriveApp.getFolderById(CARPETA_TRABAJOS); }
-  catch (err) {
-    return { ok: false, codigo: 'NO_ENCONTRADO',
-      mensaje: 'La hoja no alcanza la carpeta «Trabajos Pendientes» de Drive. Tiene que estar compartida con la cuenta dueña de la hoja.' };
-  }
+  var raiz = carpetaDeTrabajos_();
+  if (!raiz.ok) return raiz;
+  raiz = raiz.carpeta;
   var carpetas = [];
   var it = raiz.getFolders();
   while (it.hasNext() && carpetas.length < CARPETAS_MAX) {
@@ -5280,9 +5303,9 @@ function rutaCrearCarpeta_(cuerpo, rol) {
   if (rol !== 'direccion') return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Las carpetas nuevas las abre el teléfono de Dirección.' };
   var nombre = String((cuerpo && cuerpo.nombre) || '').replace(/[\/\\:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!nombre || nombre.length > 120) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Falta el nombre de la carpeta, o es demasiado largo.' };
-  var raiz;
-  try { raiz = DriveApp.getFolderById(CARPETA_TRABAJOS); }
-  catch (err) { return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no alcanza la carpeta «Trabajos Pendientes» de Drive.' }; }
+  var raiz = carpetaDeTrabajos_();
+  if (!raiz.ok) return raiz;
+  raiz = raiz.carpeta;
   return conCandado(function () {
     var buscado = nombreDeCarpeta_(nombre);
     var it = raiz.getFolders();

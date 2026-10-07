@@ -1040,7 +1040,7 @@ export function crear(cfg0) {
         if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {
           return { ok: false, codigo: 'HOJA_VIEJA', mensaje: 'La hoja todavía no lee la carpeta de Drive: falta pegarle el Apps Script puente-sheets-10.' };
         }
-        return { ok: false, codigo: c.codigo || 'DESCONOCIDO', mensaje: c.mensaje || 'La hoja no pudo leer la carpeta de Drive.' };
+        return { ok: false, codigo: c.codigo || 'DESCONOCIDO', mensaje: (c.mensaje || 'La hoja no pudo leer la carpeta de Drive.') + (c.detalle ? ' Google dijo: ' + c.detalle : '') };
       } catch (e) {
         return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
       }
