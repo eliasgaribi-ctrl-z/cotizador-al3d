@@ -58,6 +58,8 @@ import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
+import { duracionSugerida } from './agenda.js';
+import { fmtFecha, fmtHora, hoyISO } from '../nucleo/ui.js';
 
 /* ============================================================================
    El vocabulario del puente. Son los nombres que heredó de Notion —con el espacio final
@@ -444,6 +446,96 @@ export function ventaDeHoja(fila) {
     else if (vaciada(fila, col)) v[k] = null;
   }
   return v;
+}
+
+/* ============================================================================
+   LA FECHA DE INSTALACIÓN QUE SE ESCRIBIÓ EN LA HOJA
+
+   Hasta octubre de 2026 la fecha viajaba en un solo sentido: la agenda la escribía en la
+   columna «Fecha instalacion» y nada la leía de regreso. Una fecha tecleada directo en la hoja
+   se quedaba en el récord de Control y el Calendario no la veía nunca. Ahora baja, y MANDA LA
+   HOJA (decisión de Elías, 2026-10-08): si el proyecto no tiene instalación se le agenda, y si
+   tiene una con otra fecha u otra hora, se mueve a la de la hoja.
+
+   Se mueve como mueve la agenda (`agenda.reagendar`): el mismo UID y `movida` + 1, porque si
+   no, el .ics que ya está en el teléfono del instalador no se entera del cambio. Y se apunta
+   en las notas que fue la hoja, que es lo que alguien va a preguntar después.
+
+   Lo que NO hace, a propósito:
+   - Una celda de fecha vacía no cancela nada. Vacía es también «todavía no se capturó», y
+     cancelar una cita confirmada por un hueco en la hoja es peor que no enterarse.
+   - Sin instalación, solo se agenda lo que está en la línea del taller y de hoy en adelante.
+     Una fecha pasada en una venta de hace meses es historia, no una cita: agendarla llenaría
+     el Calendario de instalaciones «sin marcar».
+   - Una hora que no se entiende se ignora y se queda la que había; una hora ausente (la fila
+     no trae la llave) también. Una hora VACÍA sí manda: es «sin hora».
+   Puro: sin red, sin base y sin reloj (`o.hoy`, `o.ahora`, `o.nuevoId`).
+   ============================================================================ */
+
+/**
+ * @param {Object} fila   la fila de la hoja (`datos` de /jalar)
+ * @param {Object} proyecto el proyecto de este lado al que cae la fila
+ * @param {Object[]} insts las instalaciones de ese proyecto en este teléfono
+ * @param {{hoy:string, ahora:number, nuevoId:function():string, empresa?:string}} o
+ * @returns {Object|null} la instalación a escribir, o null si no hay nada que cambiar
+ */
+export function instalacionDeHoja(fila, proyecto, insts, o = {}) {
+  if (!fila || typeof fila !== 'object' || !proyecto) return null;
+  const fecha = String(fila[P.fechaInst] || '');
+  if (!esISO(fecha)) return null;
+  if (proyecto.etapa === 'cancelado') return null;
+
+  /* La hora: undefined = no cambia; null = sin hora; 'HH:MM' = ésa. */
+  let hora;
+  const crudo = fila[P.horaInst];
+  if (crudo === null || (crudo !== undefined && String(crudo).trim() === '')) hora = null;
+  else if (crudo !== undefined) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(crudo).trim());
+    if (m && +m[1] <= 23 && +m[2] <= 59) hora = m[1].padStart(2, '0') + ':' + m[2];
+  }
+
+  const vivas = (Array.isArray(insts) ? insts : [])
+    .filter(i => i && i.estado !== 'cancelada' && esISO(i.fecha))
+    .sort((a, b) => (Number(b.actualizado_en) || 0) - (Number(a.actualizado_en) || 0));
+  const viva = vivas[0];
+  const ahora = Number(o.ahora) || 0;
+
+  if (viva) {
+    const horaNueva = hora === undefined ? (viva.hora || null) : hora;
+    if (viva.fecha === fecha && (viva.hora || null) === horaNueva) return null;
+    const cuando = (f, h) => fmtFecha(f) + (h ? ' ' + fmtHora(h) : ' (sin hora)');
+    return {
+      ...viva,
+      fecha, hora: horaNueva,
+      estado: viva.estado === 'hecha' ? 'hecha' : 'reagendada',
+      movida: (Number(viva.movida) || 0) + 1,
+      uid_ics: viva.uid_ics || ('inst-' + viva.id + '@al3d.mx'),
+      notas: [String(viva.notas || '').trim(),
+              'Movida del ' + cuando(viva.fecha, viva.hora) + ' al ' + cuando(fecha, horaNueva) +
+              ': así quedó en la hoja.'].filter(Boolean).join('\n'),
+      actualizado_en: ahora,
+    };
+  }
+
+  if (!EN_LA_LINEA.includes(String(proyecto.etapa || ''))) return null;
+  if (!esISO(o.hoy) || fecha < o.hoy) return null;
+  const id = typeof o.nuevoId === 'function' ? o.nuevoId() : '';
+  if (!id) return null;
+  return {
+    id,
+    empresa_id: proyecto.empresa_id || o.empresa || '',
+    proyecto_id: proyecto.id,
+    fecha,
+    hora: hora === undefined ? null : hora,
+    ventana: 'dia',
+    duracion_min: duracionSugerida(proyecto.tipo_trabajo),
+    estado: 'confirmada',
+    movida: 0,
+    uid_ics: 'inst-' + id + '@al3d.mx',
+    gcal_event_id: null,
+    notas: 'Agendada desde la hoja.',
+    creado_en: ahora, actualizado_en: ahora,
+  };
 }
 
 /* ============================================================================
@@ -1318,6 +1410,36 @@ export function crear(cfg0) {
 
       /* Las filas de ESTA página por su folio de hoja. La hoja manda todas en una respuesta
          desde puente-sheets-6, así que aquí están también las otras filas de una misma venta. */
+      /* La fecha de instalación que baja (`instalacionDeHoja`). Las instalaciones y la bandeja
+         se leen una vez por página y solo si alguna fila trae fecha. Un proyecto con un cambio
+         todavía en la bandeja no se toca: la hoja aún no tiene la fecha que se acaba de agendar
+         aquí, y aplicarle la vieja sería deshacerle a Dirección lo que acaba de hacer. */
+      let agenda = null;
+      const instDeHoja = async (datos, proyecto) => {
+        if (!datos || !proyecto || !esISO(datos[P.fechaInst])) return;
+        if (!agenda) {
+          agenda = { porProy: new Map(), enBandeja: new Set(), hechos: new Set() };
+          for (const i of await DB.listar('instalaciones')) {
+            if (!i || !i.proyecto_id) continue;
+            const k = String(i.proyecto_id);
+            if (!agenda.porProy.has(k)) agenda.porProy.set(k, []);
+            agenda.porProy.get(k).push(i);
+          }
+          for (const op of await DB.listar('pendientes')) {
+            if (!op || String(op.id || '').charAt(0) === '_' || op.estado !== 'pendiente') continue;
+            if (op.almacen === 'proyectos') agenda.enBandeja.add(String(op.registro_id || (op.datos && op.datos.id) || ''));
+            if (op.almacen === 'instalaciones' && op.datos) agenda.enBandeja.add(String(op.datos.proyecto_id || ''));
+          }
+        }
+        const k = String(proyecto.id);
+        if (agenda.enBandeja.has(k) || agenda.hechos.has(k)) return;
+        const inst = instalacionDeHoja(datos, proyecto, agenda.porProy.get(k) || [],
+          { hoy: hoyISO(), ahora: Date.now(), nuevoId: () => DB.nuevoId('inst'), empresa: Prefs.empresa() });
+        if (!inst) return;
+        agenda.hechos.add(k);   // la misma venta en dos filas: manda la primera
+        registros.push({ almacen: 'instalaciones', datos: inst });
+      };
+
       const ventasPagina = filas.map(f => ventaDeHoja((f && f.datos) || null));
       const porFolioHoja = new Map();
       for (const v of ventasPagina) if (v && v.folio_hoja && !porFolioHoja.has(v.folio_hoja)) porFolioHoja.set(v.folio_hoja, v);
@@ -1367,7 +1489,10 @@ export function crear(cfg0) {
         if (!local) {
           if (venta && VIVAS_EN_TALLER.includes(String(venta.estatus || ''))) {
             const nuevo = desdeVentaDeHoja(venta);
-            if (nuevo) registros.push({ almacen: 'proyectos', datos: nuevo });
+            if (nuevo) {
+              registros.push({ almacen: 'proyectos', datos: nuevo });
+              try { await instDeHoja(datos, nuevo); } catch (_) { /* el proyecto ya bajó */ }
+            }
           }
           continue;   // ya quedó en el récord; el parche de dinero no tiene a quién caerle
         }
@@ -1460,6 +1585,7 @@ export function crear(cfg0) {
         const sinMandar = local.sin_mandar && Array.isArray(local.sin_mandar.campos) ? local.sin_mandar.campos : [];
         for (const k of sinMandar) if (SE_QUEDAN_HASTA_MANDARSE.has(k)) delete aplicar[k];
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
+        try { await instDeHoja(datos, { ...local, ...aplicar, id: local.id }); } catch (_) { /* el dinero ya bajó */ }
       }
 
       /* 3. El almacén, el catálogo y las listas de compra, de sus pestañas (puente-sheets-9).
