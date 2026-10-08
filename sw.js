@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 87;
+const APP_VERSION = 88;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -180,6 +180,8 @@ const APP_FILES = [
   './publicaciones/js/previo.js',
   './publicaciones/js/plantillas.js',
   './publicaciones/js/editor.js',
+  './publicaciones/js/series.js',
+  './publicaciones/js/zip.js',
   './publicaciones/js/motor.js',
   './publicaciones/automatizacion/plantillas.json',
   './publicaciones/automatizacion/contenido-ejemplo.json',

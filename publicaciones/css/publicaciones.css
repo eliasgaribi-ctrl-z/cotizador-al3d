@@ -275,3 +275,20 @@ html:not(.empotrado) .pb-editor{top:64px;height:calc(100dvh - 64px)}
 }
 
 html.arrancando .pb-herr,html.arrancando .pb-formatos{visibility:hidden}
+
+/* ----- El carrusel, por conjunto -----
+   Cada conjunto es una banda: su nombre, cuántas láminas y «Descargar conjunto», y debajo sus
+   láminas en el orden en que se suben, con el número en la esquina. La rejilla de fuera deja de
+   ser rejilla para que cada banda ocupe el ancho entero. */
+.pb-rejilla.por-serie{display:flex;flex-direction:column;gap:var(--e6,32px)}
+.pb-serie-cab{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);flex-wrap:wrap;
+  padding-bottom:var(--e3);margin-bottom:var(--e4);border-bottom:1px solid var(--linea)}
+.pb-serie-cab b{display:block;font-size:var(--t4);font-weight:700;color:var(--tinta)}
+.pb-serie-cab span{font-size:var(--t2);color:var(--tinta3)}
+.pb-serie-cab .btn{width:auto;margin:0;flex-shrink:0}
+.pb-serie-cab .pb-btx{display:inline-flex;align-items:center;gap:6px}
+.pb-serie-rej{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--w,220px),1fr));gap:var(--e5) var(--e4)}
+.pb-orden{flex-shrink:0;font-style:normal;font-weight:700;font-size:var(--t1);font-variant-numeric:tabular-nums;
+  padding:1px 7px;border-radius:999px;background:var(--a-suave,rgba(51,32,255,.12));color:var(--a-tx)}
+.pb-editada{background:var(--a,#3320FF)}
+@media(max-width:759px){.pb-serie-cab .btn{width:100%}}

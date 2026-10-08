@@ -82,6 +82,11 @@ export function puntaje(p, c) {
 /** Desde cuánto se da por suya. Con menos, la ficha no enseña ninguna. */
 export const UMBRAL = 0.6;
 
+/* «Trabajos Pendientes», la misma carpeta que lee la hoja (`CARPETA_TRABAJOS` del Apps Script).
+   Va escrita aquí para que la liga exista AUNQUE la hoja no conteste: sin ella, cuando /carpetas
+   fallaba, la ficha solo decía el error y no había por dónde llegar a los diseños. */
+export const RAIZ_TRABAJOS = 'https://drive.google.com/drive/folders/1XfM5KMFn5p87LI_W-IglmflaZcs3y_wB';
+
 /** La carpeta de `p` entre `lista`, o null. PURA. */
 export function carpetaDe(p, lista) {
   let mejor = null, max = 0;
@@ -211,6 +216,10 @@ export function listar() {
       guardar();
       return { ...ya(false), nueva: JSON.stringify(r.carpetas) !== antes };
     }
+    /* Sin puente todavía NO se recuerda: al arrancar, la pantalla puede preguntar antes de que
+       app.js enchufe el puente, y guardar ese «no hay puente» cinco minutos dejaba sin carpetas
+       la primera vuelta de la sincronización, que sí ya lo tenía. */
+    if (r && r.codigo === 'SIN_CONFIG') return { ok: false, codigo: r.codigo, mensaje: r.mensaje };
     _fallo = { ts: Date.now(), codigo: (r && r.codigo) || 'SIN_RED', mensaje: (r && r.mensaje) || 'No se pudo leer la carpeta.' };
     /* Sin señal o con la hoja vieja: lo último que se vio, dicho como tal. */
     if (_mem) return ya(true);

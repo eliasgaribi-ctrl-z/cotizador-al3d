@@ -91,5 +91,33 @@ const porId = Object.fromEntries(P.map(p => [p.id, p]));
 eq('el contenido de ejemplo usa plantillas que existen', ej.filter(x => !porId[x.plantilla]).map(x => x.plantilla), []);
 eq('  y campos que esas plantillas tienen', ej.flatMap(x => Object.keys(x.campos || {}).filter(k => porId[x.plantilla] && !(k in porId[x.plantilla].campos)).map(k => x.plantilla + '.' + k)), []);
 
+console.log('\nLOS CONJUNTOS DE CARRUSEL');
+const { SERIES, SUELTAS, serieDe, slug } = await import('../publicaciones/js/series.js');
+const todasSerie = SERIES.flatMap(s => s.ids).concat(SUELTAS.ids);
+eq('cada lámina de un conjunto existe y es de carrusel', todasSerie.filter(id => !porId[id] || porId[id].tipo !== 'carrusel'), []);
+eq('ninguna lámina está en dos conjuntos', todasSerie.filter((id, i) => todasSerie.indexOf(id) !== i), []);
+eq('todo el carrusel tiene lugar (conjunto o sueltas)', P.filter(p => p.tipo === 'carrusel' && !todasSerie.includes(p.id)).map(p => p.id), []);
+eq('los ids de conjunto no se repiten', SERIES.map(s => s.id).filter((id, i, a) => a.indexOf(id) !== i), []);
+eq('el lugar de una lámina en su conjunto', [serieDe('C15@1x1').serie.id, serieDe('C15@1x1').orden], ['caso-de-proyecto', 2]);
+eq('el nombre del .zip sin acentos ni espacios', slug('Panorama (una foto en tres)'), 'panorama-una-foto-en-tres');
+
+console.log('\nEL .ZIP DE UN CONJUNTO');
+const { zip } = await import('../publicaciones/js/zip.js');
+const datosA = new TextEncoder().encode('hola'), datosB = new Uint8Array([137, 80, 78, 71, 0, 255]);
+const z = zip([{ nombre: 'guía/01-a.txt', bytes: datosA }, { nombre: 'guía/02-b.png', bytes: datosB }], new Date(2026, 9, 8, 12, 0, 0));
+const dv = new DataView(z.buffer);
+const fin = z.length - 22;
+eq('cierra con su directorio y dice cuántos archivos', [dv.getUint32(fin, true), dv.getUint16(fin + 10, true)], [0x06054b50, 2]);
+const nombres = [];
+for (let off = dv.getUint32(fin + 16, true), i = 0; i < 2; i++) {
+  const ln = dv.getUint16(off + 28, true);
+  nombres.push(new TextDecoder().decode(z.slice(off + 46, off + 46 + ln)));
+  off += 46 + ln;
+}
+eq('los nombres, en orden y con acentos (UTF-8)', nombres, ['guía/01-a.txt', 'guía/02-b.png']);
+eq('el CRC del primero es el de «hola»', dv.getUint32(14, true).toString(16), '6fa0f988');
+const ln0 = dv.getUint16(26, true);
+eq('los bytes van tal cual (sin comprimir)', new TextDecoder().decode(z.slice(30 + ln0, 30 + ln0 + 4)), 'hola');
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);
