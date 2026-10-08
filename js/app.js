@@ -1962,6 +1962,7 @@ let _syncEstado = 'quieto', _syncOkReloj = 0;
    entrado con Google— y el glifo seguía diciendo «al día». */
 const K_ULTIMA_BAJADA = 'al3d_pf_ultima_bajada';
 let _ultimaBajada = (() => { try { return Number(localStorage.getItem(K_ULTIMA_BAJADA)) || 0; } catch (_) { return 0; } })();
+let _driveOk = null;        // la última vez, ¿contestó Drive? (ver la vuelta de carpetas)
 
 /** La frase de cada estado. Pura: de aquí salen el `title`, el `aria-label` y la voz. `ultima` es
  *  cuándo bajó la hoja por última vez (ms) y `ahora`, el reloj; sin `ultima` no se juzga. */
@@ -2085,6 +2086,10 @@ async function sincronizarDeVerdad() {
     try {
       const c = await Carpetas.alDia(await DB.listar('proyectos'), Prefs.rol());
       if (c.cambio) _repintarDebe = true;
+      /* Que Drive deje de contestar —o vuelva— también se repinta: Proyectos lo dice en un
+         renglón (`pintarAvisoDrive`), y en el arranque esa pantalla se pintó antes de que hubiera
+         puente, así que sin esto el aviso no salía nunca. */
+      if (c.ok !== _driveOk) { _driveOk = c.ok; _repintarDebe = true; }
       if (c.creadas.length) {
         toast(c.creadas.length === 1 ? 'Se abrió en Drive la carpeta «' + c.creadas[0] + '»'
           : 'Se abrieron en Drive ' + c.creadas.length + ' carpetas de proyectos en fabricación', 'ok', 4200);

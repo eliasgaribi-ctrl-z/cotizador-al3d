@@ -710,7 +710,12 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
   .mapa-2col{grid-template-columns:minmax(0,1fr)}
 }
 @media(min-width:1100px){
-  .mapa-2col>.mapa-col:last-child{position:sticky;top:calc(64px + var(--e3))}
+  .mapa-2col>.mapa-col:last-child{position:sticky;top:calc(64px + var(--e3));
+    max-height:calc(100dvh - 64px - 2*var(--e3));overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-gutter:stable;padding-right:2px}
+  /* El mapa termina en el doblez: los filtros de arriba y la leyenda de abajo caben con él en
+     la pantalla, y no hay que bajar para ver el mapa entero. */
+  #mapa-lienzo,.mapa-2col .esq-mapa{height:max(420px,calc(100dvh - 64px - 320px))}
 }
 /* Los cuatro filtros de etapa llevan dos nombres, el largo y el corto, en el mismo par
    `.lg`/`.sm` que el selector de tipo de una partida. En la computadora se lee «G · Vendido,
@@ -932,6 +937,33 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
    de esta tarjeta, azul sobre azul no se distingue y el icono desaparecía. */
 .pf-decidir .pf-fila-ico{background:var(--sup);color:var(--a-tx)}
 
+/* El renglón de «Drive no contesta» (ver `pintarAvisoDrive`): discreto, no es un pendiente. */
+.pj-drive{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e3);padding:8px 12px;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);font-size:var(--t2);color:var(--muted)}
+.pj-drive>span{flex:1;min-width:0}
+.pj-drive b{color:var(--ink);font-weight:600}
+@media(max-width:560px){.pj-drive{flex-wrap:wrap}}
+
+/* En Proyectos la tarjeta va plegada: un renglón con la cuenta y «Revisar» (ver `pintarCand`).
+   Abierta, cada cotización es UN renglón con sus dos botones al lado —en columna, cada una
+   medía 118 px— y la lista se recorre por dentro con tope, para que el tablero no baje. */
+.pj-cand{padding:0!important}
+.pj-cand>summary{display:flex;align-items:center;gap:var(--e2);padding:10px 14px;cursor:pointer;
+  list-style:none;border-radius:inherit}
+.pj-cand>summary::-webkit-details-marker{display:none}
+.pj-cand>summary>span:first-of-type{flex:1;min-width:0}
+.pj-cand-por{font-weight:500;opacity:.8}
+.pj-cand-ver{flex-shrink:0;font-weight:700;color:var(--a-tx);padding:4px 10px;border-radius:999px;
+  border:1px solid var(--a-borde);transition:transform 160ms cubic-bezier(.23,1,.32,1)}
+.pj-cand>summary:active .pj-cand-ver{transform:scale(.97)}
+.pj-cand>summary:focus-visible{outline:2px solid var(--a-borde);outline-offset:2px}
+.pj-cand-lista{max-height:min(46dvh,360px);overflow-y:auto;overscroll-behavior:contain;padding:0 14px 6px}
+.pj-cand .pf-fila{padding:8px 0}
+.pj-cand .pf-fila-ico{width:32px;height:32px}
+.pj-cand .pf-fila-acc{flex-direction:row;align-items:center}
+.pj-cand .pf-fila-acc .btn{margin-top:0}
+@media(max-width:560px){.pj-cand-por{display:none}.pj-cand .pf-fila-acc{padding-left:calc(32px + var(--e3))}}
+
 /* Dos botones en un renglón: el margen de arriba de .btn+.btn los descuadra —el hermano sin
    margen se estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—, que
    es el mismo problema que .btn-fila resuelve en el cotizador. Estos dos contenedores ya
@@ -1138,7 +1170,13 @@ button.cal-plazo:active{transform:scale(.97)}
 .ag-cuerpo.dos>*,.tb-cuerpo>*{min-width:0}
 @media(min-width:1100px){
   .ag-cuerpo.dos,.tb-cuerpo{grid-template-columns:minmax(0,1fr) minmax(380px,440px)}
-  .ag-cuerpo.dos>.card,.tb-cuerpo>.card{position:sticky;top:calc(3px + 78px + var(--e3))}
+  .ag-cuerpo.dos>.card,.tb-cuerpo>.card{position:sticky;top:calc(64px + var(--e3))}
+  /* La columna cabe en la pantalla y se recorre por dentro. Pegada y sin tope, con diez
+     ganados sin fecha medía el triple que el mes: el sticky no tenía de dónde pegarse, la
+     página se alargaba y debajo del calendario quedaba un hueco que había que bajar para
+     leer la lista (Elías, octubre de 2026). */
+  .ag-cuerpo.dos>.card,.tb-cuerpo>.card{max-height:calc(100dvh - 64px - 2*var(--e3));
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 }
 /* En la lente Taller, en el teléfono, la fila va PRIMERO: es la pregunta de la mañana. En el
    monitor las dos columnas ya la ponen al lado, y el orden no hace falta. */
@@ -3243,6 +3281,8 @@ body.pf-cliente .pf-dato[data-marca="total"] dd{
   .pj-tarj{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 }
 html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
+/* Con ratón, la tarjeta del tablero se agarra y se arrastra: la mano lo dice antes de presionar. */
+@media(hover:hover) and (pointer:fine) and (min-width:760px){.pj-tablero .pj-tarj[data-abrir]{cursor:grab}}
 /* La columna que recibe se ilumina con el aro del acento y un fondo tenue detrás de sus tarjetas.
    Las tarjetas llevan su propio fondo opaco, así que el contraste de su texto no cambia con el
    tinte; el aro es lo que se ve con el dedo encima, que tapa casi todo lo demás. */

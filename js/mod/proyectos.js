@@ -170,6 +170,7 @@ export async function montar(c, ctx) {
   cont.innerHTML =
     '<div class="pf-cuentas" id="pj-cuentas"></div>' +
     '<div id="pj-cand"></div>' +
+    '<div id="pj-drive" aria-live="polite"></div>' +
     '<div class="card"><div class="card-h"><h2>' + ico('i-proyectos') + ' Proyectos</h2>' +
       interruptorClienteHTML() + '</div>' +
     '<div class="card-b">' +
@@ -277,6 +278,7 @@ async function cargar() {
   if (lista && !lista.childElementCount) lista.innerHTML = '<div class="vacio">' + ico('i-reloj') + '<p class="vacio-t">Leyendo proyectos…</p></div>';
   await leerDatos();
   pintarCand();
+  pintarAvisoDrive();
   pintarFiltros();
   aplicar();
   publicarCuenta();
@@ -868,6 +870,30 @@ const tonoCuando = iso => {
    La tarjeta de las cotizaciones sin decidir. Solo DIRECCIÓN.
    ============================================================================ */
 
+/* ----- Cuando Drive no contesta -----
+   Las marcas «Órdenes listas / Sin órdenes / Sin carpeta» del tablero salen de lo último que se
+   leyó de Drive, y si nunca se pudo leer, el tablero se quedaba callado: las tarjetas sin marca y
+   nada que dijera por qué (octubre de 2026: «los proyectos siguen sin poder tener la carpeta»).
+   Ahora lo dice en un renglón, con el motivo que dio la hoja y la liga a «Trabajos Pendientes»,
+   que existe aunque la hoja no conteste. Sin puente configurado no hay nada que avisar. */
+async function pintarAvisoDrive() {
+  const el = $('pj-drive'); if (!el) return;
+  let r = null;
+  try { r = await Carpetas.listar(); } catch (_) { r = null; }
+  const caja = $('pj-drive'); if (!caja) return;
+  /* SIN_CONFIG también al arrancar, antes de que el puente se enchufe: no es un error. */
+  if (!r || (r.ok && !r.vieja) || r.codigo === 'SIN_CONFIG') { caja.innerHTML = ''; return; }
+  const motivo = r && !r.ok ? (r.mensaje || 'No se pudo leer la carpeta de Drive.')
+    : 'Ahora mismo no se pudo preguntar a la hoja; las marcas son de la última vez que se vio.';
+  caja.innerHTML = '<div class="pj-drive">' + ico('i-doc') +
+    '<span><b>Carpetas de Drive:</b> ' + esc(motivo) + '</span>' +
+    '<a class="btn btn-gho pf-btn-corto" href="' + esc(Carpetas.RAIZ_TRABAJOS) + '" target="_blank" rel="noopener">Abrir Trabajos Pendientes</a></div>';
+}
+
+const CLAVE_CAND = 'al3d_pf_cand_abierta';
+function leerAbierta() { try { return localStorage.getItem(CLAVE_CAND) === '1'; } catch (_) { return false; } }
+function guardarAbierta(si) { try { localStorage.setItem(CLAVE_CAND, si ? '1' : '0'); } catch (_) {} }
+
 function pintarCand() {
   const el = $('pj-cand'); if (!el) return;
   if (!SIN_DECIDIR.length) { el.innerHTML = ''; _candN = 0; return; }
@@ -888,8 +914,8 @@ function pintarCand() {
           (importe !== null ? ' · ' + esc(money(importe)) : '') + '</div>' +
       '</div>' +
       '<div class="pf-fila-acc">' +
-        '<button type="button" class="btn btn-ok" data-gano="' + esc(e.folio) + '">Se ganó</button>' +
-        '<button type="button" class="btn btn-gho" data-nodio="' + esc(e.folio) + '">No se dio</button>' +
+        '<button type="button" class="btn btn-ok pf-btn-corto" data-gano="' + esc(e.folio) + '">Se ganó</button>' +
+        '<button type="button" class="btn btn-gho pf-btn-corto" data-nodio="' + esc(e.folio) + '">No se dio</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -898,13 +924,25 @@ function pintarCand() {
      —«esto pide que hagas algo antes de seguir»— y si aquí se viera distinta, parecerían
      dos cosas. `.pf-decidir` es la variante en bloque que Inicio ya dejó puesta, porque son
      N cotizaciones con dos botones cada una y no un renglón que se toca completo. */
+  /* Plegada de entrada (Elías, octubre de 2026): se cotiza mucho más de lo que se cierra, y
+     nueve renglones de dos botones empujaban el tablero —lo que se trabaja todo el día— una
+     pantalla entera hacia abajo. Queda el renglón del aviso con la cuenta; abierta, la lista
+     tiene tope y se recorre por dentro. Si alguien la abre, se queda abierta en este aparato. */
+  const abierta = leerAbierta();
   el.innerHTML =
-    '<div class="cand-partidas pf-decidir' + (n > _candN ? '' : ' quieta') + '">' +
-      '<p class="cp-txt">' + ico('i-aviso') + ' Tienes <b>' + n + '</b> ' +
+    '<details class="cand-partidas pf-decidir pj-cand' + (n > _candN ? '' : ' quieta') + '"' + (abierta ? ' open' : '') + '>' +
+      '<summary class="cp-txt">' + ico('i-aviso') + '<span>Tienes <b>' + n + '</b> ' +
       (n === 1 ? 'cotización autorizada sin decidir' : 'cotizaciones autorizadas sin decidir') +
-      '. Mientras no digas si se ganó, no tiene material, ni fecha, ni existe en ningún sistema.</p>' +
-      filas +
-    '</div>';
+      '<span class="pj-cand-por"> · di si se ganó para que tenga material y fecha</span></span>' +
+      '<span class="pj-cand-ver">' + (abierta ? 'Ocultar' : 'Revisar') + '</span></summary>' +
+      '<div class="pj-cand-lista">' + filas + '</div>' +
+    '</details>';
+  const det = el.firstElementChild;
+  det.addEventListener('toggle', () => {
+    guardarAbierta(det.open);
+    const v = det.querySelector('.pj-cand-ver');
+    if (v) v.textContent = det.open ? 'Ocultar' : 'Revisar';
+  });
   /* P11 · el latido late TRES veces y se calla —eso ya lo dice `.cand-partidas` en
      sistema.css—, pero la tarjeta se repinta con innerHTML en cada recarga y un nodo recién
      nacido arranca la animación otra vez: en la práctica volvía a latir cada vez que se tocaba
@@ -1104,11 +1142,11 @@ async function pintarCarpeta() {
   const caja = $('pj-carpeta');
   if (!caja || fichaId !== id || !p) return;
   const lab = '<div class="fld-lab">Archivos del diseño</div>';
-  const raiz = linkSeguro(r && r.raiz);
+  const raiz = linkSeguro(r && r.raiz) || Carpetas.RAIZ_TRABAJOS;
   const aRaiz = raiz ? '<div class="btn-fila"><a class="btn btn-gho" href="' + esc(raiz) +
     '" target="_blank" rel="noopener">' + ico('i-doc') + ' Abrir Trabajos Pendientes</a></div>' : '';
   if (!r || !r.ok) {
-    caja.innerHTML = lab + '<p class="hintnote">' + esc(r && r.mensaje || 'No se pudo leer la carpeta de Drive.') + '</p>';
+    caja.innerHTML = lab + '<p class="hintnote">' + esc(r && r.mensaje || 'No se pudo leer la carpeta de Drive.') + '</p>' + aRaiz;
     return;
   }
   const c = Carpetas.carpetaDe(p, r.carpetas);
@@ -1706,6 +1744,7 @@ function cablearModoCliente() {
    hay que preguntar —regresar la etapa, y ahora también cruzar «Cortado»— y escribe por
    `Proy.avanzarEtapa`, que vuelve a comprobar el rol. */
 const MS_LEVANTAR = 250;
+const MOVER_RATON = 4;        // px: con ratón, lo que hay que mover para que ya sea arrastrar
 const MOVER_CANCELA = 8;      // px: si el dedo se movió antes de los 250 ms, era deslizar
 const BORDE_CORRE = 56;       // px del borde del tablero donde empieza a correr solo
 const CORRE_MAX = 18;         // px por cuadro, como mucho
@@ -1748,7 +1787,28 @@ function cablearArrastre() {
     const oir = (x, t, f) => { x.addEventListener(t, f); quitar.push(() => x.removeEventListener(t, f)); };
     const cancelar = () => { clearTimeout(reloj); quitar.forEach(f => f()); quitar.length = 0; };
 
-    /* Antes de levantar: moverse es deslizar el tablero, no arrastrar la tarjeta. */
+    /* Con RATÓN no hay nada que desambiguar: la rueda desliza el tablero y presionar-y-mover es
+       arrastrar, como en cualquier tablero de escritorio. Esperar 250 ms quietos ahí era la razón
+       de que «no se dejara arrastrar» (Elías, octubre de 2026): el ratón se mueve en cuanto se
+       presiona y el gesto se cancelaba como si fuera deslizar. Se levanta al pasar 4 px; un clic
+       sin moverse sigue abriendo la ficha. */
+    if (ev.pointerType === 'mouse') {
+      ev.preventDefault();      // sin esto el arrastre selecciona texto de la tarjeta
+      oir(tarjeta, 'pointermove', e => {
+        if (Math.hypot(e.clientX - x0, e.clientY - y0) <= MOVER_RATON) return;
+        cancelar();
+        levantar(tarjeta, pid, e.clientX, e.clientY);
+      });
+      oir(tarjeta, 'pointerup', cancelar);
+      oir(tarjeta, 'pointercancel', cancelar);
+      try { tarjeta.setPointerCapture(pid); } catch (_) {}
+      /* Mantener presionado también la levanta, como con el dedo: quien ya lo aprendió así no
+         pierde el gesto. */
+      reloj = setTimeout(() => { cancelar(); levantar(tarjeta, pid, x0, y0); }, MS_LEVANTAR);
+      return;
+    }
+
+    /* Con el dedo, antes de levantar: moverse es deslizar el tablero, no arrastrar la tarjeta. */
     oir(tarjeta, 'pointermove', e => {
       if (Math.hypot(e.clientX - x0, e.clientY - y0) > MOVER_CANCELA) cancelar();
     });

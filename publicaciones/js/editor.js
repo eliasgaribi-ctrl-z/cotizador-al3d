@@ -16,6 +16,8 @@
    ============================================================================ */
 
 import { cargar, P, porId, esc, textoDe, piezaNueva, nodo, png, video, bajar, INSTANTE_QUIETO } from './plantillas.js';
+import { SERIES, SUELTAS, slug } from './series.js';
+import { zip } from './zip.js';
 
 const $ = id => document.getElementById(id);
 const html = document.documentElement;
@@ -38,6 +40,16 @@ const rotulo = k => ROTULO[k] || (/^t(\d+)$/.test(k) ? 'Texto ' + k.slice(1)
   : k.replace(/(\d+)/, ' $1').replace(/^./, c => c.toUpperCase()));
 const ico = id => '<svg class="svgi" aria-hidden="true"><use href="#' + id + '"/></svg>';
 const LLAVE_LISTA = 'al3d-editor-lista';
+/* Lo que se escribió encima de cada lámina de carrusel, por plantilla. Un conjunto se baja con
+   lo que se le escribió a cada una; sin esto, «Descargar conjunto» bajaba los textos de ejemplo
+   y había que volver a escribir lámina por lámina. */
+const LLAVE_CONJUNTOS = 'al3d-editor-conjuntos';
+let editadas = {};
+try { editadas = JSON.parse(localStorage.getItem(LLAVE_CONJUNTOS) || '{}') || {}; } catch (_) { editadas = {}; }
+function guardarEditadas() {
+  try { localStorage.setItem(LLAVE_CONJUNTOS, JSON.stringify(editadas)); }
+  catch (_) { aviso('No cabe lo escrito en la memoria del navegador: las fotos pesan mucho.', 'err'); }
+}
 
 let formato = 'todo';
 let cur = null;        // la plantilla elegida
@@ -103,7 +115,7 @@ const vigia = new IntersectionObserver(es => {
     inn.className = 'pb-in';
     inn.style.width = p.vista[0] + 'px';
     inn.style.height = p.vista[1] + 'px';
-    const el = nodo(p, cur && cur.id === p.id ? item : null);
+    const el = nodo(p, cur && cur.id === p.id ? item : (editadas[p.id] || null));
     congelarMiniatura(el);
     inn.appendChild(el);
     marco.prepend(inn);
@@ -134,7 +146,42 @@ function pintarRejilla() {
   vigia.disconnect();
   const visibles = P.filter(p => enFormato(p) && (!q || (p.id + ' ' + (p.nombre || '') + ' ' + p.tipo).toLowerCase().includes(q)));
   const frag = document.createDocumentFragment();
-  for (const p of visibles) {
+  /* Carrusel sin búsqueda: por conjunto, cada uno con sus láminas en orden y su botón para
+     bajarlo entero. Con búsqueda se vuelve a la rejilla plana, que es lo que se busca. */
+  if (formato === 'carrusel' && !q) {
+    for (const s of SERIES.concat([SUELTAS])) {
+      const ps = s.ids.map(id => porId[id]).filter(Boolean);
+      if (!ps.length) continue;
+      const sec = document.createElement('section');
+      sec.className = 'pb-serie';
+      sec.setAttribute('aria-label', s.nombre);
+      sec.innerHTML = '<header class="pb-serie-cab"><div><b>' + esc(s.nombre) + '</b><span>' +
+        (s.suelta ? ps.length + ' estilos para armar a mano' : ps.length + ' láminas, en el orden en que se suben') + '</span></div>' +
+        (s.suelta ? '' : '<button type="button" class="btn btn-gho pb-bajar-serie" data-serie="' + esc(s.id) + '">' +
+          '<span class="pb-btx">' + ico('i-bajar') + 'Descargar conjunto</span></button>') + '</header>';
+      const rej = document.createElement('div');
+      rej.className = 'pb-serie-rej';
+      for (const p of ps) rej.appendChild(tarjeta(p, s.suelta ? 0 : s.ids.indexOf(p.id) + 1));
+      sec.appendChild(rej);
+      frag.appendChild(sec);
+    }
+    g.classList.add('por-serie');
+    g.replaceChildren(frag);
+    $('pb-cuenta').textContent = SERIES.length + ' conjuntos de carrusel · ' + visibles.length + ' láminas';
+    return;
+  }
+  g.classList.remove('por-serie');
+  for (const p of visibles) frag.appendChild(tarjeta(p));
+  g.replaceChildren(frag);
+  if (!visibles.length) {
+    g.innerHTML = '<div class="pb-nada"><b>Ningún diseño con «' + esc(q) + '»</b>Prueba con otra palabra o con el número (P12, H04…).</div>';
+  }
+  $('pb-cuenta').textContent = visibles.length === P.length ? P.length + ' plantillas'
+    : visibles.length + ' de ' + P.length + ' plantillas';
+}
+
+/* Una miniatura. `orden` (1…n) es su lugar en el conjunto, y se pinta sobre la esquina. */
+function tarjeta(p, orden = 0) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'pb-tarj' + (p.tipo === 'video' ? ' es-video' : '') + (cur && cur.id === p.id ? ' on' : '');
@@ -148,17 +195,12 @@ function pintarRejilla() {
     if (p.tipo === 'video') m.insertAdjacentHTML('beforeend', '<span class="pb-sello">' + ico('i-video') + '6 s</span>');
     const pie = document.createElement('div');
     pie.className = 'pb-pie';
-    pie.innerHTML = '<b>' + esc(p.id.replace('@', ' · ')) + '</b><span>' + esc(p.nombre || p.tipo) + '</span>';
+    pie.innerHTML = (orden ? '<i class="pb-orden" aria-label="lámina ' + orden + '">' + String(orden).padStart(2, '0') + '</i>' : '') +
+      '<b>' + esc(p.id.replace('@', ' · ')) + '</b><span>' + esc(p.nombre || p.tipo) + '</span>';
+    if (editadas[p.id]) m.insertAdjacentHTML('beforeend', '<span class="pb-sello pb-editada">Editada</span>');
     b.append(m, pie);
-    frag.appendChild(b);
     vigia.observe(m);
-  }
-  g.replaceChildren(frag);
-  if (!visibles.length) {
-    g.innerHTML = '<div class="pb-nada"><b>Ningún diseño con «' + esc(q) + '»</b>Prueba con otra palabra o con el número (P12, H04…).</div>';
-  }
-  $('pb-cuenta').textContent = visibles.length === P.length ? P.length + ' plantillas'
-    : visibles.length + ' de ' + P.length + ' plantillas';
+    return b;
 }
 
 /* Repintar solo la miniatura elegida, para que refleje lo que se escribe, sin tocar las demás. */
@@ -185,7 +227,7 @@ function elegir(id, pieza, indice = -1) {
   if (!p) return;
   const antes = cur && cur.id;
   cur = p;
-  item = pieza || piezaNueva(p);
+  item = pieza || (editadas[id] ? copia(editadas[id]) : piezaNueva(p));
   item.campos = { ...p.campos, ...(item.campos || {}) };
   item.fotos = Array.from({ length: p.fotos || 0 }, (_, i) => (item.fotos || [])[i] || '');
   enLista = indice;
@@ -339,12 +381,18 @@ let _guardaPend = 0;
 function cambio() {
   refrescarMiniatura();
   pintarJson();
+  if (cur && cur.tipo === 'carrusel') {
+    clearTimeout(_editPend);
+    const id = cur.id, pieza = item;
+    _editPend = setTimeout(() => { editadas[id] = copia(pieza); guardarEditadas(); }, 400);
+  }
   if (enLista >= 0) {
     clearTimeout(_guardaPend);
     _guardaPend = setTimeout(() => { lista[enLista] = copia(item); guardarLista(true); }, 400);
   }
 }
 const copia = o => JSON.parse(JSON.stringify(o));
+let _editPend = 0;
 
 function leerFoto(f, i) {
   if (!/^image\//.test(f.type)) { aviso('Eso no es una imagen: usa JPG, PNG o WEBP.', 'err'); return; }
@@ -513,6 +561,55 @@ async function bajarLista() {
   } finally {
     if (b.isConnected) { b.disabled = !lista.length; rotular(b, 'i-bajar', 'Bajar mi lista'); }
   }
+}
+
+/* ----- Un conjunto entero -----
+   Cada lámina con lo que se le escribió (`editadas`) y, si no se tocó, con su texto de ejemplo;
+   numeradas 01, 02… en el orden de la serie, que es el orden en que se suben. En la computadora,
+   un .zip; en el teléfono, si puede compartir archivos, la hoja de compartir con las imágenes en
+   orden —un .zip en el teléfono no se sube a Instagram—. Compartir pide un toque del usuario y
+   generar diez láminas tarda más de lo que el navegador espera ese toque, así que primero se
+   generan y el mismo botón pasa a «Compartir las N». */
+let _listas = null;      // { serie, archivos: File[] } ya generadas, esperando el toque de compartir
+async function bajarSerie(b) {
+  const s = SERIES.find(x => x.id === b.dataset.serie);
+  if (!s || b.disabled) return;
+  if (_listas && _listas.serie === s.id) {
+    const files = _listas.archivos;
+    _listas = null;
+    try { await navigator.share({ files, title: s.nombre }); }
+    catch (e) { if (!e || e.name !== 'AbortError') aviso('No se pudo compartir: ' + (e && e.message || e), 'err'); }
+    rotular(b, 'i-bajar', 'Descargar conjunto');
+    return;
+  }
+  const ps = s.ids.filter(id => porId[id]);
+  b.disabled = true;
+  const carpeta = slug(s.nombre);
+  try {
+    const archivos = [];
+    for (let i = 0; i < ps.length; i++) {
+      rotular(b, null, (i + 1) + ' de ' + ps.length + '…');
+      const id = ps[i];
+      const url = await png(editadas[id] || piezaNueva(porId[id]));
+      const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+      archivos.push({ nombre: String(i + 1).padStart(2, '0') + '-' + id.replace('@', '-').toLowerCase() + '.png', bytes });
+    }
+    const files = typeof File === 'function' ? archivos.map(a => new File([a.bytes], a.nombre, { type: 'image/png' })) : [];
+    if (telefono() && files.length && navigator.canShare && navigator.canShare({ files })) {
+      _listas = { serie: s.id, archivos: files };
+      rotular(b, 'i-bajar', 'Compartir las ' + files.length);
+      aviso('Listas. Toca «Compartir las ' + files.length + '» para mandarlas en orden.', 'ok');
+      return;
+    }
+    const z = zip(archivos.map(a => ({ nombre: carpeta + '/' + a.nombre, bytes: a.bytes })));
+    bajar(URL.createObjectURL(new Blob([z], { type: 'application/zip' })), 'al3d-' + carpeta + '.zip');
+    rotular(b, 'i-check', 'Descargado');
+    aviso('«' + s.nombre + '»: ' + archivos.length + ' láminas en un .zip, numeradas en orden.', 'ok');
+    setTimeout(() => { if (b.isConnected && !_listas) rotular(b, 'i-bajar', 'Descargar conjunto'); }, 1800);
+  } catch (e) {
+    rotular(b, 'i-bajar', 'Descargar conjunto');
+    aviso('No se pudo armar el conjunto: ' + (e && e.message || e), 'err');
+  } finally { b.disabled = false; }
 }
 
 function pintarJson() {
@@ -772,6 +869,8 @@ function oyentes() {
     $('pb-rejilla').style.setProperty('--w', b.dataset.w + 'px');
   });
   $('pb-rejilla').addEventListener('click', e => {
+    const bs = e.target.closest('.pb-bajar-serie[data-serie]');
+    if (bs) { bajarSerie(bs); return; }
     const t = e.target.closest('.pb-tarj[data-id]');
     if (t) elegir(t.dataset.id);
   });
