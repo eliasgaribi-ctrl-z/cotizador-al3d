@@ -1402,6 +1402,66 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
      await Promise.all(['V-730', 'V-731', 'V-732'].map(async f => (await DB.obtener('proyectos', 'proy-hoja-' + f)).etapa)),
      ['instalado', 'instalado', 'garantia']);
   eq('7 · y no se manda nada a la hoja por eso', H.empujadas.length - a73, 0);
+
+  /* 8 · La fecha de instalación escrita en la hoja llega al Calendario, y manda la hoja. Hasta
+     octubre de 2026 solo viajaba de la agenda a la hoja; tecleada allá, no aparecía nunca. */
+  const instsDe = async id => (await DB.listar('instalaciones')).filter(i => i.proyecto_id === id);
+  H.filas.push(fila('V-800', 'Panadería Trigo - Letras', { 'Fecha instalacion': '2099-01-10', 'Hora instalacion': '09:30' }));
+  const a80 = H.empujadas.length;
+  await jalarTodo();
+  let i800 = await instsDe('proy-hoja-V-800');
+  eq('8 · la venta importada trae su instalación de la hoja, confirmada y con su hora',
+     i800.map(i => [i.fecha, i.hora, i.estado, i.movida]), [['2099-01-10', '09:30', 'confirmada', 0]]);
+  const uid800 = i800[0].uid_ics;
+  ponerFila('V-800', { 'Fecha instalacion': '2099-01-14', 'Hora instalacion': '' });
+  await jalarTodo();
+  i800 = await instsDe('proy-hoja-V-800');
+  eq('8 · la hoja la cambia: se MUEVE la misma (mismo UID, movida + 1), sin hora, y no nace otra',
+     i800.map(i => [i.fecha, i.hora, i.estado, i.movida, i.uid_ics === uid800]), [['2099-01-14', null, 'reagendada', 1, true]]);
+  cierto('8 · y las notas dicen que fue la hoja', /así quedó en la hoja/.test(i800[0].notas));
+  await jalarTodo();
+  eq('8 · bajar otra vez la misma fecha no la vuelve a mover', (await instsDe('proy-hoja-V-800'))[0].movida, 1);
+  ponerFila('V-800', { 'Fecha instalacion': null });
+  await jalarTodo();
+  eq('8 · una celda vaciada no cancela la cita', (await instsDe('proy-hoja-V-800')).map(i => [i.fecha, i.estado]), [['2099-01-14', 'reagendada']]);
+  await S.bombear();
+  eq('8 · y nada de esto se vuelve a mandar a la hoja', H.empujadas.length - a80, 0);
+
+  /* La del proyecto propio, agendada aquí: manda la hoja. Pero con un cambio en la bandeja, no:
+     la hoja todavía no tiene lo que Dirección acaba de agendar. */
+  await DB.poner('proyectos', propio('proy-I', 'COT-0810@TEST', 'V-810', { nombre: 'Librería Faro - Letras' }));
+  H.filas.push(fila('V-810', 'Librería Faro - Letras', { 'Folio cotizacion': 'COT-0810@TEST', 'Fecha instalacion': '2099-02-01', 'Hora instalacion': '10:00' }));
+  const ag = await Agenda.agendar('proy-I', { fecha: '2099-02-05', hora: '08:00' });
+  await jalarTodo();
+  eq('8 · con el cambio de aquí todavía en la bandeja, la hoja no se lo pisa',
+     (await instsDe('proy-I')).map(i => [i.fecha, i.hora]), [['2099-02-05', '08:00']]);
+  await S.bombear();
+  await jalarTodo();
+  eq('8 · ya mandado, la hoja manda: se mueve a su fecha y su hora',
+     (await instsDe('proy-I')).map(i => [i.id === ag.valor.id, i.fecha, i.hora, i.movida]), [[true, '2099-02-01', '10:00', 1]]);
+
+  /* Lo que no se agenda solo. */
+  H.filas.push(fila('V-820', 'Bodega Norte - Caja', { 'Fecha instalacion': '2020-03-03' }));
+  H.filas.push(fila('V-821', 'Taller Sur - Letras', { 'Estatus': 'COBRANDO', 'Fecha instalacion': '2099-03-03' }));
+  await jalarTodo();
+  eq('8 · una fecha pasada sin cita no se agenda', (await instsDe('proy-hoja-V-820')).length, 0);
+  eq('8 · una venta que no está en el taller no se importa ni se agenda', (await DB.listar('instalaciones')).filter(i => /V-821/.test(i.proyecto_id)).length, 0);
+}
+
+/* ---------------------------------------------------------------------------
+   `instalacionDeHoja`, pura: la hora, la cancelada, la hecha.
+   --------------------------------------------------------------------------- */
+{
+  const { instalacionDeHoja } = await import('../js/datos/puente.js');
+  const o = { hoy: '2026-10-08', ahora: 5, nuevoId: () => 'inst-n' };
+  const pr = { id: 'p1', etapa: 'armado', tipo_trabajo: [] };
+  const viva = { id: 'inst-v', proyecto_id: 'p1', fecha: '2026-10-20', hora: '11:00', estado: 'confirmada', movida: 2, uid_ics: 'u', notas: '', actualizado_en: 1 };
+  eq('pura · sin la llave de la hora, la hora se queda', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, pr, [viva], o).hora, '11:00');
+  eq('pura · una hora que no se entiende tampoco la borra', instalacionDeHoja({ [P.fechaInst]: '2026-10-21', [P.horaInst]: 'mañana' }, pr, [viva], o).hora, '11:00');
+  eq('pura · la cancelada no cuenta: nace otra', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, pr, [{ ...viva, estado: 'cancelada' }], o).id, 'inst-n');
+  eq('pura · la hecha se corrige de fecha y sigue hecha', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, pr, [{ ...viva, estado: 'hecha' }], o).estado, 'hecha');
+  eq('pura · un proyecto «No se dio» no recibe cita', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, { ...pr, etapa: 'cancelado' }, [], o), null);
+  eq('pura · hoy mismo sí se agenda', instalacionDeHoja({ [P.fechaInst]: '2026-10-08' }, pr, [], o).fecha, '2026-10-08');
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
