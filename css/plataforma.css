@@ -883,8 +883,13 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 .pf-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--e4)}
 @media(max-width:560px){.pf-2col{grid-template-columns:1fr}}
 
-/* La carpeta de los diseños en la ficha: un renglón por archivo, que se toca entero (44 px). */
-.pj-carpeta{margin-top:var(--e4)}
+/* La carpeta de los diseños en la ficha: va arriba, en su propia caja con el borde del acento,
+   y el botón de abrirla a todo lo ancho. Un renglón por archivo, que se toca entero (44 px). */
+.pj-carpeta{margin:var(--e2) 0 var(--e4);padding:var(--e3);border:1px solid rgba(var(--ac-rgb),.35);
+  border-radius:var(--rr2);background:rgba(var(--ac-rgb),.06)}
+.pj-carpeta .fld-lab{margin-top:0}
+.pj-carpeta-abrir{display:flex;width:100%;min-height:52px;justify-content:center;margin-top:var(--e2);text-decoration:none}
+.pj-carpeta-nombre{margin:var(--e1) 0 0;text-align:center;font-size:var(--t1);color:var(--muted);word-break:break-word}
 .pj-archivos{list-style:none;margin:var(--e2) 0 0;padding:0}
 .pj-archivos li{border-top:1px solid var(--line)}
 .pj-archivos li:first-child{border-top:0}
