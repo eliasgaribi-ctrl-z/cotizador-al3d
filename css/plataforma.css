@@ -527,8 +527,11 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 .cal-n{align-self:center;width:24px;height:24px;display:inline-flex;align-items:center;
   justify-content:center;border-radius:12px;
   font-family:var(--f-cifra);font-weight:600;font-size:var(--t2);line-height:1;color:var(--tinta)}
-.cal-dia.hoy{border-color:var(--linea2)}
-.cal-dia.hoy .cal-n{background:var(--a-fill);color:#fff}
+/* Octubre de 2026: HOY se pinta entero, en ámbar —el color de «hoy» en toda la plataforma
+   (`.pf-cuando.hoy`)— para que el equipo lo encuentre de un vistazo y cuente los días a cada
+   entrega. Es otro color que el azul del día abierto, así que no se confunden. */
+.cal-dia.hoy{background:var(--av-bg);box-shadow:inset 0 0 0 2px var(--av)}
+.cal-dia.hoy .cal-n{background:var(--av);color:#fff}
 /* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
    sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
 .cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
@@ -1829,7 +1832,7 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
 
 /* ----- El calendario ----- */
 .cal-rej{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
-.cal-dia.hoy .cal-n{box-shadow:0 0 0 3px var(--a-suave)}
+.cal-dia.hoy .cal-n{box-shadow:none}
 .cal-nav{border-radius:var(--rr2)}
 @media(min-width:561px){ .cal-ev{border-radius:4px} }
 
@@ -2449,7 +2452,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .cal-dia:not(:disabled):active{background:var(--a-suave)}
 /* Sin el día abierto (aria-current) ni el que se está presionando: el gris del hover pesaba
    más y borraba la marca del día elegido y el azul del :active. */
-@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled,:active,[aria-current="date"]):hover{background:var(--sup2)}}
+@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled,:active,.hoy,[aria-current="date"]):hover{background:var(--sup2)}}
 
 /* Las tarjetas de la plataforma no vuelven a «entrar» cuando un módulo repinta. La entrada de
    sistema.css (.card{animation:entra}) se disparaba con cada innerHTML: un filtro, una tecla

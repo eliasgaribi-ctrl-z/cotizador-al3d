@@ -195,9 +195,23 @@ const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
    Montaje
    ============================================================================ */
 
+/** Apaga la pantalla de Material mientras se define cómo se calcula. */
+const EN_MANTENIMIENTO = true;
+
 export async function montar(c, ctx) {
   cont = c;
   CTX = ctx || {};
+
+  /* En mantenimiento (octubre de 2026): el cálculo de material todavía no está bien definido y
+     estaba causando problemas, así que la pantalla no lee ni escribe nada. Para volver a
+     encenderla, EN_MANTENIMIENTO = false. */
+  if (EN_MANTENIMIENTO) {
+    cont.innerHTML = '<div class="card"><div class="card-b">' +
+      vacio('Material está en mantenimiento',
+        'Estamos definiendo cómo se calcula el material y el almacén. Mientras tanto esta sección está apagada; lo demás de la plataforma funciona igual.') +
+      '</div></div>';
+    return;
+  }
 
   /* La base cerrada NO se pinta como un almacén vacío. «No tienes material» y «la base no
      abrió» son dos cosas distintas, y la diferencia es la que decide si alguien sale a
@@ -312,6 +326,7 @@ async function cargar() {
  *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
  *  no pinta nada. */
 export async function contar() {
+  if (EN_MANTENIMIENTO) return null;   // apagada: sin globo en la barra
   if (CTX) return null;          // montado: la cuenta la publica la pantalla
   await leerDatos();
   return { material: cuantosComprar() };
