@@ -1141,9 +1141,9 @@ async function pintarCarpeta() {
   const [p, r] = await Promise.all([Proy.obtener(id), Carpetas.listar()]);
   const caja = $('pj-carpeta');
   if (!caja || fichaId !== id || !p) return;
-  const lab = '<div class="fld-lab">Archivos del diseño</div>';
+  const lab = '<div class="fld-lab">Carpeta de Drive</div>';
   const raiz = linkSeguro(r && r.raiz) || Carpetas.RAIZ_TRABAJOS;
-  const aRaiz = raiz ? '<div class="btn-fila"><a class="btn btn-gho" href="' + esc(raiz) +
+  const aRaiz = raiz ? '<div class="btn-fila"><a class="btn btn-gho pj-carpeta-abrir" href="' + esc(raiz) +
     '" target="_blank" rel="noopener">' + ico('i-doc') + ' Abrir Trabajos Pendientes</a></div>' : '';
   if (!r || !r.ok) {
     caja.innerHTML = lab + '<p class="hintnote">' + esc(r && r.mensaje || 'No se pudo leer la carpeta de Drive.') + '</p>' + aRaiz;
@@ -1162,12 +1162,15 @@ async function pintarCarpeta() {
       '<small>' + esc(etiquetaArchivo(a)) + '</small></a></li>' : '';
   }).join('');
   const url = linkSeguro(c.url);
+  /* El botón va primero y a todo lo ancho: abrir la carpeta es la acción de la ficha para
+     fabricación. Los archivos, debajo, para ir directo al que se busca. */
   caja.innerHTML = lab +
-    (filas ? '<ul class="pj-archivos">' + filas + '</ul>' : '<p class="hintnote">La carpeta «' + esc(c.nombre) + '» está vacía.</p>') +
+    (url ? '<a class="btn btn-pri pj-carpeta-abrir" href="' + esc(url) + '" target="_blank" rel="noopener">' +
+      ico('i-doc') + ' Abrir la carpeta en Drive</a>' +
+      '<p class="pj-carpeta-nombre">' + esc(c.nombre) + '</p>' : '') +
+    (filas ? '<ul class="pj-archivos">' + filas + '</ul>' : '<p class="hintnote">La carpeta todavía está vacía: sube ahí el .cdr y el PDF de órdenes.</p>') +
     (copias ? '<p class="hintnote">Y ' + (copias === 1 ? 'una copia de seguridad' : copias + ' copias de seguridad') + ' de Corel, en la carpeta.</p>' : '') +
-    (r.vieja ? '<p class="hintnote">Es lo último que se vio: ahora mismo no se pudo preguntar a la hoja.</p>' : '') +
-    (url ? '<div class="btn-fila"><a class="btn btn-gho" href="' + esc(url) + '" target="_blank" rel="noopener">' +
-      ico('i-doc') + ' Abrir la carpeta «' + esc(c.nombre) + '»</a></div>' : '');
+    (r.vieja ? '<p class="hintnote">Es lo último que se vio: ahora mismo no se pudo preguntar a la hoja.</p>' : '');
 }
 
 /* Sin desplazar la ficha: la pieza 10 mueve solo la tira. Con la capa todavía cerrada la tira no
@@ -1310,6 +1313,15 @@ function htmlFicha(p) {
   const hoja = avisoHoja(p, rol);
   if (hoja) partes.push(hoja);
 
+  /* La carpeta de Drive con los diseños va ANTES de los datos: es lo primero que fabricación
+     abre la ficha a buscar —el .cdr y las órdenes—, y abajo de la dirección quedaba a dos
+     pantallas de scroll. Se llena sola después de abrir (`pintarCarpeta`), porque hay que
+     preguntarle a la hoja. Sin puente no hay a quién preguntar y ni el hueco sale. */
+  if (Sync.configurado()) {
+    partes.push('<section class="pj-carpeta" id="pj-carpeta" aria-live="polite">' +
+      '<div class="fld-lab">Carpeta de Drive</div><p class="hintnote">Buscando su carpeta en Drive…</p></section>');
+  }
+
   /* El aviso de que hay algo tapado va ANTES de la lista de datos, no dentro: si viviera dentro
      también se taparía, y un borrón sin explicación se lee como un error de pintado. Solo sale
      con el modo encendido (lo enseña el CSS) y solo si esta ficha tiene algo que tapar. */
@@ -1334,13 +1346,6 @@ function htmlFicha(p) {
   if (mapa) {
     partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
-  }
-
-  /* La carpeta de Drive con los diseños: se llena sola después de abrir (`pintarCarpeta`), porque
-     hay que preguntarle a la hoja. Sin puente no hay a quién preguntar y ni el hueco sale. */
-  if (Sync.configurado()) {
-    partes.push('<div class="pj-carpeta" id="pj-carpeta" aria-live="polite">' +
-      '<div class="fld-lab">Archivos del diseño</div><p class="hintnote">Buscando su carpeta en Drive…</p></div>');
   }
 
   if (o.notaCliente) {
