@@ -5320,3 +5320,17 @@ function rutaCrearCarpeta_(cuerpo, rol) {
     return { ok: true, creada: true, carpeta: { id: nueva.getId(), nombre: nueva.getName(), url: nueva.getUrl(), modificado: Date.now(), archivos: [] } };
   });
 }
+
+/* Para pedirle a Google el permiso de Drive desde el editor: se elige «autorizarDrive» y se le da
+   Ejecutar. Solo lee el nombre de «Trabajos Pendientes». Existe porque la pantalla de permisos
+   de Google deja desmarcar uno por uno, y el 8 de octubre de 2026 el de Drive había quedado
+   fuera: la hoja contestaba «No cuentas con el permiso para llamar a DriveApp.getFolderById» y
+   correr cualquier otra función no lo volvía a pedir, porque Google solo pregunta por los
+   permisos que usa la función que se corre. */
+function autorizarDrive() {
+  /* Con la pantalla de permisos por casillas, Google ya no vuelve a preguntar solo por uno que se
+     desmarcó: esto lo pide de nuevo. */
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/drive']);
+  var r = carpetaDeTrabajos_();
+  return r.ok ? 'Drive autorizado: «' + r.carpeta.getName() + '».' : (r.mensaje + ' ' + r.detalle);
+}
