@@ -68,9 +68,9 @@ import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
    lista (`repartirBarra`, más abajo, es la regla). */
 const RUTAS = [
   { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'fechas de entrega',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         roles: ['direccion', 'fabricacion'] },
   /* `conservar` — ver js/nucleo/conservar.js. Esta pantalla NO es DOM que se repinta: es un
      documento entero dentro de un <iframe>. Vaciarle la sección al salir y volver a escribir
      el marco al entrar costaba 795 KB de guiones reinterpretados por visita. Con la marca, el

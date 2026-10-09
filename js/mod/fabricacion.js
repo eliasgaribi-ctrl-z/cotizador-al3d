@@ -116,11 +116,11 @@ export async function montar(contenedor, ctx) {
      y la fila del taller lado a lado, así que ahí se abre «Todo»; en el teléfono, donde no
      caben, se abre Taller, que es la pregunta de la mañana. Después manda lo que la persona
      haya tocado, aunque cambie de módulo y vuelva. */
-  if (!_lente) {
-    const ancho = typeof matchMedia === 'function' && matchMedia('(min-width:1100px)').matches;
-    _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : (ancho ? 'todo' : 'taller');
-  }
-  if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
+  /* Desde octubre de 2026 el Calendario enseña SOLO las fechas de entrega (las instalaciones),
+     para todos los roles. Los vencimientos del taller —empezar, cortar, armar, listo— en la
+     misma rejilla confundían al equipo, que la usa para contar los días a la entrega. Lo del
+     taller sigue en el Tablero. Las lentes Taller y Todo se quedan en el código, apagadas. */
+  _lente = 'instalaciones';
   window.addEventListener('keydown', _alTeclear = conservandoFoco(alTeclear, _cont));
 
   /* Los atajos, escritos en el encabezado. Existían desde siempre —← → cambian de mes, `t`
@@ -161,7 +161,6 @@ export async function montar(contenedor, ctx) {
      correcto en vez de leer dos veces. */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
   if (pase) {
-    if (pase.lente === 'taller' || pase.lente === 'instalaciones' || pase.lente === 'todo') _lente = pase.lente;
     if (pase.vista === 'mes' || pase.vista === 'semana' || pase.vista === 'lista') _vista = pase.vista;
     if (pase.dia && /^\d{4}-\d{2}-\d{2}$/.test(pase.dia)) { _ancla = pase.dia; _dia = pase.dia; }
   }
@@ -628,14 +627,16 @@ function pintar() {
      que es la pregunta de la mañana—. Todo: las dos clases de chips en la rejilla y la fila
      al lado. De 1 100 px para arriba, Taller y Todo van en dos columnas; abajo, uno debajo
      del otro. Mismo marcado en el monitor y en el teléfono: solo cambia dónde cae cada cosa. */
+  /* El calendario va primero. Las cotizaciones autorizadas por decidir bajan debajo de él:
+     arriba ocupaban la pantalla entera y había que bajar para ver las entregas. */
   _cont.innerHTML =
     pintarCuentas(d) +
-    (d.pendientes.length ? pintarDecidir(d) : '') +
     barra +
     (_lente === 'instalaciones'
       ? calendario
       : '<div class="ag-cuerpo dos' + (_lente === 'taller' ? ' taller-primero' : '') + '">' +
           '<div class="ag-col">' + calendario + '</div>' + pintarTaller(d) + '</div>') +
+    (d.pendientes.length ? pintarDecidir(d) : '') +
     pintarExportar(d);
 
   _firma = firmaFija(d);
@@ -700,7 +701,8 @@ function isoDeSello(ts) {
    se leen como dos controles y no como uno dentro del otro.
    Pagos no la ve: con una sola lente no hay nada que elegir. */
 function pintarLente() {
-  if (Prefs.rol() === 'pagos') return '';
+  /* Una sola lente para todos (ver montar): sin nada que elegir, no hay segmento. */
+  if (_lente === 'instalaciones') return '';
   return segmento([{ v: 'taller', t: 'Taller' }, { v: 'instalaciones', t: 'Instalaciones' }, { v: 'todo', t: 'Todo' }],
                   _lente, 'data-lente', 'Qué parte del calendario ves');
 }
