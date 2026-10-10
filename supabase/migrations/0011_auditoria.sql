@@ -53,6 +53,11 @@ begin
              from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname in ('public', 'interno') and p.prokind in ('f', 'p')
               and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+              -- Las funciones de DISPARADOR DE EVENTO no son una puerta: Postgres las rechaza si alguien intenta llamarlas como RPC
+              -- («trigger functions can only be called as triggers»). Con «RLS automático» encendido en el proyecto, Supabase instala una
+              -- así en `public` (`rls_auto_enable`); lo descubrió la primera corrida de esta auditoría contra el proyecto real de pruebas
+              -- (2026-10-10), que abortó por ella. Solo se exime el tipo `event_trigger`: una función `trigger` nuestra sí se audita.
+              and p.prorettype <> 'pg_catalog.event_trigger'::regtype
             order by 1, 2, 4 loop
     if has_function_privilege('anon', r.oid, 'EXECUTE') then
       v := v || format('GR-01 la función %s.%s(%s) es ejecutable por anon/PUBLIC (falta su REVOKE)', r.nspname, r.proname, r.args);

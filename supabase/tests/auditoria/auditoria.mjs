@@ -217,6 +217,34 @@ describir('un proyecto con «exponer tablas automáticamente» ENCENDIDO termina
   }, { tiempo: 120_000 });
 });
 
+describir('el «RLS automático» de Supabase instala una función de disparador de evento en public y NO es un hueco', () => {
+  /* Descubierto contra el proyecto REAL de pruebas el 2026-10-10: al crear el proyecto con «RLS automático» encendido, Supabase deja
+     `public.rls_auto_enable()` (SECURITY DEFINER, sin search_path, con EXECUTE para todos) y la primera corrida de 0011 abortó por ella.
+     Una función que devuelve `event_trigger` no se puede llamar como RPC, así que no es una puerta; pero una `trigger` nuestra sí se audita. */
+  const ARCHIVO = () => {
+    const archivo = join(mkdtempSync(join(tmpdir(), 'al3d-rlsauto-')), 'rls-auto.sql');
+    writeFileSync(archivo, `create function public.rls_auto_enable() returns event_trigger language plpgsql security definer as $$ begin null; end $$;`);
+    return archivo;
+  };
+  prueba('con public.rls_auto_enable() (event_trigger, definer, sin search_path, ejecutable por todos) 0011 PASA y la auditoría sale limpia', async () => {
+    const archivo = ARCHIVO();
+    const db = await crearBase({ migraciones: '../migrations', antes: pathToFileURL(archivo) });
+    try {
+      cierto((await una(db, `select count(*)::int as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'rls_auto_enable'`)).n === 1, 'la función de Supabase está');
+      igual((await una(db, `select interno.auditoria() as p`)).p, []);
+    } finally { await db.close(); rmSync(dirname(archivo), { recursive: true, force: true }); }
+  }, { tiempo: 120_000 });
+  prueba('pero una función `trigger` (no de evento) mal protegida en public SÍ la caza la aduana', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await sql(db, `create function public.trigger_olvidado() returns trigger language plpgsql security definer as $$ begin return new; end $$;`);
+      const p = (await una(db, `select interno.auditoria() as p`)).p;
+      /* La función nace DESPUÉS de 0001, que quitó el EXECUTE de PUBLIC por defecto: no es GR-01 sino GR-07 (definer sin search_path) y GR-02 (fuera de las listas cerradas). */
+      cierto(p.some(x => /trigger_olvidado/.test(x) && /GR-07/.test(x)) && p.some(x => /trigger_olvidado/.test(x) && /GR-02/.test(x)), 'GR-07 y GR-02 nombran a trigger_olvidado: ' + JSON.stringify(p));
+    } finally { await db.close(); }
+  }, { tiempo: 120_000 });
+});
+
 describir('0011_auditoria.sql: la aduana ABORTA cuando se le mete un defecto', () => {
   /** Aplica un defecto a una copia, corre 0011 y exige que aborte nombrando `ids` (y todo lo que se pida). */
   const aborta = (que, defecto, ids, { tambien = [] } = {}) => prueba(`ABORTO ${que}`, () => conCopia(plantilla, async db => {
