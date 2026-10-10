@@ -43,7 +43,9 @@ import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
 import * as Carpetas from '../datos/carpetas.js';
-import { seInstala } from '../datos/entrega.js';
+import { seInstala, entregaDe } from '../datos/entrega.js';
+import * as DD from '../datos/datos-de-entrega.js';
+import * as DE from './datos-entrega.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
@@ -228,8 +230,16 @@ export async function montar(contenedor, ctx) {
  *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
  *  no pinta nada. */
 export async function contar() {
-  const d = await leer();
-  return { hoy: d.V.filter(v => v.estado === 'no_llega').length };
+  return { hoy: globo(await leer()) };
+}
+
+/* El globo de la pestaña: lo que no espera a mañana. Lo que no llega a su fecha y, desde octubre
+   de 2026, los proyectos a los que les faltan datos y se entregan en una semana o menos (o ya se
+   les pasó la fecha): sin teléfono ni dirección, la instalación del jueves no sale. Los que faltan
+   de datos pero se entregan en un mes no suman aquí: están en su tarjeta y en la cinta, y un
+   globo que cuenta todo lo pendiente se aprende a ignorar. */
+function globo(d) {
+  return d.V.filter(v => v.estado === 'no_llega').length + d.faltan.filter(x => x.pronto).length;
 }
 
 export function desmontar() {
@@ -334,6 +344,10 @@ async function leer() {
        `Number(null)` es 0, que `isFinite` da por bueno: con la prueba de antes esta cuenta
        decía siempre 0 mientras el Mapa, para los mismos datos, decía «3 sin ubicar». */
     sinUbicar: vivos.filter(p => !tienePin(p) && seInstala(p)).length,
+    /* «Faltan datos» (js/datos/datos-de-entrega.js): los del taller sin teléfono, sin forma de
+       entrega o, si se instalan, sin dirección o sin pin. Por la fecha de entrega más cercana;
+       la fecha es la de su instalación viva, la misma que pinta el Calendario. */
+    faltan: DD.faltanDatos(vivos, { hoy, fechaDe: p => (instDe.get(p.id) || {}).fecha || null }),
     /* Sin las hechas, igual que `semana`: marcada la última de la semana, el estado vacío
        anunciaba como «la siguiente» la que se acababa de hacer. */
     proxInst: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha')
@@ -376,6 +390,7 @@ function pintar() {
   const izq = [
     noLlegan(d),
     decidir(d, rol),
+    faltanDatos(d, rol),
     lineaEstaciones(d),
     listaTaller(d),
   ].filter(Boolean).join('');
@@ -625,6 +640,11 @@ function cuentas(d, rol, veDinero) {
       { tipo: 'bajar', sel: '[data-destino="faltamaterial"]', que: 'ir a Falta material', donde: 'Falta material' }));
   }
   c.push(unaCuenta('sinfecha', sinFecha, sinFecha === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', sinFecha > 0, false, aCal));
+  /* Faltan datos: ámbar si hay alguno, rojo si alguno se entrega en una semana o menos. Baja a
+     su tarjeta. */
+  const nf = d.faltan.length, nfPronto = d.faltan.filter(x => x.pronto).length;
+  c.push(unaCuenta('faltan', nf, 'Faltan datos', nf > 0, nfPronto > 0,
+    { tipo: 'bajar', sel: '[data-destino="faltan"]', que: 'ir a Faltan datos', donde: 'Faltan datos' }));
 
   /* El importe NO EXISTE con rol fabricación: `veDinero()` es false y la capa de datos
      devuelve null, no 0. El elemento no se pinta; no se difumina, y nunca se imprime $0. */
@@ -741,6 +761,141 @@ function decidir(d, rol) {
       btn(n === 1 ? 'Decidir la cotización' : 'Decidir ' + n + ' cotizaciones',
           'btn btn-ok pf-btn-corto tb-decidir-cuerpo', { tipo: 'ir', ruta: 'proyectos' }) +
     '</div></div>';
+}
+
+/* ----- «Faltan datos de N proyectos» -----
+   Hasta octubre de 2026 ningún proyecto tenía teléfono ni dirección: nadie los pedía al ganar, y
+   el día de instalar había que sacarlos de WhatsApp, de Canva y de los chats. «Se ganó» ya los
+   pide; esta tarjeta es para lo que se quedó sin ellos —lo de antes, lo que se registró en la
+   hoja, lo que se dejó en «Todavía no la tengo»—. Va debajo de lo que se rompe hoy (no llegan,
+   decidir) y arriba del taller, porque se rompe el día de la entrega: por eso el orden es por
+   la fecha de entrega más cercana, y lo que se entrega en una semana o menos va marcado.
+
+   Si está vacía LA TARJETA NO EXISTE, como «No llegan a su fecha».
+
+   «Completar» abre un panel con solo lo que le falta a ESE proyecto, y lo que este rol no
+   escribe (CAMPOS_ROL de js/datos/proyectos.js) no se ofrece: se dice quién lo completa. Pagos
+   ve la tarjeta y completa el teléfono, que es lo suyo; la dirección y el pin, no. */
+function faltanDatos(d, rol) {
+  const xs = d.faltan;
+  if (!xs.length) return '';
+  const filas = xs.map(x => {
+    const p = x.p;
+    const que = x.falta.map(k => DD.textoDeFalta(p, k)).join(' · ');
+    const puede = editablesDe(x.falta, rol).length > 0;
+    return '<div class="pf-fila tb-falta' + (x.pronto ? ' pronto' : '') + '">' +
+      '<span class="pf-fila-ico ' + (x.pronto ? 'mal' : 'urge') + '">' + ico(x.falta.includes('tel') ? 'i-tel' : 'i-pin') + '</span>' +
+      '<div class="pf-fila-tx">' +
+        '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</p>' +
+        '<p class="pf-fila-d"><b class="tb-falta-que">' + esc(que) + '</b> · ' + esc(cuandoSeEntrega(x)) + '</p>' +
+      '</div>' +
+      '<div class="pf-fila-acc">' +
+        (puede
+          ? btn('Completar', 'btn btn-gho pf-btn-corto', { tipo: 'completar', id: p.id })
+          : btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'abrir', id: p.id })) +
+      '</div></div>';
+  }).join('');
+  const n = xs.length;
+  return '<div class="card tb-faltan"><div class="card-h" data-destino="faltan"><h2>' + ico('i-aviso') +
+    ' Faltan datos de ' + (n === 1 ? 'un proyecto' : n + ' proyectos') + '</h2></div>' +
+    '<div class="card-b">' +
+      '<p class="pf-nota">El teléfono del cliente, cómo se entrega y, si se instala, la dirección y el pin. Primero lo que se entrega antes.</p>' +
+      filas + '</div></div>';
+}
+
+/* «se entrega el jue 16, en 3 días». La que ya pasó se dice como pasada: es una instalación que
+   se fue —o se va a ir— sin datos. */
+function cuandoSeEntrega(x) {
+  if (!x.fecha) return 'sin fecha de entrega';
+  if (x.dias < 0) return 'se entregaba el ' + fmtFecha(x.fecha) + ', hace ' + (x.dias === -1 ? 'un día' : -x.dias + ' días');
+  if (x.dias === 0) return 'se entrega hoy';
+  if (x.dias === 1) return 'se entrega mañana';
+  return 'se entrega el ' + fmtFechaDia(x.fecha) + ', en ' + x.dias + ' días';
+}
+
+/* Lo que de esas faltas puede completar este rol. El pin cuenta como uno: se escribe con `lat`,
+   `lng`, `geo_fuente` y `maps_url`, y dirección y fabricación tienen los cuatro. */
+const CAMPO_DE_FALTA = { tel: 'tel', entrega: 'entrega', dir: 'dir_texto', pin: 'lat' };
+function editablesDe(falta, rol) {
+  if (typeof Proy.puedeEscribir !== 'function') return [];
+  return falta.filter(k => Proy.puedeEscribir(rol, CAMPO_DE_FALTA[k]));
+}
+
+/* Quién completa lo que este rol no escribe, en palabras. */
+const QUIEN_COMPLETA = {
+  tel: 'El teléfono lo completan dirección, fabricación o pagos.',
+  entrega: 'Cómo se entrega lo deciden dirección o fabricación.',
+  dir: 'La dirección la completan dirección o fabricación.',
+  pin: 'La ubicación la ponen dirección o fabricación.',
+};
+
+/* El panel corto de «Completar»: solo los campos que le faltan a ESE proyecto y que este rol
+   escribe, con el mismo bloque que «Se ganó» (js/mod/datos-entrega.js). Guarda lo que se llenó
+   aunque no sea todo; lo demás se queda en la lista. */
+function abrirCompletar(id) {
+  const capa = $('pf-pide');
+  const x = _d && _d.faltan.find(y => y.p.id === id);
+  if (!capa || !x) return;
+  const pide = editablesDe(x.falta, Prefs.rol());
+  if (!pide.length) { hacer({ tipo: 'abrir', id }); return; }
+  const noPuede = {};
+  for (const k of x.falta) if (!pide.includes(k)) noPuede[k] = QUIEN_COMPLETA[k];
+  const p = x.p;
+  _pide = { tipo: 'completar', id, pide };
+  capa.innerHTML = '<div class="pf-panel">' +
+    '<div class="pf-panel-h"><h2>Completar los datos</h2>' +
+      '<button type="button" class="pf-cerrar" data-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button>' +
+    '</div>' +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-cuenta">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</p>' +
+      '<p class="hintnote">Le falta: ' + esc(x.falta.map(k => DD.textoDeFalta(p, k)).join(', ')) +
+        '. Llena lo que ya tengas; lo demás se queda en la lista.</p>' +
+      /* El link guardado que no se pudo leer va prellenado: guardar otra vez lo vuelve a intentar. */
+      DE.html({ maps: String(p.maps_url || '') },
+        { modo: 'completar', pide, entregaActual: entregaDe(p), titulo: false, noPuede }) +
+      '<p class="hintnote nota-av" id="pf-pide-msg" hidden></p>' +
+    '</div>' +
+    '<div class="pf-panel-f">' +
+      '<button type="button" class="btn btn-gho" data-cerrar>Cancelar</button>' +
+      '<button type="button" class="btn btn-ok" data-completar-ok>Guardar</button>' +
+    '</div></div>';
+  DE.cablear(capa);
+  abrirCapa('pf-pide', { hist: true });
+}
+
+async function guardarCompletar(boton) {
+  const a = _pide;
+  if (!a || a.tipo !== 'completar') return;
+  const capa = $('pf-pide');
+  const msg = $('pf-pide-msg');
+  const decir = t => { if (msg) { msg.hidden = !t; msg.textContent = t || ''; } if (t) voz(t, true); };
+  decir('');
+  const d = DE.revisar(capa, { alFallar: (t, enSuCampo) => { if (enSuCampo) voz(t, true); else decir(t); } });
+  if (!d) return;
+  const rotulo = boton.textContent;
+  const soltar = () => { if (boton.isConnected) { boton.disabled = false; boton.textContent = rotulo; } };
+  boton.disabled = true;
+  const parche = DE.parcheDe(d, a.pide);
+  let aviso = '';
+  /* El pin, solo si el campo se veía: con paquetería o recolección elegidas en este mismo panel,
+     `leer` ya lo dejó vacío. */
+  if (d.maps) {
+    boton.textContent = 'Buscando el pin…';
+    const u = await DE.ubicar(d.maps);
+    if (!u.ok) { DE.avisar(capa, 'maps', u.mensaje); soltar(); return; }
+    Object.assign(parche, u.parche);
+    aviso = u.aviso;
+  }
+  if (!Object.keys(parche).length) { decir('No escribiste nada. Llena lo que ya tengas y guarda.'); soltar(); return; }
+  const r = await Proy.actualizar(a.id, parche);
+  if (!r.ok) { decir(r.mensaje); soltar(); return; }
+  cerrarPide();
+  const sigue = DD.queLeFalta(r.valor);
+  toast((sigue.length
+      ? 'Guardado. Todavía le falta: ' + sigue.map(k => DD.textoDeFalta(r.valor, k)).join(', ') + '.'
+      : 'Listo: ya tiene todo para entregarse.') + (aviso ? ' ' + aviso : ''),
+    'ok', aviso ? 7000 : 4200);
+  await recargar();
 }
 
 /* ----- La línea de estaciones -----
@@ -1295,7 +1450,7 @@ function bajarA(a) {
  *  espera a mañana. */
 function publicarCuentas(d) {
   if (!_ctx || !_ctx.ponerCuenta) return;
-  _ctx.ponerCuenta('hoy', d.V.filter(v => v.estado === 'no_llega').length);
+  _ctx.ponerCuenta('hoy', globo(d));
 }
 
 /* ============================================================================
@@ -1388,6 +1543,7 @@ async function hacer(a, boton) {
     return;
   }
   if (a.tipo === 'etapa') { _etapa = a.etapa || null; pintar(); return; }
+  if (a.tipo === 'completar') { abrirCompletar(a.id); return; }
   if (a.tipo === 'avanzar') {
     /* La confirmación es SOLO cuando el paso cruza corte, que es la única escritura
        irreversible: al llegar a «cortado» salen del almacén los materiales del proyecto.
@@ -1691,6 +1847,8 @@ function terminarPide(riel, capa, movs, P) {
 async function alClicPide(ev) {
   if (!_pide) return;
   if (ev.target.closest('[data-cerrar]')) { cerrarPide(); return; }
+  const ok = ev.target.closest('[data-completar-ok]');
+  if (ok) { await guardarCompletar(ok); return; }
   if (ev.target.closest('[data-ver-almacen]')) {
     cerrarPide();
     /* Cerrar la capa consume su entrada de historial con `history.back()`, que es ASÍNCRONO:

@@ -67,6 +67,7 @@ import * as Taller from '../datos/taller.js';
 import * as Cot from '../datos/cotizador.js';
 import * as Material from '../datos/material.js';
 import * as Carpetas from '../datos/carpetas.js';
+import * as DE from './datos-entrega.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, voz, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
@@ -2276,6 +2277,10 @@ function abrirGanar(folio, estado, focoK) {
      cierran sin vaciar la capa, y el campo que quedaba ahí era el del folio anterior, así que
      el siguiente «Se ganó» salía con la fecha de instalación de otro proyecto. */
   const fechaVal = (estado && $('ag-ganar-fecha')) ? $('ag-ganar-fecha').value : _pide.fecha;
+  /* Los datos para la entrega, con la misma regla: al repintar por un plazo se conserva lo que ya
+     se escribió (`prev.de`, que guarda el oyente antes de repintar); en un panel nuevo, lo de la
+     cotización. */
+  _pide.de = prev.de || { tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' };
   const marcado = _pide.k !== null ? _pide.k : sug.k;
   const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
   const total = Prefs.veDinero() ? Cot.totalVendido(e) : 0;
@@ -2300,6 +2305,10 @@ function abrirGanar(folio, estado, focoK) {
         '</div></div>' +
       '<p class="hintnote">' + (_pide.k !== null ? 'Elegido a mano. Toca el marcado para volver al propuesto.'
                                                 : 'Propuesto por el tipo de trabajo: ' + esc(sug.razon) + '.') + '</p>' +
+      /* Teléfono, cómo se entrega y a dónde (js/mod/datos-entrega.js). Se piden aquí porque es
+         el único momento en que alguien tiene al cliente enfrente o el chat abierto: después hay
+         que irlos a buscar a WhatsApp el día de instalar. */
+      DE.html(_pide.de, { modo: 'ganar' }) +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
@@ -2310,6 +2319,7 @@ function abrirGanar(folio, estado, focoK) {
   const capa = $('pf-pide');
   if (!capa) return;
   cablearFechasRapidas(capa.querySelector('#ag-ganar-rapidas'), $('ag-ganar-fecha'));
+  DE.cablear(capa);
   probarPlazos(capa.querySelector('.chips[aria-labelledby="ag-ganar-plazo-l"]'), fichaDePlazoNuevo(e, tipos));
 }
 
@@ -2460,6 +2470,7 @@ async function alTocarPide(ev) {
        proyecto al apretar «Guardar». */
     const k = Number(b.dataset.k);
     _pide.k = _pide.k === k ? null : k;
+    _pide.de = DE.leer($('pf-pide'), { todo: true });
     abrirGanar(_pide.folio, _pide, k);
     return;
   }
@@ -2470,15 +2481,28 @@ async function alTocarPide(ev) {
     if (!e) { toast('Esa cotización ya no está en el historial de este dispositivo', 'err', 4600); return; }
     const f = $('ag-ganar-fecha');
     const fecha = f ? String(f.value || '').trim() : '';
+    /* Sin teléfono o sin forma de entrega no se guarda, y se dice junto al campo. */
+    const capa = $('pf-pide');
+    const d = DE.revisar(capa, { alFallar: m => voz(m, true) });
+    if (!d) return;
     b.disabled = true;
-    const extra = {};
+    const rotulo = b.textContent;
+    if (d.maps) b.textContent = 'Buscando el pin…';
+    const u = await DE.ubicar(d.maps);
+    if (!u.ok) {
+      DE.avisar(capa, 'maps', u.mensaje);
+      if (b.isConnected) { b.disabled = false; b.textContent = rotulo; }
+      return;
+    }
+    const extra = DE.extraParaGanar(d, u);
     if (fecha) extra.fecha_instalacion = fecha;
     if (_pide.k) extra.plazo_k = _pide.k;
     const r = await Proyectos.ganar(e, extra);
-    if (!avisarResultado(r)) { if (b.isConnected) b.disabled = false; return; }
+    if (!avisarResultado(r)) { if (b.isConnected) { b.disabled = false; b.textContent = rotulo; } return; }
     cerrarPide();
-    toast(fecha ? 'Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
-                : 'Ya es proyecto, con su material calculado. Falta la fecha.', 'ok', 4600);
+    toast((fecha ? 'Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
+                 : 'Ya es proyecto, con su material calculado. Falta la fecha.') +
+          (u.aviso ? '. ' + u.aviso : ''), 'ok', u.aviso ? 7000 : 4600);
     if (fecha) { _ancla = fecha; _dia = fecha; }
     await recargar();
     if (_ctx && _ctx.cuentas) _ctx.cuentas();

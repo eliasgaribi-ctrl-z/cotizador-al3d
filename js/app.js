@@ -2095,6 +2095,19 @@ async function sincronizarDeVerdad() {
           : 'Se abrieron en Drive ' + c.creadas.length + ' carpetas de proyectos en fabricación', 'ok', 4200);
       }
     } catch (e) { console.warn('carpetas', e); }
+    /* Los links cortos de Maps que se guardaron sin señal («Se ganó», «Completar», el panel del
+       Mapa): con la hoja ya contestando, se le pide que los siga y el proyecto recibe su pin.
+       Idempotente —lo que ya tiene pin no entra— y con tope por vuelta (ver
+       `resolverLinksPendientes`). En su propio try, como Drive. */
+    try {
+      const Proy = await import('./datos/proyectos.js');
+      const r = await Proy.resolverLinksPendientes(Sync.expandir);
+      if (r && r.ok && r.valor.resueltos) {
+        _repintarDebe = true;
+        toast(r.valor.resueltos === 1 ? 'Se leyó un link de Maps que estaba pendiente: el proyecto ya tiene su pin'
+          : 'Se leyeron ' + r.valor.resueltos + ' links de Maps pendientes: esos proyectos ya tienen pin', 'ok', 4200);
+      }
+    } catch (e) { console.warn('links de Maps', e); }
   }
   clearTimeout(lento);
   /* La palomita solo cuando BAJÓ algo. Una vuelta que no trajo nada terminó bien y no tiene

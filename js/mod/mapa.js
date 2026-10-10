@@ -50,6 +50,7 @@ import * as Prefs from '../datos/prefs.js';
 import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Geo from '../datos/geo.js';
+import * as Sync from '../datos/sync.js';
 import * as Cot from '../datos/cotizador.js';
 import { ENTREGA_ROTULO, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe, seInstala, repartirParaElMapa } from '../datos/entrega.js';
 import { masDias } from '../nucleo/fechas.js';
@@ -2179,6 +2180,12 @@ async function guardarMano() {
    `Geo.parseGmaps` resuelve el link con expresiones regulares y sin una sola petición de
    red: es lo único de la ubicación que funciona en fase 1, en el taller, sin señal y sin
    llaves de nadie.
+
+   El link corto que llega por WhatsApp (maps.app.goo.gl) no trae coordenadas: hasta octubre de
+   2026 este panel decía «no sirve tal cual» y mandaba a abrirlo y copiar el largo, que en el
+   teléfono son seis toques y casi nadie los daba. Ahora `Geo.resolverLink` se lo pide a la hoja
+   (`/expandir`, que sigue la redirección del lado servidor) y el pin sale igual. Sin señal, el
+   link se guarda en el proyecto y el pin se pone solo en la siguiente sincronización.
    ============================================================================ */
 
 function abrirLink(id) {
@@ -2208,7 +2215,7 @@ function pintarPide() {
       (PIDE.dir ? '<dl class="pf-dato"><dt>Dirección como la escribieron</dt>' +
         '<dd class="mapa-dir">' + esc(PIDE.dir) + '</dd></dl>' : '') +
       '<div class="fld"><label for="mapa-link">El link de Google Maps</label>' +
-        '<textarea id="mapa-link" rows="3" placeholder="https://www.google.com/maps/place/…">' +
+        '<textarea id="mapa-link" rows="3" placeholder="https://maps.app.goo.gl/… o el link largo de Google Maps">' +
         esc(PIDE.valor) + '</textarea></div>' +
       '<div class="btn-fila">' +
         '<button type="button" class="btn btn-gho" data-pide="pegar">' + ico('i-copiar') + 'Pegar</button>' +
@@ -2216,15 +2223,16 @@ function pintarPide() {
           ico('i-copiar') + 'Copiar dirección</button>' : '') +
       '</div>' +
       (a ? '<p class="hintnote nota-av">' + ico('i-aviso') + ' ' + esc(a.txt) + '</p>' : '') +
-      '<p class="hintnote">El link se lee aquí mismo, sin internet. Si te llegó el corto de ' +
-        'WhatsApp (maps.app.goo.gl) no sirve tal cual: ábrelo, espera que cargue el mapa y ' +
-        'copia el link de la barra de direcciones.</p>' +
+      '<p class="hintnote">El link largo se lee aquí mismo, sin internet. El corto de WhatsApp ' +
+        '(maps.app.goo.gl) también sirve: lo lee la hoja, así que pide señal. Sin señal se guarda ' +
+        'y el pin se pone solo en cuanto el teléfono sincronice.</p>' +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
       (a && a.forzar
         ? '<button type="button" class="btn btn-pri" data-pide="forzar">Guardarlo así</button>'
-        : '<button type="button" class="btn btn-pri" data-pide="guardar">Poner el pin</button>') +
+        : '<button type="button" class="btn btn-pri" data-pide="guardar"' + (PIDE.leyendo ? ' disabled' : '') + '>' +
+            (PIDE.leyendo ? 'Buscando el pin…' : 'Poner el pin') + '</button>') +
     '</div></div>';
 }
 
@@ -2239,17 +2247,27 @@ async function guardarLink(forzar) {
     pintarPide(); return;
   }
 
-  const r = Geo.parseGmaps(url);
+  /* El largo se lee aquí, sin red; el corto se lo pide `resolverLink` a la hoja. Mientras, el
+     botón dice que está leyendo: puede tardar unos segundos con la red de la calle. */
+  const esCorto = Geo.esAcortado(url);
+  if (esCorto) { PIDE.leyendo = true; PIDE.aviso = null; pintarPide(); }
+  const yo = PIDE;
+  const r = await Geo.resolverLink(url, Sync.expandir);
+  if (PIDE !== yo) return;          // se cerró el panel mientras se leía
+  PIDE.leyendo = false;
 
-  if (!r) {
-    PIDE.aviso = { txt: 'Ese texto no trae coordenadas. El link bueno es el que sale de ' +
-      '«Compartir» en Google Maps con el mapa ya cargado, y trae números con punto decimal.' };
-    pintarPide(); return;
+  if (!r.ok && r.motivo === 'pendiente') {
+    /* Sin señal o sin puente: el link se guarda tal cual y el pin queda para la sincronización
+       (`proyectos.resolverLinksPendientes`). Nadie tiene que volver a pegarlo. */
+    const id = PIDE.id;
+    const res = await Proyectos.actualizar(id, { maps_url: url });
+    if (!avisarResultado(res)) { pintarPide(); return; }
+    cerrarPide();
+    toast(r.mensaje, '', 6000);
+    await cargar();
+    return;
   }
-  /* El link corto no se puede expandir desde el navegador y no hay truco: la redirección no
-     manda el encabezado que haría falta para leerla. El texto de por qué vive en geo.js
-     porque tres pantallas dicen lo mismo y tienen que decirlo igual. */
-  if (r.corto) { PIDE.aviso = { txt: r.mensaje }; pintarPide(); return; }
+  if (!r.ok) { PIDE.aviso = { txt: r.mensaje }; pintarPide(); return; }
 
   if (r.sospechoso && !forzar) {
     PIDE.aviso = { forzar: true, txt: 'Ese pin cae fuera de México (' +

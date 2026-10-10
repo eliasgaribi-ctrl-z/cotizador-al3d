@@ -119,7 +119,9 @@ Y la **`puente-sheets-9`**: lo de la 8 más el almacén, el catálogo y las list
 Desde el 9 de octubre espera **`puente-sheets-11`**: lo de la 10 (las carpetas de Drive) más el
 teléfono del cliente en la columna AE (al final).
 Y la **`puente-sheets-12`**: lo de la 11 más la entrega —instalación, paquetería o recolección en
-taller— en la columna AF (al final). Cuál corre la hoja de verdad
+taller— en la columna AF (al final).
+Y la **`puente-sheets-13`**: lo de la 12 más el teléfono, la entrega, la dirección y el link de
+Maps en «Registrar nueva venta» de la hoja (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -346,6 +348,26 @@ cuatro pasos, en este orden:
 Desde ahí, elegir «Paquetería» o «Recolección en taller» en AF baja a los teléfonos y les cambia
 la ficha, el Mapa y el Calendario. Vaciar la celda **no** regresa nada a instalación: para eso se
 elige «Instalación» en el desplegable, o se cambia en la ficha.
+
+### Al pasar a `puente-sheets-13` (los datos de entrega en «Registrar nueva venta») — sin paso de menú
+
+La 13 solo cambia el formulario **⚡ AL3D → Registrar nueva venta** (ver «`puente-sheets-13` — los
+datos de entrega al registrar la venta» en el README). No agrega columnas: escribe en AB, AC, AE y
+AF, que ya existen. El orden no rompe nada: con la app nueva y la hoja en la 12, la plataforma
+funciona igual —«Se ganó», «Faltan datos» y el link corto usan `/expandir`, que ya estaba— y
+Ajustes avisa que la hoja es vieja; lo único que falta mientras tanto es que el formulario de la
+hoja pida los datos.
+
+1. Baja el `Código.gs` que corre en la hoja y compáralo con `puente/hoja-apps-script.gs`
+   (`puente/README.md`, «Antes de pegar nada»). Fusiona lo que la hoja tenga de más, pégalo y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión: Versión nueva → Implementar.**
+   La URL no cambia. No pide permisos nuevos: `UrlFetchApp` ya lo usaba `/expandir`.
+3. Si la hoja venía de una versión anterior a la 12 y nunca corrió el paso 3 de la 12, córrelo
+   ahora (**⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente**): sin AE y AF
+   el formulario registra la venta pero dice que el teléfono y la entrega no se guardaron.
+4. **Ajustes → El puente → Probar**, en un teléfono, tiene que decir `puente-sheets-13`. Y en la
+   hoja, recarga la pestaña (el menú se arma al abrir) y registra una venta de prueba: tiene que
+   pedir el teléfono y cómo se entrega, y con un link de Maps escribir «lat,lng» en Ubicación.
 
 ## Las cabeceras del sitio
 

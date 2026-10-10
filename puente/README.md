@@ -62,7 +62,7 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/esquema` | cualquier rol | Qué columnas le faltan a la hoja, y si falta «Accesos». Las **detecta**, no las crea |
 | `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve**; el teléfono del cliente (AE, desde `puente-sheets-11`) y la entrega (AF, desde `puente-sheets-12`), para todos. Lee hasta la última columna que la hoja tenga: una hoja sin AE baja todo menos el teléfono, y una sin AF todo menos la entrega, sin tronar |
 | `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
-| `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps |
+| `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps. Contesta `DATO_INVALIDO` si no es Maps (definitivo) y `SIN_RED` si Google no contestó (se reintenta). Desde octubre de 2026 lo usan «Se ganó», «Completar» del Tablero, el panel «Pegar link» del Mapa y la sincronización (`Geo.resolverLink`); y la misma función de un salto (`expandirLiga_`) la usa «Registrar nueva venta» de la hoja |
 | `/solicitar` | cualquier rol | Pide a Dirección que autorice un precio. La hoja recalcula el subtotal con su copia del catálogo y, si no cuadra con el del teléfono, contesta `CATALOGO_DESINCRONIZADO`. No pisa la solicitud pendiente que **otra persona** tenga sobre el mismo folio (Dirección sí puede) |
 | `/cancelar` | quien la pidió, o Dirección | Retira una solicitud pendiente: el teléfono la reabrió para editarla y lo que se pidió ya no es lo que hay |
 | `/pendientes` | Dirección (con Google o con su token) | La cola de autorizaciones de todos los teléfonos: las últimas 50 solicitudes pendientes |
@@ -333,6 +333,64 @@ ubicación de calle —o «Recolección: …» con la del taller— y el WhatsAp
 instalación. La fecha sigue siendo la del día que el trabajo sale del taller: cuenta igual para el
 semáforo de material y la carga del taller.
 
+### `puente-sheets-13` — los datos de entrega al registrar la venta
+
+En octubre de 2026 ningún proyecto tenía teléfono ni dirección. No se perdían: nadie los pedía.
+«Se ganó» de la plataforma preguntaba la fecha y el plazo, y **⚡ AL3D → Registrar nueva venta**
+de la hoja el dinero; el día de instalar había que sacarlos de WhatsApp, de Canva y de los chats.
+Y el link de Maps que llega por WhatsApp es el corto (`maps.app.goo.gl`), que la plataforma no
+leía: el panel del Mapa decía «no sirve tal cual».
+
+La 13 no agrega columnas. Cambia el formulario de la hoja:
+
+| | |
+|---|---|
+| **Teléfono del cliente** | obligatorio, 10 dígitos o más. Se limpia con `telefonoLimpio` (la misma regla que el puente) y se escribe en **AE** como texto sin formato |
+| **Cómo se entrega** | obligatorio: el desplegable de `ENTREGAS`, por omisión «Instalación». Se escribe en **AF** |
+| **Dirección** | opcional. Con paquetería se llama «Destino del envío»; con recolección no se pide. **AC**, con el apóstrofo de `textoProtegido` si empieza con `=` |
+| **Link de Maps** | opcional, solo con instalación. La hoja lo lee —el corto también, siguiendo hasta tres redirecciones con `expandirLiga_`, la misma función de `/expandir`— y escribe **«lat,lng» en Ubicación AB**. Si no lo pudo leer, la venta se registra igual, el link se queda tal cual en AB y el formulario lo dice |
+| **Sin AE o sin AF** | (falta correr «Preparar la hoja») la venta se registra y el formulario dice qué no se guardó |
+
+Lo obligatorio se revisa dos veces: en el formulario, antes de mandar, y en la hoja
+(`datosDeEntregaDelDialogo_`), para que un formulario viejo abierto en otra pestaña no se lo
+salte. El link se lee **antes** de tomar el candado: salir a Google puede tardar un par de segundos
+que una subida del puente no tiene por qué esperar.
+
+**La coordenada, de los dos lados igual.** `coordenadasDeMaps_` del `.gs` es una copia de
+`parseGmaps` (`js/datos/geo.js`): las mismas nueve reglas en el mismo orden, con el par volteado y
+el (0,0) rechazados igual. Apps Script no puede importar el módulo, así que
+`pruebas/puente-hoja.mjs` corre las dos con los mismos casos y truena si un día leen distinto: el
+mismo link tiene que dar el mismo pin se registre en la hoja o se gane en el teléfono.
+
+**Lo que baja.** La plataforma lee AB (`proyectos.ubicacionDeHoja`): «lat,lng» es el pin; un link
+es `maps_url` sin pin, y si es el corto la sincronización lo termina. Una venta registrada en la
+hoja llega así con teléfono, entrega, dirección y pin. Y a un proyecto que ya existía le baja la
+dirección y la ubicación de la hoja **solo si no tiene** —la regla del teléfono—, y nunca con un
+cambio suyo en la bandeja.
+
+**En la plataforma**, sin depender de la hoja:
+
+- **«Se ganó»** (Calendario, Qué atender y la lista de Proyectos) pide lo mismo en un bloque
+  «Datos para la entrega» (`js/mod/datos-entrega.js`): teléfono prellenado con el de la
+  cotización, la entrega en Instalación por omisión, y con instalación la dirección y «Pega el
+  link de Maps (el de WhatsApp sirve)». Sin teléfono o sin entrega no guarda, y lo dice junto al
+  campo. La dirección y el link pueden quedar pendientes con la casilla **«Todavía no la tengo»**.
+- **El link corto** se resuelve con `Geo.resolverLink`: primero `parseGmaps`, sin red; si es el
+  corto, `/expandir` con señal y se vuelve a leer. **Sin señal** (o sin puente, o con la hoja sin
+  contestar) se guarda el link en `maps_url`, el pin queda pendiente con un aviso, y la siguiente
+  sincronización lo termina sola (`proyectos.resolverLinksPendientes`, desde `js/app.js`):
+  idempotente, cinco por vuelta, y un link que la hoja dijo que no es un mapa no se vuelve a
+  preguntar en la sesión.
+- **«Faltan datos de N proyectos»** en el Tablero: los del taller (`Carpetas.enTaller`) sin
+  teléfono, sin forma de entrega o, si se instalan, sin dirección o sin pin
+  (`js/datos/datos-de-entrega.js`), por la fecha de entrega más cercana, con los de siete días o
+  menos marcados y contados en el globo de la pestaña. «Completar» abre solo lo que falta y lo
+  que el rol escribe: dirección y fabricación todo; pagos, el teléfono.
+
+**Contra una hoja en la 12**: nada se rompe. La plataforma trabaja igual —el link corto lo lee
+`/expandir`, que ya existía—; lo único que falta es que el formulario de la hoja pida los datos, y
+el aviso de versión de Ajustes lo dice.
+
 ---
 
 ## Montarlo
@@ -470,7 +528,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-12`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-13`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla
