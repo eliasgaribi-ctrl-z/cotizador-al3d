@@ -1,36 +1,78 @@
 /* ============================================================================
-   EL ADAPTADOR DE SINCRONIZACIÓN.
+   EL ADAPTADOR DE SINCRONIZACIÓN — la bandeja de salida y la única puerta a la red.
 
-   Su único trabajo en Fase 1 es que la Fase 3 no obligue a reescribir una línea de
-   ningún módulo. Ninguna pantalla habla con un servidor: las pantallas llaman a las
-   funciones de dominio, las funciones de dominio encolan aquí, y aquí —y solo aquí—
-   vive todo lo que sabe que existe una red. La única pantalla que llama a este archivo
-   directamente es Ajustes, para pegar la URL del puente y para el botón de bombear.
+   Aquí, y solo aquí, vive lo que sabe que existe una red. Ninguna pantalla habla con un
+   servidor: guarda en la base local (`db.js`), las funciones de dominio (`proyectos`,
+   `agenda`, `material`, `stock`, `reglas`) encolan lo guardado en este archivo, y de aquí
+   sale hacia el relevo que esté enchufado. Lo que cambiaron los demás vuelve por el mismo
+   camino. No lo llama solo Ajustes: lo usan `app.js` (el arranque y el ciclo de cada 30 s),
+   Control, Proyectos, Inicio, el Tablero, el Mapa, «Datos de entrega» y `carpetas.js`.
 
-   EN FASE 1 NO HAY SERVIDOR, y se dice sin adornos:
+   QUÉ HACE, TAL COMO CORRE EN PRODUCCIÓN
 
-   - `encolar()` SÍ escribe en el almacén 'pendientes' desde el primer día, aunque no
-     haya a dónde mandarlo. La razón no es simetría: el día que se enchufe el puente, la
-     bandeja ya trae la historia y no hay que escribir una migración que recorra tres
-     almacenes adivinando qué se creó antes de que existiera la cola. Una bandeja vacía
-     el día del estreno es un backfill; una bandeja llena es un bombeo.
-   - `bombear()` sin puente configurado devuelve ok con motivo 'sin_puente'. NO es un
-     error. Es el estado normal de Fase 1, y tratarlo como error llenaría la pantalla de
-     avisos rojos que no significan nada, con el costo conocido: el usuario aprende a
-     ignorar los avisos rojos y el día que uno importe tampoco lo va a leer.
-   - `frescura()` existe con su forma FINAL desde hoy, aunque con un solo dispositivo
-     siempre conteste «al día». Es lo que pinta la banda de «Fabricación no comparte
-     desde el martes, lo que ves del almacén tiene 3 días». Si la función naciera en
-     Fase 3, la banda se programaría en Fase 3 y la interfaz sí cambiaría.
+   - La bandeja. `encolar()` escribe la operación en el almacén 'pendientes' —el registro
+     entero y, si quien encola lo sabe, los campos que cambió— sin esperar a la red: la
+     escritura local ya ocurrió, y fallar la mutación porque no hubo a dónde mandarla sería
+     mentirle a la pantalla sobre un dato que sí se guardó. Cada operación tiene un estado:
+     'pendiente' (sale en el siguiente bombeo), 'sin_destino' (el relevo no lleva ese
+     almacén: se aparta con su razón y vuelve sola el día que lo lleve), 'rechazada' (el otro
+     lado dijo que no para siempre: se aparta con su razón y no traba a las de atrás) y
+     'conflicto' (ver más abajo). Nada se descarta por viejo ni por intentos: una operación
+     sale de la bandeja por éxito, porque el relevo la despachó sin mandarla (`omitida`), por
+     `resolver()`, por `descartarDelProyecto()` o porque alguien borra todo.
+   - El relevo. `registrar()` enchufa UN adaptador. Hoy el único es `datos/puente.js`
+     ('hoja'), que le habla por POST a la aplicación web del Apps Script publicada dentro de
+     la hoja de Google «Finanzas AL3D»; lo enchufa `app.js` al arrancar. Este archivo solo
+     conoce su interfaz (ver el bloque de abajo).
+   - Bombear y jalar. `bombear()` sube la bandeja de una en una, en el orden en que se
+     emitió (el almacén, en lotes de hasta 25 seguidas). `jalar()` baja lo que cambió del otro
+     lado y lo mezcla por registro (`fusionar`); en los almacenes que el relevo baja enteros
+     —el récord de ventas, `ventas_hoja`— borra, al cerrar un barrido completo, lo que la hoja
+     ya no trae. Cada una va de una en una: quien llega mientras la otra corre espera esa misma.
+   - La frescura. `frescura()`, sin red, dice si este teléfono está al día: si lleva días sin
+     poder mandar, si tiene cambios rechazados o si otro teléfono lleva días sin compartir.
+     Es lo que pinta la banda de Inicio y del Tablero.
+   - Lo que no pasa por la bandeja. `carpetas()`, `crearCarpeta()` y `expandir()` son
+     lecturas o acciones sueltas del mismo relevo y contestan con su código (`SIN_CONFIG`,
+     `SIN_RED`) si no hay relevo o señal. El notario (autorizar un precio) y la IA tampoco
+     son almacenes que sincronizar: el cotizador los pide por `Puente.hablar`.
 
-   Nota de honestidad que va en el código y también en la pantalla: Notion no tiene
-   comparación-e-intercambio. No hay If-Match, no hay ETag, no hay versión de página, no
-   hay restricción de unicidad. El campo `esperado` de una operación ESTRECHA la ventana
-   de sobrescritura, no la cierra. Por eso la interfaz dice «cambió en Notion mientras no
-   tenías señal» y nunca «no se pierde nada».
+   «sin_puente». Es un `motivo` dentro de un resultado ok, no un error. `configurado()` es
+   verdadero cuando hay un relevo enchufado Y el aparato tiene una puerta (`Prefs.hayPuente()`:
+   un token de dispositivo, o el correo de un ingreso con Google). Sin eso, `bombear()` y
+   `jalar()` contestan ok con motivo 'sin_puente' y la bandeja sigue guardando. Ni las
+   pantallas ni las pruebas leen ese motivo: preguntan `configurado()`.
 
-   Donde la idempotencia sí es real es en 'movimientos', y es la que importa: el id lo
-   genera el cliente, así que un reintento no resta el material dos veces.
+   EL REINTENTO, SIN ADORNOS. No hay reintento con espera creciente. `esperaMs()` calcula 5 s
+   por 2^n con tope de una hora, pero NO la llama nadie, y `Retry-After` no se lee en ninguna
+   parte de `js/`. Lo que hace que una operación se vuelva a intentar es que algo vuelve a
+   correr el bombeo, y cada vuelta intenta toda la bandeja: 1.5 s después de encolar, al
+   arrancar la app, al volver la señal, cada 30 s con la app a la vista y al volver a ella
+   desde otra pestaña (`app.js`), y con los botones de Ajustes, Control y Proyectos. `intentos`
+   solo se cuenta: no decide nada. Lo único que corta una vuelta es una respuesta no definitiva
+   de red, de llave o desconocida (`SIN_RED`, `ROL_SIN_PERMISO`, `DESCONOCIDO`), o que `subir`
+   lance: las demás operaciones fallarían igual. Cualquier otro error no definitivo suma un
+   intento y se vuelve a intentar en la vuelta siguiente, para siempre; por eso el relevo tiene
+   que marcar `definitivo` lo que reintentar no arregla.
+
+   EL CONFLICTO, TAL COMO ESTÁ, NO OCURRE. `esperado` —la foto del registro remoto que el
+   emisor creía que había— va siempre en `null`: todo lo que encola lo manda así, y el Apps
+   Script nunca contesta `CONFLICTO`. El estado 'conflicto' no se alcanza con el puente real;
+   `conflictos()` y `resolver()` siguen aquí y ninguna pantalla los usa. Quién gana
+   cuando dos teléfonos cambian lo mismo no lo decide este archivo sino la regla «gana el
+   cambio más reciente, dato por dato» de `puente-sheets-14`: sellos por campo que el relevo
+   produce (`sellosDeLaOperacion`) y aplica al bajar (`obraDeLaFila`, `citaDeHoja`) en
+   `datos/puente.js`, con su compuerta en el Apps Script.
+
+   Donde la idempotencia sí es real, y es la que importa, es en 'movimientos': el id lo genera
+   el cliente, así que un reintento no resta el material dos veces. La hoja contesta «ya
+   estaba» a un id repetido y `jalar()` descarta uno que ya tiene.
+
+   LA RUTA A SUPABASE. El transporte hacia Supabase (docs/PLAN-SUPABASE.md) se está construyendo
+   aparte y está apagado: este módulo no lo usa todavía. Hasta que se enchufe, todo lo de arriba
+   sigue siendo lo que corre. Lo que el plan conserva de aquí es la bandeja y la regla de sellos;
+   lo que cambia es el transporte, y la lectura, que pasaría a Realtime con el ciclo de 30 s de
+   respaldo. El estado real de cada fase está en docs/ESTADO-SUPABASE.md.
    ============================================================================ */
 
 import * as DB from './db.js';
@@ -41,52 +83,44 @@ const ok  = valor => ({ ok: true, valor });
 const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 
 /* ============================================================================
-   CONTRATO DEL WORKER DE FASE 3 — se escribe hoy para que el Worker se escriba después
-   contra algo, y no al revés.
+   LO QUE EL RELEVO TIENE QUE SABER HACER, y lo que habla el único que hay.
 
-   El Worker se pega en el editor del navegador de Cloudflare. Sin node, sin wrangler,
-   sin terminal. Guarda el secreto de Notion como *secret* del Worker, nunca en el
-   cliente: la plataforma solo conoce la URL del Worker y su propio token de dispositivo.
+   (Hasta septiembre de 2026 este bloque era el contrato de un Worker de Cloudflare delante
+   de Notion —`Authorization: Bearer`, `GET /salud`, `POST /empujar`, `GET /jalar`,
+   `GET /expandir`—. Ese Worker se retiró cuando el dinero se mudó a la hoja, y
+   `puente/retirado.js` solo contesta 410. Lo que sigue es lo que de verdad hay.)
 
-   AUTENTICACIÓN — y aquí está la parte que importa de verdad:
-     Todo va con `Authorization: Bearer <token de dispositivo>`. El Worker mapea
-     token -> { rol, lista blanca de propiedades escribibles }. LA AUTORIDAD DE ESCRITURA
-     VIVE AHÍ, no en la interfaz. Cambiar el segmento de rol en Ajustes da otro tablero,
-     no da permisos: el token de FABRICACIÓN puede escribir movimientos y etapa de obra y
-     el Worker le rechaza `precio_auth` con 403, aunque el teléfono diga «Dirección».
-     Es la única frontera de verdad del sistema, y por eso es la única que está en el
-     servidor.
+   LA INTERFAZ. `registrar(adaptador)` acepta cualquier objeto con `subir`. Lo que este
+   archivo usa de él:
+     · `subir(ops)` → un arreglo con la respuesta de cada operación: `{id, ok, codigo?,
+       mensaje?, definitivo?, motivo?, omitida?, rechazadas?, remoto?, conflicto?}`. Si lanza,
+       el bombeo se corta.
+     · `bajar(cursor)` → `{registros:[{almacen, datos}], cursor, hay_mas}`. Si lanza, `jalar()`
+       contesta con el código del error.
+     · opcionales: `lleva(almacen)`, `motivo(almacen)`, `agrupa(almacen)`, `revive(op)`,
+       `espejos`, `despuesDeBajar(info)`, y las pasarelas `carpetas()`, `crearCarpeta(nombre)`
+       y `expandir(u)`.
+   `salud()` y `esquema()` también son del relevo, pero no las llama este archivo: son de
+   Ajustes y de la puerta. Los tipos de abajo se quedaron cortos: a `Operacion.estado` le
+   faltan 'sin_destino' y 'rechazada', y a `AdaptadorSync` `espejos`, `carpetas`,
+   `crearCarpeta` y `expandir`.
 
-   GET  /salud
-     -> 200 {ok:true, ts, version, rol, escribibles:[...]}
-        `escribibles` viene del token, no de lo que pidió el cliente: es lo que Ajustes
-        pinta para que el usuario vea qué puede tocar este teléfono sin tener que
-        probarlo rompiendo algo.
-     -> 401 token desconocido. 503 Notion caído: {ok:false, mensaje} ya en español.
+   LO QUE HABLA `datos/puente.js`, el único relevo. Todo es un POST a la URL de la aplicación
+   web de Apps Script, con `Content-Type: text/plain;charset=utf-8` —uno de los tipos que el
+   navegador manda sin preflight: un Web App no tiene dónde contestar un OPTIONS— y un cuerpo
+   JSON con el camino en `ruta` y las llaves ADENTRO, no en una cabecera ni en la URL:
+   `{ruta, …datos, google_token?, token?}`. Espera hasta 15 s. Apps Script contesta 200 aunque
+   falle —el error viene dentro del JSON— y el relevo lo traduce a los códigos que esta
+   bandeja sabe leer. Los caminos: `salud`, `esquema`, `jalar`, `empujar` (UNA operación de
+   venta o de instalación por viaje), `empujar_almacen` y `jalar_almacen` (el libro, el
+   catálogo y las listas de compra, en lotes de hasta 25), `expandir` (un link corto de Maps),
+   `carpetas` y `crear_carpeta` (Drive).
 
-   POST /empujar   { ops: Operacion[] }        (de una en una; ver `bombear`)
-     -> 200 { resultados: [ { id, ok:true, remoto? }
-                          | { id, ok:false, codigo, mensaje, conflicto? } ] }
-        `conflicto` es el registro remoto tal como está ahora. Se manda cuando el
-        `esperado` de la operación no cuadra con lo que hay en Notion, y es lo que
-        alimenta la pantalla de conflictos: sin el registro remoto en la respuesta, la
-        pantalla solo podría decir «no se pudo» y el usuario no tendría qué comparar.
-        Respeta y devuelve `Retry-After` en 429 y en 503.
-
-   GET  /jalar?cursor=<opaco>&desde=<epoch ms>
-     -> 200 { registros:[ {almacen, datos} ], cursor, hay_mas:boolean }
-        El cursor es opaco a propósito: hoy es la marca de agua de `last_edited_time` de
-        Notion, y si el cliente lo interpretara, cambiar de relevo obligaría a tocar el
-        cliente. Se guarda tal cual y se devuelve tal cual.
-
-   GET  /expandir?u=<url corta de Google Maps>
-     -> 200 { url } | 422 { ok:false, codigo, mensaje }   (ver `expandir`, abajo)
-        Existe porque desde el navegador es imposible: la 30x de maps.app.goo.gl no manda
-        Access-Control-Allow-Origin, en `no-cors` la respuesta es opaca y su lista de
-        headers está vacía por especificación. Del lado servidor son cuatro líneas.
-        Esto es lo único del Worker que no tiene nada que ver con sincronizar, y está
-        aquí porque montar una segunda pieza de infraestructura para cuatro líneas sería
-        peor.
+   QUIÉN PUEDE QUÉ. La frontera de permisos está en el servidor, no en la pantalla: el Apps
+   Script verifica con Google la cuenta con la que se entró, busca su correo en la pestaña
+   «Accesos» (o, de emergencia, reconoce un token de dispositivo) y decide qué puede escribir
+   cada rol. Cambiar el segmento de rol en Ajustes da otro tablero, no da permisos. El detalle
+   de cada camino, de cada rol y de cada versión del contrato está en puente/README.md.
    ============================================================================ */
 
 /**

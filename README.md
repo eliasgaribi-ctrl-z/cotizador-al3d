@@ -376,7 +376,7 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               55 archivos, solo node, unos segundos
+    pruebas/correr.sh               60 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   45 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -394,6 +394,9 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 | [`docs/ESTRUCTURA-COTIZACION-CANVA.md`](docs/ESTRUCTURA-COTIZACION-CANVA.md) | El papel que se manda de verdad, hoja por hoja |
 | [`docs/REVISAR-PAQUETE-UI.md`](docs/REVISAR-PAQUETE-UI.md) | Lo que quedó por revisar del paquete de UI, y las decisiones abiertas |
 | [`puente/README.md`](puente/README.md) | El puente a la hoja: caminos, roles y cómo está cerrado |
+| [`docs/ESTADO-SUPABASE.md`](docs/ESTADO-SUPABASE.md) | La migración a Supabase (en construcción, apagada): qué está hecho, qué se verificó y qué falta |
+| [`docs/PLAN-SUPABASE.md`](docs/PLAN-SUPABASE.md) · [`docs/DECISIONES-SUPABASE.md`](docs/DECISIONES-SUPABASE.md) | El plan aprobado y las decisiones por defecto que lo completan |
+| [`supabase/DISENO.md`](supabase/DISENO.md) | El esquema de la base: tablas, reglas de acceso, funciones y plan de pruebas |
 
 ## Pendientes
 

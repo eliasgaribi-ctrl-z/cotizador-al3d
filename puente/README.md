@@ -13,6 +13,33 @@ cosas y solo dos:
 1. Que los **tres departamentos vean lo mismo** desde tres teléfonos distintos.
 2. Que el **espejo del dinero** venga de la hoja en vez de teclearse.
 
+> **Nota del 10/oct/2026.** Lo de «sin puente» describe la plataforma de agosto. Desde que la
+> plataforma tiene puerta de Google, el puente también es la puerta: no se entra sin una cuenta
+> que esté en la pestaña «Accesos» (salvo con el token de emergencia), y esa comprobación la hace
+> este mismo Apps Script (`js/nucleo/puerta.js`). Con señal se verifica contra la hoja; sin señal
+> vale el pase de la última vez, hasta 30 días, pero la primera apertura de cada día vuelve a
+> pedir la cuenta de Google y por eso necesita señal.
+
+---
+
+## Migración a Supabase (en construcción)
+
+Está en marcha una migración que, al final, pasa la fuente de verdad de la hoja a una base en
+Supabase y deja la hoja como **espejo de solo lectura**. El plan está en
+[`docs/PLAN-SUPABASE.md`](../docs/PLAN-SUPABASE.md), las decisiones en
+[`docs/DECISIONES-SUPABASE.md`](../docs/DECISIONES-SUPABASE.md) y el avance real, fase por fase,
+en [`docs/ESTADO-SUPABASE.md`](../docs/ESTADO-SUPABASE.md).
+
+**Por ahora NADA cambia en este puente.** La migración está en construcción y apagada: la hoja
+sigue siendo la fuente de verdad, los caminos, los roles y las reglas de este documento son los
+que corren, y no hay nada nuevo que pegar en Apps Script por ella. Todo lo que sigue describe el
+puente de hoy.
+
+Cuando exista la ruta `espejo` —la que, según el plan, recibirá de una función de Supabase lo que
+cambie en las ventas y en los abonos de comisión para reflejarlo en la hoja— se documentará aquí
+(qué escribe, con qué secreto y cómo se prueba), y sus pasos de montaje irán en
+[`DESPLIEGUE.md`](DESPLIEGUE.md).
+
 ---
 
 ## Qué cambió, y por qué se fue Cloudflare
@@ -561,9 +588,10 @@ que Google no conteste. Alrededor de eso hay más cosas:
 5. **Bitácora.** Toda escritura que entra queda anotada en una pestaña oculta: cuándo, qué
    rol, qué folio y qué campos. Es lo que convierte «algo se movió» en «esto se movió, el
    martes, desde el teléfono de pagos».
-6. **El rol también cierra la lectura.** `/jalar` le quita a fabricación las diez columnas
-   de dinero —subtotal, neto, anticipo, liquidación, pendiente, comisiones, cuenta y fecha
-   de liquidación— antes de mandar la fila. El estatus sí baja, porque es una etiqueta de
+6. **El rol también cierra la lectura.** `/jalar` le quita a fabricación las once columnas
+   de dinero —subtotal, neto, anticipo, liquidación, pendiente, comisiones, abono de comisión,
+   comisión restante, cuenta, fecha de liquidación y porcentaje de comisión
+   (`CAMPOS_DE_DINERO`)— antes de mandar la fila. El estatus sí baja, porque es una etiqueta de
    estado y el tablero de obra la necesita para saber qué ya se cobró. Un rol que no esté
    en la tabla tampoco ve el dinero: el default es cerrado.
 7. **El dinero solo sube cuando cambió.** Mover la etapa o poner un pin desde el teléfono ya
