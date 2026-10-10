@@ -351,7 +351,12 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 13', VERSION_ESPERADA, 'puente-sheets-13');
+  eq('la plataforma espera la 14', VERSION_ESPERADA, 'puente-sheets-14');
+  /* A la 13 le falta que todos vean lo mismo: la etapa, las notas, el plazo y las correcciones. */
+  const a13 = avisoVersion('puente-sheets-13');
+  cierto('a la 13 le dice que la etapa, las notas y el plazo no viajan, y qué correr',
+    /etapa intermedia/.test(a13) && /notas/.test(a13) && /plazo de taller/.test(a13) && /Preparar la hoja/.test(a13));
+  cierto('  y no le repite lo del formulario de la hoja, que la 13 ya pide', !/Registrar nueva venta/.test(a13));
   /* A la 12 solo le falta lo del formulario de la hoja: la plataforma funciona igual con ella, y
      el aviso no puede asustar con columnas que la 12 ya tiene. */
   const a12 = avisoVersion('puente-sheets-12');
@@ -1407,6 +1412,9 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   ponerFila('V-730', { 'Estatus': 'COBRANDO' });
   ponerFila('V-731', { 'Estatus': 'LIQUIDADO' });
   ponerFila('V-732', { 'Estatus': 'LIQUIDADO' });
+  /* Lo que el caso 6 dejó en la bandeja (los dos «Cortado») sale antes de contar: si no, se
+     contaba aquí como si lo hubiera mandado el paso a «Instalado». */
+  await S.bombear();
   const a73 = H.empujadas.length;
   await jalarTodo();
   await S.bombear();

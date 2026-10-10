@@ -57,7 +57,8 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar,
-         telefonoLimpio, telefonoDe, tienePin, ubicacionDeHoja } from './proyectos.js';
+         telefonoLimpio, telefonoDe, tienePin, ubicacionDeHoja, SELLO_DE_CAMPO } from './proyectos.js';
+import { PLAZOS } from './taller.js';
 import { ENTREGAS, ENTREGA_NOMBRE, entregaDe, entregaDesdeHoja } from './entrega.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 import { duracionSugerida } from './agenda.js';
@@ -110,7 +111,35 @@ export const P = {
      «Paquetería» o «Recolección en taller» (ENTREGA_A_HOJA). La leen los tres roles y la
      escriben dirección y fabricación. */
   entrega:     'Entrega',
+  /* Las notas del proyecto y el plazo de taller, columnas AG y AH desde puente-sheets-14. Las
+     notas las leen y escriben los tres roles; el plazo, dirección y fabricación. */
+  notas:       'Notas',
+  plazo:       'Plazo taller',
+  /* Cuándo se cambió cada dato de la obra, columna AI (oculta) desde puente-sheets-14. No se
+     escribe: la hoja la pone al día con los sellos que viajan aparte (`sellos` de la operación). */
+  sellos:      'Sellos',
 };
+
+/** Los cinco plazos de taller como se escriben en la columna AH: las etiquetas de PLAZOS
+ *  (js/datos/taller.js), en su orden. Letra por letra las de `PLAZOS_TALLER` del Apps Script:
+ *  pruebas/puente.mjs compara las dos listas. */
+export const PLAZO_A_HOJA = PLAZOS.map(x => x.etiqueta);
+/** El cubo de la plataforma (1 a 5) en la etiqueta de la hoja, o '' (el propuesto). PURA. */
+export function plazoAHoja(k) {
+  const x = PLAZOS.find(p => p.k === Number(k));
+  return x ? x.etiqueta : '';
+}
+/** Lo que dice la celda AH, en el cubo de la plataforma (1 a 5), o null. La misma lectura que
+ *  `plazoDeCelda` del Apps Script: lo tecleado a mano se lee en semanas («2», «1½», «3+»). PURA. */
+export function plazoDesdeHoja(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase().replace('½', '.5').replace(',', '.');
+  const m = /^(\d+(?:\.\d+)?)/.exec(s);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (n >= 3) return 5;
+  const i = [1, 1.5, 2, 2.5].indexOf(n);
+  return i >= 0 ? i + 1 : null;
+}
 
 /** Las opciones de la columna AF, en el orden del desplegable. Son las de `ENTREGA_NOMBRE`
  *  (js/datos/entrega.js), y tienen que ser letra por letra las de `ENTREGAS` del Apps Script:
@@ -190,6 +219,11 @@ export const VERSION_DEL_TELEFONO = 11;
  *  viaja, con la misma regla que el teléfono con la 10: no se manda —la 11 la rechazaría como
  *  «tu rol no la escribe»— y no baja, porque la fila no la trae. */
 export const VERSION_DE_LA_ENTREGA = 12;
+
+/** Desde qué versión la hoja guarda las notas, el plazo de taller y los sellos de cada dato
+ *  (columnas AG:AI) y decide quién gana por la hora de cada cambio. Con una anterior las notas y
+ *  el plazo no viajan, y la etapa, la dirección y lo demás bajan como bajaban. */
+export const VERSION_DE_LA_OBRA = 14;
 
 /** Lo que este relevo BAJA entero y de lo que la hoja es la única dueña: `sync.jalar` borra
  *  de estos almacenes, al cerrar un barrido completo, lo que la hoja ya no trajo. */
@@ -342,6 +376,12 @@ export function aNotion(p, inst, opts) {
     if (ent !== 'instalacion' || campos.has('entrega')) out[P.entrega] = ENTREGA_A_HOJA[ent];
   }
 
+  /* Las notas y el plazo de taller (puente-sheets-14), con la regla del teléfono: en un alta van
+     si hay algo; en un cambio, cuando fueron lo que cambió —vacío también: alguien los borró—. Una
+     operación de una versión anterior (sin `campos`) no los manda: ninguna los conocía. */
+  if ((alta && texto(p.notas).trim()) || campos.has('notas')) out[P.notas] = texto(p.notas);
+  if ((alta && plazoAHoja(p.plazo_k)) || campos.has('plazo_k')) out[P.plazo] = plazoAHoja(p.plazo_k);
+
   /* Las dos fechas, y por qué ya NO se pisan.
      Con Notion, `Fecha Anticipo e Instalacion` era una sola columna que significaba las dos
      cosas, y cuando había instalación se le ponía esa. En la hoja son dos columnas con dos
@@ -386,6 +426,145 @@ export function instalacionANotion(inst, viva) {
   out[P.fechaInst] = inst.fecha;
   out[P.horaInst]  = texto(inst.hora);
   return out;
+}
+
+/* ============================================================================
+   QUIÉN GANA: EL CAMBIO MÁS RECIENTE, DATO POR DATO (puente-sheets-14)
+
+   La regla, con ejemplos, está en puente/README.md («Quién gana»). En corto:
+     · cada dato de la obra lleva la hora en que alguien lo cambió (el «sello»): aquí en
+       `proyecto.sellos` (ver `sellar` en proyectos.js), en la hoja en la columna «Sellos»;
+     · al subir, la hoja no escribe un dato si ya tiene uno con un sello más nuevo;
+     · al bajar, este teléfono solo toma lo que en la hoja es más nuevo que lo suyo, nunca
+       encima de un cambio suyo que todavía está en la bandeja, y una celda vacía solo borra si
+       alguien la borró a propósito desde la plataforma (trae sello);
+     · la fecha y la hora de instalación son un solo dato, la cita, y su sello es el de la
+       instalación que la puso o la canceló (`selloDeInstalacion`).
+   El dinero no está aquí: de ése la hoja es la dueña y baja siempre (`deNotion`).
+   ============================================================================ */
+
+/** La columna de la hoja de cada grupo de `proyecto.sellos`. */
+const COLUMNA_DEL_SELLO = {
+  etapa: P.etapa, notas: P.notas, plazo_k: P.plazo, tel: P.tel, dir_texto: P.direccion,
+  ubicacion: P.ubicacion, entrega: P.entrega, instalacion: P.fechaInst,
+};
+const GRUPO_DE_COLUMNA = Object.fromEntries(Object.entries(COLUMNA_DEL_SELLO).map(([g, c]) => [c, g]));
+
+/** Cuándo se cambió por última vez esta instalación, con la mano de alguien. La que bajó de la
+ *  hoja guarda el sello de la hoja (`sello_hoja`) y la hora en que se escribió aquí
+ *  (`sello_hoja_en`); si después alguien la tocó aquí, su `actualizado_en` ya es otro y manda ése.
+ *  PURA. */
+export function selloDeInstalacion(i) {
+  if (!i || typeof i !== 'object') return 0;
+  const a = Number(i.actualizado_en) || 0;
+  if (Number(i.sello_hoja) > 0 && Number(i.sello_hoja_en) === a) return Number(i.sello_hoja);
+  return a;
+}
+
+/**
+ * Los sellos que viajan con una operación: para cada columna de la obra que va en `props`, cuándo
+ * se cambió ese dato en este teléfono. Lo que no se sabe va en cero (no se manda), y la hoja lo
+ * escribe solo donde ella tampoco sabe. PURA.
+ * @param {Object} op la operación de la bandeja
+ * @param {Object} props lo que se va a mandar (de `aNotion` o `instalacionANotion`)
+ * @param {Object|null} inst la instalación cuyos datos van en props, si van
+ * @returns {Object} columna → ms
+ */
+export function sellosDeLaOperacion(op, props, inst) {
+  const out = {};
+  const d = (op && op.datos) || {};
+  const tiene = d.sellos && typeof d.sellos === 'object';
+  const campos = new Set(Array.isArray(op && op.campos) ? op.campos : []);
+  for (const col of Object.keys(props || {})) {
+    let ms = 0;
+    if (col === P.fechaInst || col === P.horaInst) ms = selloDeInstalacion(inst);
+    else {
+      const g = GRUPO_DE_COLUMNA[col];
+      if (!g) continue;
+      /* Una operación de antes de los sellos (`datos.sellos` no existe) cuenta con su propia hora
+         para lo que dice que cambió; una de ahora, solo con lo que se selló: volver a guardar un
+         dato que no cambió no lo vuelve el más reciente. */
+      if (tiene) ms = Number(d.sellos[g]) || 0;
+      else if (Object.keys(SELLO_DE_CAMPO).some(c => SELLO_DE_CAMPO[c] === g && campos.has(c))) ms = Number(op.ts) || 0;
+    }
+    if (ms > 0) out[col] = ms;
+  }
+  return out;
+}
+
+const mismoPin = (a, b) => Number(a).toFixed(6) === Number(b).toFixed(6);
+
+/**
+ * Lo que de la obra le toca a este proyecto de una fila que bajó, con la regla de arriba. PURA.
+ * Solo para una fila que trae sus sellos (`venta.sellos`: una hoja con la columna AI); con una
+ * anterior devuelve null y quien llama se queda con las reglas de antes.
+ *
+ * Un dato que en la hoja tiene valor pero no sello (escrito antes de los sellos) cuenta como
+ * «antiquísimo»: le gana a lo que este teléfono tiene sin sello —así todos terminan viendo lo que
+ * dice la hoja— y pierde contra cualquier cambio que alguien haya hecho desde entonces.
+ *
+ * @param {Object} venta el renglón de `ventaDeHoja`, con `sellos` (grupo → ms)
+ * @param {Object} local el proyecto de este teléfono
+ * @param {{ocupados?:Set<string>}} [o] los grupos con un cambio de este teléfono en la bandeja
+ *        ('*' = todos)
+ * @returns {{parche:Object, sellos:Object}|null}
+ */
+export function obraDeLaFila(venta, local, o = {}) {
+  if (!venta || !local || !venta.sellos || typeof venta.sellos !== 'object') return null;
+  const ocupados = o.ocupados instanceof Set ? o.ocupados : new Set();
+  const ls = local.sellos && typeof local.sellos === 'object' ? local.sellos : {};
+  const parche = {};
+  const sellos = { ...ls };
+  let cambio = false;
+
+  const toma = (g, valorHoja, vacio, igual, aplicar, borrable) => {
+    if (ocupados.has('*') || ocupados.has(g)) return;
+    const explicito = Number(venta.sellos[g]) > 0;
+    const hs = explicito ? Number(venta.sellos[g]) : (vacio ? 0 : 1);
+    if (!(hs > (Number(ls[g]) || 0))) return;
+    if (vacio && (!explicito || !borrable)) return;
+    sellos[g] = hs;
+    cambio = true;
+    if (!igual) aplicar();
+  };
+
+  const et = venta.etapa || null;
+  toma('etapa', et, !et, et === local.etapa, () => { parche.etapa = et; }, false);
+
+  if (typeof venta.notas === 'string') {
+    const n = venta.notas;
+    toma('notas', n, !n.trim(), n === String(local.notas || ''), () => { parche.notas = n; }, true);
+  }
+  if (venta.plazo_k !== undefined) {
+    const k = venta.plazo_k === null ? null : Number(venta.plazo_k);
+    const lk = local.plazo_k === null || local.plazo_k === undefined ? null : Number(local.plazo_k);
+    toma('plazo_k', k, k === null, k === lk, () => { parche.plazo_k = k; }, true);
+  }
+  if (typeof venta.telefono === 'string') {
+    const t = venta.telefono;
+    toma('tel', t, !t, t === telefonoDe(local), () => { parche.tel = t; }, true);
+  }
+  {
+    const d = String(venta.direccion || '');
+    toma('dir_texto', d, !d.trim(), d === String(local.dir_texto || ''), () => { parche.dir_texto = d; }, true);
+  }
+  {
+    const u = ubicacionDeHoja(venta.ubicacion);
+    const vacia = !String(venta.ubicacion || '').trim();
+    const igual = u.lat !== null
+      ? (tienePin(local) && mismoPin(u.lat, local.lat) && mismoPin(u.lng, local.lng))
+      : (vacia ? !tienePin(local) : (!tienePin(local) && u.maps_url === String(local.maps_url || '').trim()));
+    toma('ubicacion', venta.ubicacion, vacia, igual, () => {
+      if (u.lat !== null) Object.assign(parche, { lat: u.lat, lng: u.lng, geo_fuente: u.geo_fuente },
+                                         u.maps_url ? { maps_url: u.maps_url } : {});
+      else Object.assign(parche, { lat: null, lng: null, geo_fuente: 'sin_ubicar' }, u.maps_url ? { maps_url: u.maps_url } : {});
+    }, true);
+  }
+  if (typeof venta.entrega === 'string') {
+    const e = venta.entrega;
+    toma('entrega', e, !e, e === entregaDe(local), () => { parche.entrega = e; }, false);
+  }
+  return cambio ? { parche, sellos } : { parche: {}, sellos: null };
 }
 
 /**
@@ -489,6 +668,19 @@ export function ventaDeHoja(fila) {
      con la celda vacía es '' —«la hoja no dice», que se lee instalación pero NO pisa lo de este
      lado— y la revisión de la bajada lo usa para mandar la que la fila no tiene. */
   if (Object.prototype.hasOwnProperty.call(fila, P.entrega)) v.entrega = entregaDesdeHoja(fila[P.entrega]);
+  /* Las notas, el plazo y los sellos (puente-sheets-14): solo si la fila trae la columna de los
+     sellos —una hoja con AG:AI—. Los sellos se guardan por dato de la plataforma (etapa, notas,
+     tel…; la cita es `instalacion`), que es como los compara `obraDeLaFila`. */
+  if (fila[P.sellos] && typeof fila[P.sellos] === 'object') {
+    v.notas = texto(fila[P.notas]);
+    v.plazo_k = plazoDesdeHoja(fila[P.plazo]);
+    const s = {};
+    for (const [col, ms] of Object.entries(fila[P.sellos])) {
+      const g = GRUPO_DE_COLUMNA[col];
+      if (g && Number(ms) > 0) s[g] = Number(ms);
+    }
+    v.sellos = s;
+  }
   /* El dinero, SOLO si vino. A fabricación la hoja le manda la fila sin estas columnas, y
      un ausente no es un cero: `sync.fusionar` conserva lo que ya estaba cuando el campo no
      viene. Las fórmulas —neto, pendiente, comisiones— bajan y nunca se calculan aquí.
@@ -595,6 +787,42 @@ export function instalacionDeHoja(fila, proyecto, insts, o = {}) {
   };
 }
 
+/**
+ * La cita de la hoja con su sello (puente-sheets-14): la misma regla de quién gana que el resto de
+ * la obra. Se aplica solo si el sello de la fila es más nuevo que el último cambio de la cita en
+ * este teléfono (`selloDeInstalacion`), y entonces la mueve, la crea —con las mismas condiciones de
+ * `instalacionDeHoja`— o, con la fecha vacía, la CANCELA: es otro teléfono que la canceló. Lo que se
+ * escribe guarda el sello de la hoja, para que la siguiente bajada no lo vuelva a tomar por nuevo.
+ * Puro: sin red, sin base y sin reloj.
+ * @returns {Object|null} la instalación a escribir, o null si no hay nada que cambiar
+ */
+export function citaDeHoja(fila, proyecto, insts, o = {}) {
+  if (!fila || typeof fila !== 'object' || !proyecto) return null;
+  const sellos = fila[P.sellos] && typeof fila[P.sellos] === 'object' ? fila[P.sellos] : {};
+  const hs = Number(sellos[P.fechaInst]) || 0;
+  const lista = Array.isArray(insts) ? insts : [];
+  const ls = lista.reduce((m, i) => Math.max(m, selloDeInstalacion(i)), 0);
+  if (!(hs > ls)) return null;
+  const ahora = Number(o.ahora) || 0;
+  const marca = x => (x ? { ...x, sello_hoja: hs, sello_hoja_en: x.actualizado_en } : null);
+
+  if (esISO(String(fila[P.fechaInst] || ''))) return marca(instalacionDeHoja(fila, proyecto, lista, o));
+
+  const viva = lista.filter(i => i && i.estado !== 'cancelada' && esISO(i.fecha))
+    .sort((a, b) => (Number(b.actualizado_en) || 0) - (Number(a.actualizado_en) || 0))[0];
+  if (!viva) return null;
+  return marca({
+    ...viva,
+    estado: 'cancelada',
+    /* Como `agenda.marcar`: cancelar sube `movida`, para que el .ics con el mismo UID tache la cita
+       en el calendario del instalador en vez de dejarla viva. */
+    movida: (Number(viva.movida) || 0) + 1,
+    uid_ics: viva.uid_ics || ('inst-' + viva.id + '@al3d.mx'),
+    notas: [String(viva.notas || '').trim(), 'Cancelada en otro dispositivo: así quedó en la hoja.'].filter(Boolean).join('\n'),
+    actualizado_en: ahora,
+  });
+}
+
 /* ============================================================================
    LA FILA QUE YA NO ESTÁ
 
@@ -650,7 +878,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-13';
+export const VERSION_ESPERADA = 'puente-sheets-14';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -661,6 +889,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 13 */ 'cada teléfono ve su propia versión de la obra: la etapa intermedia (En diseño, Cortado, Armado, Listo), las notas, el plazo de taller y las correcciones del teléfono, la dirección y el pin que se hacen en otro dispositivo no llegan, y una cita movida o cancelada en otro no siempre se mueve aquí. Falta pegar el Apps Script puente-sheets-14 y correr «3 · Preparar la hoja para el puente»',
   /* 12 */ '«⚡ AL3D → Registrar nueva venta» de la hoja no pide el teléfono del cliente, cómo se entrega ni la dirección y el link de Maps: la venta que se registra allá llega a los teléfonos sin esos datos y sale en «Faltan datos» del Tablero. Lo demás funciona igual',
   /* 11 */ 'cómo se entrega cada trabajo (instalación, paquetería o recolección en taller) no viaja: esa versión no tiene la columna AF «Entrega», y cada teléfono se queda con la suya —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
   /* 10 */ 'el teléfono del cliente no viaja: esa versión no tiene la columna AE «Telefono», y cada teléfono se queda con el suyo —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
@@ -890,6 +1119,11 @@ export function crear(cfg0) {
   const notarVersion = v => { if (v) { versionHoja = numeroDeVersion(v); hojaSabeAlmacen = versionHoja >= VERSION_DEL_ALMACEN; sabidoEn = Date.now(); } };
   const sabeTelefono = () => versionHoja >= VERSION_DEL_TELEFONO;
   const sabeEntrega = () => versionHoja >= VERSION_DE_LA_ENTREGA;
+  const sabeObra = () => versionHoja >= VERSION_DE_LA_OBRA;
+  /* Si alguna bajada ya trajo la columna de los sellos: la hoja corre la 14 Y ya corrió «Preparar
+     la hoja». Es lo que deja revivir sola una nota o un plazo que la 14 rechazó por no tener
+     todavía las columnas AG:AI (ver `revive`). */
+  let hojaConObra = false;
   /* Si alguna bajada ya trajo la llave de la entrega: la hoja corre la 12 Y ya corrió «Preparar
      la hoja» (sin AF, la fila no la trae). Es lo que deja revivir sola una entrega que la 12
      rechazó por no tener la columna (ver `revive`): mientras no, revivirla era otro rechazo. */
@@ -1140,6 +1374,8 @@ export function crear(cfg0) {
       /* La entrega: solo cuando una bajada ya vio la columna AF. Devuelve el nombre de su marca,
          para que `sync` la anote y no le dé vueltas (ver `revivirRechazadas`). */
       if (esRechazoDeEntrega(op)) return hojaConEntrega ? 'revivida_entrega' : false;
+      /* Las notas y el plazo (puente-sheets-14), igual: cuando una bajada ya vio las columnas AG:AI. */
+      if (esRechazoDeObra(op)) return hojaConObra ? 'revivida_obra' : false;
       if (!esRechazoDeTelefono(op)) return false;
       if (!versionHoja) { try { await asegurarEscribibles(); } catch (_) { return false; } }
       return sabeTelefono();
@@ -1326,11 +1562,12 @@ export function crear(cfg0) {
           salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
           continue;
         }
-        let props;
+        let props, instEnviada = null;
         if (op.almacen === 'proyectos') {
           /* Alta si la fila no existe todavía; si ya existe, el dinero y el nombre solo van
              cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
-          props = aNotion(op.datos, await instalacionDe(proy.id),
+          instEnviada = await instalacionDe(proy.id);
+          props = aNotion(op.datos, instEnviada,
                           { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : null });
           /* Una hoja anterior a la 11 no tiene dónde poner el teléfono. Se le quita a lo que se
              manda, y un cambio que era SOLO el teléfono se despacha sin mandarse (`omitida`): la
@@ -1344,12 +1581,19 @@ export function crear(cfg0) {
           const sinColumna = new Set();
           if (!sabeTelefono() && Object.prototype.hasOwnProperty.call(props, P.tel)) { delete props[P.tel]; sinColumna.add('tel'); }
           if (!sabeEntrega() && Object.prototype.hasOwnProperty.call(props, P.entrega)) { delete props[P.entrega]; sinColumna.add('entrega'); }
+          /* Y las notas y el plazo con una hoja anterior a la 14, con la misma regla: la revisión de
+             la bajada los manda cuando la fila traiga sus columnas vacías. */
+          if (!sabeObra() && Object.prototype.hasOwnProperty.call(props, P.notas)) { delete props[P.notas]; sinColumna.add('notas'); }
+          if (!sabeObra() && Object.prototype.hasOwnProperty.call(props, P.plazo)) { delete props[P.plazo]; sinColumna.add('plazo_k'); }
           if (sinColumna.size && Array.isArray(op.campos) && op.campos.length && op.campos.every(c => sinColumna.has(c))) {
             salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
             continue;
           }
         } else {
-          props = instalacionANotion(op.datos, await instalacionDe(proy.id));
+          const viva = await instalacionDe(proy.id);
+          props = instalacionANotion(op.datos, viva);
+          /* La cita que va es la viva; si ya no hay ninguna, la cancelación de esta operación. */
+          instEnviada = viva || op.datos;
         }
 
         let { props: enviables, fuera } = filtrar(props, permitidas);
@@ -1389,8 +1633,11 @@ export function crear(cfg0) {
         try {
           r = await pedir(cfg, '/empujar', {
             method: 'POST',
+            /* `sellos`: cuándo se cambió aquí cada dato de la obra que va (puente-sheets-14). Va
+               aparte de los datos, y una hoja anterior lo ignora sin más. */
             body: JSON.stringify({ ops: [{ id: op.id, tipo: idNotion ? 'actualizar' : 'crear',
                                            id_notion: idNotion, datos: enviables,
+                                           sellos: sellosDeLaOperacion(op, enviables, instEnviada),
                                            ...(fc ? { folio_cotizacion: fc } : {}) }] }),
           });
         } catch (e) {
@@ -1521,19 +1768,38 @@ export function crear(cfg0) {
       /* Los proyectos con un cambio todavía en la bandeja, leídos una vez por página y solo si
          alguien pregunta (la entrega que baja). */
       let bandeja = null;
-      const enBandeja = async id => {
-        if (!bandeja) {
-          bandeja = new Set();
-          for (const op of await DB.listar('pendientes')) {
-            if (!op || String(op.id || '').charAt(0) === '_' || op.estado !== 'pendiente') continue;
-            if (op.almacen === 'proyectos') bandeja.add(String(op.registro_id || (op.datos && op.datos.id) || ''));
+      const leerBandeja = async () => {
+        if (bandeja) return;
+        /* Por proyecto, qué datos tiene esperando (puente-sheets-14: la regla es dato por dato).
+           Un alta, o un cambio de una versión anterior que no dice qué cambió, aparta todos ('*'). */
+        bandeja = new Map();
+        const de = id => bandeja.get(id) || bandeja.set(id, new Set()).get(id);
+        for (const op of await DB.listar('pendientes')) {
+          if (!op || String(op.id || '').charAt(0) === '_' || op.estado !== 'pendiente') continue;
+          if (op.almacen === 'proyectos') {
+            const g = de(String(op.registro_id || (op.datos && op.datos.id) || ''));
+            if (op.tipo === 'crear' || !Array.isArray(op.campos)) g.add('*');
+            else for (const c of op.campos) if (SELLO_DE_CAMPO[c]) g.add(SELLO_DE_CAMPO[c]);
           }
+          if (op.almacen === 'instalaciones' && op.datos) de(String(op.datos.proyecto_id || '')).add('instalacion');
         }
-        return bandeja.has(String(id));
+      };
+      const enBandeja = async id => { await leerBandeja(); return bandeja.has(String(id)); };
+      const ocupadosDe = async p => {
+        await leerBandeja();
+        const g = new Set(bandeja.get(String(p.id)) || []);
+        /* Lo que se cambió mientras la venta estuvo fuera de la hoja y todavía no se manda
+           (`sin_mandar`) tampoco se pisa: la revisión de esta misma bajada lo reenvía. */
+        const sm = p.sin_mandar && Array.isArray(p.sin_mandar.campos) ? p.sin_mandar.campos : [];
+        for (const c of sm) if (SELLO_DE_CAMPO[c]) g.add(SELLO_DE_CAMPO[c]);
+        return g;
       };
       let agenda = null;
       const instDeHoja = async (datos, proyecto) => {
-        if (!datos || !proyecto || !esISO(datos[P.fechaInst])) return;
+        /* Con sellos (puente-sheets-14) también baja la cita que alguien CANCELÓ: la fila trae la
+           fecha vacía con su sello. Sin sellos, una fecha vacía no dice nada (ver arriba). */
+        const conSello = !!(datos && datos[P.sellos] && Number(datos[P.sellos][P.fechaInst]) > 0);
+        if (!datos || !proyecto || (!esISO(datos[P.fechaInst]) && !conSello)) return;
         if (!agenda) {
           agenda = { porProy: new Map(), enBandeja: new Set(), hechos: new Set() };
           for (const i of await DB.listar('instalaciones')) {
@@ -1550,8 +1816,11 @@ export function crear(cfg0) {
         }
         const k = String(proyecto.id);
         if (agenda.enBandeja.has(k) || agenda.hechos.has(k)) return;
-        const inst = instalacionDeHoja(datos, proyecto, agenda.porProy.get(k) || [],
-          { hoy: hoyISO(), ahora: Date.now(), nuevoId: () => DB.nuevoId('inst'), empresa: Prefs.empresa() });
+        const inst = conSello
+          ? citaDeHoja(datos, proyecto, agenda.porProy.get(k) || [],
+              { hoy: hoyISO(), ahora: Date.now(), nuevoId: () => DB.nuevoId('inst'), empresa: Prefs.empresa() })
+          : instalacionDeHoja(datos, proyecto, agenda.porProy.get(k) || [],
+              { hoy: hoyISO(), ahora: Date.now(), nuevoId: () => DB.nuevoId('inst'), empresa: Prefs.empresa() });
         if (!inst) return;
         agenda.hechos.add(k);   // la misma venta en dos filas: manda la primera
         registros.push({ almacen: 'instalaciones', datos: inst });
@@ -1560,6 +1829,7 @@ export function crear(cfg0) {
       const ventasPagina = filas.map(f => ventaDeHoja((f && f.datos) || null));
       /* Una fila con la llave de la entrega dice que la hoja ya tiene AF (ver `revive`). */
       if (ventasPagina.some(v => v && typeof v.entrega === 'string')) hojaConEntrega = true;
+      if (ventasPagina.some(v => v && v.sellos)) hojaConObra = true;
       const porFolioHoja = new Map();
       for (const v of ventasPagina) if (v && v.folio_hoja && !porFolioHoja.has(v.folio_hoja)) porFolioHoja.set(v.folio_hoja, v);
 
@@ -1671,10 +1941,9 @@ export function crear(cfg0) {
            siempre: en octubre de 2026 eran ocho obras cobradas o cerradas pidiendo taller. Se
            pasa a «Instalado», solo de este lado (`sync.jalar` escribe sin encolar) y solo si
            seguía en la línea del taller: una que alguien ya movió a garantía o canceló, se queda. */
-        if (venta && esImportadoLocal(local) && ESTATUS_DE_PAGOS.includes(String(venta.estatus || '')) &&
-            EN_LA_LINEA.includes(String(local.etapa || ''))) {
-          aplicar.etapa = 'instalado';
-        }
+        /* Se decide al final, después de la etapa que baja de la hoja (`obraDeLaFila`): ver
+           `cobradaEnLaLinea` abajo. */
+        const cobradaEnLaLinea = !!(venta && esImportadoLocal(local) && ESTATUS_DE_PAGOS.includes(String(venta.estatus || '')));
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.
@@ -1707,7 +1976,16 @@ export function crear(cfg0) {
            propio ni en la cotización, que es el que enseña la ficha—. Uno de aquí no se pisa con
            el de la fila, y menos con un vacío: el del teléfono que ganó la cotización es el que
            se le dio al cliente, y si la hoja tiene otro, lo decide una persona. */
-        const telHoja = venta && typeof venta.telefono === 'string' ? venta.telefono : '';
+        /* Con una hoja que ya guarda cuándo cambió cada dato (puente-sheets-14), la obra —la etapa,
+           las notas, el plazo, el teléfono, la dirección, el pin y la entrega— baja con UNA regla:
+           gana el cambio más reciente (`obraDeLaFila`). Lo de abajo, hasta el final del bloque,
+           son las reglas de antes, para una hoja que todavía no tiene la columna de los sellos. */
+        const obra = venta ? obraDeLaFila(venta, local, { ocupados: await ocupadosDe(local) }) : null;
+        if (obra) {
+          Object.assign(aplicar, obra.parche);
+          if (obra.sellos) aplicar.sellos = obra.sellos;
+        }
+        const telHoja = !obra && venta && typeof venta.telefono === 'string' ? venta.telefono : '';
         if (telHoja && !telefonoDe(local)) aplicar.tel = telHoja;
         /* La entrega de la hoja (puente-sheets-12). Aquí, a diferencia del teléfono, MANDA LA
            HOJA cuando dice algo: «Paquetería» elegida en AF es una persona que ya sabe cómo sale
@@ -1715,7 +1993,7 @@ export function crear(cfg0) {
            Pero solo lo que dice: una celda vacía ('') no pisa nada —vacía es también «nadie la ha
            tocado»—, y un proyecto con un cambio todavía en la bandeja tampoco se toca: la hoja aún
            no tiene lo que se acaba de elegir aquí, y aplicarle la vieja lo desharía. */
-        const entHoja = venta && typeof venta.entrega === 'string' ? venta.entrega : '';
+        const entHoja = !obra && venta && typeof venta.entrega === 'string' ? venta.entrega : '';
         if (entHoja && entHoja !== entregaDe(local) && !(await enBandeja(local.id))) aplicar.entrega = entHoja;
         /* La dirección y la ubicación de la hoja, con la regla del teléfono: SOLO si este proyecto
            no tiene, y nunca con un cambio suyo en la bandeja. Las llena «Registrar nueva venta» de
@@ -1723,13 +2001,18 @@ export function crear(cfg0) {
            desde lo que ya tiene, así que una celda con algo y un proyecto vacío es alguien que la
            consiguió por otro lado. El link que la hoja no pudo leer baja como `maps_url`, y la
            sincronización le saca el pin. */
-        if (venta && (venta.direccion || venta.ubicacion) && !(await enBandeja(local.id))) {
+        if (!obra && venta && (venta.direccion || venta.ubicacion) && !(await enBandeja(local.id))) {
           if (venta.direccion && !String(local.dir_texto || '').trim()) aplicar.dir_texto = venta.direccion;
           if (venta.ubicacion && !tienePin(local)) {
             const u = ubicacionDeHoja(venta.ubicacion);
             if (u.lat !== null) Object.assign(aplicar, { lat: u.lat, lng: u.lng, geo_fuente: u.geo_fuente });
             if (u.maps_url && !String(local.maps_url || '').trim()) aplicar.maps_url = u.maps_url;
           }
+        }
+        /* La tarjeta importada ya cobrada, a «Instalado» (ver arriba), con la etapa que quedó: la de
+           aquí, o la que acaba de bajar de la hoja. */
+        if (cobradaEnLaLinea && EN_LA_LINEA.includes(String(aplicar.etapa || local.etapa || ''))) {
+          aplicar.etapa = 'instalado';
         }
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
         try { await instDeHoja(datos, { ...local, ...aplicar, id: local.id }); } catch (_) { /* el dinero ya bajó */ }
@@ -1829,6 +2112,12 @@ export function esRechazoDeTelefono(op) {
 export function esRechazoDeEntrega(op) {
   return !!op && op.estado === 'rechazada' && op.almacen === 'proyectos' && !op.revivida_entrega &&
     Array.isArray(op.campos) && op.campos.length > 0 && op.campos.every(c => c === 'entrega');
+}
+/** Lo mismo para las notas y el plazo (puente-sheets-14): un cambio de solo eso que una hoja en la
+ *  14 sin las columnas AG:AI rechazó. Una vez (`revivida_obra`). PURA. */
+export function esRechazoDeObra(op) {
+  return !!op && op.estado === 'rechazada' && op.almacen === 'proyectos' && !op.revivida_obra &&
+    Array.isArray(op.campos) && op.campos.length > 0 && op.campos.every(c => c === 'notas' || c === 'plazo_k');
 }
 const esImportadoLocal = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
 

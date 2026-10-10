@@ -298,7 +298,8 @@ columna **AF «Entrega»**, y el dato viaja como el teléfono.
 | **Baja** | **manda la hoja cuando dice algo** (ver abajo). Al récord de Control (`ventaDeHoja`), a la tarjeta importada (`desdeVentaDeHoja`) y al proyecto que ya existe |
 | **Lo que ya había** | la columna nace vacía. Cuando una bajada trae la fila con AF vacía y el proyecto de ese teléfono es de paquetería o de recolección, la revisión de la bajada (`revisarContraLaHoja`) lo manda una vez (`entrega_a_la_hoja`). Una instalación no se manda: vacía ya lo dice |
 
-**La bajada, y por qué así.** La etapa y la dirección (`CAMPOS_PROPIOS`) no bajan nunca: son de la
+**La bajada, y por qué así** (hasta `puente-sheets-13`; desde la 14 la entrega baja con la regla
+única de «Quién gana», abajo). La etapa y la dirección (`CAMPOS_PROPIOS`) no bajaban nunca: eran de la
 plataforma. El teléfono baja solo si el proyecto no tiene ninguno, porque el del cotizador es el
 que se le dio al cliente. La entrega es distinta: elegir «Paquetería» en la hoja es una persona que
 ya sabe cómo sale ese trabajo, y el teléfono de fabricación tiene que dejar de pedirle pin y de
@@ -390,6 +391,93 @@ cambio suyo en la bandeja.
 **Contra una hoja en la 12**: nada se rompe. La plataforma trabaja igual —el link corto lo lee
 `/expandir`, que ya existía—; lo único que falta es que el formulario de la hoja pida los datos, y
 el aviso de versión de Ajustes lo dice.
+
+### `puente-sheets-14` — todos ven lo mismo: quién gana
+
+Hasta la 13 cada teléfono se quedaba con su propia versión de la obra. La etapa intermedia (En
+diseño, Cortado, Armado, Listo) subía a la hoja pero los demás no la bajaban; las notas y el plazo
+de taller ni subían; una corrección del teléfono, la dirección o el pin solo llenaba huecos; y una
+cita cancelada en un teléfono seguía viva en los otros. Desde la 14 hay **una sola regla** para
+todo eso.
+
+#### La regla
+
+> **Gana el cambio más reciente, dato por dato.**
+
+1. **Cada dato de la obra guarda cuándo se cambió** (su «sello»): la hora del teléfono en el
+   momento en que la persona lo cambió, no la hora en que llegó a la hoja. En el teléfono vive en
+   el proyecto (`sellos`); en la hoja, en la columna oculta **AI «Sellos»** de Ventas.
+2. **Al subir**, la hoja no escribe un dato si la celda ya tiene un cambio más reciente. Lo
+   contesta como «ya había algo más nuevo» (`viejos`), que no es un error: el teléfono lo da por
+   despachado y en la siguiente bajada recibe lo nuevo.
+3. **Al bajar**, el teléfono solo toma de la hoja lo que allá es más nuevo que lo suyo.
+4. **Lo que está en la bandeja no se pisa.** Si este teléfono cambió algo y todavía no lo manda
+   (sin señal), ese dato no se toca al bajar; cuando se mande, la regla 2 decide.
+5. **Un vacío no borra.** Una celda vacía solo borra en los teléfonos si alguien la borró **desde
+   la plataforma** (llega con su sello). Una celda que nació vacía, o que alguien vació a mano en la
+   hoja, no le borra nada a nadie, y el teléfono que tiene el dato lo vuelve a subir.
+6. **La cita es un solo dato**: la fecha y la hora de instalación van juntas, y su sello es el de
+   la instalación que la puso, la movió o la canceló.
+7. **El dinero no entra en esto**: de ése la hoja es la dueña y baja siempre (como antes).
+
+Lo que se teclea a mano en esas columnas de la hoja también es un cambio: `alEditar` le pone su
+sello con la hora de la hoja. Y lo que estaba escrito antes de la 14 (sin sello) cuenta como
+«antiquísimo»: le gana a un teléfono que tampoco sabe cuándo cambió lo suyo —así, el día que se
+actualiza, todos terminan viendo lo que dice la hoja— y pierde contra cualquier cambio posterior.
+
+#### Ejemplos
+
+| Pasa esto | Queda esto |
+|---|---|
+| Dirección pasa una obra a «Armado» a las 10:00. Fabricación abre la app a las 10:05. | Fabricación ve «Armado». |
+| Fabricación, sin señal, la marca «Cortado» a las 9:00. Dirección la pasa a «Armado» a las 10:00 con señal. A las 11:00 Fabricación recupera señal. | Al bajar, el «Cortado» de Fabricación no se pisa mientras sigue en su bandeja; al mandarlo, la hoja lo rechaza (9:00 es más viejo que 10:00) y en la siguiente bajada Fabricación ve «Armado». Los dos terminan en «Armado». |
+| Dirección escribe una nota a las 10:00; Pagos escribe otra en la misma obra a las 10:02. | Queda la de Pagos en todos, aunque la de Dirección llegue después a la hoja. |
+| Dirección cambia la etapa y Fabricación corrige el teléfono, al mismo tiempo. | Quedan **los dos** cambios: son datos distintos. |
+| Fabricación corrige el teléfono del cliente. | Le llega a Dirección y a Pagos (antes solo llenaba a quien no tenía). |
+| Dirección mueve la instalación del 14 al 16; después Fabricación la cancela. | En todos: cancelada, con el mismo UID y `movida + 1`, para que el `.ics` la tache en el calendario. |
+| Elías corrige la dirección a mano en la hoja. | Llega a todos (alEditar la sella). |
+| Alguien borra sin querer la celda de notas en la hoja. | Nadie pierde la nota; el teléfono que la tiene la vuelve a subir. |
+
+**El reloj.** El sello es la hora del teléfono. Los teléfonos ponen la hora sola, de la red, así
+que en la práctica coinciden; si uno trae el reloj adelantado, la hoja no acepta sellos de más de
+diez minutos en el futuro (`SELLO_HOLGURA_MS`).
+
+#### Qué viaja y quién gana
+
+| Campo | ¿Viaja? | Quién gana |
+|---|---|---|
+| Ventas nuevas (alta) | Sí | — (se crea la fila) |
+| Dinero: subtotal, anticipo, IVA, % comisión, estatus, cuenta, saldo, comisiones | Sí | La hoja, siempre (Pagos la corrige ahí). Del teléfono sube cuando es lo que cambió |
+| Etapa de obra (todas: Ganado → … → Instalado, garantía, «No se dio») | **Sí, en los dos sentidos** (nuevo) | El cambio más reciente |
+| Notas del proyecto (AG) | **Sí** (nuevo) | El cambio más reciente |
+| Plazo de taller (AH) | **Sí** (nuevo) | El cambio más reciente |
+| Fecha y hora de instalación | Sí, también cuando se **mueve** o se **cancela** (nuevo) | El cambio más reciente de la cita |
+| Teléfono del cliente (AE) | Sí, también las **correcciones** (nuevo) | El cambio más reciente |
+| Dirección (AC) | Sí, también las correcciones (nuevo) | El cambio más reciente |
+| Ubicación / pin (AB) | Sí, también las correcciones (nuevo) | El cambio más reciente |
+| Forma de entrega (AF) | Sí | El cambio más reciente (antes: «manda la hoja») |
+| Almacén, catálogo de material, listas de compra | Sí (pestañas propias, desde la 9) | El cambio más reciente, campo por campo (sus propios «Sellos») |
+| Tipo de trabajo | Solo sube | La plataforma (sale de las partidas) |
+| Nombre del proyecto, contacto, negocio | Solo sube (en el alta o si cambió) | Cada teléfono el suyo; la hoja, el de la fila |
+| Fecha en que se ganó | Solo sube (es la fecha del anticipo) | La hoja para el dinero |
+| Entre calles, compromiso de entrega, «Todavía no la tengo» | No | Se quedan en el teléfono que los capturó |
+| Ventana (día/noche/madrugada), duración y notas de la instalación; estado «hecha» | No (sí la fecha, la hora y la cancelación) | Cada teléfono |
+| Cotizaciones del cotizador (historial y cola de autorizar) | No | Se quedan en el aparato donde se hicieron (ver la propuesta en el PR) |
+| Tarjetas de ventas en COBRANDO o LIQUIDADO | No se importan como tarjeta | Se ven en Control, desde el récord |
+| Marcas de cada teléfono: «Repetida», «Ya no está en la hoja», «Dejarla fuera» | No, a propósito | Cada teléfono |
+| Avisos, constantes del taller, caché de ubicaciones, bitácora | No, a propósito | Cada teléfono |
+
+#### Cómo está hecho
+
+| | |
+|---|---|
+| **Columnas** | AG «Notas» (texto sin formato), AH «Plazo taller» (desplegable con las cinco etiquetas de `PLAZOS_TALLER` = `PLAZOS` de `js/datos/taller.js`), AI «Sellos» (JSON, oculta). `ULTIMA_COL = 35`. Viajan con su fila al reacomodar (`ordenarVentas`). Cuentan solo si las tres dicen su encabezado (`tieneColumnasDeObra`): si AG ya dice otra cosa, «Preparar la hoja» no la toca y avisa |
+| **Roles** | Notas: los tres. Plazo: dirección y fabricación. Los sellos no se escriben desde un teléfono: la hoja los pone. Fabricación sigue sin ver ni escribir dinero |
+| **Sube** | Cada operación lleva `sellos` aparte de `datos` (`sellosDeLaOperacion`): de cada columna de la obra, cuándo se cambió aquí. La hoja filtra con `SELLADAS` en `unaOperacion` |
+| **Baja** | `/jalar` manda «Notas», «Plazo taller» y «Sellos» (ya leídos) solo si la hoja tiene AG:AI. La plataforma aplica `obraDeLaFila` (etapa, notas, plazo, teléfono, dirección, pin, entrega) y `citaDeHoja` (la cita, incluida la cancelación) |
+| **Lo que ya había** | AG y AH nacen vacías. La revisión de la bajada manda una vez las notas y el plazo que cada teléfono ya tenía (`obra_a_la_hoja`), como el teléfono y la entrega en la 11 y la 12 |
+| **Una hoja vieja** | Con la 13 o anterior (lo sabe por `/salud`) la plataforma no manda notas ni plazo, y baja la obra con las reglas de antes. Con la 14 sin «Preparar la hoja», `/jalar` baja hasta AF y las notas y el plazo se rechazan con su razón; un rechazo de puro plazo o nota vuelve solo a la cola cuando una bajada ve las columnas (`revive`, marca `revivida_obra`) |
+| **Pruebas** | `pruebas/sincronizacion.mjs`: dos copias de la plataforma contra el Apps Script de verdad (cambios de etapa, nota, plazo, fecha, teléfono; cruzados; sin señal; a mano en la hoja; roles; hoja sin AG:AI). `pruebas/navegador/dos-telefonos.mjs`: lo mismo en Chromium, dos perfiles en dos orígenes |
 
 ---
 
@@ -528,7 +616,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-13`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-14`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

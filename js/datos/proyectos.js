@@ -502,15 +502,41 @@ export function desdeVentaDeHoja(venta) {
     pago_pendiente: v.pago_pendiente === undefined ? null : v.pago_pendiente,
     comision_restante: v.comision_restante === undefined ? null : v.comision_restante,
     pct_comision: num(v.pct_comision),
-    plazo_k: null,
+    /* Las notas y el plazo de la fila (columnas AG y AH desde puente-sheets-14), y cuándo se cambió
+       cada dato allá: la tarjeta nace sabiendo lo mismo que la hoja, y la siguiente bajada solo le
+       aplica lo que sea más nuevo. Con una hoja anterior nacen vacíos, como antes. */
+    plazo_k: plazoValido(v.plazo_k),
     /* Null y no un objeto vacío: `origen` es la copia congelada de la cotización, y un objeto
        vacío se leería como «hay cotización y no tiene partidas», que es otra cosa. */
     origen: null,
-    notas: '',
+    notas: typeof v.notas === 'string' ? v.notas : '',
+    ...(v.sellos && typeof v.sellos === 'object'
+      ? { sellos: Object.fromEntries(Object.entries(v.sellos).filter(([g]) => g !== 'instalacion')) } : {}),
     creado_en: ahora,
     actualizado_en: ahora,
     sync: 0,
   };
+}
+
+/* ── Cuándo se cambió cada dato de la obra (puente-sheets-14) ────────────────────────────
+   Cuando dos teléfonos cambian lo mismo, gana el cambio más reciente, dato por dato (la regla,
+   con ejemplos, en puente/README.md, «Quién gana»). Para eso cada proyecto guarda en `sellos` la
+   hora en que se cambió aquí cada uno de estos datos —la etapa, las notas, el plazo, el teléfono,
+   la dirección, el pin y la entrega—; viaja a la hoja con cada cambio, la hoja guarda la suya en
+   la columna «Sellos», y al bajar solo se aplica lo que allá es más nuevo que aquí. La cita de
+   instalación no está: su sello es el de la propia instalación (ver `selloDeInstalacion` en
+   puente.js). Lo que no está en esta lista no compite: el dinero baja siempre de la hoja. */
+export const SELLO_DE_CAMPO = {
+  etapa: 'etapa', notas: 'notas', plazo_k: 'plazo_k', tel: 'tel', dir_texto: 'dir_texto',
+  lat: 'ubicacion', lng: 'ubicacion', entrega: 'entrega',
+};
+/** El registro con la hora `ts` en el sello de cada dato de `campos` que compite. PURA. */
+export function sellar(registro, campos, ts) {
+  const grupos = [...new Set((Array.isArray(campos) ? campos : []).map(c => SELLO_DE_CAMPO[c]).filter(Boolean))];
+  if (!grupos.length) return registro;
+  const sellos = { ...(registro.sellos && typeof registro.sellos === 'object' ? registro.sellos : {}) };
+  for (const g of grupos) sellos[g] = Number(ts) || Date.now();
+  return { ...registro, sellos };
 }
 
 /* Arma el registro. Lo comparten `ganar` y `descartar` porque un proyecto descartado se
@@ -605,6 +631,9 @@ function armarProyecto(entrada, extra, etapa) {
     plazo_k: plazoValido(extra.plazo_k),
     origen,
     notas: '',
+    /* Lo que nace aquí es lo más nuevo que hay de esta venta (ver `sellar`). */
+    sellos: Object.fromEntries(['etapa', 'tel', 'dir_texto', 'ubicacion', 'entrega']
+      .concat(plazoValido(extra.plazo_k) !== null ? ['plazo_k'] : []).map(g => [g, Date.now()])),
     creado_en: Date.now(),
     actualizado_en: Date.now(),
     sync: 0,
@@ -750,8 +779,9 @@ export async function descartar(ref, motivo = '') {
   }
 
   if (p.etapa === 'cancelado') return ok(p);
-  const fila = { ...p, etapa: 'cancelado', sync: 0 };
+  let fila = { ...p, etapa: 'cancelado', sync: 0 };
   if (nota) fila.notas = (p.notas ? p.notas + '\n' : '') + nota;
+  fila = sellar(fila, nota ? ['etapa', 'notas'] : ['etapa'], Date.now());
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor, nota ? ['etapa', 'notas'] : ['etapa']);
@@ -1000,7 +1030,7 @@ export async function actualizar(id, parche) {
     }
   }
 
-  const fila = { ...p };
+  let fila = { ...p };
   for (const k of campos) {
     let v = parche[k];
     if (k === 'lat' || k === 'lng') {
@@ -1031,6 +1061,10 @@ export async function actualizar(id, parche) {
     fila[k] = v;
   }
   fila.sync = 0;
+  /* Solo lo que de verdad cambió se sella: volver a guardar la misma nota no la vuelve «la más
+     reciente», y le ganaría a la de otro teléfono que sí la cambió. */
+  fila = sellar(fila, campos.filter(k => JSON.stringify(p[k] === undefined ? null : p[k]) !==
+                                         JSON.stringify(fila[k] === undefined ? null : fila[k])), Date.now());
 
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
@@ -1218,7 +1252,7 @@ export async function avanzarEtapa(id, etapa) {
   const cruzaCorte = ahora !== undefined && ahora >= ORDEN.cortado &&
                      (antes === undefined || antes < ORDEN.cortado);
 
-  const fila = { ...p, etapa, sync: 0 };
+  const fila = sellar({ ...p, etapa, sync: 0 }, ['etapa'], Date.now());
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor, ['etapa']);
@@ -2091,6 +2125,29 @@ export async function revisarContraLaHoja(info = {}) {
     entregas++; cambios++;
   }
 
+  /* Las notas y el plazo que la hoja todavía no tiene (puente-sheets-14), con la regla del
+     teléfono: las columnas AG y AH nacen vacías, y lo que cada teléfono ya tenía se quedaría solo
+     ahí hasta que alguien lo volviera a tocar. Se manda una vez (`obra_a_la_hoja`, la huella de lo
+     que se mandó), solo a una fila que ya tiene las columnas (`notas` y `plazo_k` vienen en el
+     renglón) y las trae vacías, y solo lo que aquí sí hay. */
+  let obras = 0;
+  for (const p of proys) {
+    if (!p || idas.has(p.id) || p.fuera_de_hoja || p.hoja_perdida || conBandeja.has(p.id)) continue;
+    const fh = String(p.notion_page_id || '').trim();
+    const v = fh && folios.has(fh) ? ventaDe.get(fh) : null;
+    if (!v || typeof v.notas !== 'string') continue;
+    const campos = [];
+    if (!v.notas.trim() && String(p.notas || '').trim()) campos.push('notas');
+    if (v.plazo_k === null && plazoValido(p.plazo_k) !== null) campos.push('plazo_k');
+    if (!campos.length) continue;
+    const huella = campos.map(c => c + ':' + huellaCorta(c === 'notas' ? p.notas : p.plazo_k)).join('|');
+    if (p.obra_a_la_hoja === huella) continue;
+    const marcado = await parcharMarca(p.id, { obra_a_la_hoja: huella });
+    if (!marcado) continue;
+    await encolar('actualizar', marcado, campos);
+    obras++; cambios++;
+  }
+
   if (info && info.completa) {
     for (const p of huerfanasDeLaHoja(proys.filter(x => x && !idas.has(x.id)), folios)) {
       if (p.hoja_perdida && p.hoja_perdida.folio === String(p.folio_hoja)) continue;
@@ -2118,7 +2175,16 @@ export async function revisarContraLaHoja(info = {}) {
       if (m !== p.hoja_perdida && await parcharMarca(p.id, { hoja_perdida: m })) cambios++;
     }
   }
-  return ok({ juntadas, repetidas, perdidas, reenviadas, telefonos, entregas, cambios });
+  return ok({ juntadas, repetidas, perdidas, reenviadas, telefonos, entregas, obras, cambios });
+}
+
+/* Una huella corta y estable de un texto, para recordar QUÉ se mandó sin guardar la nota entera
+   otra vez. No es seguridad: es «¿ya mandé esto mismo?». */
+function huellaCorta(v) {
+  const t = String(v == null ? '' : v);
+  let h = 0;
+  for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+  return t.length + '.' + (h >>> 0).toString(36);
 }
 
 /* ¿El texto nombra ESE folio, y no uno que lo contiene? «V-47» está dentro de «V-470». */

@@ -121,7 +121,10 @@ teléfono del cliente en la columna AE (al final).
 Y la **`puente-sheets-12`**: lo de la 11 más la entrega —instalación, paquetería o recolección en
 taller— en la columna AF (al final).
 Y la **`puente-sheets-13`**: lo de la 12 más el teléfono, la entrega, la dirección y el link de
-Maps en «Registrar nueva venta» de la hoja (al final). Cuál corre la hoja de verdad
+Maps en «Registrar nueva venta» de la hoja (al final).
+Y la **`puente-sheets-14`** (10 de octubre de 2026): lo de la 13 más una sola sincronización
+para todo el equipo —la etapa, las notas, el plazo, la cita y las correcciones viajan, y gana el
+cambio más reciente— con tres columnas nuevas en Ventas, AG:AI (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -368,6 +371,33 @@ hoja pida los datos.
 4. **Ajustes → El puente → Probar**, en un teléfono, tiene que decir `puente-sheets-13`. Y en la
    hoja, recarga la pestaña (el menú se arma al abrir) y registra una venta de prueba: tiene que
    pedir el teléfono y cómo se entrega, y con un link de Maps escribir «lat,lng» en Ubicación.
+
+### Al pasar a `puente-sheets-14` (todos ven lo mismo) — tres pasos
+
+La 14 agrega a Ventas tres columnas: **AG «Notas»**, **AH «Plazo taller»** y **AI «Sellos»** (oculta).
+No crea pestañas. La regla de quién gana está en el README («`puente-sheets-14` — todos ven lo
+mismo: quién gana»). El orden no rompe nada: si la app nueva sale antes que el puente, los teléfonos
+ven por `/salud` que la hoja corre la 13 y trabajan como hoy; si el `.gs` nuevo se publica pero no se
+corre el paso 3, todo funciona menos las notas y el plazo, que esperan con su razón y se mandan
+solos después.
+
+El `puente/hoja-apps-script.gs` de este repositorio parte del `puente-sheets-13` que corre hoy en la
+hoja, así que no hay nada que fusionar: se pega entero.
+
+1. **Pegar y guardar.** En la hoja, **Extensiones → Apps Script → `Código.gs`**: selecciona todo,
+   borra, pega el contenido de `puente/hoja-apps-script.gs` y guarda (💾).
+2. **Publicar la versión.** **Implementar → Gestionar implementaciones → lápiz → Versión: Versión
+   nueva → Implementar.** La URL no cambia. No pide permisos nuevos.
+3. **Preparar la hoja.** Recarga la hoja y usa **⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la
+   hoja para el puente.** Crea AG, AH y AI con sus encabezados, el desplegable del plazo y oculta los
+   sellos. Es idempotente. Si AG, AH o AI ya tuvieran otro encabezado (algo tuyo), no las toca y te
+   lo dice.
+
+Para comprobarlo: **Ajustes → El puente → Probar** en un teléfono tiene que decir `puente-sheets-14`.
+Después de la siguiente sincronización de cada teléfono, las notas y los plazos que ya tenían se
+escriben solos en AG y AH (una vez cada uno), y desde ahí cualquier cambio de etapa, nota, plazo,
+cita, teléfono, dirección, pin o entrega llega a los demás en la siguiente sincronización (cada 30
+segundos con la app abierta).
 
 ## Las cabeceras del sitio
 
