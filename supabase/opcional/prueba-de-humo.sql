@@ -29,6 +29,7 @@ declare
   u_fab uuid := gen_random_uuid();
   u_pag uuid := gen_random_uuid();
   u_ext uuid := gen_random_uuid();
+  u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   r jsonb; k jsonb; n numeric; t text; b boolean;
 begin
@@ -149,6 +150,31 @@ begin
     inf := inf || jsonb_build_object('caso', 'C18 ni Dirección escribe ventas_dinero directo', 'ok', false, 'det', 'pudo insertar');
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C18 ni Dirección escribe ventas_dinero directo (permission denied)', 'ok', sqlstate = '42501', 'det', sqlstate);
+  end;
+  execute 'reset role';
+
+  -- 5b) Lo que encontró la revisión adversarial (migración 0012): un importe que no es un importe se rechaza, y el correo solo cuenta si la cuenta es de Google.
+  perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+  begin
+    r := public.repartir_abono_fifo('NaN'::numeric, null, '', 'humo-nan', null);
+    inf := inf || jsonb_build_object('caso', 'C24 repartir_abono_fifo(NaN) se rechaza (DATO_INVALIDO)', 'ok', r->>'codigo' = 'DATO_INVALIDO', 'det', coalesce(r->>'codigo', 'ok'));
+    r := public.registrar_cobro('humo1', 'Infinity'::numeric, null, false, 'humo-inf', null);
+    inf := inf || jsonb_build_object('caso', 'C25 registrar_cobro(Infinity) se rechaza (DATO_INVALIDO)', 'ok', r->>'codigo' = 'DATO_INVALIDO', 'det', coalesce(r->>'codigo', 'ok'));
+    select to_jsonb(v) into k from public.ventas_calculadas v where v.proyecto_id = 'humo1';
+    inf := inf || jsonb_build_object('caso', 'C26 y el saldo no se movió (sigue 2640)', 'ok', coalesce((k->>'k_saldo')::numeric = 2640, false), 'det', k->>'k_saldo');
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C24-C26 (importes no finitos)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    values (u_ema, 'authenticated', 'authenticated', 'jefe@humo.test', now(), '{"provider":"email"}', '{}', now(), now());
+  insert into public.miembros (empresa_id, correo, area, estado) values ('al3d', 'jefe@humo.test', 'direccion', 'invitado');
+  perform pg_temp.como('authenticated', u_ema, 'jefe@humo.test');
+  begin
+    r := public.reclamar_acceso();
+    inf := inf || jsonb_build_object('caso', 'C27 una cuenta de correo (no Google) NO reclama la invitación de Dirección', 'ok', r->>'estado' = 'correo_no_verificado', 'det', coalesce(r->>'estado', r->>'codigo'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C27 (cuenta de correo)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
   execute 'reset role';
 
