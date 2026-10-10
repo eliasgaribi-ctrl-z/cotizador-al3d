@@ -427,8 +427,11 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
         protect: () => { const p = { setDescription: () => p, setWarningOnly: () => p }; return p; },
       };
       for (const k of ['setFontWeight', 'setBackground', 'setFontColor', 'setHorizontalAlignment', 'setFontSize',
-                       'setWrap', 'setVerticalAlignment', 'setFontStyle', 'setDataValidation', 'setNote'])
+                       'setWrap', 'setVerticalAlignment', 'setFontStyle', 'setNote'])
         R[k] = () => R;
+      /* La validación se anota por columna (`_dv`): es lo que deja probar que AF nace con su
+         desplegable de tres opciones. */
+      R.setDataValidation = dv => { h._dv = h._dv || {}; for (let j = 0; j < m; j++) h._dv[c + j] = dv; return R; };
       return R;
     }
     hojas[nombre] = h;
@@ -444,7 +447,9 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   const cache = new Map();
   const pedidasAGoogle = [];
   /* Lo que usa prepararHojaParaElPuente para las validaciones y las protecciones, sin efecto. */
-  const validacion = { requireValueInList: () => validacion, setAllowInvalid: () => validacion, build: () => ({}) };
+  const validacion = { requireValueInList: l => { validacion._lista = l; return validacion; },
+                       setAllowInvalid: x => { validacion._libre = x; return validacion; },
+                       build: () => ({ lista: validacion._lista, libre: validacion._libre }) };
   const ctx2 = vm.createContext({
     SpreadsheetApp: { getActive: () => ss, flush() {}, newDataValidation: () => validacion,
                       ProtectionType: { RANGE: 'RANGE' } },
@@ -1090,7 +1095,7 @@ console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
     eq(rol + ' lo ve bajar', api.sinLoQueNoLeToca({ 'Telefono': '33 1', 'Anticipo': 5 }, rol)['Telefono'], '33 1');
   }
   cierto('no es dinero', api.CAMPOS_DE_DINERO.indexOf('Telefono') === -1);
-  eq('AE es la 31, y ULTIMA_COL la alcanza', [api.COL['Telefono'], api.ULTIMA_COL], [31, 31]);
+  eq('AE es la 31, y ULTIMA_COL (32, la entrega) la alcanza', [api.COL['Telefono'], api.ULTIMA_COL], [31, 32]);
   eq('se escribe como texto, limpio', api.armarCeldas({ 'Telefono': '+52 1 33.1234.5678' }, 'fabricacion').celdas.map(c => [c.valor, c.texto]),
      [['+52 1 33 1234 5678', true]]);
   eq('sin un dígito se rechaza con su razón', api.armarCeldas({ 'Telefono': 'no tiene' }, 'pagos').rechazadas.map(x => x.nombre), ['Telefono']);
@@ -1119,7 +1124,7 @@ console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
   eq('la crea con su encabezado', V.v._g[1][ae], 'Telefono');
   eq('en texto sin formato, para que «+52…» no se vuelva número', [V.v._f[2][ae], V.v._f[309][ae]], ['@', '@']);
   V.run('prepararHojaParaElPuente()');
-  eq('correrla otra vez no agrega otra columna', V.v.getMaxColumns(), 31);
+  eq('correrla otra vez no agrega otra columna (AE y AF: 32)', V.v.getMaxColumns(), 32);
   const r2 = V.empujar([{ id: 'op3', id_notion: 'V-001', datos: { 'Telefono': '+52 1 33 1234 5678' } }], 'pagos');
   eq('ya con AE, pagos lo escribe tal cual, sin apóstrofo', [r2.resultados[0].ok, V.celda('V-001', 'Telefono')], [true, '+52 1 33 1234 5678']);
   eq('y lo que vuelve trae el teléfono', r2.resultados[0].remoto['Telefono'], '+52 1 33 1234 5678');
@@ -1148,6 +1153,78 @@ console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
   const p = V.run('propuestaDeRealineacion(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
   eq('la realineación de Y:AD no toca AE', p.ancho, 6);
   cierto('/esquema la reporta si falta', hojaDeMentiras().run('rutaEsquema_()').faltan.some(x => x.nombre === 'Telefono'));
+}
+
+console.log('\nLA ENTREGA — columna AF, puente-sheets-12');
+{
+  /* Los roles: los tres la ven; la escriben dirección y fabricación, pagos no. */
+  cierto('dirección escribe la entrega', api.PUENTE_ROLES.direccion.indexOf('Entrega') !== -1);
+  cierto('fabricación también', api.PUENTE_ROLES.fabricacion.indexOf('Entrega') !== -1);
+  cierto('pagos no', api.PUENTE_ROLES.pagos.indexOf('Entrega') === -1);
+  for (const rol of ['direccion', 'fabricacion', 'pagos']) {
+    eq(rol + ' la ve bajar', api.sinLoQueNoLeToca({ 'Entrega': 'Paquetería', 'Anticipo': 5 }, rol)['Entrega'], 'Paquetería');
+  }
+  eq('pagos la manda y se le rechaza', api.armarCeldas({ 'Entrega': 'Paquetería' }, 'pagos').rechazadas.map(x => x.nombre), ['Entrega']);
+  eq('AF es la 32, y ULTIMA_COL la alcanza', [api.COL['Entrega'], api.ULTIMA_COL], [32, 32]);
+  eq('la lista: las tres opciones', hojaDeMentiras().run('ENTREGAS'), ['Instalación', 'Paquetería', 'Recolección en taller']);
+  eq('lo tecleado a mano se vuelve la opción de la lista',
+     api.armarCeldas({ 'Entrega': 'paqueteria' }, 'fabricacion').celdas.map(c => c.valor), ['Paquetería']);
+  eq('otra cosa se rechaza con su razón', api.armarCeldas({ 'Entrega': 'por avión' }, 'direccion').rechazadas.map(x => x.nombre), ['Entrega']);
+  eq('vacía borra la celda (vuelve a ser instalación)', api.armarCeldas({ 'Entrega': '' }, 'direccion').celdas.map(c => c.valor), ['']);
+
+  /* Una hoja sin AF —con AE ya creada, como la de la 11—: no truena. */
+  const V = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  V.v.insertColumnsAfter(30, 1);
+  V.v._g[1][31] = 'Telefono';
+  V.pon(2, 'V-001', { 'Proyecto': 'AVIDA - Market', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-1@A' });
+  let j = null, cayo = null;
+  try { j = V.run('rutaJalar_({}, "direccion")'); } catch (e) { cayo = e.message; }
+  eq('sin AF, /jalar no truena', cayo, null);
+  eq('y baja la fila sin la llave de la entrega (no un vacío)', j && [j.registros.length, 'Entrega' in j.registros[0].datos, 'Telefono' in j.registros[0].datos], [1, false, true]);
+  const r0 = V.empujar([{ id: 'op1', id_notion: 'V-001', datos: { 'Etapa de obra': 'Armado', 'Entrega': 'Paquetería' } }], 'fabricacion');
+  eq('una subida con entrega escribe lo demás', [r0.resultados[0].ok, V.celda('V-001', 'Etapa de obra')], [true, 'Armado']);
+  cierto('y la entrega vuelve rechazada con «falta correr Preparar la hoja»',
+     r0.resultados[0].rechazadas.some(x => x.nombre === 'Entrega' && /falta correr Preparar la hoja/.test(x.por)));
+  const r1 = V.empujar([{ id: 'op2', id_notion: 'V-001', datos: { 'Entrega': 'Paquetería' } }], 'direccion');
+  cierto('una de pura entrega dice que falta la columna, no que el rol no puede',
+     !r1.resultados[0].ok && /columna AF/.test(r1.resultados[0].mensaje) && /la entrega/.test(r1.resultados[0].mensaje));
+  cierto('/esquema la reporta si falta', V.run('rutaEsquema_()').faltan.some(x => x.nombre === 'Entrega'));
+
+  /* «Preparar la hoja» la crea, con su desplegable; correrla otra vez no cambia nada. */
+  V.run('prepararHojaParaElPuente()');
+  const af = V.C['Entrega'];
+  eq('la crea con su encabezado', V.v._g[1][af], 'Entrega');
+  eq('con el desplegable cerrado de las tres', [V.v._dv && V.v._dv[af] && V.v._dv[af].lista, V.v._dv && V.v._dv[af] && V.v._dv[af].libre],
+     [['Instalación', 'Paquetería', 'Recolección en taller'], false]);
+  eq('no la llena: vacía es instalación', V.celda('V-001', 'Entrega'), '');
+  V.run('prepararHojaParaElPuente()');
+  eq('correrla otra vez no agrega otra columna', [V.v.getMaxColumns(), V.v._g[1][af]], [32, 'Entrega']);
+  eq('/esquema ya no la pide', V.run('rutaEsquema_()').faltan.some(x => x.nombre === 'Entrega'), false);
+  const r2 = V.empujar([{ id: 'op3', id_notion: 'V-001', datos: { 'Entrega': 'Paquetería' } }], 'fabricacion');
+  eq('ya con AF, fabricación la escribe', [r2.resultados[0].ok, V.celda('V-001', 'Entrega')], [true, 'Paquetería']);
+  eq('y lo que vuelve la trae', r2.resultados[0].remoto['Entrega'], 'Paquetería');
+  eq('/jalar la baja a pagos', V.run('rutaJalar_({}, "pagos")').registros[0].datos['Entrega'], 'Paquetería');
+
+  /* Viaja con su fila al reacomodarse. */
+  V.pon(3, 'V-002', { 'Proyecto': 'Beto - Taller', 'Estatus': 'LIQUIDADO', 'Entrega': 'Recolección en taller' });
+  V.empujar([{ id: 'op4', id_notion: 'V-001', datos: { 'Estatus': 'LIQUIDADO' } }], 'direccion');
+  V.empujar([{ id: 'op5', id_notion: 'V-002', datos: { 'Estatus': 'FABRICACION' } }], 'direccion');
+  eq('al reacomodar, cada entrega se va con su venta',
+     [V.fila('V-002'), V.celda('V-002', 'Entrega'), V.celda('V-001', 'Entrega')], [2, 'Recolección en taller', 'Paquetería']);
+
+  /* Una AF que alguien usaba para otra cosa no se lee como entrega ni se escribe encima. */
+  const O = hojaDeMentiras();
+  O.v.insertColumnsAfter(30, 2);
+  O.v._g[1][31] = 'Telefono';
+  O.v._g[1][32] = 'Notas de Elías';
+  O.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'FABRICACION' });
+  O.v._g[2][32] = 'llamar el lunes';
+  eq('una AF con otro encabezado no baja como entrega', 'Entrega' in O.run('rutaJalar_({}, "direccion")').registros[0].datos, false);
+  const r3 = O.empujar([{ id: 'op6', id_notion: 'V-001', datos: { 'Entrega': 'Paquetería' } }], 'direccion');
+  eq('ni se escribe encima', [r3.resultados[0].ok, O.v._g[2][32]], [false, 'llamar el lunes']);
+
+  /* Y la realineación de una sola vez sigue llegando solo hasta AD. */
+  eq('la realineación de Y:AD no toca AF', V.run('propuestaDeRealineacion(SpreadsheetApp.getActive().getSheetByName("Ventas"))').ancho, 6);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

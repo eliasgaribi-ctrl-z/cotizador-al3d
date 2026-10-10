@@ -37,6 +37,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
+import { TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from './entrega.js';
 import { diasEntre } from '../nucleo/fechas.js';
 import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa, telWa }
   from '../nucleo/ui.js';
@@ -910,7 +911,31 @@ export function mensajeWa(clase, datos = {}) {
   const i = d.instalacion && typeof d.instalacion === 'object' ? d.instalacion : d;
   let texto = '';
 
-  if (clase === 'confirmar_cliente') {
+  /* Cómo sale del taller (js/datos/entrega.js). Al cliente de un envío no se le habla de
+     instalación ni de acceso: se le dice que sale por paquetería y se le pide confirmar a dónde.
+     Al de una recolección se le dice que pase al taller, con la dirección completa. */
+  const ent = entregaDe(p);
+
+  if (clase === 'confirmar_cliente' && ent === 'paqueteria') {
+    const destino = String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ').trim();
+    texto = saludo(d.contacto || p.contacto) +
+      'Le confirmo que ' + (d.negocio || p.negocio || 'su anuncio') + ' sale del taller por paquetería el ' +
+      cuandoTexto(i.fecha || d.fecha, i.hora || d.hora) + '.\n' +
+      (destino
+        ? 'Lo enviamos a: ' + destino + '. ¿Nos confirma que la dirección está completa y quién lo recibe?\n'
+        : '¿Nos comparte la dirección completa de entrega y quién lo recibe?\n') +
+      'En cuanto tengamos la guía se la mandamos por aquí.\n' +
+      '— AL3D';
+
+  } else if (clase === 'confirmar_cliente' && ent === 'recoleccion') {
+    texto = saludo(d.contacto || p.contacto) +
+      'Le confirmo que ' + (d.negocio || p.negocio || 'su anuncio') + ' queda listo para que pase a recogerlo al taller el ' +
+      cuandoTexto(i.fecha || d.fecha, i.hora || d.hora) + '.\n' +
+      'Estamos en ' + TALLER_NOMBRE + ', ' + DIRECCION_TALLER + '\n' +
+      '¿Nos confirma a qué hora pasa y quién viene por él?\n' +
+      '— AL3D';
+
+  } else if (clase === 'confirmar_cliente') {
     texto = saludo(d.contacto || p.contacto) +
       'Le confirmo la instalación de ' + (d.negocio || p.negocio || 'su anuncio') +
       ' el ' + cuandoTexto(i.fecha || d.fecha, i.hora || d.hora) + '.\n' +
@@ -918,17 +943,24 @@ export function mensajeWa(clase, datos = {}) {
       '— AL3D';
 
   } else if (clase === 'orden_instalador') {
-    const L = ['ORDEN DE TRABAJO — ' + fmtFechaDia(i.fecha || d.fecha)];
+    /* Con un envío o una recolección la orden es del taller, no de la calle: se dice qué es, a
+       dónde va (o que lo recogen) y qué se empaca. */
+    const L = [(ent === 'paqueteria' ? 'ENVÍO POR PAQUETERÍA — ' : ent === 'recoleccion' ? 'RECOLECCIÓN EN TALLER — ' : 'ORDEN DE TRABAJO — ') +
+               fmtFechaDia(i.fecha || d.fecha)];
     L.push('Hora: ' + (i.hora ? fmtHora(i.hora) : 'sin definir todavía, te confirmo temprano'));
-    if (i.ventana && i.ventana !== 'dia') L.push('Es instalación de ' + (i.ventana === 'noche' ? 'noche' : 'madrugada') + '.');
+    if (ent === 'instalacion' && i.ventana && i.ventana !== 'dia') L.push('Es instalación de ' + (i.ventana === 'noche' ? 'noche' : 'madrugada') + '.');
     L.push('');
     L.push('Negocio: ' + (p.negocio || p.nombre || 'sin nombre'));
-    L.push('Buscar a: ' + (p.contacto || 'quien esté encargado') + (p.tel ? ' · ' + p.tel : ''));
-    if (p.dir_texto) L.push('Dirección: ' + String(p.dir_texto).replace(/\s*\n\s*/g, ', '));
-    if (p.entrecalles) L.push('Entre calles: ' + p.entrecalles);
-    if (p.maps_url) L.push('Mapa: ' + p.maps_url);
+    L.push((ent === 'instalacion' ? 'Buscar a: ' : 'Cliente: ') + (p.contacto || 'quien esté encargado') + (p.tel ? ' · ' + p.tel : ''));
+    if (ent === 'recoleccion') {
+      L.push('Pasa a recogerlo al taller: ' + DIRECCION_TALLER);
+    } else {
+      if (p.dir_texto) L.push((ent === 'paqueteria' ? 'Destino: ' : 'Dirección: ') + String(p.dir_texto).replace(/\s*\n\s*/g, ', '));
+      if (ent === 'instalacion' && p.entrecalles) L.push('Entre calles: ' + p.entrecalles);
+      if (ent === 'instalacion' && p.maps_url) L.push('Mapa: ' + p.maps_url);
+    }
     L.push('');
-    L.push('Qué se instala:');
+    L.push(ent === 'paqueteria' ? 'Qué se empaca:' : ent === 'recoleccion' ? 'Qué se entrega:' : 'Qué se instala:');
     const items = (p.origen && Array.isArray(p.origen.items)) ? p.origen.items : [];
     if (items.length) {
       for (const it of items.slice(0, 8)) L.push('• ' + Cot.descPartida(it));

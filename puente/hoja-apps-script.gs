@@ -919,8 +919,8 @@ function instalarTriggers() {
  *    asi que cualquier otra cuenta deja el IVA en "Si".
  *
  * Se mueven TODAS las columnas que se capturan: A:G, I:J, L:N y las del puente,
- * Y:AE (folio de cotización, etapa de obra, hora, ubicación, dirección, % de
- * comisión y, desde puente-sheets-11, el teléfono del cliente). Las columnas
+ * Y:AF (folio de cotización, etapa de obra, hora, ubicación, dirección, % de
+ * comisión, desde puente-sheets-11 el teléfono del cliente y desde la 12 la entrega). Las columnas
  * calculadas son ARRAYFORMULA que vive en la fila 2: no se tocan nunca.
  *
  * Hasta puente-sheets-5 este comentario decía «A:G, I:J, L:N» y el código hacía
@@ -963,8 +963,9 @@ function filaPorFolio(h, folio) {
  * Las columnas que se CAPTURAN, en bloques [primera, última], recortadas a las que la hoja
  * tiene de verdad. Es una función y no una variable porque COL y ULTIMA_COL se declaran más
  * abajo, y porque una hoja anterior al puente tiene 24 columnas: pedirle la 30 truena. El
- * teléfono (AE) entra en el último bloque y viaja con su fila como Y:AD; `ancho` sale de
- * anchoDelPuente, así que una hoja sin AE se reacomoda igual, hasta AD.
+ * teléfono (AE) y la entrega (AF) entran en el último bloque y viajan con su fila como Y:AD;
+ * `ancho` sale de anchoDelPuente, así que una hoja sin AE o sin AF se reacomoda igual, hasta
+ * donde llegue.
  * Lo que no está aquí es fórmula (H, K, O:X) y no se escribe nunca.
  */
 function bloquesCapturados(ancho) {
@@ -1742,8 +1743,16 @@ function dialogoTokens() {
    confirmar y quien cobra por WhatsApp se lo tenían que pedir a Elías. Ahora viaja como las otras
    del puente, con su fila, y lo leen y escriben los tres roles. Una hoja que todavía no tiene la
    columna no truena: /jalar lee hasta donde haya y una escritura del teléfono se rechaza con su
-   razón (ver anchoDelPuente). La crea «3 · Preparar la hoja para el puente». */
-var PUENTE_VERSION = 'puente-sheets-11';
+   razón (ver anchoDelPuente). La crea «3 · Preparar la hoja para el puente».
+   puente-sheets-12 (9 de octubre de 2026): cómo se entrega el trabajo, columna AF «Entrega», con
+   lista cerrada «Instalación» / «Paquetería» / «Recolección en taller». Hasta la 11 todo se daba
+   por instalado: AVIDA Market, que se manda por paquetería a Puerto Vallarta, salía en el mapa
+   como «sin ubicar» y en el calendario como instalación. Vacía es Instalación, que es lo de
+   siempre. La leen los tres roles y la escriben dirección y fabricación; pagos no decide cómo
+   sale un trabajo del taller. Viaja con su fila como AE, y una hoja sin la columna no truena:
+   se lee hasta donde haya y una escritura de la entrega se rechaza con su razón. La crea
+   «3 · Preparar la hoja para el puente». */
+var PUENTE_VERSION = 'puente-sheets-12';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1807,13 +1816,17 @@ var COL = {
   /* El teléfono del cliente (puente-sheets-11), como texto: «+52 1 33 1234 5678» tal cual,
      sin que Sheets lo vuelva número ni le coma el «+». No es dinero: lo ven los tres roles,
      porque el instalador llama para confirmar y quien cobra escribe por WhatsApp. */
-  'Telefono':                     31    // AE
+  'Telefono':                     31,   // AE
+  /* Cómo sale el trabajo del taller (puente-sheets-12): «Instalación», «Paquetería» o
+     «Recolección en taller», de la lista ENTREGAS. Vacía es Instalación: es lo que eran todas
+     las ventas antes de que existiera la columna. No es dinero: la ven los tres roles. */
+  'Entrega':                      32    // AF
 };
 
 var COL_FOLIO = 1;                      // A — el id interno (V-001)
-var ULTIMA_COL = 31;
+var ULTIMA_COL = 32;
 /* Hasta dónde llega la realineación de una sola vez de Y:AD (ver realinearColumnasDelPuente).
-   AE no entra: nació en puente-sheets-11, cuando ordenarVentas ya movía las columnas del puente
+   AE no entra —ni AF, que nació en la 12—: nació en puente-sheets-11, cuando ordenarVentas ya movía las columnas del puente
    con su fila, así que nunca estuvo revuelta y la bitácora no tiene nada que decir de ella. */
 var ULTIMA_COL_REALINEABLE = 30;        // AD
 
@@ -1827,7 +1840,31 @@ var ULTIMA_COL_REALINEABLE = 30;        // AD
 function anchoDelPuente(h) {
   var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
   if (ancho >= COL['Telefono'] && !tieneColumnaTelefono(h)) ancho = COL['Telefono'] - 1;
+  /* AF igual que AE (puente-sheets-12): cuenta solo con su encabezado «Entrega». Sin AE no se
+     llega a preguntar: AF depende de que AE esté, y «Preparar la hoja» crea las dos juntas. */
+  if (ancho >= COL['Entrega'] && !tieneColumnaEntrega(h)) ancho = COL['Entrega'] - 1;
   return ancho;
+}
+function tieneColumnaEntrega(h) {
+  if (h.getMaxColumns() < COL['Entrega']) return false;
+  return String(h.getRange(1, COL['Entrega']).getValue()).trim() === 'Entrega';
+}
+
+/* Las tres maneras en que un trabajo sale del taller, EN EL ORDEN DEL DESPLEGABLE de AF. La
+   plataforma tiene la misma lista (ENTREGA_A_HOJA en js/datos/puente.js) y pruebas/puente.mjs
+   compara las dos: una opción escrita distinto de un lado es una celda que el otro no entiende. */
+var ENTREGAS = ['Instalación', 'Paquetería', 'Recolección en taller'];
+/* Lo que se teclea a mano, a la opción de la lista: sin acentos ni mayúsculas, «paqueteria» o
+   «recoleccion» bastan. Lo que no es ninguna de las tres sale vacío —que se lee Instalación—,
+   no se inventa. La misma regla que `entregaDesdeHoja` del lado de la plataforma. */
+function entregaDeCelda(v) {
+  var s = String(v == null ? '' : v).trim().toLowerCase()
+    .replace(/[áà]/g, 'a').replace(/[éè]/g, 'e').replace(/[íì]/g, 'i').replace(/[óò]/g, 'o').replace(/[úù]/g, 'u');
+  if (!s) return '';
+  if (/^paquet/.test(s)) return 'Paquetería';
+  if (/^recole/.test(s)) return 'Recolección en taller';
+  if (/^instala/.test(s)) return 'Instalación';
+  return '';
 }
 function tieneColumnaTelefono(h) {
   if (h.getMaxColumns() < COL['Telefono']) return false;
@@ -1868,11 +1905,14 @@ var PUENTE_ROLES = {
   direccion: ['Proyecto', 'Precio Subtotal', 'IVA', 'Anticipo', 'Liquidacion', 'Abono Comision',
               'Estatus', 'Cuenta ', 'Fecha Anticipo e Instalacion', 'Fecha Liquidacion',
               'Folio cotizacion', 'Etapa de obra', 'Fecha instalacion', 'Hora instalacion',
-              'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision', 'Telefono'],
+              'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision', 'Telefono',
+              'Entrega'],
   /* El teléfono, los tres (puente-sheets-11): fabricación llama al cliente para instalar y pagos
      le cobra por WhatsApp, y cualquiera de los dos puede ser quien se entera de que cambió. */
+  /* La entrega (puente-sheets-12), dirección y fabricación: el taller es quien empaca o entrega en
+     mostrador. Pagos la lee y no la escribe. */
   fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion',
-                'Telefono'],
+                'Telefono', 'Entrega'],
   pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
           'Porcentaje comision', 'Telefono']
 };
@@ -2217,7 +2257,8 @@ function rutaEsquema_() {
     { nombre: 'Direccion', tipo: 'texto', para: 'la dirección como la mandó el cliente' },
     { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
     { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' },
-    { nombre: 'Telefono', tipo: 'texto', para: 'el teléfono del cliente, para llamarle o escribirle por WhatsApp (puente-sheets-11)' }
+    { nombre: 'Telefono', tipo: 'texto', para: 'el teléfono del cliente, para llamarle o escribirle por WhatsApp (puente-sheets-11)' },
+    { nombre: 'Entrega', tipo: 'lista', para: 'cómo sale el trabajo del taller; vacía es Instalación (puente-sheets-12)', opciones: ENTREGAS }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
@@ -2230,8 +2271,8 @@ function rutaEsquema_() {
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
       : sinAccesos
-        ? 'Las nueve columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
-        : 'La hoja ya tiene las nueve columnas que la plataforma necesita, y la pestaña «Accesos».' };
+        ? 'Las diez columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
+        : 'La hoja ya tiene las diez columnas que la plataforma necesita, y la pestaña «Accesos».' };
 }
 
 /* ------------------------------------------------------------------ /jalar */
@@ -2309,6 +2350,10 @@ function aplanarFila(fila, tz) {
      la columna no borró nada. Un número tecleado a mano que Sheets volvió número llega como
      3312345678 y sale como texto. */
   if (fila.length >= COL['Telefono']) out['Telefono'] = telefonoLimpio(v('Telefono'));
+  /* La entrega, con la misma regla (puente-sheets-12): sin AF no va la llave; con AF vacía va
+     '' —que la plataforma lee como «la hoja no dice», no como «cámbialo a Instalación»—. Lo
+     tecleado a mano sale ya como la opción de la lista (entregaDeCelda). */
+  if (fila.length >= COL['Entrega']) out['Entrega'] = entregaDeCelda(v('Entrega'));
   return out;
 }
 
@@ -2444,13 +2489,24 @@ function unaOperacion(h, op, rol, anotaciones) {
       return false;
     });
   }
+  /* Y la entrega contra una hoja sin AF (puente-sheets-12), igual: se rechaza sola, con su razón,
+     y la etapa o la fecha que venían con ella sí se escriben. anchoDelPuente pide AE para contar
+     AF, así que aquí también: sin AE, AF no se escribe aunque alguien la haya tecleado. */
+  if (anchoDelPuente(h) < COL['Entrega']) {
+    armado.celdas = armado.celdas.filter(function (c) {
+      if (c.col !== COL['Entrega']) return true;
+      armado.rechazadas.push({ nombre: 'Entrega', sinColumna: true,
+        por: 'la hoja todavía no tiene la columna AF «Entrega»: falta correr Preparar la hoja (⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente)' });
+      return false;
+    });
+  }
   if (!armado.celdas.length && !armado.abono) {
     /* Si lo único que traía era el teléfono y la hoja no tiene su columna, eso es lo que se dice:
        «este teléfono no puede escribir: Telefono» mandaba a revisar el rol, que está bien. */
     var sinColumna = armado.rechazadas.length && armado.rechazadas.every(function (x) { return x.sinColumna; });
     return { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
              mensaje: sinColumna
-               ? 'No se escribió el teléfono: ' + armado.rechazadas[0].por + '.'
+               ? 'No se escribió ' + (armado.rechazadas[0].nombre === 'Entrega' ? 'la entrega' : 'el teléfono') + ': ' + armado.rechazadas[0].por + '.'
                : armado.rechazadas.length
                ? 'Este teléfono no puede escribir: ' + armado.rechazadas.map(function (x) { return x.nombre; }).join(', ')
                : 'No había nada que escribir.',
@@ -2681,6 +2737,14 @@ function armarCeldas(datos, rol) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre: nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
       var p = String(valor).split('-');
       celdas.push({ col: col, valor: new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])) });
+    } else if (nombre === 'Entrega') {
+      /* Vacía borra la celda, que se lee Instalación. Lo demás tiene que ser una de las tres
+         opciones de la lista: la columna tiene validación cerrada, y una celda con otra cosa
+         la dejaría marcada en rojo y sin significado para ningún teléfono. */
+      if (valor === null || valor === undefined || String(valor).trim() === '') { celdas.push({ col: col, valor: '' }); continue; }
+      var ent = entregaDeCelda(valor);
+      if (!ent) { rechazadas.push({ nombre: nombre, por: 'la entrega es «Instalación», «Paquetería» o «Recolección en taller»' }); continue; }
+      celdas.push({ col: col, valor: ent });
     } else if (nombre === 'Telefono') {
       /* Vacío borra la celda: es alguien corrigiendo. Lo demás se limpia con la regla de
          telefonoLimpio y, si no queda ni un dígito, se rechaza con su razón en vez de escribir
@@ -4239,7 +4303,8 @@ function prepararHojaParaElPuente() {
     ['Ubicacion', 150],
     ['Direccion', 220],
     ['Porcentaje comision', 90],
-    ['Telefono', 140]
+    ['Telefono', 140],
+    ['Entrega', 120]
   ];
   var cab = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
@@ -4261,6 +4326,11 @@ function prepararHojaParaElPuente() {
   /* AE en texto sin formato ANTES de que llegue el primer teléfono: en una celda normal Sheets
      vuelve número «3312345678» (y lo enseña 3.31E+09) y lee «+52 1 33…» como una cuenta. */
   h.getRange(2, COL['Telefono'], FIN - 1, 1).setNumberFormat('@').setHorizontalAlignment('left');
+  /* AF, la entrega (puente-sheets-12): desplegable cerrado con las tres opciones, como la etapa.
+     No se llena: vacía es Instalación, que es lo que eran todas hasta hoy. */
+  h.getRange(2, COL['Entrega'], FIN - 1, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(ENTREGAS, true)
+      .setAllowInvalid(false).build()).setHorizontalAlignment('center');
 
   // Etapa de obra: lista cerrada, igual que en la plataforma
   h.getRange(2, 26, FIN - 1, 1).setDataValidation(

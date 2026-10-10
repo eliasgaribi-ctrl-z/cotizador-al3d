@@ -42,6 +42,7 @@ import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
 import { parseGmaps } from './geo.js';
+import { ENTREGAS, ENTREGA_NOMBRE, entregaLimpia, entregaDe } from './entrega.js';
 import { hoyISO, partesISO } from '../nucleo/ui.js';
 /* La aritmética de días es de fechas.js y nada más: esta zona (función 53) necesita sumar días,
    contarlos y saber qué día de la semana es, y las tres ya existen allá con su prueba. */
@@ -457,6 +458,9 @@ export function desdeVentaDeHoja(venta) {
     /* El de la columna AE, si la hoja ya la tiene (puente-sheets-11). Con una hoja anterior la
        llave no viene y nace vacío, como antes. */
     tel: telefonoLimpio(v.telefono),
+    /* La de la columna AF (puente-sheets-12). Vacía, o una hoja sin la columna, es instalación:
+       lo de siempre. */
+    entrega: entregaLimpia(v.entrega),
     etapa: v.etapa || 'ganado',
     tipo_trabajo: Array.isArray(v.tipo_trabajo) ? v.tipo_trabajo.slice() : [],
     fecha_ganado: fecha,
@@ -540,6 +544,9 @@ function armarProyecto(entrada, extra, etapa) {
     lat: tieneCoord ? u.lat : null,
     lng: tieneCoord ? u.lng : null,
     geo_fuente: tieneCoord ? (u.fuente || 'maps_pin') : 'sin_ubicar',
+    /* Cómo sale del taller (js/datos/entrega.js). El cotizador no lo pregunta: nace instalación
+       y se cambia en la ficha, que es donde se sabe que va por paquetería o que lo recogen. */
+    entrega: 'instalacion',
     /* Dinero: se copia para poder pintarlo sin volver a abrir el historial. NO se
        recalcula, ni aquí ni en ningún otro lado de este archivo.
        Lo que el buzón TRAE manda, aunque sea cero: con `||`, un anticipo de $0 registrado a
@@ -789,7 +796,8 @@ export async function listar(filtro = {}) {
   }
   if (esISO(f.desde)) filas = filas.filter(p => String(p.fecha_ganado || '') >= f.desde);
   if (esISO(f.hasta)) filas = filas.filter(p => String(p.fecha_ganado || '') <= f.hasta);
-  if (f.sinUbicar) filas = filas.filter(p => !tienePin(p));
+  /* Sin ubicar es lo que se INSTALA sin pin: un envío o una recolección no llevan (entrega.js). */
+  if (f.sinUbicar) filas = filas.filter(p => !tienePin(p) && entregaDe(p) === 'instalacion');
   if (f.conPendiente) filas = filas.filter(p => num(p.pago_pendiente) > 0);
 
   if (f.sinFecha) {
@@ -831,7 +839,7 @@ const ESCRIBIBLES = new Set([
   'nombre', 'contacto', 'negocio', 'tel', 'notas', 'tipo_trabajo', 'compromiso_texto',
   'dir_texto', 'entrecalles', 'maps_url', 'lat', 'lng', 'geo_fuente', 'anti_pactado',
   'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado', 'pct_comision',
-  'fecha_ganado', 'plazo_k', 'sync',
+  'fecha_ganado', 'plazo_k', 'entrega', 'sync',
 ]);
 
 /* Cada bloqueo con su razón escrita, porque el mensaje se le enseña a una persona que está
@@ -857,7 +865,10 @@ const BLOQUEADOS = {
    que fabricación no mueva por accidente la cuenta de cobro y que pagos no mueva un pin. */
 const CAMPOS_ROL = {
   direccion: null,   // todo lo escribible
-  fabricacion: new Set(['notas', 'lat', 'lng', 'geo_fuente', 'maps_url', 'entrecalles', 'plazo_k', 'sync']),
+  /* La entrega, también fabricación: es el taller el que empaca o entrega en mostrador, y quien
+     se entera primero de que «ese no se instala, se manda». */
+  fabricacion: new Set(['notas', 'lat', 'lng', 'geo_fuente', 'maps_url', 'entrecalles', 'plazo_k',
+                        'entrega', 'sync']),
   pagos: new Set(['notas', 'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado',
                   'pct_comision', 'sync']),
 };
@@ -905,6 +916,10 @@ export async function actualizar(id, parche) {
       v = num(v);
     } else if (k === 'fecha_ganado') {
       if (!esISO(v)) return mal('DATO_INVALIDO', 'La fecha va como año-mes-día.');
+    } else if (k === 'entrega') {
+      /* Una de las tres, sin «lo más parecido»: un valor desconocido guardado se leería como
+         instalación en todos lados, y la ficha enseñaría una cosa que nadie eligió. */
+      if (!ENTREGAS.includes(v)) return mal('DATO_INVALIDO', 'La entrega es instalación, paquetería o recolección en taller.');
     } else if (k === 'plazo_k') {
       /* Vacío o null es «vuelve al propuesto», y es una respuesta válida. Lo demás tiene que
          ser uno de los cinco cubos. */
@@ -947,9 +962,11 @@ const CAMPO_NOMBRE = {
   nombre: 'nombre', contacto: 'contacto', negocio: 'negocio', tel: 'teléfono',
   tipo_trabajo: 'tipo de trabajo', compromiso_texto: 'compromiso de entrega',
   notion_page_id: 'página de Notion', notion_estado: 'estado en Notion',
+  entrega: 'cómo se entrega',
 };
 const textoValor = v => {
   if (v === null || v === undefined || v === '') return '—';
+  if (ENTREGA_NOMBRE[v]) return ENTREGA_NOMBRE[v];
   if (Array.isArray(v)) return v.join(', ');
   if (typeof v === 'number') return String(v);
   return String(v).slice(0, 80);
@@ -1954,6 +1971,26 @@ export async function revisarContraLaHoja(info = {}) {
     telefonos++; cambios++;
   }
 
+  /* La entrega que la hoja todavía no tiene (puente-sheets-12), con la misma regla que el
+     teléfono: la columna AF nace vacía, y un proyecto que aquí ya era de paquetería o de
+     recolección se quedaría «Instalación» en la hoja hasta que alguien lo volviera a elegir. Se
+     manda una vez (`entrega_a_la_hoja`), solo a una fila que YA tiene la columna y la trae vacía
+     (`entrega === ''`), y solo si aquí NO es instalación: vacía ya dice instalación. Nunca
+     encima de una que la fila ya trae: ésa es una persona que la eligió en la hoja, y baja. */
+  let entregas = 0;
+  for (const p of proys) {
+    if (!p || idas.has(p.id) || p.fuera_de_hoja || p.hoja_perdida || conBandeja.has(p.id)) continue;
+    const fh = String(p.notion_page_id || '').trim();
+    const v = fh && folios.has(fh) ? ventaDe.get(fh) : null;
+    if (!v || v.entrega !== '') continue;
+    const ent = entregaDe(p);
+    if (ent === 'instalacion' || p.entrega_a_la_hoja === ent) continue;
+    const marcado = await parcharMarca(p.id, { entrega_a_la_hoja: ent });
+    if (!marcado) continue;
+    await encolar('actualizar', marcado, ['entrega']);
+    entregas++; cambios++;
+  }
+
   if (info && info.completa) {
     for (const p of huerfanasDeLaHoja(proys.filter(x => x && !idas.has(x.id)), folios)) {
       if (p.hoja_perdida && p.hoja_perdida.folio === String(p.folio_hoja)) continue;
@@ -1981,7 +2018,7 @@ export async function revisarContraLaHoja(info = {}) {
       if (m !== p.hoja_perdida && await parcharMarca(p.id, { hoja_perdida: m })) cambios++;
     }
   }
-  return ok({ juntadas, repetidas, perdidas, reenviadas, telefonos, cambios });
+  return ok({ juntadas, repetidas, perdidas, reenviadas, telefonos, entregas, cambios });
 }
 
 /* ¿El texto nombra ESE folio, y no uno que lo contiene? «V-47» está dentro de «V-470». */

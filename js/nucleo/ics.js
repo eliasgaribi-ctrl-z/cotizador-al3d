@@ -132,8 +132,23 @@ const TEXTO_ALARMA = {
   '-PT120M': 'Sal ya y revisa que vaya cargado todo: ',
   '-PT30M': 'Carga la camioneta y revisa la lista: ',
 };
-const textoAlarma = (t, resumen) =>
-  (TEXTO_ALARMA[t] || 'Abre la plataforma: ') + String(resumen || 'la instalación');
+/* Un envío por paquetería o una recolección en el taller no cargan la camioneta: sus alarmas
+   dicen lo que sí se hace ese día (js/datos/entrega.js). Lo que no está aquí cae a las de
+   siempre. */
+const TEXTO_ALARMA_ENTREGA = {
+  paqueteria: {
+    '-P1D': 'Confirma con el cliente el destino del envío: ',
+    '-PT120M': 'Empaca y llévalo a la paquetería: ',
+    '-PT30M': 'Empaca y llévalo a la paquetería: ',
+  },
+  recoleccion: {
+    '-P1D': 'Avísale al cliente que pasa a recogerlo al taller: ',
+    '-PT120M': 'Tenlo listo y empacado, lo recogen en el taller: ',
+    '-PT30M': 'Tenlo listo y empacado, lo recogen en el taller: ',
+  },
+};
+const textoAlarma = (t, resumen, entrega) =>
+  ((TEXTO_ALARMA_ENTREGA[entrega] || {})[t] || TEXTO_ALARMA[t] || 'Abre la plataforma: ') + String(resumen || 'la instalación');
 
 /* Exportada: Google Calendar pone las MISMAS alarmas que este archivo (js/nucleo/gcal.js), y
    la única forma de que no diverjan es que las dos salgan de aquí. */
@@ -191,7 +206,7 @@ function vevento(ev) {
   L.push('TRANSP:OPAQUE');
   for (const t of alarmasDe(e)) {
     L.push('BEGIN:VALARM', 'ACTION:DISPLAY',
-           'DESCRIPTION:' + escapar(textoAlarma(t, resumen)),
+           'DESCRIPTION:' + escapar(textoAlarma(t, resumen, e.entrega)),
            'TRIGGER:' + t, 'END:VALARM');
   }
   L.push('END:VEVENT');

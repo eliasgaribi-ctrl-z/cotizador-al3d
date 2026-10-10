@@ -495,7 +495,8 @@ async function revivirSinDestino() {
 }
 
 /* Lo rechazado que el relevo dice que ya tiene a dónde ir. Hoy: los cambios de puro teléfono
-   que una hoja anterior a puente-sheets-11 rechazó (ver `revive` en puente.js). Como el almacén
+   que una hoja anterior a puente-sheets-11 rechazó, y los de pura entrega que una 12 sin la
+   columna AF rechazó (ver `revive` en puente.js). Como el almacén
    en la 9, nadie tiene que apretar «Reintentar» el día que la hoja se actualiza. Una sola vez
    por operación: si vuelve a rebotar, se queda apartada con la razón nueva. */
 async function revivirRechazadas() {
@@ -503,10 +504,13 @@ async function revivirRechazadas() {
   let n = 0;
   for (const op of await rechazadas()) {
     let si = false;
-    try { si = !!(await _adaptador.revive(op)); } catch (_) { si = false; }
+    try { si = await _adaptador.revive(op); } catch (_) { si = false; }
     if (!si) continue;
+    /* `revive` puede decir con qué marca se anota (la entrega de puente-sheets-12 usa la suya,
+       `revivida_entrega`); un `true` a secas es la del teléfono, la primera que hubo. */
+    const marca = typeof si === 'string' && /^revivida_\w+$/.test(si) ? si : 'revivida_tel';
     const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '',
-      codigo_rechazo: null, motivo_rechazo: null, revivida_tel: true });
+      codigo_rechazo: null, motivo_rechazo: null, [marca]: true });
     if (r && r.ok) n++;
   }
   return n;

@@ -435,6 +435,12 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 .pf-cuando.hoy{background:var(--av-bg);color:var(--av)}
 .pf-cuando.tarde{background:var(--mal-bg);color:var(--mal)}
 .pf-cuando.lejos{background:var(--n1);color:var(--muted)}
+/* Cómo sale del taller cuando NO se instala (js/datos/entrega.js): «Envío», «Recolección».
+   La palabra siempre, y una forma que no es la de `.pf-cuando` —borde punteado, sin relleno—
+   para que no se lea como una fecha ni dependa del color. */
+.pf-entrega{display:inline-block;padding:0 7px;border-radius:var(--rr1);border:1.5px dashed currentColor;
+  font-weight:700;font-size:var(--t1);line-height:17px;color:var(--a-fuerte);background:transparent;white-space:nowrap}
+.pf-entrega.recoleccion{color:var(--n7)}
 
 /* ----- Estado vacío -----
    La única clase que el cotizador no tenía y que aquí hace falta seis veces: una plataforma
@@ -574,6 +580,16 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
   .cal-n{flex:0 0 100%}
   .cal-ev .tx{display:none}
   .cal-mas{flex:0 0 100%;text-align:center;padding-left:0;font-size:9.5px}
+}
+/* Un envío o una recolección en el mes: otra FORMA, no solo otro color. En escritorio el chip
+   lleva su palabra al frente y el borde punteado alrededor; en el teléfono, donde cada evento
+   es un punto, el suyo es un rombo hueco. */
+.cal-ev.envio{border:1.5px dashed var(--n5);border-left-width:3px;border-left-style:solid;background:transparent}
+.cal-ev .cal-ent{font-weight:800;color:var(--a-fuerte)}
+.cal-ev.recoleccion .cal-ent{color:var(--n7)}
+@media(max-width:560px){
+  .cal-ev.envio{width:7px;height:7px;min-width:7px;border:1.5px solid var(--n7);border-radius:1px;
+    background:transparent;transform:rotate(45deg)}
 }
 
 /* ----- Lista del día -----

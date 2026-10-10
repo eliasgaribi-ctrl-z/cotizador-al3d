@@ -43,6 +43,7 @@ import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
 import * as Carpetas from '../datos/carpetas.js';
+import { seInstala } from '../datos/entrega.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
@@ -332,7 +333,7 @@ async function leer() {
     /* La misma prueba que usa el Mapa. Un proyecto sin ubicar se guarda con `lat: null`, y
        `Number(null)` es 0, que `isFinite` da por bueno: con la prueba de antes esta cuenta
        decía siempre 0 mientras el Mapa, para los mismos datos, decía «3 sin ubicar». */
-    sinUbicar: vivos.filter(p => !tienePin(p)).length,
+    sinUbicar: vivos.filter(p => !tienePin(p) && seInstala(p)).length,
     /* Sin las hechas, igual que `semana`: marcada la última de la semana, el estado vacío
        anunciaba como «la siguiente» la que se acababa de hacer. */
     proxInst: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha')

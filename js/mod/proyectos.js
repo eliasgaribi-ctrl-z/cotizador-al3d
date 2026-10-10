@@ -29,6 +29,7 @@ import * as Agenda from '../datos/agenda.js';
    (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
 import * as Sync from '../datos/sync.js';
 import * as Carpetas from '../datos/carpetas.js';
+import { ENTREGAS, ENTREGA_NOMBRE, ENTREGA_FECHA, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from '../datos/entrega.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
@@ -1215,6 +1216,9 @@ function htmlFicha(p) {
 
   const tel = String(p.tel || o.tel || '').trim();
   const dir = String(p.dir_texto || '').trim();
+  /* Cómo sale del taller (js/datos/entrega.js). Cambia cómo se rotula la fecha y qué se pide de
+     la dirección: un envío o una recolección no necesitan pin ni «Abrir en Maps». */
+  const ent = entregaDe(p);
 
   const datos = [];
   datos.push(dato('Contacto', p.contacto || '—'));
@@ -1231,7 +1235,7 @@ function htmlFicha(p) {
   datos.push(dato('Tipo de trabajo', (p.tipo_trabajo || []).join(' · ') || '—'));
   datos.push(dato('Etapa de obra', '<span class="pf-etapa ' + claseEtapa(p.etapa) + '">' +
     esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>', true));
-  datos.push(dato('Fecha de instalación', inst
+  datos.push(dato(ENTREGA_FECHA[ent], inst
     ? esc(fmtFechaDia(inst.fecha)) + (inst.hora ? ' · ' + esc(fmtHora(inst.hora)) : ' · sin hora') +
       ' <span class="pf-cuando' + tonoCuando(inst.fecha) + '">' + esc(cuando(inst.fecha)) + '</span>' +
       (inst.estado && inst.estado !== 'confirmada' ? '<br><span class="pf-sem nada">' + esc(Agenda.ESTADO_NOMBRE[inst.estado] || inst.estado) + '</span>' : '')
@@ -1333,16 +1337,39 @@ function htmlFicha(p) {
 
   partes.push(garantiaHTML(p, inst, ve));
 
+  /* Cómo se entrega, justo arriba de la dirección: es lo que decide si la dirección importa.
+     Dirección y fabricación lo eligen (fabricación es quien empaca o entrega en mostrador);
+     pagos solo lo lee. No va en grupo parchado en su sitio (P2): cambia el rótulo de la fecha
+     y el bloque de la dirección, y la ficha se repinta entera. */
+  partes.push('<div class="fld-lab">Cómo se entrega</div>' + (rol === 'pagos'
+    ? '<p class="hintnote">' + esc(ENTREGA_NOMBRE[ent]) + '</p>'
+    : segmento(ENTREGAS.map(e => ({ v: e, t: ENTREGA_NOMBRE[e] })), ent, 'data-entrega', 'Cómo se entrega')));
+
   /* La dirección cruda, tal como la escribió quien cotizó. No se normaliza ni se parte en
-     campos: es lo que el instalador va a leer en la calle. */
-  partes.push('<dl class="pf-2col">' +
-    dato('Dirección', dir ? esc(dir).replace(/\n/g, '<br>') : 'La cotización no traía dirección', true) +
-    dato('Entre calles', p.entrecalles || 'No se anotó') +
-    '</dl>');
+     campos: es lo que el instalador va a leer en la calle.
+     Con paquetería es el DESTINO del envío, y se dice: no hace falta pin ni ruta, solo que la
+     guía lleve bien la dirección. Con recolección no se le pide nada al cliente: el trabajo se
+     entrega en el taller, y lo que se enseña es la dirección del taller, que es la que el
+     cliente necesita. */
+  if (ent === 'recoleccion') {
+    partes.push('<dl class="pf-2col">' +
+      dato('Se recoge en', esc(TALLER_NOMBRE) + '<br>' + esc(DIRECCION_TALLER), true) +
+      '</dl>' +
+      '<p class="hintnote">' + ico('i-taller') + ' El cliente pasa por su trabajo al taller: no hace falta su dirección ni un pin.</p>');
+  } else {
+    partes.push('<dl class="pf-2col">' +
+      dato(ent === 'paqueteria' ? 'Destino del envío' : 'Dirección',
+        dir ? esc(dir).replace(/\n/g, '<br>') : (ent === 'paqueteria' ? 'Sin destino capturado' : 'La cotización no traía dirección'), true) +
+      (ent === 'paqueteria' ? '' : dato('Entre calles', p.entrecalles || 'No se anotó')) +
+      '</dl>');
+    if (ent === 'paqueteria') {
+      partes.push('<p class="hintnote">' + ico('i-camion') + ' Se envía por paquetería: no va en la ruta y no necesita pin.</p>');
+    }
+  }
   /* El botón solo cuando `urlMapa` tiene de dónde armar una liga. Con `isFinite(p.lat)` a
      secas, un proyecto sin ubicar —se guarda con `lat: null`, e `isFinite(null)` es true—
-     pintaba «Abrir en Maps» hacia una búsqueda vacía. */
-  const mapa = urlMapa(p);
+     pintaba «Abrir en Maps» hacia una búsqueda vacía. Con recolección no hay a dónde ir. */
+  const mapa = ent === 'recoleccion' ? '' : urlMapa(p);
   if (mapa) {
     partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
@@ -2298,6 +2325,15 @@ async function clicFicha(ev) {
   const cta = t.closest('[data-cuenta]');
   if (cta) { await parchar(fichaId, { cuenta: cta.dataset.cuenta }, 'Cuenta guardada', cta); return; }
 
+  /* La entrega: sin grupo, así que `parchar` repinta la ficha entera (cambia el rótulo de la
+     fecha y el bloque de la dirección). */
+  const ent = t.closest('[data-entrega]');
+  if (ent) {
+    if (ent.getAttribute('aria-pressed') === 'true') return;
+    await parchar(fichaId, { entrega: ent.dataset.entrega }, 'Entrega: ' + (ENTREGA_NOMBRE[ent.dataset.entrega] || ent.dataset.entrega));
+    return;
+  }
+
 
   const tsv = t.closest('[data-tsv]');
   if (tsv) { await copiarFila(tsv.dataset.tsv); return; }
@@ -2566,10 +2602,15 @@ function htmlHoja(p, reqs) {
   const cab = '<dl class="pf-2col">' +
     dato('Cliente', (p.contacto || '') + (p.negocio ? ' — ' + p.negocio : '') || '—') +
     dato('Folio', p.folio_local || Cot.folioVisible(p.folio_global)) +
-    dato('Instalación', inst ? fmtFechaDia(inst.fecha) + (inst.hora ? ' · ' + fmtHora(inst.hora) : ' · sin hora') : 'Sin fecha') +
+    dato(ENTREGA_FECHA[entregaDe(p)].replace(/^Fecha de /, '').replace(/^./, c => c.toUpperCase()),
+      inst ? fmtFechaDia(inst.fecha) + (inst.hora ? ' · ' + fmtHora(inst.hora) : ' · sin hora') : 'Sin fecha') +
     dato('Etapa', Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) +
-    dato('Dirección', String(p.dir_texto || '').trim() ? esc(p.dir_texto).replace(/\n/g, '<br>') : 'Sin dirección', true) +
-    dato('Entre calles', p.entrecalles || 'No se anotó') +
+    /* En la orden de trabajo, lo mismo que en la ficha: el destino del envío, o el taller. */
+    (entregaDe(p) === 'recoleccion'
+      ? dato('Entrega', 'Recolección en taller')
+      : dato(entregaDe(p) === 'paqueteria' ? 'Destino del envío (paquetería)' : 'Dirección',
+          String(p.dir_texto || '').trim() ? esc(p.dir_texto).replace(/\n/g, '<br>') : 'Sin dirección', true) +
+        (entregaDe(p) === 'paqueteria' ? '' : dato('Entre calles', p.entrecalles || 'No se anotó'))) +
     '</dl>';
 
   const partidas = items.length ? items.map(it => {
