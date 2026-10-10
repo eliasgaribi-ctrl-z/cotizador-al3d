@@ -351,7 +351,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 11', VERSION_ESPERADA, 'puente-sheets-11');
+  eq('la plataforma espera la 12', VERSION_ESPERADA, 'puente-sheets-12');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
   eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);
@@ -664,10 +664,12 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   globalThis.fetch = async (url, init) => {
     const c = JSON.parse(init.body);
     let cuerpo;
-    /* `H.version` deja fingir una hoja anterior (la 10 no sabe del teléfono); por omisión, la que
-       la plataforma espera, que escribe también «Telefono». */
+    /* `H.version` deja fingir una hoja anterior (la 10 no sabe del teléfono; la 11 sí, pero no de
+       la entrega); por omisión, la que la plataforma espera, que escribe también «Telefono» y
+       «Entrega». */
+    const nv = Number(/(\d+)$/.exec(H.version || VERSION_ESPERADA)[1]);
     if (c.ruta === 'salud') cuerpo = { ok: true, rol: 'direccion', version: H.version || VERSION_ESPERADA,
-      escribibles: H.version ? ESC_DIR : [...ESC_DIR, 'Telefono'] };
+      escribibles: [...ESC_DIR, ...(nv >= 11 ? ['Telefono'] : []), ...(nv >= 12 ? ['Entrega'] : [])] };
     else if (c.ruta === 'jalar') cuerpo = H.jalar ? H.jalar(c) : { ok: true, cursor: null, hay_mas: false,
       registros: H.filas.map(d => ({ almacen: 'proyectos', datos: d })) };
     else if (c.ruta === 'empujar') { H.empujadas.push(c.ops[0]); cuerpo = { ok: true, resultados: [responder(c.ops[0])] }; }
@@ -1514,6 +1516,68 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('9 · y el récord de Control lo trae', ((await DB.listar('ventas_hoja')).find(v => v.folio_hoja === 'V-907') || {}).telefono, '(33) 3615-0000');
   await S.bombear();
   eq('9 · y bajar un teléfono no manda nada de vuelta a la hoja', H.empujadas.length - antes9, 0);
+
+  /* ── 10 · La entrega (puente-sheets-12) ───────────────────────────────────────────────────
+     El mismo camino que el teléfono: contra una hoja en la 11 no viaja y no se aparta; con la 12
+     sí; la que la columna nueva no tiene se manda una vez. Y lo que baja: MANDA LA HOJA cuando
+     dice algo, pero una celda vacía no pisa nada, ni pisa un cambio que sigue en la bandeja. */
+  H.version = 'puente-sheets-11';
+  relevo();
+  await DB.poner('proyectos', propio('proy-E1', 'COT-1001@TEST', 'V-1001', { entrega: 'paqueteria', dir_texto: 'Puerto Vallarta' }));
+  await cambio('proy-E1', ['entrega']);
+  const e1 = await S.bombear();
+  eq('10 · con la hoja en la 11, un cambio de pura entrega no se manda', enviadaDe('V-1001').length, 0);
+  eq('10 · y no se aparta como rechazado', [e1.valor.rechazadas, (await deProyecto('proy-E1')).length], [0, 0]);
+  await cambio('proy-E1', ['etapa', 'entrega']);
+  await S.bombear();
+  eq('10 · un cambio de otra cosa con la entrega sí sale, sin la entrega',
+     enviadaDe('V-1001').map(o => [o.datos['Etapa de obra'], 'Entrega' in o.datos]), [['Ganado', false]]);
+
+  H.version = null;   // la hoja ya corre la 12
+  relevo();
+  await cambio('proy-E1', ['entrega']);
+  await S.bombear();
+  eq('10 · con la 12, el cambio de entrega sale como la opción de la lista',
+     enviadaDe('V-1001').slice(-1).map(o => o.datos['Entrega']), ['Paquetería']);
+  await DB.poner('proyectos', { ...(await DB.obtener('proyectos', 'proy-E1')), entrega: 'instalacion' });
+  await cambio('proy-E1', ['entrega']);
+  await S.bombear();
+  eq('10 · regresarla a instalación también viaja (no es un vacío)', enviadaDe('V-1001').slice(-1).map(o => o.datos['Entrega']), ['Instalación']);
+  await DB.poner('proyectos', { ...(await DB.obtener('proyectos', 'proy-E1')), entrega: 'paqueteria' });
+
+  /* La columna nace vacía: la de aquí, si no es instalación, se manda una vez. */
+  await DB.poner('proyectos', propio('proy-E2', 'COT-1002@TEST', 'V-1002', { entrega: 'recoleccion' }));
+  await DB.poner('proyectos', propio('proy-E3', 'COT-1003@TEST', 'V-1003'));
+  H.filas.push(fila('V-1002', 'Venta COT-1002@TEST', { 'Folio cotizacion': 'COT-1002@TEST', 'Entrega': '' }));
+  H.filas.push(fila('V-1003', 'Venta COT-1003@TEST', { 'Folio cotizacion': 'COT-1003@TEST', 'Entrega': '' }));
+  await jalarTodo();
+  await S.bombear();
+  eq('10 · la fila con AF vacía recibe la recolección de aquí', enviadaDe('V-1002').map(o => o.datos['Entrega']), ['Recolección en taller']);
+  eq('10 · y la bajada con AF vacía no le pisa la entrega', (await DB.obtener('proyectos', 'proy-E2')).entrega, 'recoleccion');
+  eq('10 · una instalación no se manda: vacía ya es instalación', enviadaDe('V-1003').length, 0);
+  await jalarTodo();
+  await S.bombear();
+  eq('10 · una vez: la siguiente bajada, con la fila todavía vacía, no la vuelve a mandar', enviadaDe('V-1002').length, 1);
+
+  /* Lo que baja: «Paquetería» elegida en la hoja llega al proyecto de aquí. */
+  await DB.poner('proyectos', propio('proy-E4', 'COT-1004@TEST', 'V-1004'));
+  H.filas.push(fila('V-1004', 'Venta COT-1004@TEST', { 'Folio cotizacion': 'COT-1004@TEST', 'Entrega': 'Paquetería' }));
+  H.filas.push(fila('V-1005', 'AVIDA - Market', { 'Entrega': 'Paquetería' }));
+  const antes10 = H.empujadas.length;
+  await jalarTodo();
+  eq('10 · «Paquetería» en la hoja cambia el proyecto de aquí', (await DB.obtener('proyectos', 'proy-E4')).entrega, 'paqueteria');
+  eq('10 · la tarjeta importada nace con ella', (await DB.obtener('proyectos', 'proy-hoja-V-1005')).entrega, 'paqueteria');
+  eq('10 · y el récord de Control la trae', ((await DB.listar('ventas_hoja')).find(v => v.folio_hoja === 'V-1005') || {}).entrega, 'paqueteria');
+  await S.bombear();
+  eq('10 · y bajar una entrega no manda nada de vuelta', H.empujadas.length - antes10, 0);
+
+  /* Un cambio de aquí que sigue en la bandeja no lo pisa la fila vieja. */
+  await DB.poner('proyectos', { ...(await DB.obtener('proyectos', 'proy-E4')), entrega: 'recoleccion' });
+  await cambio('proy-E4', ['entrega']);
+  await jalarTodo();
+  eq('10 · con su cambio en la bandeja, la fila vieja no le regresa «Paquetería»', (await DB.obtener('proyectos', 'proy-E4')).entrega, 'recoleccion');
+  await S.bombear();
+  eq('10 · y el cambio sale', enviadaDe('V-1004').slice(-1).map(o => o.datos['Entrega']), ['Recolección en taller']);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1580,6 +1644,60 @@ console.log('\nEL TELÉFONO DEL CLIENTE, PURO (puente-sheets-11)');
   eq('una sola vez', esRechazoDeTelefono({ ...op, revivida_tel: true }), false);
   eq('uno que trae otra cosa, no: ése lo decide una persona', esRechazoDeTelefono({ ...op, campos: ['tel', 'cuenta'] }), false);
   eq('ni uno sin campos (de una versión anterior)', esRechazoDeTelefono({ ...op, campos: null }), false);
+}
+
+console.log('\nLA ENTREGA, PURA (puente-sheets-12)');
+{
+  const { desdeVentaDeHoja } = await import('../js/datos/proyectos.js');
+  const { ventaDesdeHoja } = await import('../js/datos/ventas.js');
+  const { ENTREGAS, ENTREGA_NOMBRE, entregaDesdeHoja, entregaDe, entregaLimpia } = await import('../js/datos/entrega.js');
+  const { ENTREGA_A_HOJA, esRechazoDeEntrega, VERSION_DE_LA_ENTREGA, numeroDeVersion } = await import('../js/datos/puente.js');
+  const aqui = dirname(fileURLToPath(import.meta.url));
+  const w = readFileSync(join(aqui, '..', 'puente', 'hoja-apps-script.gs'), 'utf8');
+
+  /* El vocabulario, de los dos lados: la lista del desplegable de AF y la de la plataforma,
+     letra por letra y en el mismo orden. */
+  const listaGs = Function('return ' + /var ENTREGAS = (\[[^\]]*\]);/.exec(w)[1])();
+  eq('las tres opciones de AF son las de la plataforma, en su orden', listaGs, ENTREGAS.map(k => ENTREGA_A_HOJA[k]));
+  eq('y son las que enseña la ficha', ENTREGAS.map(k => ENTREGA_NOMBRE[k]), ['Instalación', 'Paquetería', 'Recolección en taller']);
+  const fuente = /function entregaDeCelda\(v\) \{[\s\S]*?\n\}/.exec(w);
+  cierto('el .gs declara entregaDeCelda', fuente);
+  const celdaGs = Function(fuente[0] + ';return entregaDeCelda;')();
+  const casos = ['Instalación', 'Paquetería', 'Recolección en taller', 'paqueteria', 'PAQUETERÍA', ' recoleccion ',
+                 'instalacion', '', null, 'otra cosa', 'Envío'];
+  eq('las dos leen la celda igual, caso por caso',
+     casos.map(c => entregaDesdeHoja(c)), casos.map(c => { const x = celdaGs(c); return x ? ENTREGAS.find(k => ENTREGA_A_HOJA[k] === x) : ''; }));
+  eq('vacía es «la hoja no dice», no instalación', entregaDesdeHoja(''), '');
+  eq('sin el campo, un proyecto se instala', [entregaDe({}), entregaDe(null), entregaLimpia('cualquiera')], ['instalacion', 'instalacion', 'instalacion']);
+  eq('la versión que trae la entrega es la que la plataforma espera', numeroDeVersion(VERSION_ESPERADA) >= VERSION_DE_LA_ENTREGA, true);
+  cierto('la 11 avisa que la entrega no viaja', /columna AF «Entrega»/.test(avisoVersion('puente-sheets-11')));
+
+  /* Lo que sube. */
+  const paq = proy({ entrega: 'paqueteria', notion_page_id: 'V-1' });
+  eq('un alta de paquetería lleva la entrega', aNotion(paq)[P.entrega], 'Paquetería');
+  eq('un alta de recolección también', aNotion(proy({ entrega: 'recoleccion' }))[P.entrega], 'Recolección en taller');
+  eq('un alta de instalación NO la manda: le borraría la que alguien puso en la fila', P.entrega in aNotion(proy({})), false);
+  eq('un cambio de otra cosa no la manda', P.entrega in aNotion(paq, null, { alta: false, campos: ['etapa'] }), false);
+  eq('una operación vieja sin campos tampoco', P.entrega in aNotion(paq, null, { alta: false, campos: null }), false);
+  eq('un cambio de entrega sí, y regresarla a instalación también',
+     [aNotion(paq, null, { alta: false, campos: ['entrega'] })[P.entrega], aNotion(proy({}), null, { alta: false, campos: ['entrega'] })[P.entrega]],
+     ['Paquetería', 'Instalación']);
+
+  /* Lo que baja. */
+  const fila = { id_notion: 'V-9', [P.proyecto]: 'AVIDA - Market', [P.estatus]: 'FABRICACION', [P.entrega]: 'Paquetería' };
+  eq('el récord trae la entrega de la fila', ventaDeHoja(fila).entrega, 'paqueteria');
+  const sinAF = { ...fila }; delete sinAF[P.entrega];
+  eq('una fila sin la llave (hoja sin AF) no inventa nada', 'entrega' in ventaDeHoja(sinAF), false);
+  eq('con la celda vacía es vacío de verdad', ventaDeHoja({ ...fila, [P.entrega]: '' }).entrega, '');
+  eq('la tarjeta importada nace con ella', desdeVentaDeHoja(ventaDeHoja(fila)).entrega, 'paqueteria');
+  eq('y sin AF nace instalación', desdeVentaDeHoja(ventaDeHoja(sinAF)).entrega, 'instalacion');
+  eq('la venta de Control también', ventaDesdeHoja(ventaDeHoja(fila)).entrega, 'paqueteria');
+
+  /* Los rechazos de una 12 sin la columna. */
+  const op = { estado: 'rechazada', almacen: 'proyectos', campos: ['entrega'] };
+  eq('un rechazo de pura entrega se puede revivir', esRechazoDeEntrega(op), true);
+  eq('una sola vez', esRechazoDeEntrega({ ...op, revivida_entrega: true }), false);
+  eq('uno que trae otra cosa, no', esRechazoDeEntrega({ ...op, campos: ['entrega', 'cuenta'] }), false);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

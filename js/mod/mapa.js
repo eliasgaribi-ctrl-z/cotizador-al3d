@@ -51,6 +51,7 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Geo from '../datos/geo.js';
 import * as Cot from '../datos/cotizador.js';
+import { ENTREGA_ROTULO, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe, seInstala, repartirParaElMapa } from '../datos/entrega.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, chip, hoyISO,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, abrirCapa, cerrarCapa,
@@ -368,8 +369,12 @@ function pasaRango(p) {
 const conPin = () => PROYS.filter(tienePin);
 const pintables = () => conPin().filter(p => pasaEtapa(p) && pasaRango(p));
 
+/* «Sin ubicar» es lo que se INSTALA y no tiene pin: lo que hay que ir a arreglar. Un envío por
+   paquetería o una recolección en el taller no tiene a dónde ir con la camioneta, y pedirle pin
+   era un pendiente que no se podía cerrar nunca (AVIDA Market, a Puerto Vallarta). Esos van
+   aparte, en `sinInstalacion`. */
 function sinUbicar() {
-  const faltan = PROYS.filter(p => !tienePin(p));
+  const faltan = repartirParaElMapa(PROYS, tienePin).sinUbicar;
   /* Primero los que tienen fecha y más cerca la tienen: ubicar el de mañana es urgente,
      ubicar uno que se ganó ayer y no se ha agendado puede esperar al martes. */
   return faltan.sort((a, b) => {
@@ -380,7 +385,20 @@ function sinUbicar() {
   });
 }
 
+/* La ruta del día: solo lo que se instala. Un envío con pin —el destino en Vallarta— se pinta,
+   pero la camioneta no va: meterlo a la ruta la mandaba a la costa. */
+/** Lo que sale del taller sin instalarse: paquetería y recolección, con fecha primero. */
+function sinInstalacion() {
+  return repartirParaElMapa(PROYS, tienePin).sinInstalacion.sort((a, b) => {
+    const fa = INST.get(a.id), fb = INST.get(b.id);
+    if (!!fa !== !!fb) return fa ? -1 : 1;
+    if (fa && fb && fa.fecha !== fb.fecha) return fa.fecha < fb.fecha ? -1 : 1;
+    return String(b.fecha_ganado || '').localeCompare(String(a.fecha_ganado || ''));
+  });
+}
+
 const deHoy = () => conPin().filter(p => {
+  if (!seInstala(p)) return false;
   const f = INST.get(p.id);
   return !!f && f.viva && f.fecha <= HOY;
 });
@@ -511,6 +529,7 @@ function armazon() {
             '<p class="pf-nota" id="mapa-oculto"></p>' +
             '<div id="mapa-ruta"></div>' +
             '<div id="mapa-faltan"></div>' +
+            '<div id="mapa-envios"></div>' +
             '<div id="mapa-obras"></div>' +
             /* La leyenda va en la hoja y no encima del mapa: se consulta cuando ya se vio un pin y
                no se sabe qué es. El dibujo es el pin en chico, con su forma y su letra, y al lado
@@ -606,7 +625,7 @@ function refrescarPiezas() {
 
   const oc = $('mapa-oculto');
   if (oc) {
-    const t = textoOculto(pines.length);
+    const t = [textoOculto(pines.length), textoSinInstalar()].filter(Boolean).join(' ');
     oc.textContent = t;
     oc.hidden = !t;
   }
@@ -615,6 +634,7 @@ function refrescarPiezas() {
   pintarRuta();
   pintarTira();
   pintarFaltan(faltan);
+  pintarEnvios(sinInstalacion());
   pintarObras(pines);
   pintarFicha();
   medirHoja();
@@ -661,6 +681,21 @@ function textoOculto(pintados) {
     partes.push('Prende las etapas que apagaste para verlas.');
   }
   return partes.join(' ');
+}
+
+/** Lo que el mapa no pinta porque no se instala: «2 se envían por paquetería y 1 se recoge en el
+ *  taller: no llevan pin ni van en la ruta.» Los que sí tienen pin (un destino de envío) se pintan,
+ *  y no se cuentan aquí. */
+function textoSinInstalar() {
+  const sinPin = sinInstalacion().filter(p => !tienePin(p));
+  if (!sinPin.length) return '';
+  const paq = sinPin.filter(p => entregaDe(p) === 'paqueteria').length;
+  const rec = sinPin.length - paq;
+  const partes = [];
+  if (paq) partes.push(paq + (paq === 1 ? ' se envía por paquetería' : ' se envían por paquetería'));
+  if (rec) partes.push(rec + (rec === 1 ? ' se recoge en el taller' : ' se recogen en el taller'));
+  return partes.join(' y ') + ': no ' + (sinPin.length === 1 ? 'lleva' : 'llevan') + ' pin ni ' +
+    (sinPin.length === 1 ? 'va' : 'van') + ' en la ruta. ' + (sinPin.length === 1 ? 'Está' : 'Están') + ' abajo, aparte.';
 }
 
 /* ============================================================================
@@ -1222,7 +1257,9 @@ function fichaHTML(p) {
     '<p class="mapa-ficha-etq">' +
       '<span class="pf-etapa ' + esc(claseEtapa(p.etapa)) + '">' + esc(gr.marca + ' · ' + nombreEtapa(p.etapa)) + '</span>' +
       (n ? ' <span class="pf-cuando">parada ' + n + '</span>' : '') +
-      (conPinOk ? '' : ' <span class="pf-cuando hoy">sin ubicar</span>') +
+      (seInstala(p)
+        ? (conPinOk ? '' : ' <span class="pf-cuando hoy">sin ubicar</span>')
+        : ' <span class="pf-entrega ' + esc(entregaDe(p)) + '">' + esc(ENTREGA_ROTULO[entregaDe(p)]) + '</span>') +
     '</p>' +
     '<p class="mapa-ficha-fecha' + (urge ? ' urge' : '') + '">' + ico('i-agenda') + esc(fecha) + '</p>' +
     '<div class="mapa-ficha-acc" data-asoma role="group" aria-label="Qué hacer con esta obra">' + acc.join('') + '</div>' +
@@ -1356,7 +1393,8 @@ function pintarSug() {
   ul.innerHTML = hall.length
     ? hall.map((p, i) => {
         const gr = grupoDe(p.etapa);
-        const d = tienePin(p) ? (p.contacto || nombreEtapa(p.etapa)) : 'Sin ubicar · ' + (p.contacto || nombreEtapa(p.etapa));
+        const d = (tienePin(p) ? '' : seInstala(p) ? 'Sin ubicar · ' : ENTREGA_ROTULO[entregaDe(p)] + ' · ') +
+          (p.contacto || nombreEtapa(p.etapa));
         return '<li role="option" id="mapa-sug-' + i + '" class="mapa-sug-i' + (i === _sugActiva ? ' activa' : '') + '"' +
           ' aria-selected="' + (i === _sugActiva ? 'true' : 'false') + '" data-sel="' + esc(p.id) + '">' +
           pinMini(gr) +
@@ -1950,6 +1988,45 @@ function pintarFaltan(faltan) {
       'parece un dato y un dato equivocado se usa. Se arregla de dos maneras — pegando el ' +
       'link de Google Maps que mandaron por WhatsApp, o tocando el mapa donde está.</p>' +
     filas + '</div></div>';
+}
+
+/* ----- Lo que no se instala: envíos por paquetería y recolecciones en el taller -----
+   Aparte de «Sin ubicar» y sin sus botones de pin: no hay nada que arreglar. Cada grupo con su
+   tarjeta y su cuenta, y cada renglón con su rótulo en palabra —«Envío», «Recolección»—, no solo
+   con un icono. El destino es la dirección como la escribieron; la recolección dice el taller. */
+function pintarEnvios(lista) {
+  const caja = $('mapa-envios');
+  if (!caja) return;
+  const grupos = [
+    { k: 'paqueteria', t: 'Envíos por paquetería', ico: 'i-camion' },
+    { k: 'recoleccion', t: 'Recolección en taller', ico: 'i-taller' },
+  ].map(g => ({ ...g, ps: lista.filter(p => entregaDe(p) === g.k) })).filter(g => g.ps.length);
+  if (!grupos.length) { caja.innerHTML = ''; return; }
+
+  caja.innerHTML = grupos.map(g => {
+    const filas = g.ps.map(p => {
+      const f = INST.get(p.id);
+      const destino = g.k === 'recoleccion'
+        ? TALLER_NOMBRE + ' · ' + DIRECCION_TALLER
+        : (String(p.dir_texto || (p.origen && p.origen.dirRaw) || '').trim() || 'Sin destino capturado: anótalo en la ficha del proyecto.');
+      return '<div class="pf-fila mapa-envio">' +
+        '<span class="pf-fila-ico" aria-hidden="true">' + ico(g.ico) + '</span>' +
+        '<span class="pf-fila-tx">' +
+          '<span class="pf-fila-t">' + esc(p.nombre || p.folio_local || 'Proyecto') + ' ' +
+            '<span class="pf-entrega ' + esc(g.k) + '">' + esc(ENTREGA_ROTULO[g.k]) + '</span>' +
+            (f ? ' <span class="pf-cuando">' + esc(cuando(f.fecha)) + '</span>' : '') +
+          '</span>' +
+          '<span class="pf-fila-d mapa-dir">' + esc(destino) + '</span>' +
+        '</span>' +
+        (tienePin(p)
+          ? '<span class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-ver="' +
+              esc(p.id) + '">Ver en el mapa</button></span>'
+          : '') +
+      '</div>';
+    }).join('');
+    return '<div class="card mapa-envios"><div class="card-h"><h2>' + ico(g.ico) +
+      esc(g.t) + ' (' + g.ps.length + ')</h2></div><div class="card-b">' + filas + '</div></div>';
+  }).join('');
 }
 
 function dirDe(p) {

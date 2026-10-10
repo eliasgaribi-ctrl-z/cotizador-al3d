@@ -23,6 +23,7 @@
    ============================================================================ */
 
 import { saldoDe, vendidoDe, etiquetaMes, porCobrar } from './ventas.js';
+import { ENTREGA_NOMBRE, entregaDe } from './entrega.js';
 import { hoyISO, esISO, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
@@ -79,6 +80,10 @@ export function resumirProyecto(p, extra = {}) {
     ganado: p.fecha_ganado || '',
     instalacion: inst && inst.fecha ? inst.fecha + (inst.hora ? ' ' + inst.hora : '') + (inst.estado ? ' (' + inst.estado + ')' : '') : 'sin fecha',
   };
+  /* Cómo sale del taller, solo cuando NO se instala (js/datos/entrega.js): sin esto la IA
+     contestaba «falta ubicarlo» o «se instala el jueves» de un trabajo que se manda por
+     paquetería. La fecha sigue en `instalacion`: es el día que sale del taller. */
+  if (entregaDe(p) !== 'instalacion') o.entrega = ENTREGA_NOMBRE[entregaDe(p)];
   if (v && v.estado && v.estado !== 'cancelado' && v.estado !== 'hecho') {
     o.taller = v.texto || v.estado;
     if (num(v.atraso_dias) > 0) o.atraso_dias = num(v.atraso_dias);
@@ -184,7 +189,10 @@ export function armarResumen(d) {
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(0, 15)
       .map(i => ({ fecha: i.fecha, hora: i.hora || '', estado: i.estado || '',
         proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id,
-        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '', id: i.proyecto_id || '' })),
+        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '', id: i.proyecto_id || '',
+        /* «Envío» o «Recolección» cuando no se instala; ausente si se instala. */
+        ...(entregaDe(P.find(p => p.id === i.proyecto_id)) !== 'instalacion'
+          ? { entrega: ENTREGA_NOMBRE[entregaDe(P.find(p => p.id === i.proyecto_id))] } : {}) })),
     /* Las que ya pasaron y nadie marcó hecha ni cancelada: es la lista que el tablero llama
        «ya pasaron y nadie las marcó», y es la pregunta que sigue a «¿qué se instala?». */
     instalaciones_vencidas_sin_marcar: (d.instalaciones || [])
@@ -299,7 +307,7 @@ export function promptSistema(resumen) {
     dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. La lista `comisiones` es la del récord entero de la hoja: puede traer ventas que no están en `proyectos` (capturadas en otro teléfono o en la hoja), y esas también se deben. No las recalcules.'
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
     dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»). La lista `cobranza` es la cartera del récord entero, la misma de Control → Por cobrar: puede traer ventas que no están en `proyectos`, y para «¿quién nos debe?» manda su `total_por_cobrar`; `fuera_de_la_lista` cuenta las que no cupieron en `saldos`, y `saldos_de_la_hoja` cuenta, sobre toda la cartera y no solo sobre la lista, cuántos saldos son los de la hoja: si es menor que `ventas_con_saldo`, parte del total es estimado aunque todos los renglones de `saldos` digan `saldo_de_la_hoja`. Un proyecto con `fuera_del_record` no cuenta como venta (su fila ya no está en la hoja, o es la copia repetida de otra): no trae importes y no se los supongas.' : '',
-    '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó.',
+    '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó. Si un proyecto trae `entrega` («Paquetería» o «Recolección en taller») NO se instala: su fecha es el día que sale del taller (envío o recolección), no necesita dirección ni pin, y no hables de instalarlo.',
     '8. Si la pregunta es ambigua, contesta lo más probable y ofrece la otra lectura en una línea. No repitas la pregunta ni saludes; ve al dato.',
     '',
     'DATOS (JSON):',
@@ -592,7 +600,7 @@ export function responderLocal(intent, r) {
       const out = [];
       if (prox.length) {
         out.push('**' + cuenta(prox.length, 'instalación', 'instalaciones') + ' de hoy al ' + fechaCorta(fin) + ':**');
-        for (const i of prox) out.push('- ' + fechaCorta(i.fecha) + (i.hora ? ' ' + i.hora : '') + ' · ' + i.proyecto + (i.folio ? ' (' + i.folio + ')' : '') + ' · ' + i.estado);
+        for (const i of prox) out.push('- ' + fechaCorta(i.fecha) + (i.hora ? ' ' + i.hora : '') + ' · ' + i.proyecto + (i.folio ? ' (' + i.folio + ')' : '') + (i.entrega ? ' · **' + i.entrega + '**' : '') + ' · ' + i.estado);
       } else {
         out.push('**No hay instalaciones agendadas de hoy al ' + fechaCorta(fin) + '.**');
       }

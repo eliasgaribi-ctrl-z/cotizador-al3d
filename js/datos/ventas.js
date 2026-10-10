@@ -28,6 +28,7 @@
 import { partesISO, esISO, hoyISO, masMeses, MES_CORTO } from '../nucleo/fechas.js';
 import { cobrado } from './cotizador.js';
 import { ETAPA_NOMBRE, filaDeOtraCotizacion, telefonoLimpio } from './proyectos.js';
+import { entregaLimpia } from './entrega.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
@@ -102,6 +103,8 @@ export function ventaDesdeHoja(v) {
     contacto: '', negocio: nombre,
     /* El teléfono de la columna AE (puente-sheets-11), si la fila lo trae. */
     tel: telefonoLimpio(v.telefono),
+    /* La entrega de la columna AF (puente-sheets-12); sin ella, instalación. */
+    entrega: entregaLimpia(v.entrega),
     tipo_trabajo: Array.isArray(v.tipo_trabajo) ? v.tipo_trabajo.slice() : [],
     etapa: v.etapa || null,
     fecha_ganado: fecha,

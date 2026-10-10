@@ -60,7 +60,7 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 |---|---|---|
 | `/salud` | cualquier rol | Estado, `version`, el rol, la lista de lo que **este rol** puede escribir, por qué puerta entró (Google o token) y qué proveedores de IA tienen llave —sí o no; la llave no sale nunca— |
 | `/esquema` | cualquier rol | Qué columnas le faltan a la hoja, y si falta «Accesos». Las **detecta**, no las crea |
-| `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve**; el teléfono del cliente (AE, desde `puente-sheets-11`), para todos. Lee hasta la última columna que la hoja tenga: una hoja sin AE baja todo menos el teléfono, sin tronar |
+| `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve**; el teléfono del cliente (AE, desde `puente-sheets-11`) y la entrega (AF, desde `puente-sheets-12`), para todos. Lee hasta la última columna que la hoja tenga: una hoja sin AE baja todo menos el teléfono, y una sin AF todo menos la entrega, sin tronar |
 | `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
 | `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps |
 | `/solicitar` | cualquier rol | Pide a Dirección que autorice un precio. La hoja recalcula el subtotal con su copia del catálogo y, si no cuadra con el del teléfono, contesta `CATALOGO_DESINCRONIZADO`. No pisa la solicitud pendiente que **otra persona** tenga sobre el mismo folio (Dirección sí puede) |
@@ -82,6 +82,8 @@ Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 - **dirección** — todo.
 - **los tres** — el teléfono del cliente (AE «Telefono», desde `puente-sheets-11`): lo leen y lo
   escriben dirección, fabricación —que llama para instalar— y pagos —que cobra por WhatsApp—.
+- **dirección y fabricación** — la entrega (AF «Entrega», desde `puente-sheets-12`): cómo sale el
+  trabajo del taller. Pagos la lee y no la escribe.
 - **fabricación** — mueve la obra y el almacén. **No toca dinero**: ni anticipo, ni
   liquidación, ni cuenta, ni estatus de cobranza. Y desde `puente-sheets-3` tampoco lo
   **ve**: las cifras no bajan a ese teléfono. En el almacén (desde la 9), igual: registra
@@ -277,6 +279,60 @@ hasta AD sin la llave del teléfono, y una escritura del teléfono se rechaza co
 todavía no tiene la columna AE» mientras lo demás de esa operación sí se escribe. AE cuenta solo
 si su encabezado dice «Telefono»: una AE usada para otra cosa no se lee ni se escribe.
 
+### `puente-sheets-12` — la entrega por paquetería
+
+Hasta la 11 todo trabajo se daba por instalado. AVIDA Market, que se manda por paquetería a
+Puerto Vallarta, salía en el Mapa como «sin ubicar» —pidiendo un pin que no va a tener nunca— y en
+el Calendario como «instalación del jueves 16». Lo mismo el cliente que no quiere instalación y
+pasa a recoger su trabajo al taller. Desde la 12 cada venta dice **cómo se entrega**, en la
+columna **AF «Entrega»**, y el dato viaja como el teléfono.
+
+| | |
+|---|---|
+| **Columna** | AF (32). `ULTIMA_COL = 32`. Desplegable cerrado con tres opciones: «Instalación», «Paquetería», «Recolección en taller» (`ENTREGAS` en el `.gs`, `ENTREGA_A_HOJA` en `js/datos/puente.js`; `pruebas/puente.mjs` compara las dos listas) |
+| **Vacía** | es **Instalación**: lo que eran todas las ventas antes de la columna. «Preparar la hoja» no la llena |
+| **Quién** | la leen los tres roles; la escriben **dirección y fabricación** (el taller es quien empaca o entrega en mostrador). Pagos no |
+| **Qué acepta** | una de las tres. Lo tecleado a mano sin acento («paqueteria», «recoleccion») se vuelve la opción de la lista (`entregaDeCelda` del `.gs` = `entregaDesdeHoja` de `js/datos/entrega.js`); otra cosa se rechaza con su razón. Vacía borra la celda |
+| **Al reacomodar** | viaja con su fila, como Y:AE (`ordenarVentas`). La realineación de una sola vez de Y:AD no la toca |
+| **Sube** | en un **cambio de la entrega** va siempre, también «Instalación» (alguien la regresó). En un **alta** solo si no es instalación: el alta puede caer en una fila que ya existía, y un «Instalación» de oficio le borraría la «Paquetería» que alguien puso a mano. Un cambio de otra cosa, o una operación vieja sin `campos`, no la manda |
+| **Baja** | **manda la hoja cuando dice algo** (ver abajo). Al récord de Control (`ventaDeHoja`), a la tarjeta importada (`desdeVentaDeHoja`) y al proyecto que ya existe |
+| **Lo que ya había** | la columna nace vacía. Cuando una bajada trae la fila con AF vacía y el proyecto de ese teléfono es de paquetería o de recolección, la revisión de la bajada (`revisarContraLaHoja`) lo manda una vez (`entrega_a_la_hoja`). Una instalación no se manda: vacía ya lo dice |
+
+**La bajada, y por qué así.** La etapa y la dirección (`CAMPOS_PROPIOS`) no bajan nunca: son de la
+plataforma. El teléfono baja solo si el proyecto no tiene ninguno, porque el del cotizador es el
+que se le dio al cliente. La entrega es distinta: elegir «Paquetería» en la hoja es una persona que
+ya sabe cómo sale ese trabajo, y el teléfono de fabricación tiene que dejar de pedirle pin y de
+rotularlo instalación. Así que **lo que la celda dice, manda** —«Paquetería», «Recolección en
+taller» y también «Instalación» escrita—, con dos cuidados:
+
+- **Una celda vacía no pisa nada.** Vacía es también «nadie la ha tocado», y la columna nace vacía
+  en todas las filas: si vaciara, el día de «Preparar la hoja» todos los envíos volverían a
+  instalación. Se lee instalación, pero no se escribe encima de lo de aquí (y la revisión de la
+  bajada sube lo de aquí, una vez).
+- **Un proyecto con un cambio todavía en la bandeja no se toca.** La fila aún no tiene lo que se
+  acaba de elegir en el teléfono; aplicarle la de la fila lo desharía (la misma regla de la fecha
+  de instalación que baja).
+
+**Contra una hoja que todavía no está en la 12** (o que ya la tiene pegada pero no ha corrido
+«Preparar la hoja»): nada se rompe. Con la 11, la plataforma —que sabe la versión por `/salud`— no
+manda la entrega, y un cambio que era solo eso (o solo eso y el teléfono, contra una 10) se
+despacha sin mandarse; lo recoge la revisión de la bajada cuando la hoja se actualice. Con la 12
+sin la columna AF, `/jalar` baja hasta AE sin la llave de la entrega, y una escritura de la
+entrega se rechaza con la razón «falta correr Preparar la hoja» mientras lo demás de esa operación
+sí se escribe; un rechazo de pura entrega vuelve solo a la cola, una vez, en cuanto una bajada
+trae la columna (`revive`, marca `revivida_entrega`). AF cuenta solo si su encabezado dice
+«Entrega» —y si AE está—.
+
+**En la plataforma** (`js/datos/entrega.js`): la ficha tiene «Cómo se entrega: Instalación ·
+Paquetería · Recolección en taller» junto a la dirección; con paquetería la fecha es «Fecha de
+envío» y la dirección es el destino, y con recolección «Fecha de recolección» y la dirección del
+taller. El Mapa no los pone en «Sin ubicar» ni en la ruta: van aparte, «Envíos por paquetería (N)»
+y «Recolección en taller (N)». En el Calendario el chip dice «Envío» o «Recolección» con borde
+punteado (en el teléfono, un rombo en vez de un punto), el `.ics` sale titulado «Envío: …» sin
+ubicación de calle —o «Recolección: …» con la del taller— y el WhatsApp del cliente no habla de
+instalación. La fecha sigue siendo la del día que el trabajo sale del taller: cuenta igual para el
+semáforo de material y la carga del taller.
+
 ---
 
 ## Montarlo
@@ -414,7 +470,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-11`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-12`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

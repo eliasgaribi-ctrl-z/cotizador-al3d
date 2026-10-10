@@ -117,7 +117,9 @@ Desde el 1 de octubre espera **`puente-sheets-8`**: el sello firma también los 
 (al final, después de la 7).
 Y la **`puente-sheets-9`**: lo de la 8 más el almacén, el catálogo y las listas de compra (al final).
 Desde el 9 de octubre espera **`puente-sheets-11`**: lo de la 10 (las carpetas de Drive) más el
-teléfono del cliente en la columna AE (al final). Cuál corre la hoja de verdad
+teléfono del cliente en la columna AE (al final).
+Y la **`puente-sheets-12`**: lo de la 11 más la entrega —instalación, paquetería o recolección en
+taller— en la columna AF (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -319,6 +321,31 @@ hechos los cuatro pasos, en este orden:
 
 Si después de esto alguien teclea un teléfono a mano en AE, baja a los proyectos que no tienen
 uno; el de un proyecto que ya tiene no se pisa.
+
+### Al pasar a `puente-sheets-12` (la entrega en la hoja) — el mismo paso de menú que la 11
+
+La 12 agrega la columna **AF «Entrega»** a Ventas (ver «`puente-sheets-12` — la entrega por
+paquetería» en el README). Igual que con la 11, el orden no rompe nada: si la app nueva sale antes
+que el puente, los teléfonos ven por `/salud` que la hoja corre la 11 y no mandan la entrega; si el
+`.gs` nuevo se publica pero no se corre el paso 3, `/jalar` baja hasta AE y la entrega se rechaza
+con «falta correr Preparar la hoja». Pero la entrega **no llega a la hoja** hasta que estén los
+cuatro pasos, en este orden:
+
+1. Baja el `Código.gs` que corre en la hoja y compáralo con `puente/hoja-apps-script.gs`
+   (`puente/README.md`, «Antes de pegar nada»). Fusiona lo que la hoja tenga de más, pégalo y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión: Versión nueva → Implementar.**
+   La URL no cambia. No pide permisos nuevos.
+3. En la hoja, **⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente.** Crea
+   AF con su encabezado «Entrega», su ancho y el **desplegable cerrado** de las tres opciones
+   (Instalación / Paquetería / Recolección en taller). No la llena: vacía es Instalación. Si la
+   hoja todavía no tenía AE (venía de la 10), crea las dos. Es idempotente.
+4. **Ajustes → El puente → Probar**, en un teléfono, tiene que decir `puente-sheets-12`. Después de
+   la siguiente sincronización, las ventas que en algún teléfono ya eran de paquetería o de
+   recolección se escriben solas en AF (una vez cada una, y solo en filas con AF vacía).
+
+Desde ahí, elegir «Paquetería» o «Recolección en taller» en AF baja a los teléfonos y les cambia
+la ficha, el Mapa y el Calendario. Vaciar la celda **no** regresa nada a instalación: para eso se
+elige «Instalación» en el desplegable, o se cambia en la ficha.
 
 ## Las cabeceras del sitio
 

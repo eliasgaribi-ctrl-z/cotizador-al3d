@@ -35,6 +35,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
+import { ENTREGA_ROTULO, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from './entrega.js';
 import { partesISO, hoyISO, fmtFecha, fmtFechaDia, fmtHora } from '../nucleo/ui.js';
 import { diasEntre, ultimoDia } from '../nucleo/fechas.js';
 
@@ -777,24 +778,44 @@ export function paraIcs(inst, proyecto) {
   const i = inst || {}, p = proyecto || {};
   const titulo = p.nombre || p.folio_local || 'Instalación';
   const ventana = ventanaDe(i.ventana);
+  /* Cómo sale del taller (js/datos/entrega.js). Un envío se titula «Envío: …» y una recolección
+     «Recolección: …», para que en el calendario del teléfono no se lea como una salida de la
+     camioneta. El UID y la secuencia NO cambian: es la misma fecha del mismo trabajo, y cambiar
+     de instalación a envío tiene que mover el evento que ya está, no dejar dos. */
+  const ent = entregaDe(p);
+  const dir = String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ').trim();
 
   const linea = [];
-  if (Array.isArray(p.tipo_trabajo) && p.tipo_trabajo.length) linea.push('Se instala: ' + p.tipo_trabajo.join(', '));
-  if (p.contacto) linea.push('Buscar a: ' + p.contacto + (p.tel ? ' · ' + p.tel : ''));
+  const que = ent === 'paqueteria' ? 'Se envía: ' : ent === 'recoleccion' ? 'Se entrega: ' : 'Se instala: ';
+  if (Array.isArray(p.tipo_trabajo) && p.tipo_trabajo.length) linea.push(que + p.tipo_trabajo.join(', '));
+  if (p.contacto) linea.push((ent === 'instalacion' ? 'Buscar a: ' : 'Cliente: ') + p.contacto + (p.tel ? ' · ' + p.tel : ''));
   linea.push(i.hora ? 'Hora: ' + fmtHora(i.hora) : 'Sin hora todavía: confírmala antes del día.');
-  if (ventana !== 'dia') linea.push('Ventana: ' + (VENTANA_NOMBRE[ventana] || ventana));
-  if (p.entrecalles) linea.push('Entre calles: ' + p.entrecalles);
-  if (p.maps_url) linea.push('Mapa: ' + p.maps_url);
+  if (ent === 'paqueteria') {
+    linea.push(dir ? 'Destino del envío: ' + dir : 'Sin destino capturado: pídeselo al cliente antes de mandar.');
+  } else if (ent === 'recoleccion') {
+    linea.push('El cliente pasa a recogerlo al taller.');
+  } else {
+    if (ventana !== 'dia') linea.push('Ventana: ' + (VENTANA_NOMBRE[ventana] || ventana));
+    if (p.entrecalles) linea.push('Entre calles: ' + p.entrecalles);
+    if (p.maps_url) linea.push('Mapa: ' + p.maps_url);
+  }
   if (i.notas) linea.push(i.notas);
+
+  /* La ubicación: la calle del cliente solo cuando se va a su calle. Un envío no lleva ninguna
+     —el destino va en la descripción; como LOCATION, el teléfono ofrecería «cómo llegar» a
+     Puerto Vallarta—, y una recolección lleva el taller, que es a donde llega el cliente. */
+  const location = ent === 'paqueteria' ? ''
+    : ent === 'recoleccion' ? TALLER_NOMBRE + ', ' + DIRECCION_TALLER
+    : [dir, p.entrecalles].filter(Boolean).join(' — ');
 
   return {
     uid: i.uid_ics || ('inst-' + (i.id || '') + '@al3d.mx'),
     fecha: i.fecha, hora: i.hora || null,
     duracion_min: Number(i.duracion_min) > 0 ? Number(i.duracion_min) : DURACION_BASE,
-    summary: 'Instalación · ' + titulo,
+    summary: ent === 'instalacion' ? 'Instalación · ' + titulo : ENTREGA_ROTULO[ent] + ': ' + titulo,
     description: linea.join('\n'),
-    location: [String(p.dir_texto || '').replace(/\s*\n\s*/g, ', '), p.entrecalles]
-      .filter(Boolean).join(' — '),
+    location,
+    entrega: ent,
     secuencia: Number(i.movida) || 0,
     estado: i.estado || 'confirmada',
     ventana,

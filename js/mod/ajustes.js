@@ -802,12 +802,12 @@ function cardPuente() {
     if (!ESQ.ok) {
       esquema = nota(ico('i-aviso') + ' ' + esc(ESQ.mensaje || 'No se pudo leer el esquema.'), 'mal');
     } else if (!ESQ.faltan.length) {
-      esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las nueve ' +
+      esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las diez ' +
         'columnas que la plataforma necesita.', 'ok');
     } else if (!columnasQueFaltan().length) {
       /* Solo falta la pestaña «Accesos». No es una columna, y sin ella lo que falla no es el
          alta (con token de dispositivo funciona): es que nadie entra con Google. */
-      esquema = nota('<b>Las nueve columnas están, pero falta la pestaña «Accesos».</b> Sin ella ' +
+      esquema = nota('<b>Las diez columnas están, pero falta la pestaña «Accesos».</b> Sin ella ' +
         'nadie entra con Google, en ninguna pantalla; con token de dispositivo el puente sigue ' +
         'escribiendo. Córrele <b>prepararHojaParaElPuente()</b> en Apps Script: la crea con el ' +
         'dueño de la hoja ya dentro.', 'av');

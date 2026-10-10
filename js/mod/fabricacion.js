@@ -58,6 +58,7 @@
 import * as DB from '../datos/db.js';
 import * as Prefs from '../datos/prefs.js';
 import * as Agenda from '../datos/agenda.js';
+import { ENTREGA_ROTULO, ENTREGA_VERBO, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from '../datos/entrega.js';
 import * as Proyectos from '../datos/proyectos.js';
 import * as Reglas from '../datos/reglas.js';
 import * as Ics from '../nucleo/ics.js';
@@ -913,9 +914,15 @@ function celdaDia(dia, d) {
   const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(dia.fecha)) || [];
   const topeInst = _lente === 'taller' ? 0 : _lente === 'todo' ? 2 : 3;
   const topeTal = _lente === 'instalaciones' ? 0 : _lente === 'todo' ? 2 : 3;
-  const chipsInst = insts.slice(0, topeInst).map(i =>
-    '<span class="cal-ev ' + claseEv(i) + '"><span class="tx">' +
-      esc((i.hora ? i.hora + ' ' : '') + (i.titulo || '')) + '</span></span>');
+  /* Un envío o una recolección lleva su palabra al frente —«Envío», «Recolección»— y otra forma
+     (`.cal-ev.envio`, borde punteado): no solo otro color, que es lo que no se distingue en un
+     chip de 39 px ni con un ojo que no separa el verde del ámbar. */
+  const chipsInst = insts.slice(0, topeInst).map(i => {
+    const ent = entregaDe(i.proyecto);
+    return '<span class="cal-ev ' + claseEv(i) + (ent === 'instalacion' ? '' : ' envio ' + ent) + '"><span class="tx">' +
+      (ent === 'instalacion' ? '' : '<b class="cal-ent">' + esc(ENTREGA_ROTULO[ent]) + '</b> ') +
+      esc((i.hora ? i.hora + ' ' : '') + (i.titulo || '')) + '</span></span>';
+  });
   const chipsTal = vencen.slice(0, topeTal).map(x =>
     '<span class="cal-ev tal ' + esc(x.que) + (x.tarde ? ' tarde' : '') + '"><span class="tx">' +
       esc(nombreCorto(x.titulo) + ' · ' + x.que) + '</span></span>');
@@ -929,7 +936,7 @@ function celdaDia(dia, d) {
      cada doce hombres no distingue el verde del ámbar, y esto se lee para decidir si hay que
      ir a la vidriería hoy. */
   const etiqueta = [fmtFechaDia(dia.fecha),
-    insts.length ? (vivas.length === 1 ? '1 instalación' : vivas.length + ' instalaciones')
+    insts.length ? cuantasDeCadaUna(vivas)
                  : (_lente === 'instalaciones' ? 'sin nada agendado' : ''),
     _lente !== 'instalaciones' && carga ? carga.texto.replace(/\.$/, '') : '',
     vencen.length ? vencen.slice(0, 3).map(x => x.titulo + ': ' + x.que).join(', ') + (vencen.length > 3 ? ' y ' + (vencen.length - 3) + ' más' : '') : '',
@@ -946,6 +953,18 @@ function celdaDia(dia, d) {
       (sem ? '<span class="cal-sem ' + sem.estado + '" aria-hidden="true"></span>' : '') +
       '<span class="cal-n">' + dia.dia + '</span>' + evs + mas +
     '</button>';
+}
+
+/** «2 instalaciones y 1 envío»: lo que se lee en voz alta de una celda. Cada una con su nombre,
+ *  porque un envío contado como instalación es la camioneta saliendo a una cita que no existe. */
+function cuantasDeCadaUna(vivas) {
+  const n = { instalacion: 0, paqueteria: 0, recoleccion: 0 };
+  for (const i of vivas) n[entregaDe(i.proyecto)]++;
+  const partes = [];
+  if (n.instalacion) partes.push(n.instalacion === 1 ? '1 instalación' : n.instalacion + ' instalaciones');
+  if (n.paqueteria) partes.push(n.paqueteria === 1 ? '1 envío' : n.paqueteria + ' envíos');
+  if (n.recoleccion) partes.push(n.recoleccion === 1 ? '1 recolección' : n.recoleccion + ' recolecciones');
+  return partes.length > 1 ? partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1] : (partes[0] || '');
 }
 
 /** El nombre del proyecto es «Contacto - Negocio (tipo)», y en un chip de 39 px caben tres
@@ -1107,16 +1126,23 @@ function fila(i, sem) {
   const p = i.proyecto || {};
   const cancelada = i.estado === 'cancelada';
   const claseIco = cancelada ? '' : (veSemaforo() && sem ? (CLASE_ICO[sem.estado] || '') : '');
+  /* Un envío o una recolección: su palabra delante del nombre, sin «Buscar a», sin ventana de
+     noche y sin «Ver en Maps» —no se va a ningún lado—. Lo que sí: el destino, o el taller. */
+  const ent = entregaDe(p);
+  const instala = ent === 'instalacion';
 
   const detalle = [];
-  if (i.ventana && i.ventana !== 'dia') detalle.push(Agenda.VENTANA_NOMBRE[i.ventana] || i.ventana);
+  if (instala && i.ventana && i.ventana !== 'dia') detalle.push(Agenda.VENTANA_NOMBRE[i.ventana] || i.ventana);
   if (i.estado !== 'confirmada') detalle.push(Agenda.ESTADO_NOMBRE[i.estado] || i.estado);
-  if (p.contacto) detalle.push('Buscar a ' + p.contacto);
+  if (p.contacto) detalle.push((instala ? 'Buscar a ' : 'Cliente: ') + p.contacto);
   const dur = Number(i.duracion_min) > 0 ? Number(i.duracion_min) : 0;
-  if (dur) detalle.push(dur >= 60 ? Math.round(dur / 60 * 10) / 10 + ' h' : dur + ' min');
+  if (instala && dur) detalle.push(dur >= 60 ? Math.round(dur / 60 * 10) / 10 + ' h' : dur + ' min');
 
-  const mapa = linkMapa(p);
-  const dir = String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ');
+  const mapa = instala ? linkMapa(p) : '';
+  const dirCruda = String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ');
+  const dir = ent === 'recoleccion' ? 'Lo recogen en el taller: ' + DIRECCION_TALLER
+    : ent === 'paqueteria' ? (dirCruda ? 'Destino: ' + dirCruda : 'Sin destino capturado')
+    : dirCruda;
 
   /* El saldo solo para quien ve dinero. Para FABRICACIÓN no se difumina: el elemento no
      existe. El difuminado del cotizador es una mampara contra el cliente sentado enfrente,
@@ -1134,15 +1160,16 @@ function fila(i, sem) {
     esc(i.id) + '">Al calendario del teléfono</button>'];
   if (veWa() && !cancelada) {
     acc.push('<button type="button" class="btn btn-gho" data-acc="orden" data-id="' +
-      esc(i.id) + '">Instalador</button>');
+      esc(i.id) + '">' + (instala ? 'Instalador' : 'Orden') + '</button>');
   }
   acc.push('<button type="button" class="btn btn-gho" data-acc="ficha" data-id="' +
     esc(i.id) + '">Abrir</button>');
 
   return '<div class="pf-fila">' +
-      '<div class="pf-fila-ico' + claseIco + '">' + ico(cancelada ? 'i-cerrar' : 'i-camion') + '</div>' +
+      '<div class="pf-fila-ico' + claseIco + '">' + ico(cancelada ? 'i-cerrar' : ent === 'recoleccion' ? 'i-taller' : 'i-camion') + '</div>' +
       '<div class="pf-fila-tx">' +
-        '<div class="pf-fila-t">' + esc(i.hora ? fmtHora(i.hora) : 'Sin hora') + ' · ' +
+        '<div class="pf-fila-t">' + (instala ? '' : '<span class="pf-entrega ' + ent + '">' + esc(ENTREGA_ROTULO[ent]) + '</span> ') +
+          esc(i.hora ? fmtHora(i.hora) : 'Sin hora') + ' · ' +
           esc(i.titulo || 'Proyecto que ya no está') + '</div>' +
         '<div class="pf-fila-d">' + esc(detalle.join(' · ')) +
           (dir ? '<br>' + esc(dir) : '') +
@@ -1713,6 +1740,9 @@ async function pintarPaso2(pid, o = {}) {
     (previas.length ? previas[previas.length - 1].fecha : null) || hoyISO();
   const dur = Agenda.duracionSugerida(p.tipo_trabajo);
   const tipos = (p.tipo_trabajo || []).join(', ');
+  /* Un envío o una recolección: la misma fecha —el día que sale del taller, que es la que cuenta
+     para el semáforo y la carga—, pero se pregunta con su verbo y no se habla de la calle. */
+  const ent = entregaDe(p);
 
   const ventanas = Agenda.VENTANAS.map(v =>
     chip(Agenda.VENTANA_NOMBRE[v], v === 'dia',
@@ -1725,7 +1755,7 @@ async function pintarPaso2(pid, o = {}) {
   _hoja = { paso: 'fecha', pid, ventana: 'dia', proyecto: p, volver: o.volver || null };
 
   ponerEnCapa('pf-hoja',
-    cabeza('¿Qué día se instala?', 'data-h="cerrar"') +
+    cabeza(ent === 'instalacion' ? '¿Qué día se instala?' : '¿Qué día se va a ' + ENTREGA_VERBO[ent] + '?', 'data-h="cerrar"') +
     '<div class="pf-panel-b">' +
       pasosAgendar(1) +
       (_hoja.volver
@@ -1735,11 +1765,14 @@ async function pintarPaso2(pid, o = {}) {
       (p.compromiso_texto
         ? '<dl class="pf-dato"><dt>Lo que se le prometió al cliente</dt><dd>' +
           esc(p.compromiso_texto) + '</dd></dl>' : '') +
-      (p.dir_texto
-        ? '<dl class="pf-dato"><dt>Dónde</dt><dd>' +
-          esc(String(p.dir_texto).replace(/\s*\n\s*/g, ', ')) + '</dd></dl>' : '') +
+      (ent === 'recoleccion'
+        ? '<dl class="pf-dato"><dt>Cómo se entrega</dt><dd>Lo recogen en el taller: ' + esc(TALLER_NOMBRE + ', ' + DIRECCION_TALLER) + '</dd></dl>'
+        : p.dir_texto
+        ? '<dl class="pf-dato"><dt>' + (ent === 'paqueteria' ? 'Se envía por paquetería a' : 'Dónde') + '</dt><dd>' +
+          esc(String(p.dir_texto).replace(/\s*\n\s*/g, ', ')) + '</dd></dl>'
+        : ent === 'paqueteria' ? '<dl class="pf-dato"><dt>Cómo se entrega</dt><dd>Por paquetería, sin destino capturado todavía</dd></dl>' : '') +
 
-      '<div class="fld"><label for="pf-ag-fecha">Día de la instalación</label>' +
+      '<div class="fld"><label for="pf-ag-fecha">' + (ent === 'paqueteria' ? 'Día del envío' : ent === 'recoleccion' ? 'Día en que lo recogen' : 'Día de la instalación') + '</label>' +
         '<input type="date" id="pf-ag-fecha" value="' + esc(propuesta) + '"></div>' +
 
       '<div class="fld"><label for="pf-ag-hora">Hora, si ya se sabe</label>' +
@@ -1804,7 +1837,8 @@ async function guardarAgenda() {
     cabeza('Ya está agendada', 'data-h="cerrar"') +
     '<div class="pf-panel-b">' +
       pasosAgendar(2) +
-      '<dl class="pf-dato"><dt>' + esc(p.nombre || 'La instalación') + '</dt><dd>' +
+      '<dl class="pf-dato"><dt>' + esc(p.nombre || (entregaDe(p) === 'instalacion' ? 'La instalación' : 'La entrega')) +
+        (entregaDe(p) === 'instalacion' ? '' : ' · ' + esc(ENTREGA_ROTULO[entregaDe(p)])) + '</dt><dd>' +
         esc(fmtFechaDia(inst.fecha) + ' · ' +
             (inst.hora ? fmtHora(inst.hora) : 'sin hora, todo el día')) + '</dd></dl>' +
       (inst.estado === 'propuesta'
@@ -1900,18 +1934,25 @@ function alEscribirHoja(ev) {
 
 function abrirFicha(i) {
   const p = i.proyecto || {};
-  const mapa = linkMapa(p);
+  /* Con un envío o una recolección la ficha habla de eso: «Cómo se entrega», el destino o el
+     taller, y sin ventana, sin entre calles y sin «Ver en Maps». */
+  const ent = entregaDe(p);
+  const instala = ent === 'instalacion';
+  const mapa = instala ? linkMapa(p) : '';
   const cancelada = i.estado === 'cancelada';
   const sem = i.semaforo || (_d ? _d.sem.get(i.fecha) : null);
+  const dir = String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ');
 
   const datos = [
     ['Cuándo', fmtFechaDia(i.fecha) + ' · ' + (i.hora ? fmtHora(i.hora) : 'sin hora, todo el día')],
-    ['Ventana', Agenda.VENTANA_NOMBRE[i.ventana] || 'De día'],
+    ['Cómo se entrega', instala ? '' : ent === 'paqueteria' ? 'Envío por paquetería' : 'Recolección en el taller'],
+    ['Ventana', instala ? (Agenda.VENTANA_NOMBRE[i.ventana] || 'De día') : ''],
     ['Cómo va', Agenda.ESTADO_NOMBRE[i.estado] || i.estado],
-    ['A quién se busca', [p.contacto, p.tel].filter(Boolean).join(' · ')],
-    ['Qué se instala', (p.tipo_trabajo || []).join(', ')],
-    ['Dónde', String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ')],
-    ['Entre calles', p.entrecalles],
+    [instala ? 'A quién se busca' : 'Cliente', [p.contacto, p.tel].filter(Boolean).join(' · ')],
+    [instala ? 'Qué se instala' : ent === 'paqueteria' ? 'Qué se envía' : 'Qué se entrega', (p.tipo_trabajo || []).join(', ')],
+    [ent === 'paqueteria' ? 'Destino del envío' : ent === 'recoleccion' ? 'Lo recogen en' : 'Dónde',
+      ent === 'recoleccion' ? TALLER_NOMBRE + ', ' + DIRECCION_TALLER : (dir || (ent === 'paqueteria' ? 'Sin destino capturado' : ''))],
+    ['Entre calles', instala ? p.entrecalles : ''],
     ['Notas', i.notas],
   ];
   if (Prefs.veDinero() && Number(p.pago_pendiente) > 0) {
@@ -1923,7 +1964,7 @@ function abrirFicha(i) {
     acc.push('<button type="button" class="btn-wa" data-acc="cliente" data-id="' + esc(i.id) + '">' +
       ico('i-wa') + 'Confirmar al cliente</button>');
     acc.push('<button type="button" class="btn btn-gho" data-acc="orden" data-id="' + esc(i.id) +
-      '">Orden al instalador</button>');
+      '">' + (instala ? 'Orden al instalador' : 'Orden del taller') + '</button>');
   }
   acc.push('<button type="button" class="btn btn-gho" data-acc="ics" data-id="' + esc(i.id) +
     '">Al calendario del teléfono</button>');
@@ -1939,7 +1980,7 @@ function abrirFicha(i) {
       '">Mover de día</button>');
     if (i.estado !== 'hecha') {
       acc.push('<button type="button" class="btn btn-ok" data-acc="hecha" data-id="' + esc(i.id) +
-        '">Ya se instaló</button>');
+        '">' + (instala ? 'Ya se instaló' : ent === 'paqueteria' ? 'Ya se envió' : 'Ya lo recogieron') + '</button>');
     }
     acc.push('<button type="button" class="btn btn-gho" data-acc="cancelar" data-id="' + esc(i.id) +
       '">Cancelarla</button>');
@@ -1949,6 +1990,7 @@ function abrirFicha(i) {
   ponerEnCapa('pf-pide',
     cabeza(p.nombre || i.titulo || 'Instalación', 'data-pide="cerrar"') +
     '<div class="pf-panel-b">' +
+      (instala ? '' : '<p><span class="pf-entrega ' + ent + '">' + esc(ENTREGA_ROTULO[ent]) + '</span></p>') +
       (veSemaforo() && sem && !cancelada ? renglonSem(sem) : '') +
       '<div class="pf-2col">' + datos.filter(x => x[1]).map(x =>
         '<dl class="pf-dato"><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></dl>').join('') +
