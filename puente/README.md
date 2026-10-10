@@ -60,7 +60,7 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 |---|---|---|
 | `/salud` | cualquier rol | Estado, `version`, el rol, la lista de lo que **este rol** puede escribir, por qué puerta entró (Google o token) y qué proveedores de IA tienen llave —sí o no; la llave no sale nunca— |
 | `/esquema` | cualquier rol | Qué columnas le faltan a la hoja, y si falta «Accesos». Las **detecta**, no las crea |
-| `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
+| `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve**; el teléfono del cliente (AE, desde `puente-sheets-11`), para todos. Lee hasta la última columna que la hoja tenga: una hoja sin AE baja todo menos el teléfono, sin tronar |
 | `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
 | `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps |
 | `/solicitar` | cualquier rol | Pide a Dirección que autorice un precio. La hoja recalcula el subtotal con su copia del catálogo y, si no cuadra con el del teléfono, contesta `CATALOGO_DESINCRONIZADO`. No pisa la solicitud pendiente que **otra persona** tenga sobre el mismo folio (Dirección sí puede) |
@@ -80,6 +80,8 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 
 - **dirección** — todo.
+- **los tres** — el teléfono del cliente (AE «Telefono», desde `puente-sheets-11`): lo leen y lo
+  escriben dirección, fabricación —que llama para instalar— y pagos —que cobra por WhatsApp—.
 - **fabricación** — mueve la obra y el almacén. **No toca dinero**: ni anticipo, ni
   liquidación, ni cuenta, ni estatus de cobranza. Y desde `puente-sheets-3` tampoco lo
   **ve**: las cifras no bajan a ese teléfono. En el almacén (desde la 9), igual: registra
@@ -251,6 +253,30 @@ Las tres pestañas son **el buzón de la plataforma**: se leen, no se editan a m
 corrección tecleada ahí no cambia la secuencia y no llega a los teléfonos hasta la vuelta
 semanal; el catálogo y las listas se corrigen en la plataforma (Material).
 
+### `puente-sheets-11` — el teléfono en la hoja
+
+Hasta la 10 el teléfono del cliente vivía solo en el teléfono que ganó la cotización: el
+instalador que tenía que llamar para confirmar, y quien cobra por WhatsApp, se lo pedían a Elías.
+Desde la 11 tiene columna en Ventas, **AE «Telefono»**, y viaja como las demás del puente.
+
+| | |
+|---|---|
+| **Columna** | AE (31). `ULTIMA_COL = 31`. Texto sin formato (`@`): «+52 1 33 1234 5678» se queda así, no se vuelve número ni fórmula |
+| **Quién** | lo leen y lo escriben los tres roles. No es dinero: `sinLoQueNoLeToca` no se lo quita a nadie |
+| **Qué acepta** | dígitos, espacios, `+`, guiones y paréntesis, hasta 30. Lo demás (puntos, diagonales) se vuelve espacio; sin un dígito, se rechaza con su razón. Vacío borra la celda. La misma regla de los dos lados (`telefonoLimpio`, en el `.gs` y en `js/datos/proyectos.js`) |
+| **Al reacomodar** | viaja con su fila, como Y:AD (`ordenarVentas`). La realineación de una sola vez de Y:AD no la toca: AE nació cuando las columnas del puente ya viajaban con su fila, así que nunca estuvo revuelta (`ULTIMA_COL_REALINEABLE`) |
+| **Sube** | el del proyecto, o el de la cotización si el proyecto no tiene uno propio (lo mismo que enseña la ficha). En un alta o en un cambio de otra cosa un vacío **no** se manda: vacío solo cuando lo que cambió fue el teléfono |
+| **Baja** | al récord de Control (`ventaDeHoja`), a la tarjeta importada (`desdeVentaDeHoja`) y al proyecto que ya existe **solo si ese proyecto no tiene teléfono**: uno de aquí no se pisa con el de la fila, y menos con un vacío |
+| **Lo que ya había** | la columna nace vacía. Cuando una bajada trae la fila con AE vacía y el proyecto de ese teléfono sí tiene número, la revisión de la bajada (`revisarContraLaHoja`) lo manda una vez (`tel_a_la_hoja`). Y los cambios de puro teléfono que la 10 rechazó («no puede escribir nada») vuelven solos a la cola en cuanto el teléfono sabe, por `/salud`, que la hoja ya corre la 11 (`revive` del relevo; una vez por operación) |
+
+**Contra una hoja que todavía no está en la 11** (o que ya la tiene pegada pero no ha corrido
+«Preparar la hoja»): nada se rompe. Con la 10, la plataforma —que sabe la versión por `/salud`—
+no manda el teléfono, y un cambio que era solo eso se despacha sin mandarse; lo recoge la
+revisión de la bajada cuando la hoja se actualice. Con la 11 sin la columna AE, `/jalar` baja
+hasta AD sin la llave del teléfono, y una escritura del teléfono se rechaza con la razón «la hoja
+todavía no tiene la columna AE» mientras lo demás de esa operación sí se escribe. AE cuenta solo
+si su encabezado dice «Telefono»: una AE usada para otra cosa no se lee ni se escribe.
+
 ---
 
 ## Montarlo
@@ -388,7 +414,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-9`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-11`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

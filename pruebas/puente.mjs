@@ -351,7 +351,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 10', VERSION_ESPERADA, 'puente-sheets-10');
+  eq('la plataforma espera la 11', VERSION_ESPERADA, 'puente-sheets-11');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
   eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);
@@ -664,7 +664,10 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   globalThis.fetch = async (url, init) => {
     const c = JSON.parse(init.body);
     let cuerpo;
-    if (c.ruta === 'salud') cuerpo = { ok: true, rol: 'direccion', escribibles: ESC_DIR, version: VERSION_ESPERADA };
+    /* `H.version` deja fingir una hoja anterior (la 10 no sabe del teléfono); por omisión, la que
+       la plataforma espera, que escribe también «Telefono». */
+    if (c.ruta === 'salud') cuerpo = { ok: true, rol: 'direccion', version: H.version || VERSION_ESPERADA,
+      escribibles: H.version ? ESC_DIR : [...ESC_DIR, 'Telefono'] };
     else if (c.ruta === 'jalar') cuerpo = H.jalar ? H.jalar(c) : { ok: true, cursor: null, hay_mas: false,
       registros: H.filas.map(d => ({ almacen: 'proyectos', datos: d })) };
     else if (c.ruta === 'empujar') { H.empujadas.push(c.ops[0]); cuerpo = { ok: true, resultados: [responder(c.ops[0])] }; }
@@ -1446,6 +1449,71 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await jalarTodo();
   eq('8 · una fecha pasada sin cita no se agenda', (await instsDe('proy-hoja-V-820')).length, 0);
   eq('8 · una venta que no está en el taller no se importa ni se agenda', (await DB.listar('instalaciones')).filter(i => /V-821/.test(i.proyecto_id)).length, 0);
+
+  /* ── 9 · El teléfono del cliente (puente-sheets-11) ──────────────────────────────────────
+     Contra una hoja en la 10 no viaja y no se aparta como rechazado; los rechazos que la 10 ya
+     dejó vuelven solos con la 11; el que la columna nueva no tiene se manda una vez; y lo que
+     baja no pisa el teléfono de aquí. */
+  const enviadaDe = np => H.empujadas.filter(o => o.id_notion === np);
+  const relevo = () => S.registrar(crear({ url: 'https://puente.test/exec', token: 'd'.repeat(40) }));
+
+  H.version = 'puente-sheets-10';
+  relevo();
+  await DB.poner('proyectos', propio('proy-T1', 'COT-0901@TEST', 'V-901', { tel: '33 1234 5678' }));
+  await cambio('proy-T1', ['tel']);
+  const t1 = await S.bombear();
+  eq('9 · con la hoja en la 10, un cambio de puro teléfono no se manda', enviadaDe('V-901').length, 0);
+  eq('9 · y no se aparta como rechazado: se despacha (la revisión de la bajada lo manda después)',
+     [t1.valor.rechazadas, t1.valor.omitidas, (await deProyecto('proy-T1')).length], [0, 1, 0]);
+  await cambio('proy-T1', ['etapa']);
+  await S.bombear();
+  eq('9 · un cambio de otra cosa sí sale, sin el teléfono', enviadaDe('V-901').map(o => [o.datos['Etapa de obra'], 'Telefono' in o.datos]),
+     [['Ganado', false]]);
+
+  /* Lo que dejó en la bandeja la plataforma de antes: el cambio de puro teléfono que la 10 rechazó. */
+  await DB.poner('proyectos', propio('proy-T2', 'COT-0902@TEST', 'V-902', { tel: '+52 1 33 9999 0000' }));
+  const p2 = await DB.obtener('proyectos', 'proy-T2');
+  await DB.poner('pendientes', { id: 'op-viejo-tel', tipo: 'actualizar', almacen: 'proyectos', registro_id: 'proy-T2',
+    datos: p2, campos: ['tel'], ts: 1, intentos: 1, estado: 'rechazada', codigo_rechazo: 'ROL_SIN_PERMISO',
+    ultimo_error: 'De ese cambio, este teléfono no puede escribir nada en la hoja: .' });
+  await S.bombear();
+  eq('9 · con la hoja en la 10, ese rechazo se queda donde está', (await deProyecto('proy-T2')).length, 1);
+
+  H.version = null;   // la hoja ya corre la 11
+  relevo();
+  await S.bombear();
+  eq('9 · con la 11, el rechazo de puro teléfono vuelve solo a la cola y sale con el número',
+     enviadaDe('V-902').map(o => o.datos['Telefono']), ['+52 1 33 9999 0000']);
+  eq('9 · y ya no está apartado', (await deProyecto('proy-T2')).length, 0);
+
+  /* La columna nace vacía: el teléfono que este lado ya tenía se manda una vez. */
+  H.filas.push(fila('V-901', 'Venta COT-0901@TEST', { 'Folio cotizacion': 'COT-0901@TEST', 'Telefono': '' }));
+  const antesT1 = enviadaDe('V-901').length;
+  await jalarTodo();
+  await S.bombear();
+  eq('9 · la fila con AE vacía recibe el teléfono de aquí', enviadaDe('V-901').slice(antesT1).map(o => o.datos['Telefono']), ['33 1234 5678']);
+  await jalarTodo();
+  await S.bombear();
+  eq('9 · una vez: la siguiente bajada, con la fila todavía vacía, no lo vuelve a mandar', enviadaDe('V-901').length - antesT1, 1);
+  eq('9 · y la bajada con AE vacía no le borra el teléfono a este proyecto', (await DB.obtener('proyectos', 'proy-T1')).tel, '33 1234 5678');
+
+  /* Lo que baja: llena el que falta, no pisa el que hay. */
+  await DB.poner('proyectos', propio('proy-T4', 'COT-0904@TEST', 'V-904', { tel: '33 0000 0000' }));
+  await DB.poner('proyectos', propio('proy-T5', 'COT-0905@TEST', 'V-905'));
+  await DB.poner('proyectos', propio('proy-T6', 'COT-0906@TEST', 'V-906', { origen: { folio: 'COT-0906', items: [], tel: '33 4444 4444' } }));
+  H.filas.push(fila('V-904', 'Venta COT-0904@TEST', { 'Folio cotizacion': 'COT-0904@TEST', 'Telefono': '33 5555 5555' }));
+  H.filas.push(fila('V-905', 'Venta COT-0905@TEST', { 'Folio cotizacion': 'COT-0905@TEST', 'Telefono': '33 7777 7777' }));
+  H.filas.push(fila('V-906', 'Venta COT-0906@TEST', { 'Folio cotizacion': 'COT-0906@TEST', 'Telefono': '33 8888 8888' }));
+  H.filas.push(fila('V-907', 'Rosa - Estética', { 'Telefono': '(33) 3615-0000' }));
+  const antes9 = H.empujadas.length;
+  await jalarTodo();
+  eq('9 · el teléfono de aquí no se pisa con el de la hoja', (await DB.obtener('proyectos', 'proy-T4')).tel, '33 0000 0000');
+  eq('9 · el proyecto sin teléfono lo recibe de la hoja', (await DB.obtener('proyectos', 'proy-T5')).tel, '33 7777 7777');
+  eq('9 · el que lo tiene en la cotización tampoco se pisa', (await DB.obtener('proyectos', 'proy-T6')).tel || '', '');
+  eq('9 · la tarjeta importada nace con el de la hoja', (await DB.obtener('proyectos', 'proy-hoja-V-907')).tel, '(33) 3615-0000');
+  eq('9 · y el récord de Control lo trae', ((await DB.listar('ventas_hoja')).find(v => v.folio_hoja === 'V-907') || {}).telefono, '(33) 3615-0000');
+  await S.bombear();
+  eq('9 · y bajar un teléfono no manda nada de vuelta a la hoja', H.empujadas.length - antes9, 0);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1462,6 +1530,56 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('pura · la hecha se corrige de fecha y sigue hecha', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, pr, [{ ...viva, estado: 'hecha' }], o).estado, 'hecha');
   eq('pura · un proyecto «No se dio» no recibe cita', instalacionDeHoja({ [P.fechaInst]: '2026-10-21' }, { ...pr, etapa: 'cancelado' }, [], o), null);
   eq('pura · hoy mismo sí se agenda', instalacionDeHoja({ [P.fechaInst]: '2026-10-08' }, pr, [], o).fecha, '2026-10-08');
+}
+
+console.log('\nEL TELÉFONO DEL CLIENTE, PURO (puente-sheets-11)');
+{
+  const { telefonoLimpio, telefonoDe, desdeVentaDeHoja } = await import('../js/datos/proyectos.js');
+  const { ventaDesdeHoja } = await import('../js/datos/ventas.js');
+  const { esRechazoDeTelefono, VERSION_DEL_TELEFONO, numeroDeVersion } = await import('../js/datos/puente.js');
+  const aqui = dirname(fileURLToPath(import.meta.url));
+  const w = readFileSync(join(aqui, '..', 'puente', 'hoja-apps-script.gs'), 'utf8');
+  /* La función del .gs, sacada del archivo y corrida aquí: las dos limpian igual o cada bajada
+     «cambiaría» el número. */
+  const fuente = /function telefonoLimpio\(v\) \{[\s\S]*?\n\}/.exec(w);
+  cierto('el .gs declara telefonoLimpio', fuente);
+  const telGs = Function('var TEL_MAX = ' + /var TEL_MAX = (\d+);/.exec(w)[1] + ';' + fuente[0] + ';return telefonoLimpio;')();
+  const casos = ['+52 1 33 1234 5678', '33.1234.5678', '(33) 3615-0000', 'cel 33 1234 5678 / casa 3615 0000',
+                 '=IMPORTXML("x")', '@33', 'sin número', '', null, 3312345678, '  33   12  ', '1'.repeat(45)];
+  eq('las dos limpian igual, caso por caso', casos.map(c => telefonoLimpio(c)), casos.map(c => telGs(c)));
+  eq('«+52 1 33…» se queda tal cual', telefonoLimpio('+52 1 33 1234 5678'), '+52 1 33 1234 5678');
+  eq('los puntos se vuelven espacio', telefonoLimpio('33.1234.5678'), '33 1234 5678');
+  eq('sin un dígito no es teléfono', telefonoLimpio('sin número'), '');
+  eq('una fórmula no pasa como fórmula', /^[=@]/.test(telefonoLimpio('=IMPORTXML("x")')), false);
+  eq('hasta 30', telefonoLimpio('1'.repeat(45)).length, 30);
+  eq('el del proyecto, o el de la cotización', [telefonoDe({ tel: '331', origen: { tel: '332' } }), telefonoDe({ tel: '', origen: { tel: '332' } })], ['331', '332']);
+  eq('la versión que trae el teléfono es la que la plataforma espera', numeroDeVersion(VERSION_ESPERADA) >= VERSION_DEL_TELEFONO, true);
+  cierto('la 10 avisa que el teléfono no viaja', /teléfono del cliente/.test(avisoVersion('puente-sheets-10')));
+
+  /* Lo que sube. */
+  const conTel = proy({ tel: '33 1234 5678', notion_page_id: 'V-1' });
+  eq('un alta lleva el teléfono', aNotion(conTel)[P.tel], '33 1234 5678');
+  eq('sin propio, el de la cotización', aNotion(proy({ tel: '', origen: { tel: '33 9' } }))[P.tel], '33 9');
+  eq('un alta sin teléfono NO manda vacío: le borraría el de la fila', P.tel in aNotion(proy({ tel: '' })), false);
+  eq('un cambio de otra cosa no lo manda', P.tel in aNotion(conTel, null, { alta: false, campos: ['etapa'] }), false);
+  eq('un cambio de teléfono sí', aNotion(conTel, null, { alta: false, campos: ['tel'] })[P.tel], '33 1234 5678');
+  eq('y borrarlo aquí es borrarlo allá', aNotion(proy({ tel: '' }), null, { alta: false, campos: ['tel'] })[P.tel], '');
+
+  /* Lo que baja. */
+  const fila = { id_notion: 'V-9', [P.proyecto]: 'Ana - Café', [P.estatus]: 'FABRICACION', [P.tel]: '33 1' };
+  eq('el récord trae el teléfono de la fila', ventaDeHoja(fila).telefono, '33 1');
+  const sinAE = { ...fila }; delete sinAE[P.tel];
+  eq('una fila sin la llave (hoja sin AE) no inventa un vacío', 'telefono' in ventaDeHoja(sinAE), false);
+  eq('con la llave vacía es vacío de verdad', ventaDeHoja({ ...fila, [P.tel]: '' }).telefono, '');
+  eq('la tarjeta importada nace con él', desdeVentaDeHoja(ventaDeHoja(fila)).tel, '33 1');
+  eq('y la venta de Control también', ventaDesdeHoja(ventaDeHoja(fila)).tel, '33 1');
+
+  /* Los rechazos que la 10 dejó en la bandeja. */
+  const op = { estado: 'rechazada', almacen: 'proyectos', campos: ['tel'] };
+  eq('un rechazo de puro teléfono se puede revivir', esRechazoDeTelefono(op), true);
+  eq('una sola vez', esRechazoDeTelefono({ ...op, revivida_tel: true }), false);
+  eq('uno que trae otra cosa, no: ése lo decide una persona', esRechazoDeTelefono({ ...op, campos: ['tel', 'cuenta'] }), false);
+  eq('ni uno sin campos (de una versión anterior)', esRechazoDeTelefono({ ...op, campos: null }), false);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
