@@ -56,7 +56,8 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
-import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar } from './proyectos.js';
+import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar,
+         telefonoLimpio, telefonoDe } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 import { duracionSugerida } from './agenda.js';
 import { fmtFecha, fmtHora, hoyISO } from '../nucleo/ui.js';
@@ -101,6 +102,9 @@ export const P = {
   /* El % pactado con quien trajo el trabajo, en puntos (10 = 10 %). Columna AD de la hoja
      desde puente-sheets-4; antes la hoja cobraba 10 % fijo y el teléfono enseñaba otro. */
   pctCom:      'Porcentaje comision',
+  /* El teléfono del cliente, columna AE desde puente-sheets-11. Lo leen y lo escriben los tres
+     roles: fabricación llama para instalar y pagos cobra por WhatsApp. */
+  tel:         'Telefono',
 };
 
 /* Los cuatro estatus y las cinco cuentas, EN EL ORDEN DE LA HOJA: es el orden del
@@ -166,6 +170,11 @@ export const DEL_ALMACEN = ['movimientos', 'materiales', 'requerimientos'];
 
 /** Desde qué versión del puente existen las pestañas del almacén. */
 export const VERSION_DEL_ALMACEN = 9;
+
+/** Desde qué versión la hoja sabe del teléfono del cliente (columna AE). Con una anterior el
+ *  teléfono no viaja: no se manda —la 10 lo rechazaría como «tu rol no lo escribe», que no es
+ *  verdad— y no baja, porque la fila no lo trae. Todo lo demás sigue igual. */
+export const VERSION_DEL_TELEFONO = 11;
 
 /** Lo que este relevo BAJA entero y de lo que la hoja es la única dueña: `sync.jalar` borra
  *  de estos almacenes, al cerrar un barrido completo, lo que la hoja ya no trajo. */
@@ -296,6 +305,16 @@ export function aNotion(p, inst, opts) {
     ? la + ',' + ln : '';
 
   if (vaPropio('tipo_trabajo')) out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
+
+  /* El teléfono del cliente (puente-sheets-11): el del proyecto, o el de la cotización si el
+     proyecto no tiene uno propio, que es el que enseña la ficha. Vacío SOLO cuando la operación
+     dice que lo que cambió fue el teléfono (alguien lo borró): en un alta o en un cambio de otra
+     cosa, un vacío de aquí no es «bórralo», es «no lo sé», y le quitaría a la fila el que otro
+     teléfono o una persona en la hoja ya le había puesto. */
+  if (alta || !sabe || campos.has('tel')) {
+    const tel = telefonoDe(p);
+    if (tel || campos.has('tel')) out[P.tel] = tel;
+  }
 
   /* Las dos fechas, y por qué ya NO se pisan.
      Con Notion, `Fecha Anticipo e Instalacion` era una sola columna que significaba las dos
@@ -432,6 +451,11 @@ export function ventaDeHoja(fila) {
     etapa: ETAPA_DESDE_NOTION[fila[P.etapa]] || null,
     direccion: texto(fila[P.direccion]),
   };
+  /* El teléfono, solo si la fila trae la llave: la hoja la manda desde puente-sheets-11 y solo
+     si tiene la columna AE. Sin la llave no se escribe nada —`fusionar` conserva el de antes—;
+     con la llave vacía es '' de verdad, y eso es lo que la revisión de la bajada usa para saber
+     que a esa fila le falta el teléfono que este lado sí tiene. */
+  if (Object.prototype.hasOwnProperty.call(fila, P.tel)) v.telefono = telefonoLimpio(fila[P.tel]);
   /* El dinero, SOLO si vino. A fabricación la hoja le manda la fila sin estas columnas, y
      un ausente no es un cero: `sync.fusionar` conserva lo que ya estaba cuando el campo no
      viene. Las fórmulas —neto, pendiente, comisiones— bajan y nunca se calculan aquí.
@@ -593,7 +617,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-10';
+export const VERSION_ESPERADA = 'puente-sheets-11';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -604,6 +628,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 10 */ 'el teléfono del cliente no viaja: esa versión no tiene la columna AE «Telefono», y cada teléfono se queda con el suyo —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
   /* 9 */ 'la ficha de cada proyecto no enseña los archivos de su carpeta en «Trabajos Pendientes» de Drive: esa versión no tiene el camino /carpetas',
   /* 8 */ 'el almacén, el catálogo de material y las listas de compra no viajan: esa versión no tiene sus pestañas, y se quedan esperando en cada teléfono —sin perderse— hasta que la hoja se actualice',
   /* 7 */ 'el QR de un PDF autorizado solo responde del total y del negocio, no de cada renglón: un PDF con los importes de las partidas cambiados pero el mismo total pasa por auténtico. Se autoriza y se verifica igual; lo que falta es que el sello firme los renglones',
@@ -824,7 +849,11 @@ export function crear(cfg0) {
      más, el siguiente bombeo lo reincorpora solo. */
   let hojaSabeAlmacen = null;
   let sabidoEn = 0;
-  const notarVersion = v => { if (v) { hojaSabeAlmacen = numeroDeVersion(v) >= VERSION_DEL_ALMACEN; sabidoEn = Date.now(); } };
+  /* La versión de la hoja en número, 0 mientras no se sabe. Decide si el teléfono viaja (ver
+     VERSION_DEL_TELEFONO): con una hoja anterior a la 11, `subir` se lo quita a lo que manda. */
+  let versionHoja = 0;
+  const notarVersion = v => { if (v) { versionHoja = numeroDeVersion(v); hojaSabeAlmacen = versionHoja >= VERSION_DEL_ALMACEN; sabidoEn = Date.now(); } };
+  const sabeTelefono = () => versionHoja >= VERSION_DEL_TELEFONO;
   /* Un «no» caduca a los diez minutos. El relevo vive lo que dura la app abierta, y la hoja se
      puede actualizar a media mañana: sin esto, lo del almacén se quedaba apartado hasta volver a
      abrir la app. Volver a preguntar cuesta una petición cada diez minutos, no una por renglón. */
@@ -1059,6 +1088,19 @@ export function crear(cfg0) {
     },
     /** Los que `sync` puede mandar juntos en un viaje (en su orden, hasta 25). */
     agrupa(almacen) { return DEL_ALMACEN.includes(almacen); },
+    /** Si una operación apartada como «rechazada» vale la pena volver a mandarla, ya sin que
+     *  nadie apriete nada (lo pregunta `sync` al empezar cada bombeo). Hoy, solo los cambios de
+     *  puro teléfono que una hoja anterior a la 11 rechazó con «no puede escribir nada», en
+     *  cuanto se sabe que la hoja ya corre la 11. Una vez por operación (`revivida_tel`): si la
+     *  11 los vuelve a rechazar —la hoja todavía sin la columna AE— se quedan apartados con la
+     *  razón nueva, y el teléfono llega igual por la revisión de la bajada.
+     *  Si todavía no se sabe la versión —el bombeo empieza antes que cualquier subida— se
+     *  pregunta a /salud una vez; solo cuando hay algo así apartado, no en cada bombeo. */
+    async revive(op) {
+      if (!esRechazoDeTelefono(op)) return false;
+      if (!versionHoja) { try { await asegurarEscribibles(); } catch (_) { return false; } }
+      return sabeTelefono();
+    },
     motivo: motivoSinDestino,
     /** Los que baja enteros: `sync.jalar` borra lo que la hoja dejó de traer. */
     espejos: ESPEJOS.slice(),
@@ -1244,6 +1286,19 @@ export function crear(cfg0) {
              cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
           props = aNotion(op.datos, await instalacionDe(proy.id),
                           { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : null });
+          /* Una hoja anterior a la 11 no tiene dónde poner el teléfono. Se le quita a lo que se
+             manda, y un cambio que era SOLO el teléfono se despacha sin mandarse (`omitida`): la
+             hoja de antes lo rechazaba como «de ese cambio, este teléfono no puede escribir
+             nada», que es falso y se quedaba apartado para siempre. No se pierde: cuando la hoja
+             corra la 11 y traiga la columna vacía, la revisión de la bajada lo manda (ver
+             `proyectos.revisarContraLaHoja`). */
+          if (!sabeTelefono() && Object.prototype.hasOwnProperty.call(props, P.tel)) {
+            delete props[P.tel];
+            if (Array.isArray(op.campos) && op.campos.length && op.campos.every(c => c === 'tel')) {
+              salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
+              continue;
+            }
+          }
         } else {
           props = instalacionANotion(op.datos, await instalacionDe(proy.id));
         }
@@ -1584,6 +1639,12 @@ export function crear(cfg0) {
            y la bajada siguiente ya lo trae de allá. */
         const sinMandar = local.sin_mandar && Array.isArray(local.sin_mandar.campos) ? local.sin_mandar.campos : [];
         for (const k of sinMandar) if (SE_QUEDAN_HASTA_MANDARSE.has(k)) delete aplicar[k];
+        /* El teléfono de la hoja (puente-sheets-11), SOLO si este proyecto no tiene ninguno —ni
+           propio ni en la cotización, que es el que enseña la ficha—. Uno de aquí no se pisa con
+           el de la fila, y menos con un vacío: el del teléfono que ganó la cotización es el que
+           se le dio al cliente, y si la hoja tiene otro, lo decide una persona. */
+        const telHoja = venta && typeof venta.telefono === 'string' ? venta.telefono : '';
+        if (telHoja && !telefonoDe(local)) aplicar.tel = telHoja;
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
         try { await instDeHoja(datos, { ...local, ...aplicar, id: local.id }); } catch (_) { /* el dinero ya bajó */ }
       }
@@ -1669,6 +1730,14 @@ async function anotarSinMandar(id, op) {
    la bajada no pisa mientras estén en `sin_mandar`. El resto del espejo —las fórmulas, el id de
    la fila— baja siempre. */
 const SE_QUEDAN_HASTA_MANDARSE = new Set(['estatus_notion', 'cuenta', 'anti_pactado', 'pct_comision', 'sub']);
+
+/** Un cambio de puro teléfono que la hoja rechazó y que no se ha vuelto a intentar. PURA.
+ *  Los de antes de la 11 salían de la plataforma con `campos: ['tel']` —ningún cambio de
+ *  teléfono se mandaba todavía— y la hoja contestaba que ese teléfono no podía escribir nada. */
+export function esRechazoDeTelefono(op) {
+  return !!op && op.estado === 'rechazada' && op.almacen === 'proyectos' && !op.revivida_tel &&
+    Array.isArray(op.campos) && op.campos.length > 0 && op.campos.every(c => c === 'tel');
+}
 const esImportadoLocal = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
 
 /* El rango usa el índice y el filtro es el cinturón, igual que en `proyectos.yaExiste`: si

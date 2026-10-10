@@ -919,9 +919,9 @@ function instalarTriggers() {
  *    asi que cualquier otra cuenta deja el IVA en "Si".
  *
  * Se mueven TODAS las columnas que se capturan: A:G, I:J, L:N y las del puente,
- * Y:AD (folio de cotización, etapa de obra, hora, ubicación, dirección y % de
- * comisión). Las columnas calculadas son ARRAYFORMULA que vive en la fila 2: no
- * se tocan nunca.
+ * Y:AE (folio de cotización, etapa de obra, hora, ubicación, dirección, % de
+ * comisión y, desde puente-sheets-11, el teléfono del cliente). Las columnas
+ * calculadas son ARRAYFORMULA que vive en la fila 2: no se tocan nunca.
  *
  * Hasta puente-sheets-5 este comentario decía «A:G, I:J, L:N» y el código hacía
  * justo eso: Y:AD se quedaban en su renglón mientras la venta se iba a otro. En
@@ -962,7 +962,9 @@ function filaPorFolio(h, folio) {
 /**
  * Las columnas que se CAPTURAN, en bloques [primera, última], recortadas a las que la hoja
  * tiene de verdad. Es una función y no una variable porque COL y ULTIMA_COL se declaran más
- * abajo, y porque una hoja anterior al puente tiene 24 columnas: pedirle la 30 truena.
+ * abajo, y porque una hoja anterior al puente tiene 24 columnas: pedirle la 30 truena. El
+ * teléfono (AE) entra en el último bloque y viaja con su fila como Y:AD; `ancho` sale de
+ * anchoDelPuente, así que una hoja sin AE se reacomoda igual, hasta AD.
  * Lo que no está aquí es fórmula (H, K, O:X) y no se escribe nunca.
  */
 function bloquesCapturados(ancho) {
@@ -986,7 +988,7 @@ function ordenarVentas(h) {
   var tienePuente = h.getMaxColumns() >= COL['Folio cotizacion'];
   if (tienePuente && estadoDeAlineacion() !== true) return;
   var n = FIN - 1;
-  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var ancho = anchoDelPuente(h);
   var datos = h.getRange(2, 1, n, ancho).getValues();
 
   var llenas = [], vacias = [];
@@ -1012,11 +1014,20 @@ function ordenarVentas(h) {
      La hora, como texto: getValues la trae como el Date en que Sheets la convirtió, y el
      renglón al que llega puede no tener el '@' (ver horaDeCelda). */
   horasATexto(h, orden);
+  telefonosATexto(h, ancho);
   var bloques = bloquesCapturados(ancho);
   bloques.forEach(function (b) {
     h.getRange(2, b[0], n, b[1] - b[0] + 1)
-     .setValues(filasProtegidas(orden.map(function (r) { return r.slice(b[0] - 1, b[1]); })));
+     .setValues(filasProtegidas(orden.map(function (r) { return r.slice(b[0] - 1, b[1]); }), b[0]));
   });
+}
+
+/** AE en texto sin formato antes de reescribirla, por lo mismo que AA: el formato no viaja con
+ *  los valores, y «+52 1 33…» que el reacomodo baja a un renglón sin '@' se volvía número —o
+ *  fórmula—. Solo si la hoja tiene la columna. */
+function telefonosATexto(h, ancho) {
+  if (ancho < COL['Telefono']) return;
+  h.getRange(2, COL['Telefono'], FIN - 1, 1).setNumberFormat('@');
 }
 
 /** Elias BBVA cobra sin factura; cualquier otra cuenta lleva IVA. */
@@ -1725,8 +1736,14 @@ function dialogoTokens() {
    proyecto, su carpeta de «Trabajos Pendientes» en Drive —el PDF de órdenes de fabricación y los
    .cdr— para abrirlos desde cualquier teléfono; y /crear_carpeta, con la que el teléfono de
    Dirección le abre su carpeta al proyecto en fabricación que todavía no la tiene. Pide permiso
-   de Drive: al pegar esta versión Google vuelve a pedir la autorización. */
-var PUENTE_VERSION = 'puente-sheets-10';
+   de Drive: al pegar esta versión Google vuelve a pedir la autorización.
+   puente-sheets-11 (9 de octubre de 2026): el teléfono del cliente, columna AE «Telefono». Hasta
+   la 10 vivía solo en el teléfono que ganó la cotización: el instalador que tenía que llamar para
+   confirmar y quien cobra por WhatsApp se lo tenían que pedir a Elías. Ahora viaja como las otras
+   del puente, con su fila, y lo leen y escriben los tres roles. Una hoja que todavía no tiene la
+   columna no truena: /jalar lee hasta donde haya y una escritura del teléfono se rechaza con su
+   razón (ver anchoDelPuente). La crea «3 · Preparar la hoja para el puente». */
+var PUENTE_VERSION = 'puente-sheets-11';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1786,11 +1803,47 @@ var COL = {
      por el puente para que el teléfono y la hoja guarden el mismo dato, pero la comisión de
      AL3D es fija —10 % del subtotal, sin IVA— y la fórmula R NO lee esta columna. Está aquí
      para el día que se pacte por venta, y ese día se cambia R. */
-  'Porcentaje comision':          30    // AD
+  'Porcentaje comision':          30,   // AD
+  /* El teléfono del cliente (puente-sheets-11), como texto: «+52 1 33 1234 5678» tal cual,
+     sin que Sheets lo vuelva número ni le coma el «+». No es dinero: lo ven los tres roles,
+     porque el instalador llama para confirmar y quien cobra escribe por WhatsApp. */
+  'Telefono':                     31    // AE
 };
 
 var COL_FOLIO = 1;                      // A — el id interno (V-001)
-var ULTIMA_COL = 30;
+var ULTIMA_COL = 31;
+/* Hasta dónde llega la realineación de una sola vez de Y:AD (ver realinearColumnasDelPuente).
+   AE no entra: nació en puente-sheets-11, cuando ordenarVentas ya movía las columnas del puente
+   con su fila, así que nunca estuvo revuelta y la bitácora no tiene nada que decir de ella. */
+var ULTIMA_COL_REALINEABLE = 30;        // AD
+
+/**
+ * Hasta qué columna se lee y se mueve Ventas: ULTIMA_COL, recortada a las que la hoja tiene.
+ * Una hoja que todavía no pasó por «Preparar la hoja para el puente» llega hasta AD, y pedirle
+ * la AE truena («fuera de la hoja»): /jalar se caía entero y ningún teléfono bajaba nada. Y AE
+ * cuenta solo si su encabezado dice «Telefono»: una AE que alguien usó para otra cosa antes de
+ * la 11 no se lee como teléfono ni se escribe encima.
+ */
+function anchoDelPuente(h) {
+  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  if (ancho >= COL['Telefono'] && !tieneColumnaTelefono(h)) ancho = COL['Telefono'] - 1;
+  return ancho;
+}
+function tieneColumnaTelefono(h) {
+  if (h.getMaxColumns() < COL['Telefono']) return false;
+  return String(h.getRange(1, COL['Telefono']).getValue()).trim() === 'Telefono';
+}
+
+/* Lo que se acepta como teléfono: dígitos, espacios, +, guiones y paréntesis, hasta 30. Lo
+   demás —puntos, diagonales, letras— se vuelve espacio en vez de rechazar el número entero:
+   «33.1234.5678» es un teléfono bueno escrito con puntos. Sin un solo dígito no es teléfono.
+   La misma regla que `telefonoLimpio` en js/datos/proyectos.js; pruebas/puente.mjs las compara. */
+var TEL_MAX = 30;
+function telefonoLimpio(v) {
+  var s = String(v == null ? '' : v).replace(/[^\d +()\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!/\d/.test(s)) return '';
+  return s.slice(0, TEL_MAX).trim();
+}
 
 /* Se leen, no se escriben. Si llega una escritura contra ellas se rechaza con
    una razón, en vez de tragársela en silencio. */
@@ -1815,10 +1868,13 @@ var PUENTE_ROLES = {
   direccion: ['Proyecto', 'Precio Subtotal', 'IVA', 'Anticipo', 'Liquidacion', 'Abono Comision',
               'Estatus', 'Cuenta ', 'Fecha Anticipo e Instalacion', 'Fecha Liquidacion',
               'Folio cotizacion', 'Etapa de obra', 'Fecha instalacion', 'Hora instalacion',
-              'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision'],
-  fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion'],
+              'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision', 'Telefono'],
+  /* El teléfono, los tres (puente-sheets-11): fabricación llama al cliente para instalar y pagos
+     le cobra por WhatsApp, y cualquiera de los dos puede ser quien se entera de que cambió. */
+  fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion',
+                'Telefono'],
   pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
-          'Porcentaje comision']
+          'Porcentaje comision', 'Telefono']
 };
 
 /* ── Lo que cada rol puede LEER ─────────────────────────────────────────────
@@ -2160,7 +2216,8 @@ function rutaEsquema_() {
     { nombre: 'Ubicacion', tipo: 'texto', para: 'lat,lng resueltos del link de Maps' },
     { nombre: 'Direccion', tipo: 'texto', para: 'la dirección como la mandó el cliente' },
     { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
-    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' }
+    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' },
+    { nombre: 'Telefono', tipo: 'texto', para: 'el teléfono del cliente, para llamarle o escribirle por WhatsApp (puente-sheets-11)' }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
@@ -2173,8 +2230,8 @@ function rutaEsquema_() {
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
       : sinAccesos
-        ? 'Las ocho columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
-        : 'La hoja ya tiene las ocho columnas que la plataforma necesita, y la pestaña «Accesos».' };
+        ? 'Las nueve columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
+        : 'La hoja ya tiene las nueve columnas que la plataforma necesita, y la pestaña «Accesos».' };
 }
 
 /* ------------------------------------------------------------------ /jalar */
@@ -2190,7 +2247,9 @@ function rutaJalar_(cuerpo, rol) {
      ninguna. El cursor se sigue aceptando para el teléfono que se quedó con uno a medias. */
   var tam = FIN - 1;
   var hasta = Math.min(desde + tam - 1, FIN);
-  var datos = h.getRange(desde, 1, hasta - desde + 1, ULTIMA_COL).getValues();
+  /* Hasta donde la hoja tenga: una sin AE (no ha corrido «Preparar la hoja» después de pegar la
+     11) baja todo menos el teléfono, en vez de tronar. aplanarFila no le pone la llave. */
+  var datos = h.getRange(desde, 1, hasta - desde + 1, anchoDelPuente(h)).getValues();
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
 
   var registros = [];
@@ -2212,7 +2271,7 @@ function aplanarFila(fila, tz) {
   var num = function (x) { return (x === '' || x === null) ? null : Number(x); };
   var saldo = num(v('Pago Pendiente'));
 
-  return {
+  var out = {
     id_notion: fila[COL_FOLIO - 1] || null,          // el folio interno hace de id estable
     editado: null,
     'Proyecto':                      String(v('Proyecto') || ''),
@@ -2245,6 +2304,12 @@ function aplanarFila(fila, tz) {
     'Ubicacion':                     String(v('Ubicacion') || ''),
     'Direccion':                     String(v('Direccion') || '')
   };
+  /* El teléfono, SOLO si la fila llegó hasta AE. Sin la columna no se manda la llave —ni
+     vacía—: una llave vacía es «alguien lo borró en la hoja», y una hoja que todavía no tiene
+     la columna no borró nada. Un número tecleado a mano que Sheets volvió número llega como
+     3312345678 y sale como texto. */
+  if (fila.length >= COL['Telefono']) out['Telefono'] = telefonoLimpio(v('Telefono'));
+  return out;
 }
 
 /** Le quita al registro lo que ese rol no tiene por qué ver. */
@@ -2368,9 +2433,25 @@ function unaOperacion(h, op, rol, anotaciones) {
     return { id: (op && op.id) || '?', ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Operación sin id.' };
   }
   var armado = armarCeldas(op.datos, rol);
+  /* El teléfono contra una hoja que todavía no tiene AE: se rechaza con su razón y lo demás de
+     la operación se escribe. Sin esto, escribir en la columna 31 de una hoja de 30 tronaba la
+     subida entera —la etapa y la fecha que venían con él también se perdían—. */
+  if (!tieneColumnaTelefono(h)) {
+    armado.celdas = armado.celdas.filter(function (c) {
+      if (c.col !== COL['Telefono']) return true;
+      armado.rechazadas.push({ nombre: 'Telefono', sinColumna: true,
+        por: 'la hoja todavía no tiene la columna AE «Telefono»: Dirección corre ⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente' });
+      return false;
+    });
+  }
   if (!armado.celdas.length && !armado.abono) {
+    /* Si lo único que traía era el teléfono y la hoja no tiene su columna, eso es lo que se dice:
+       «este teléfono no puede escribir: Telefono» mandaba a revisar el rol, que está bien. */
+    var sinColumna = armado.rechazadas.length && armado.rechazadas.every(function (x) { return x.sinColumna; });
     return { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-             mensaje: armado.rechazadas.length
+             mensaje: sinColumna
+               ? 'No se escribió el teléfono: ' + armado.rechazadas[0].por + '.'
+               : armado.rechazadas.length
                ? 'Este teléfono no puede escribir: ' + armado.rechazadas.map(function (x) { return x.nombre; }).join(', ')
                : 'No había nada que escribir.',
              rechazadas: armado.rechazadas };
@@ -2521,7 +2602,7 @@ function unaOperacion(h, op, rol, anotaciones) {
                      abono: armado.abono });
 
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
-  var datos = aplanarFila(h.getRange(fila, 1, 1, ULTIMA_COL).getValues()[0], tz);
+  var datos = aplanarFila(h.getRange(fila, 1, 1, anchoDelPuente(h)).getValues()[0], tz);
   /* Lo que vuelve pasa por el mismo filtro que /jalar. Sin él, el teléfono de fabricación
      que movía una etapa recibía de vuelta el subtotal, el neto, el anticipo, la comisión y
      la cuenta de esa venta: la lectura cerrada en /jalar se abría por aquí. */
@@ -2600,6 +2681,16 @@ function armarCeldas(datos, rol) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre: nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
       var p = String(valor).split('-');
       celdas.push({ col: col, valor: new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])) });
+    } else if (nombre === 'Telefono') {
+      /* Vacío borra la celda: es alguien corrigiendo. Lo demás se limpia con la regla de
+         telefonoLimpio y, si no queda ni un dígito, se rechaza con su razón en vez de escribir
+         basura. Va en texto sin formato ('@', como la hora): «+52 1 33…» en una celda normal
+         Sheets lo lee como número —o como fórmula, por el «+»—. Y sin apóstrofo: con la celda en
+         '@' no hace falta, y la limpieza ya dejó fuera el «=» y la «@». */
+      if (valor === null || valor === undefined || String(valor).trim() === '') { celdas.push({ col: col, valor: '', texto: true }); continue; }
+      var tel = telefonoLimpio(valor);
+      if (!tel) { rechazadas.push({ nombre: nombre, por: 'un teléfono lleva dígitos: solo números, espacios, +, guiones y paréntesis' }); continue; }
+      celdas.push({ col: col, valor: tel, texto: true });
     } else if (nombre === 'Hora instalacion') {
       /* «HH:MM», o vacía si todavía no se sabe: lo mismo que acepta la agenda del teléfono.
          Antes entraba como texto libre; lo que no es una hora tampoco lo entiende la agenda,
@@ -2662,7 +2753,7 @@ function filaPorFolioCotizacion(h, fc) {
    heredaba lo que no escribía. Si ya no queda ninguna vacía se usa una con restos, y quien
    la toma la limpia antes (limpiarFila). */
 function primeraFilaLibre(h) {
-  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var ancho = anchoDelPuente(h);
   var datos = h.getRange(2, 1, FIN - 1, ancho).getValues();
   var bloques = bloquesCapturados(ancho);
   var conRestos = 0;
@@ -2686,7 +2777,7 @@ function filaSinNada(fila, bloques) {
 
 /** Deja en blanco lo que se captura en esa fila (no las fórmulas). Solo escribe si hay algo. */
 function limpiarFila(h, fila) {
-  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var ancho = anchoDelPuente(h);
   var bloques = bloquesCapturados(ancho);
   if (filaSinNada(h.getRange(fila, 1, 1, ancho).getValues()[0], bloques)) return false;
   bloques.forEach(function (b) {
@@ -3870,8 +3961,18 @@ function columnasDelPuenteAlineadas() { return estadoDeAlineacion() === true; }
 function textoProtegido(v) {
   return (typeof v === 'string' && /^[=+\-@]/.test(v)) ? "'" + v : v;
 }
-function filasProtegidas(filas) {
-  return filas.map(function (r) { return r.map(textoProtegido); });
+/* `desde` es la columna en la que empieza cada fila (1 si no se dice). El teléfono de AE es la
+   excepción: un «+52 1 33…» limpio no lleva apóstrofo, porque su columna está en texto sin
+   formato (telefonosATexto) y ahí el apóstrofo se quedaría escrito como parte del número. Lo
+   que no es un teléfono limpio se protege como cualquier otro texto. */
+function filasProtegidas(filas, desde) {
+  var kTel = COL['Telefono'] - (desde || 1);
+  return filas.map(function (r) {
+    return r.map(function (v, k) {
+      if (k === kTel && typeof v === 'string' && v !== '' && telefonoLimpio(v) === v) return v;
+      return textoProtegido(v);
+    });
+  });
 }
 
 function esFecha(x) { return Object.prototype.toString.call(x) === '[object Date]'; }
@@ -3885,7 +3986,8 @@ function propuestaDeRealineacion(h) {
   var ss = SpreadsheetApp.getActive();
   var n = FIN - 1;
   var ini = COL['Folio cotizacion'];
-  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns()) - ini + 1;
+  /* Hasta AD y no hasta ULTIMA_COL: AE (el teléfono) nunca estuvo revuelta. Ver ULTIMA_COL_REALINEABLE. */
+  var ancho = Math.min(ULTIMA_COL_REALINEABLE, h.getMaxColumns()) - ini + 1;
   var p = { ini: ini, ancho: Math.max(0, ancho), nueva: [], cambios: [], movidas: 0,
             sinDueno: [], huerfanos: [], desplazados: [], renombradas: [] };
   if (ancho < 1) return p;   // una hoja sin las columnas del puente no tiene qué realinear
@@ -4136,7 +4238,8 @@ function prepararHojaParaElPuente() {
     ['Hora instalacion', 110],
     ['Ubicacion', 150],
     ['Direccion', 220],
-    ['Porcentaje comision', 90]
+    ['Porcentaje comision', 90],
+    ['Telefono', 140]
   ];
   var cab = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
@@ -4155,6 +4258,9 @@ function prepararHojaParaElPuente() {
       .setVerticalAlignment('middle').setHorizontalAlignment('center');
 
   h.getRange(2, COL['Porcentaje comision'], FIN - 1, 1).setNumberFormat('0.##').setHorizontalAlignment('center');
+  /* AE en texto sin formato ANTES de que llegue el primer teléfono: en una celda normal Sheets
+     vuelve número «3312345678» (y lo enseña 3.31E+09) y lee «+52 1 33…» como una cuenta. */
+  h.getRange(2, COL['Telefono'], FIN - 1, 1).setNumberFormat('@').setHorizontalAlignment('left');
 
   // Etapa de obra: lista cerrada, igual que en la plataforma
   h.getRange(2, 26, FIN - 1, 1).setDataValidation(

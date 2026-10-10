@@ -114,7 +114,9 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  * anotó él. Sale de la bandeja, pero no se cuenta como subida.
  *
  * Opcionales: `lleva(almacen)` (lo que no lleva se aparta sin gastar red), `motivo(almacen)` (la
- * razón de eso), y `agrupa(almacen)`: lo que el relevo sabe mandar en un solo viaje, y entonces
+ * razón de eso), `revive(op)` (una «rechazada» que el relevo sabe que ya se puede mandar: vuelve
+ * sola a la cola al empezar el bombeo, marcada `revivida_tel` para que no dé vueltas), y
+ * `agrupa(almacen)`: lo que el relevo sabe mandar en un solo viaje, y entonces
  * `subir` recibe hasta MAX_LOTE operaciones seguidas de la bandeja. Una respuesta con
  * `codigo:'SIN_DESTINO'` es un «no lleva» que el relevo supo ya con la petición hecha (la hoja
  * corre un puente sin esa pestaña): se aparta igual, con su `mensaje`.
@@ -492,8 +494,26 @@ async function revivirSinDestino() {
   return n;
 }
 
+/* Lo rechazado que el relevo dice que ya tiene a dónde ir. Hoy: los cambios de puro teléfono
+   que una hoja anterior a puente-sheets-11 rechazó (ver `revive` en puente.js). Como el almacén
+   en la 9, nadie tiene que apretar «Reintentar» el día que la hoja se actualiza. Una sola vez
+   por operación: si vuelve a rebotar, se queda apartada con la razón nueva. */
+async function revivirRechazadas() {
+  if (!_adaptador || typeof _adaptador.revive !== 'function') return 0;
+  let n = 0;
+  for (const op of await rechazadas()) {
+    let si = false;
+    try { si = !!(await _adaptador.revive(op)); } catch (_) { si = false; }
+    if (!si) continue;
+    const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '',
+      codigo_rechazo: null, motivo_rechazo: null, revivida_tel: true });
+    if (r && r.ok) n++;
+  }
+  return n;
+}
+
 async function bombearDeVerdad() {
-  if (configurado()) await revivirSinDestino();
+  if (configurado()) { await revivirSinDestino(); await revivirRechazadas(); }
 
   const cola = await pendientes();
 

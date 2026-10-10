@@ -1082,5 +1082,73 @@ console.log('\nEL MENÚ TRAE LOS PASOS DE LA ACTUALIZACIÓN (sin el selector de 
   cierto('y cada uno existe en el script', items.every(f => H.run('typeof ' + f) === 'function'));
 }
 
+console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
+{
+  /* Los roles: los tres lo escriben y ninguno deja de verlo. */
+  for (const rol of ['direccion', 'fabricacion', 'pagos']) {
+    cierto(rol + ' escribe el teléfono', api.PUENTE_ROLES[rol].indexOf('Telefono') !== -1);
+    eq(rol + ' lo ve bajar', api.sinLoQueNoLeToca({ 'Telefono': '33 1', 'Anticipo': 5 }, rol)['Telefono'], '33 1');
+  }
+  cierto('no es dinero', api.CAMPOS_DE_DINERO.indexOf('Telefono') === -1);
+  eq('AE es la 31, y ULTIMA_COL la alcanza', [api.COL['Telefono'], api.ULTIMA_COL], [31, 31]);
+  eq('se escribe como texto, limpio', api.armarCeldas({ 'Telefono': '+52 1 33.1234.5678' }, 'fabricacion').celdas.map(c => [c.valor, c.texto]),
+     [['+52 1 33 1234 5678', true]]);
+  eq('sin un dígito se rechaza con su razón', api.armarCeldas({ 'Telefono': 'no tiene' }, 'pagos').rechazadas.map(x => x.nombre), ['Telefono']);
+  eq('vacío borra la celda', api.armarCeldas({ 'Telefono': '' }, 'direccion').celdas.map(c => c.valor), ['']);
+
+  /* Una hoja que todavía no tiene AE —la de mentiras nace con treinta columnas, como la real
+     antes de «Preparar la hoja»—: no truena nada. */
+  const V = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  V.pon(2, 'V-001', { 'Proyecto': 'Ana - Café', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-1@A' });
+  let j = null, cayo = null;
+  try { j = V.run('rutaJalar_({}, "direccion")'); } catch (e) { cayo = e.message; }
+  eq('sin AE, /jalar no truena', cayo, null);
+  eq('y baja la fila sin la llave del teléfono (no un vacío que diga «lo borraron»)',
+     j && [j.registros.length, 'Telefono' in j.registros[0].datos], [1, false]);
+  const r0 = V.empujar([{ id: 'op1', id_notion: 'V-001', datos: { 'Etapa de obra': 'Armado', 'Telefono': '33 1234 5678' } }], 'fabricacion');
+  eq('una subida con teléfono escribe lo demás', [r0.resultados[0].ok, V.celda('V-001', 'Etapa de obra')], [true, 'Armado']);
+  cierto('y el teléfono vuelve rechazado con lo que hay que correr',
+     r0.resultados[0].rechazadas.some(x => x.nombre === 'Telefono' && /Preparar la hoja/.test(x.por)));
+  const r1 = V.empujar([{ id: 'op2', id_notion: 'V-001', datos: { 'Telefono': '33 1234 5678' } }], 'direccion');
+  cierto('una de puro teléfono dice que falta la columna, no que el rol no puede',
+     !r1.resultados[0].ok && /columna AE/.test(r1.resultados[0].mensaje));
+
+  /* «Preparar la hoja» la crea, en texto sin formato. */
+  V.run('prepararHojaParaElPuente()');
+  const ae = V.C['Telefono'];
+  eq('la crea con su encabezado', V.v._g[1][ae], 'Telefono');
+  eq('en texto sin formato, para que «+52…» no se vuelva número', [V.v._f[2][ae], V.v._f[309][ae]], ['@', '@']);
+  V.run('prepararHojaParaElPuente()');
+  eq('correrla otra vez no agrega otra columna', V.v.getMaxColumns(), 31);
+  const r2 = V.empujar([{ id: 'op3', id_notion: 'V-001', datos: { 'Telefono': '+52 1 33 1234 5678' } }], 'pagos');
+  eq('ya con AE, pagos lo escribe tal cual, sin apóstrofo', [r2.resultados[0].ok, V.celda('V-001', 'Telefono')], [true, '+52 1 33 1234 5678']);
+  eq('y lo que vuelve trae el teléfono', r2.resultados[0].remoto['Telefono'], '+52 1 33 1234 5678');
+  eq('/jalar lo baja a fabricación', V.run('rutaJalar_({}, "fabricacion")').registros[0].datos['Telefono'], '+52 1 33 1234 5678');
+
+  /* Viaja con su fila al reacomodarse, y llega en texto. */
+  V.pon(3, 'V-002', { 'Proyecto': 'Beto - Taller', 'Estatus': 'LIQUIDADO', 'Telefono': '33 2222 2222' });
+  V.v._f[2][ae] = '';   // un renglón que perdió el '@' (alguien pegó encima)
+  V.empujar([{ id: 'op4', id_notion: 'V-001', datos: { 'Estatus': 'LIQUIDADO' } }], 'direccion');
+  V.empujar([{ id: 'op5', id_notion: 'V-002', datos: { 'Estatus': 'FABRICACION' } }], 'direccion');
+  eq('al reacomodar, cada teléfono se va con su venta', [V.fila('V-002'), V.celda('V-002', 'Telefono'), V.celda('V-001', 'Telefono')],
+     [2, '33 2222 2222', '+52 1 33 1234 5678']);
+  cierto('y la columna sigue en texto en las filas que se movieron', V.v._f[2][ae] === '@' && V.v._f[3][ae] === '@');
+
+  /* Una AE que alguien usaba para otra cosa antes de la 11 no se lee como teléfono. */
+  const O = hojaDeMentiras();
+  O.v.insertColumnsAfter(30, 1);
+  O.v._g[1][31] = 'Notas de Elías';
+  O.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'FABRICACION' });
+  O.v._g[2][31] = 'llamar el lunes';
+  eq('una AE con otro encabezado no baja como teléfono', 'Telefono' in O.run('rutaJalar_({}, "direccion")').registros[0].datos, false);
+  const r3 = O.empujar([{ id: 'op6', id_notion: 'V-001', datos: { 'Telefono': '33 1' } }], 'direccion');
+  eq('ni se escribe encima', [r3.resultados[0].ok, O.v._g[2][31]], [false, 'llamar el lunes']);
+
+  /* La realineación de una sola vez llega hasta AD: AE nunca estuvo revuelta. */
+  const p = V.run('propuestaDeRealineacion(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
+  eq('la realineación de Y:AD no toca AE', p.ancho, 6);
+  cierto('/esquema la reporta si falta', hojaDeMentiras().run('rutaEsquema_()').faltan.some(x => x.nombre === 'Telefono'));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 if (mal) process.exit(1);

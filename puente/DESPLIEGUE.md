@@ -115,7 +115,9 @@ Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementad
 Desde el 25 la plataforma espera **`puente-sheets-7`**: lo de la 6 (abajo) más el notario y la IA (al final).
 Desde el 1 de octubre espera **`puente-sheets-8`**: el sello firma también los renglones del PDF
 (al final, después de la 7).
-Y la **`puente-sheets-9`**: lo de la 8 más el almacén, el catálogo y las listas de compra (al final). Cuál corre la hoja de verdad
+Y la **`puente-sheets-9`**: lo de la 8 más el almacén, el catálogo y las listas de compra (al final).
+Desde el 9 de octubre espera **`puente-sheets-11`**: lo de la 10 (las carpetas de Drive) más el
+teléfono del cliente en la columna AE (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -292,6 +294,31 @@ esa razón; en cuanto la hoja se actualiza, el siguiente bombeo lo manda solo, e
 Las tres pestañas son el buzón de la plataforma y llevan una protección con aviso: se leen, no
 se teclean. Una corrección a mano ahí no llega a los teléfonos hasta la vuelta semanal en que
 cada uno las vuelve a leer enteras.
+
+### Al pasar a `puente-sheets-11` (el teléfono en la hoja) — el orden no rompe nada, pero hay un paso de menú
+
+La 11 agrega la columna **AE «Telefono»** a Ventas (ver «`puente-sheets-11` — el teléfono en la
+hoja» en el README). Si la app nueva sale antes que el puente, no se pierde nada: los teléfonos
+ven por `/salud` que la hoja corre la 10 y no mandan el teléfono; todo lo demás viaja igual. Y si
+el `.gs` nuevo se publica pero todavía no se corre el paso 3, tampoco truena: `/jalar` baja hasta
+AD y el teléfono se rechaza con su razón. Pero el teléfono **no llega a la hoja** hasta que estén
+hechos los cuatro pasos, en este orden:
+
+1. Baja el `Código.gs` que corre en la hoja y compáralo con `puente/hoja-apps-script.gs`
+   (`puente/README.md`, «Antes de pegar nada»). Fusiona lo que la hoja tenga de más, pégalo y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión: Versión nueva → Implementar.**
+   La URL no cambia: los teléfonos no se tocan. No pide permisos nuevos (los de Drive ya se
+   dieron en la 10).
+3. En la hoja, **⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente.** Crea
+   AE con su encabezado «Telefono», su ancho y en **texto sin formato** —sin eso Sheets vuelve
+   número «3312345678» y fórmula «+52 1 33…»—. Es idempotente: correrlo otra vez no cambia nada.
+4. **Ajustes → El puente → Probar**, en un teléfono, tiene que decir `puente-sheets-11`. Después
+   de la siguiente sincronización del teléfono de Dirección, la columna AE se va llenando sola con
+   los teléfonos que ese aparato ya tenía (una vez cada uno, y solo en filas con AE vacía); los
+   cambios de teléfono que la 10 había rechazado vuelven solos a la cola.
+
+Si después de esto alguien teclea un teléfono a mano en AE, baja a los proyectos que no tienen
+uno; el de un proyecto que ya tiene no se pisa.
 
 ## Las cabeceras del sitio
 

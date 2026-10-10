@@ -386,6 +386,25 @@ function congelar(entrada) {
    proyectos del mismo trabajo, y el tablero contaría cuarenta y ocho donde hay dieciséis.
    ============================================================================ */
 
+/* ── El teléfono del cliente, como viaja a la hoja (puente-sheets-11) ─────────────────────
+   Dígitos, espacios, +, guiones y paréntesis, hasta 30. Lo demás —puntos, diagonales, letras—
+   se vuelve espacio en vez de tirar el número: «33.1234.5678» es un teléfono bueno escrito con
+   puntos. Sin un solo dígito no es teléfono y queda vacío. Es la MISMA regla que `telefonoLimpio`
+   del Apps Script (puente/hoja-apps-script.gs): pruebas/puente.mjs corre las dos con los mismos
+   casos, porque una que limpia distinto que la otra hace que cada bajada «cambie» el número. */
+export const TEL_MAX = 30;
+export function telefonoLimpio(v) {
+  const s = String(v == null ? '' : v).replace(/[^\d +()\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!/\d/.test(s)) return '';
+  return s.slice(0, TEL_MAX).trim();
+}
+/** El teléfono de un proyecto como lo enseña la ficha: el suyo, o el de la cotización si el
+ *  proyecto no tiene uno propio (`p.tel || o.tel` en js/mod/proyectos.js). PURA. */
+export function telefonoDe(p) {
+  if (!p || typeof p !== 'object') return '';
+  return telefonoLimpio(String(p.tel || '').trim() || (p.origen && p.origen.tel) || '');
+}
+
 /** Quita el «(Tipo)» final y parte «Contacto - Negocio» en sus dos mitades. Conservador a
  *  propósito: si no hay separador, todo se queda como negocio y el contacto va vacío. Es
  *  mejor un contacto vacío que un nombre partido al azar, que es lo que se pinta en la
@@ -435,7 +454,9 @@ export function desdeVentaDeHoja(venta) {
     nombre,
     contacto,
     negocio,
-    tel: '',
+    /* El de la columna AE, si la hoja ya la tiene (puente-sheets-11). Con una hoja anterior la
+       llave no viene y nace vacío, como antes. */
+    tel: telefonoLimpio(v.telefono),
     etapa: v.etapa || 'ganado',
     tipo_trabajo: Array.isArray(v.tipo_trabajo) ? v.tipo_trabajo.slice() : [],
     fecha_ganado: fecha,
@@ -1468,7 +1489,12 @@ export function filaDeOtraCotizacion(p, venta) {
  * `dejarFueraDeLaHoja`, con lo que ya había rebotado.
  */
 /* Una operación de una versión anterior no dice qué cambió: de ésa se reenvía lo que la
-   plataforma escribe, como se mandaba entonces (ver `aNotion`). */
+   plataforma escribe, como se mandaba entonces (ver `aNotion`).
+   El teléfono NO está aquí a propósito. Ninguna versión anterior lo mandaba, y con 'tel' en
+   los campos `aNotion` manda también el vacío —es «alguien lo borró»—: un proyecto sin teléfono
+   le borraría a su fila el que otro teléfono, o una persona en la hoja, ya le había puesto. El
+   teléfono de un proyecto que nunca lo subió lo manda la revisión de la bajada (ver
+   `revisarContraLaHoja`), y solo si la fila no tiene. */
 const CAMPOS_PROPIOS = ['etapa', 'dir_texto', 'lat', 'lng', 'tipo_trabajo'];
 export function sumarSinMandar(previa, ops, ahora) {
   const pv = previa && typeof previa === 'object' ? previa : null;
@@ -1904,6 +1930,30 @@ export async function revisarContraLaHoja(info = {}) {
     reenviadas++; cambios++;
   }
 
+  /* El teléfono que la hoja todavía no tiene (puente-sheets-11). Hasta la 10 vivía solo en el
+     teléfono que ganó la cotización, y la columna AE nace vacía: sin esto, el de cada proyecto
+     que ya existía llegaba a la hoja solo el día que alguien lo volviera a teclear. Se manda una
+     vez, cuando la fila YA tiene la columna y la trae vacía (`telefono === ''`; con una hoja sin
+     AE la llave ni viene) y este proyecto sí tiene uno. Nunca encima de uno que la fila ya trae:
+     la hoja también se corrige a mano. `tel_a_la_hoja` es la marca de que ya se encoló ESE número
+     —es de este teléfono y no viaja—: si la hoja lo rechazara, o alguien lo borrara allá a
+     propósito, no se vuelve a mandar en cada bajada; un número nuevo aquí sí vuelve a ir. Se
+     encola aquí y no en el relevo por lo mismo que el reenvío de arriba: encolar desde el
+     relevo que vacía la bandeja es un bucle. */
+  let telefonos = 0;
+  for (const p of proys) {
+    if (!p || idas.has(p.id) || p.fuera_de_hoja || p.hoja_perdida || conBandeja.has(p.id)) continue;
+    const fh = String(p.notion_page_id || '').trim();
+    const v = fh && folios.has(fh) ? ventaDe.get(fh) : null;
+    if (!v || v.telefono !== '') continue;
+    const tel = telefonoDe(p);
+    if (!tel || p.tel_a_la_hoja === tel) continue;
+    const marcado = await parcharMarca(p.id, { tel_a_la_hoja: tel });
+    if (!marcado) continue;
+    await encolar('actualizar', marcado, ['tel']);
+    telefonos++; cambios++;
+  }
+
   if (info && info.completa) {
     for (const p of huerfanasDeLaHoja(proys.filter(x => x && !idas.has(x.id)), folios)) {
       if (p.hoja_perdida && p.hoja_perdida.folio === String(p.folio_hoja)) continue;
@@ -1931,7 +1981,7 @@ export async function revisarContraLaHoja(info = {}) {
       if (m !== p.hoja_perdida && await parcharMarca(p.id, { hoja_perdida: m })) cambios++;
     }
   }
-  return ok({ juntadas, repetidas, perdidas, reenviadas, cambios });
+  return ok({ juntadas, repetidas, perdidas, reenviadas, telefonos, cambios });
 }
 
 /* ¿El texto nombra ESE folio, y no uno que lo contiene? «V-47» está dentro de «V-470». */
