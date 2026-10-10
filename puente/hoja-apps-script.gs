@@ -1273,6 +1273,7 @@ function marco(cuerpo, alto) {
     '.mal{background:#fdecee;color:#9c1c26;display:block}' +
     '.dato{background:#f7f9fc;border:1px solid #e4e9f0;border-radius:6px;padding:9px 11px;' +
     'margin-top:10px;color:#41506b}' +
+    'h3.sec{margin:18px 0 0;padding-top:12px;border-top:1px solid #e4e9f0;font-size:13px;color:#1c3d6e}' +
     '</style>';
   return HtmlService.createHtmlOutput(css + cuerpo).setWidth(430).setHeight(alto || 560);
 }
@@ -1408,35 +1409,86 @@ function dialogoVenta() {
     '<div class="fila"><div><label>Fecha de anticipo</label>' +
     '<input id="fecha" type="date" value="' + hoy() + '"></div>' +
     '<div><label>Fecha de instalación</label><input id="instalacion" type="date"></div></div>' +
+    /* Los datos para la entrega (puente-sheets-13). Hasta la 12 este formulario no los pedía, y
+       la venta llegaba a los teléfonos sin teléfono ni dirección: el día de instalar había que
+       sacarlos de WhatsApp. Teléfono y entrega son obligatorios, como en «Se ganó» de la
+       plataforma; la dirección y el link, no —se pueden conseguir después, y la plataforma los
+       pide en «Faltan datos» del Tablero—. */
+    '<h3 class="sec">Datos para la entrega</h3>' +
+    '<div class="fila"><div><label>Teléfono del cliente *</label>' +
+    '<input id="telefono" type="tel" inputmode="tel" maxlength="30" placeholder="33 1234 5678"></div>' +
+    '<div><label>Cómo se entrega *</label><select id="entrega">' + opciones(ENTREGAS, 'Instalación') +
+    '</select></div></div>' +
+    '<div id="conDir"><label id="dirL">Dirección</label>' +
+    '<textarea id="direccion" rows="2" maxlength="400" placeholder="Calle y número, colonia, ciudad"></textarea></div>' +
+    '<div id="conMaps"><label>Link de Maps (opcional; el de WhatsApp sirve)</label>' +
+    '<input id="maps" inputmode="url" placeholder="https://maps.app.goo.gl/…"></div>' +
+    '<p id="taller" class="sub" style="display:none;margin-top:8px">Lo recoge en el taller: no hace falta la dirección del cliente.</p>' +
     '<div class="pie"><button onclick="enviar()">Registrar</button>' +
     '<button class="gris" onclick="google.script.host.close()">Cancelar</button></div>' +
     '<div id="msg" class="aviso"></div>' +
     '<script>' +
+    /* Lo que se pide según la entrega, sin recargar: con instalación dirección y link; con
+       paquetería el destino; con recolección nada. */
+    'function pinta(){var e=entrega.value;' +
+    ' conDir.style.display=e==="Recolección en taller"?"none":"";' +
+    ' conMaps.style.display=e==="Instalación"?"":"none";' +
+    ' taller.style.display=e==="Recolección en taller"?"":"none";' +
+    ' dirL.textContent=e==="Paquetería"?"Destino del envío":"Dirección";}' +
+    'entrega.addEventListener("change",pinta);pinta();' +
     'function enviar(){' +
+    ' var e=entrega.value;' +
     ' var d={proyecto:proyecto.value.trim(),cuenta:cuenta.value,estatus:estatus.value,' +
     ' tipo:tipo.value,iva:iva.value,subtotal:subtotal.value,anticipo:anticipo.value,' +
-    ' fecha:fecha.value,instalacion:instalacion.value};' +
+    ' fecha:fecha.value,instalacion:instalacion.value,telefono:telefono.value.trim(),entrega:e,' +
+    ' direccion:e==="Recolección en taller"?"":direccion.value.trim(),maps:e==="Instalación"?maps.value.trim():""};' +
     ' if(!d.proyecto){aviso("Falta el nombre del proyecto.",false);return;}' +
     ' if(!d.subtotal){aviso("Falta el subtotal.",false);return;}' +
+    ' if((d.telefono.match(/\\d/g)||[]).length<10){aviso(d.telefono?"Ese teléfono no tiene los 10 dígitos.":"Falta el teléfono del cliente.",false);telefono.focus();return;}' +
     ' document.querySelector("button").disabled=true;' +
+    ' if(d.maps)aviso("Leyendo el link de Maps…",true);' +
     ' google.script.run.withSuccessHandler(function(r){' +
-    '   aviso("Listo: "+r.folio+" registrado en la fila "+r.fila+".",true);' +
-    '   setTimeout(google.script.host.close,1400);})' +
+    '   aviso("Listo: "+r.folio+" registrado en la fila "+r.fila+"."+(r.nota?" "+r.nota:""),true);' +
+    '   setTimeout(google.script.host.close,r.nota?5200:1400);})' +
     '  .withFailureHandler(function(e){aviso(e.message,false);' +
     '   document.querySelector("button").disabled=false;})' +
     '  .guardarVenta(d);}' +
     'function aviso(t,ok){var m=document.getElementById("msg");' +
     ' m.textContent=t;m.className="aviso "+(ok?"ok":"mal");}' +
     '</script>';
-  SpreadsheetApp.getUi().showModalDialog(marco(c, 580), 'Nueva venta');
+  SpreadsheetApp.getUi().showModalDialog(marco(c, 760), 'Nueva venta');
 }
 
 function guardarVenta(d) {
+  /* Los datos para la entrega se revisan y el link se lee ANTES del candado: seguir un link
+     corto es salir a Google, y eso puede tardar un par de segundos que una subida del puente no
+     tiene por qué esperar. Si falta el teléfono o la entrega, no se registra nada. */
+  var entrega = datosDeEntregaDelDialogo_(d);
   /* Con candado: una subida del puente en el mismo segundo tomaría la misma fila libre. */
-  return conCandado(function () { return guardarVentaConCandado_(d); });
+  return conCandado(function () { return guardarVentaConCandado_(d, entrega); });
 }
 
-function guardarVentaConCandado_(d) {
+/* ── Los datos para la entrega del diálogo (puente-sheets-13) ───────────────────────────────
+   Las mismas reglas que «Se ganó» de la plataforma (js/datos/datos-de-entrega.js): teléfono con
+   10 dígitos o más, limpio como lo limpia el puente (telefonoLimpio); la entrega, una de las
+   tres de la lista (entregaDeCelda); la dirección solo si no es recolección; y el link solo si
+   se instala, leído con ubicacionDeLiga_ —el mismo camino que /expandir—. Si el link no se pudo
+   leer, la venta se registra igual y el link se queda en Ubicación: la plataforma lo vuelve a
+   intentar en cada sincronización. */
+function datosDeEntregaDelDialogo_(d) {
+  var x = d || {};
+  var tel = telefonoLimpio(x.telefono);
+  if (!tel) throw new Error('Falta el teléfono del cliente.');
+  if (tel.replace(/\D/g, '').length < 10) throw new Error('Ese teléfono no tiene los 10 dígitos.');
+  var ent = entregaDeCelda(x.entrega);
+  if (!ent) throw new Error('Falta decir cómo se entrega: Instalación, Paquetería o Recolección en taller.');
+  var dir = ent === 'Recolección en taller' ? '' : String(x.direccion || '').trim().slice(0, 400);
+  var ub = { ok: true, ubicacion: '' };
+  if (ent === 'Instalación' && String(x.maps || '').trim()) ub = ubicacionDeLiga_(x.maps);
+  return { telefono: tel, entrega: ent, direccion: dir, ubicacion: ub };
+}
+
+function guardarVentaConCandado_(d, entrega) {
   var h = hojaVentas();
   /* La misma fila libre que usa el puente, y limpia: una fila sin proyecto puede traer restos
      de otra venta en las columnas de dinero o del puente, y la venta nueva los heredaba. */
@@ -1456,6 +1508,7 @@ function guardarVentaConCandado_(d) {
   if (d.anticipo) h.getRange(fila, 9).setValue(Number(d.anticipo));
   if (d.fecha) h.getRange(fila, 12).setValue(fechaDe(d.fecha));
   if (d.instalacion) h.getRange(fila, 13).setValue(fechaDe(d.instalacion));
+  var nota = entrega ? escribirDatosDeEntrega_(h, fila, entrega) : '';
 
   SpreadsheetApp.getActive().setActiveSheet(h);
   aplicarIva(h, fila);
@@ -1464,7 +1517,25 @@ function guardarVentaConCandado_(d) {
   fila = filaPorFolio(h, folio) || fila;
 
   h.setActiveRange(h.getRange(fila, 2));
-  return { folio: folio, fila: fila };
+  return { folio: folio, fila: fila, nota: nota };
+}
+
+/* AC la dirección, AB la ubicación («lat,lng», o el link que no se pudo leer), AE el teléfono en
+   texto sin formato —un «+52…» en una celda normal Sheets lo vuelve número— y AF la entrega. Una
+   hoja sin AE o sin AF (falta correr «3 · Preparar la hoja para el puente») no truena: la venta
+   se registra y la frase de vuelta dice qué no se guardó. Los textos libres llevan el apóstrofo
+   de textoProtegido: una dirección que empieza con «=» sería una fórmula. */
+function escribirDatosDeEntrega_(h, fila, x) {
+  var falto = [], nota = [];
+  if (x.direccion) h.getRange(fila, COL['Direccion']).setValue(textoProtegido(x.direccion));
+  if (x.ubicacion && x.ubicacion.ubicacion) h.getRange(fila, COL['Ubicacion']).setValue(textoProtegido(x.ubicacion.ubicacion));
+  if (tieneColumnaTelefono(h)) h.getRange(fila, COL['Telefono']).setNumberFormat('@').setValue(x.telefono);
+  else falto.push('el teléfono');
+  if (tieneColumnaEntrega(h)) h.getRange(fila, COL['Entrega']).setValue(x.entrega);
+  else falto.push('la entrega');
+  if (x.ubicacion && !x.ubicacion.ok) nota.push(x.ubicacion.mensaje);
+  if (falto.length) nota.push('No se guardó ' + falto.join(' ni ') + ': falta correr ⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente.');
+  return nota.join(' ');
 }
 
 /* ================== 2. COBRO / LIQUIDACIÓN ================== */
@@ -1751,8 +1822,15 @@ function dialogoTokens() {
    siempre. La leen los tres roles y la escriben dirección y fabricación; pagos no decide cómo
    sale un trabajo del taller. Viaja con su fila como AE, y una hoja sin la columna no truena:
    se lee hasta donde haya y una escritura de la entrega se rechaza con su razón. La crea
-   «3 · Preparar la hoja para el puente». */
-var PUENTE_VERSION = 'puente-sheets-12';
+   «3 · Preparar la hoja para el puente».
+   puente-sheets-13 (9 de octubre de 2026): los datos para la entrega al registrar la venta.
+   «⚡ AL3D → Registrar nueva venta» pide el teléfono del cliente y cómo se entrega
+   (obligatorios), la dirección y el link de Maps; lee el link —el corto de WhatsApp también,
+   con la misma lógica de /expandir (expandirLiga_)— y escribe «lat,lng» en Ubicación AB, la
+   dirección en AC, el teléfono en AE (texto) y la entrega en AF. Hasta la 12 ese formulario no
+   los pedía y las ventas registradas aquí llegaban a los teléfonos sin ellos. Ninguna columna
+   nueva: no hace falta volver a correr «Preparar la hoja». */
+var PUENTE_VERSION = 'puente-sheets-13';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -2862,7 +2940,14 @@ function limpiarFila(h, fila) {
  * cualquier dirección de internet en su nombre.
  */
 function rutaExpandir_(cuerpo) {
-  var u = String((cuerpo && cuerpo.u) || '').trim();
+  return expandirLiga_((cuerpo && cuerpo.u) || '');
+}
+
+/* Un salto: la dirección a la que manda la liga, o la misma si no manda a ningún lado. La usan
+   /expandir (la plataforma) y «Registrar nueva venta» (ubicacionDeLiga_), para que la lista
+   blanca de dominios sea una sola. */
+function expandirLiga_(liga) {
+  var u = String(liga || '').trim();
   var m = /^https?:\/\/([^\/:?#]+)/i.exec(u);
   var host = m ? m[1].toLowerCase() : '';
   if (!host || DOMINIOS_MAPS.indexOf(host) === -1) {
@@ -2876,6 +2961,75 @@ function rutaExpandir_(cuerpo) {
   } catch (err) {
     return { ok: false, codigo: 'SIN_RED', mensaje: 'No se pudo seguir la liga.' };
   }
+}
+
+/* ── La coordenada de un link de Maps, del lado de la hoja (puente-sheets-13) ───────────────
+   La MISMA lectura que `parseGmaps` de js/datos/geo.js, con las mismas reglas en el mismo orden
+   —el par suelto, geo:, !3d!4d, q=/ll=…, /search/, /place/, la arroba de la cámara y los
+   !2d!3d/!1d!2d volteados de dir/—, para que una venta registrada aquí y una ganada en el
+   teléfono den el mismo pin con el mismo link. Apps Script no puede importar geo.js, así que es
+   una copia, y pruebas/puente-hoja.mjs corre las dos con todos los casos de pruebas/geo.mjs:
+   el día que una cambie sin la otra, truena. Contesta {lat, lng, exacta}, {corto:true} para el
+   link de WhatsApp (hay que seguirlo), o null. */
+var GEO_N = '-?\\d{1,3}(?:\\.\\d+)?';
+var GEO_D = '-?\\d{1,3}\\.\\d+';
+var GEO_REGLAS = [
+  { re: new RegExp('^\\+?(' + GEO_D + ')\\s*,\\s*\\+?(' + GEO_D + ')$'), lnglat: false, exacta: true },
+  { re: new RegExp('^geo:\\+?(' + GEO_N + ')\\s*,\\s*\\+?(' + GEO_N + ')', 'i'), lnglat: false, exacta: true },
+  { re: new RegExp('!3d(' + GEO_N + ')!4d(' + GEO_N + ')'), lnglat: false, exacta: true },
+  { re: new RegExp('[?&](?:q|query|center|ll|destination|origin|daddr|saddr)=(?:loc:)?[+\\s]*(' + GEO_N + ')\\s*,\\s*\\+?(' + GEO_N + ')', 'i'), lnglat: false, exacta: true },
+  { re: new RegExp('/maps/search/(' + GEO_N + ')\\s*,\\s*\\+?(' + GEO_N + ')'), lnglat: false, exacta: true },
+  { re: new RegExp('/maps/place/(' + GEO_N + ')\\s*,\\s*\\+?(' + GEO_N + ')'), lnglat: false, exacta: true },
+  { re: new RegExp('@(' + GEO_N + '),(' + GEO_N + ')(?:,(?:\\d+(?:\\.\\d+)?)[zmayht])?'), lnglat: false, exacta: false },
+  { re: new RegExp('!2d(' + GEO_N + ')!3d(' + GEO_N + ')'), lnglat: true, exacta: false },
+  { re: new RegExp('!1d(' + GEO_N + ')!2d(' + GEO_N + ')'), lnglat: true, exacta: false }
+];
+function coordEnRango_(la, ln) {
+  return isFinite(la) && isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180 && !(la === 0 && ln === 0);
+}
+function coordenadasDeMaps_(texto) {
+  var crudo = String(texto == null ? '' : texto).trim();
+  if (!crudo) return null;
+  if (/^(?:https?:\/\/)?(?:maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i.test(crudo)) return { corto: true };
+  var textos = [];
+  try { textos.push(decodeURIComponent(crudo)); } catch (e) { /* un % suelto: se prueba crudo */ }
+  textos.push(crudo);
+  for (var i = 0; i < GEO_REGLAS.length; i++) {
+    for (var j = 0; j < textos.length; j++) {
+      var m = GEO_REGLAS[i].re.exec(textos[j]);
+      if (!m) continue;
+      var la = parseFloat(m[1]), ln = parseFloat(m[2]), t;
+      if (GEO_REGLAS[i].lnglat) { t = la; la = ln; ln = t; }
+      if (!coordEnRango_(la, ln)) {
+        if (!coordEnRango_(ln, la)) continue;
+        t = la; la = ln; ln = t;
+      }
+      return { lat: la, lng: ln, exacta: GEO_REGLAS[i].exacta };
+    }
+  }
+  return null;
+}
+
+/* Lo que va en la columna AB a partir de lo que alguien pegó: «lat,lng» si se pudo leer,
+   siguiendo el link corto hasta tres saltos (los mismos que `resolverLink` de geo.js). Si no se
+   pudo, `ok:false` con su frase y el link tal cual en `ubicacion`: la plataforma lo baja como
+   link y lo vuelve a intentar (proyectos.ubicacionDeHoja). */
+function ubicacionDeLiga_(liga) {
+  var original = String(liga || '').trim();
+  var u = original;
+  var c = coordenadasDeMaps_(u);
+  if (c && c.corto) {
+    for (var i = 0; i < 3; i++) {
+      var e = expandirLiga_(u);
+      if (!e.ok || !e.url || e.url === u) break;
+      u = e.url;
+      c = coordenadasDeMaps_(u);
+      if (c && !c.corto) break;
+    }
+  }
+  if (c && !c.corto) return { ok: true, ubicacion: c.lat + ',' + c.lng, exacta: c.exacta };
+  return { ok: false, ubicacion: original,
+    mensaje: 'El link de Maps no se pudo leer aquí: quedó en Ubicación y la plataforma lo vuelve a intentar.' };
 }
 
 /* --------------------------------------------------------------- bitácora */

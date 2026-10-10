@@ -29,6 +29,7 @@ import * as Agenda from '../datos/agenda.js';
    (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
 import * as Sync from '../datos/sync.js';
 import * as Carpetas from '../datos/carpetas.js';
+import * as DE from './datos-entrega.js';
 import { ENTREGAS, ENTREGA_NOMBRE, ENTREGA_FECHA, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from '../datos/entrega.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
@@ -1006,7 +1007,7 @@ async function clicLista(ev) {
   if (abrir) { await abrirFicha(abrir.dataset.abrir); return; }
 
   const gano = t.closest('[data-gano]');
-  if (gano) { await ganar(gano.dataset.gano, gano); return; }
+  if (gano) { ganar(gano.dataset.gano); return; }
 
   const nodio = t.closest('[data-nodio]');
   if (nodio) {
@@ -1019,21 +1020,58 @@ async function clicLista(ev) {
   }
 }
 
-async function ganar(folio, boton) {
+/* «Se ganó» desde la lista. Hasta octubre de 2026 era un toque y ya: el proyecto nacía sin
+   preguntar nada. Ahora abre un panel corto con los datos para la entrega —el mismo bloque que el
+   «Se ganó» del Calendario (js/mod/datos-entrega.js)—, porque sin teléfono ni forma de entrega
+   la venta no se guarda. La fecha se sigue poniendo en la agenda, como antes. */
+function ganar(folio) {
+  const e = Cot.porFolio(folio);
+  if (!e) {
+    toast('La cotización ' + folio + ' ya no está en el historial de este dispositivo', 'err', 4600);
+    return;
+  }
+  const capa = $('pf-pide'); if (!capa) return;
+  const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
+  capa.innerHTML =
+    '<div class="pf-panel">' +
+      '<div class="pf-panel-h"><h2>' + esc(folio) + ' se ganó</h2>' +
+        '<button type="button" class="pf-cerrar" data-cerrar-pide aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
+      '<div class="pf-panel-b">' +
+        '<p class="pf-cuenta">' + esc(quien) + '</p>' +
+        DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar' }) +
+      '</div>' +
+      '<div class="pf-panel-f">' +
+        '<button type="button" class="btn btn-gho" data-cerrar-pide>Cancelar</button>' +
+        '<button type="button" class="btn btn-ok" data-confirma-gano="' + esc(folio) + '">Guardar el proyecto</button>' +
+      '</div>' +
+    '</div>';
+  DE.cablear(capa);
+  abrirCapa('pf-pide', { hist: true });
+}
+
+async function confirmarGanar(folio, boton) {
   const entrada = Cot.porFolio(folio);
   if (!entrada) {
     toast('La cotización ' + folio + ' ya no está en el historial de este dispositivo', 'err', 4600);
     return;
   }
-  if (boton) boton.disabled = true;
-  const r = await Proy.ganar(entrada, {});
-  if (boton) boton.disabled = false;
+  const capa = $('pf-pide');
+  const d = DE.revisar(capa, { alFallar: m => voz(m, true) });
+  if (!d) return;
+  const rotulo = boton.textContent;
+  boton.disabled = true;
+  if (d.maps) boton.textContent = 'Buscando el pin…';
+  const u = await DE.ubicar(d.maps);
+  if (!u.ok) { DE.avisar(capa, 'maps', u.mensaje); boton.disabled = false; boton.textContent = rotulo; return; }
+  const r = await Proy.ganar(entrada, DE.extraParaGanar(d, u));
+  boton.disabled = false; boton.textContent = rotulo;
   if (!r.ok) { avisarResultado(r); return; }
+  cerrarCapa('pf-pide');
 
   /* Sin fecha, y se dice en el mismo aviso en vez de dejarlo para que lo descubra la regla
      de las 48 horas. La fecha es la única captura humana real del sistema y vive en la
      agenda: aquí se ofrece el camino, no se inventa el dato. */
-  toast('«' + (r.valor.nombre || folio) + '» ya es proyecto. Le falta fecha de instalación.', 'ok', 8000,
+  toast('«' + (r.valor.nombre || folio) + '» ya es proyecto. Le falta fecha de instalación.' + (u.aviso ? ' ' + u.aviso : ''), 'ok', 8000,
     { label: 'Ponerle fecha', fn: () => { if (CTX && CTX.ir) CTX.ir('agenda'); } });
   await cargar();
 }
@@ -1066,6 +1104,8 @@ function pedirDescarte(ref, titulo, quien) {
 
 async function clicPide(ev) {
   if (ev.target.closest('[data-cerrar-pide]')) { cerrarCapa('pf-pide'); return; }
+  const g = ev.target.closest('[data-confirma-gano]');
+  if (g) { await confirmarGanar(g.dataset.confirmaGano, g); return; }
   const b = ev.target.closest('[data-confirma-nodio]');
   if (!b) return;
   const ref = b.dataset.confirmaNodio;

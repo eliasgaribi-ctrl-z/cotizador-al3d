@@ -35,6 +35,7 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Stock from '../datos/stock.js';
 import * as Material from '../datos/material.js';
+import * as DE from './datos-entrega.js';
 import { masDias, diaSemana, partesISO, MES_CORTO } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
@@ -910,6 +911,9 @@ function abrirGanar(folio) {
           diasRapidos(hoy).concat([{ t: 'Sin fecha', s: 'la pongo luego', v: '' }])) +
         '<input type="date" id="pf-ganar-fecha" value="' + esc(hoy) + '" aria-describedby="pf-ganar-otro"></div>' +
       '<p class="hintnote" id="pf-ganar-otro">Para otro día, usa el campo. Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
+      /* Teléfono, cómo se entrega y a dónde: el mismo bloque que el «Se ganó» del Calendario
+         (js/mod/datos-entrega.js). */
+      DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar' }) +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
@@ -917,6 +921,7 @@ function abrirGanar(folio) {
     '</div>',
     { modo: 'ganar', folio: String(folio) });
   armarRapidas($('pf-pide'), 'pf-rapida-ganar', $('pf-ganar-fecha'));
+  DE.cablear($('pf-pide'));
 }
 
 /* ----- «No se dio» -----
@@ -997,14 +1002,24 @@ async function hacerGanar() {
   if (!e) { toast('Esa cotización ya no está en el historial de este dispositivo', 'err', 4600); return; }
   const f = $('pf-ganar-fecha');
   const fecha = f ? String(f.value || '').trim() : '';
+  /* Sin teléfono o sin forma de entrega no se guarda, y se dice junto al campo. El link corto se
+     lee con la hoja antes de guardar; sin señal, se guarda y el pin queda para después. */
+  const capa = $('pf-pide');
+  const d = DE.revisar(capa, { alFallar: m => voz(m, true) });
+  if (!d) return;
+  const u = await DE.ubicar(d.maps);
+  if (!u.ok) { DE.avisar(capa, 'maps', u.mensaje); return; }
+  const extra = DE.extraParaGanar(d, u);
+  if (fecha) extra.fecha_instalacion = fecha;
 
-  const r = await Proyectos.ganar(e, fecha ? { fecha_instalacion: fecha } : {});
+  const r = await Proyectos.ganar(e, extra);
   if (!avisarResultado(r)) return;
 
   cerrarPide();
-  toast(fecha
+  toast((fecha
     ? 'Listo. Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
-    : 'Listo. Ya es proyecto, con su material calculado. Falta la fecha.', 'ok', 4600);
+    : 'Listo. Ya es proyecto, con su material calculado. Falta la fecha.') + (u.aviso ? '. ' + u.aviso : ''),
+    'ok', u.aviso ? 7000 : 4600);
   await recargar();
 }
 

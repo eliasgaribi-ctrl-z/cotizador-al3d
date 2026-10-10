@@ -57,7 +57,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar,
-         telefonoLimpio, telefonoDe } from './proyectos.js';
+         telefonoLimpio, telefonoDe, tienePin, ubicacionDeHoja } from './proyectos.js';
 import { ENTREGAS, ENTREGA_NOMBRE, entregaDe, entregaDesdeHoja } from './entrega.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 import { duracionSugerida } from './agenda.js';
@@ -476,6 +476,9 @@ export function ventaDeHoja(fila) {
        años es lo que Control no debe hacer. */
     etapa: ETAPA_DESDE_NOTION[fila[P.etapa]] || null,
     direccion: texto(fila[P.direccion]),
+    /* La columna AB tal cual: «lat,lng», o el link que la hoja no pudo leer. La lee
+       `proyectos.ubicacionDeHoja`. */
+    ubicacion: texto(fila[P.ubicacion]),
   };
   /* El teléfono, solo si la fila trae la llave: la hoja la manda desde puente-sheets-11 y solo
      si tiene la columna AE. Sin la llave no se escribe nada —`fusionar` conserva el de antes—;
@@ -647,7 +650,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-12';
+export const VERSION_ESPERADA = 'puente-sheets-13';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -658,6 +661,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 12 */ '«⚡ AL3D → Registrar nueva venta» de la hoja no pide el teléfono del cliente, cómo se entrega ni la dirección y el link de Maps: la venta que se registra allá llega a los teléfonos sin esos datos y sale en «Faltan datos» del Tablero. Lo demás funciona igual',
   /* 11 */ 'cómo se entrega cada trabajo (instalación, paquetería o recolección en taller) no viaja: esa versión no tiene la columna AF «Entrega», y cada teléfono se queda con la suya —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
   /* 10 */ 'el teléfono del cliente no viaja: esa versión no tiene la columna AE «Telefono», y cada teléfono se queda con el suyo —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
   /* 9 */ 'la ficha de cada proyecto no enseña los archivos de su carpeta en «Trabajos Pendientes» de Drive: esa versión no tiene el camino /carpetas',
@@ -1196,8 +1200,11 @@ export function crear(cfg0) {
     async expandir(u) {
       try {
         const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')));
+        /* Con el código de la hoja: `DATO_INVALIDO` (no es un dominio de Maps) es definitivo, y
+           `SIN_RED` (la hoja no alcanzó a Google) se reintenta. Ver `Geo.resolverLink`. */
         return r.cuerpo.ok ? { ok: true, url: r.cuerpo.url }
-                           : { ok: false, mensaje: r.cuerpo.mensaje || 'Ese link corto no llevó a ningún mapa.' };
+                           : { ok: false, codigo: r.cuerpo.codigo || 'DATO_INVALIDO',
+                               mensaje: r.cuerpo.mensaje || 'Ese link corto no llevó a ningún mapa.' };
       } catch (e) {
         return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
       }
@@ -1710,6 +1717,20 @@ export function crear(cfg0) {
            no tiene lo que se acaba de elegir aquí, y aplicarle la vieja lo desharía. */
         const entHoja = venta && typeof venta.entrega === 'string' ? venta.entrega : '';
         if (entHoja && entHoja !== entregaDe(local) && !(await enBandeja(local.id))) aplicar.entrega = entHoja;
+        /* La dirección y la ubicación de la hoja, con la regla del teléfono: SOLO si este proyecto
+           no tiene, y nunca con un cambio suyo en la bandeja. Las llena «Registrar nueva venta» de
+           la hoja desde puente-sheets-13, o una persona a mano; la plataforma solo escribe AB y AC
+           desde lo que ya tiene, así que una celda con algo y un proyecto vacío es alguien que la
+           consiguió por otro lado. El link que la hoja no pudo leer baja como `maps_url`, y la
+           sincronización le saca el pin. */
+        if (venta && (venta.direccion || venta.ubicacion) && !(await enBandeja(local.id))) {
+          if (venta.direccion && !String(local.dir_texto || '').trim()) aplicar.dir_texto = venta.direccion;
+          if (venta.ubicacion && !tienePin(local)) {
+            const u = ubicacionDeHoja(venta.ubicacion);
+            if (u.lat !== null) Object.assign(aplicar, { lat: u.lat, lng: u.lng, geo_fuente: u.geo_fuente });
+            if (u.maps_url && !String(local.maps_url || '').trim()) aplicar.maps_url = u.maps_url;
+          }
+        }
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
         try { await instDeHoja(datos, { ...local, ...aplicar, id: local.id }); } catch (_) { /* el dinero ya bajó */ }
       }

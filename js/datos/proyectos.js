@@ -41,7 +41,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
-import { parseGmaps } from './geo.js';
+import { parseGmaps, resolverLink } from './geo.js';
 import { ENTREGAS, ENTREGA_NOMBRE, entregaLimpia, entregaDe } from './entrega.js';
 import { hoyISO, partesISO } from '../nucleo/ui.js';
 /* La aritmética de días es de fechas.js y nada más: esta zona (función 53) necesita sumar días,
@@ -406,6 +406,19 @@ export function telefonoDe(p) {
   return telefonoLimpio(String(p.tel || '').trim() || (p.origen && p.origen.tel) || '');
 }
 
+/** Lo que dice la celda AB «Ubicacion» de la hoja, como campos del proyecto. PURA.
+ *  «20.67,-103.34» es pin; un link de Maps con coordenada también; un link sin ella (el corto que
+ *  la hoja no pudo seguir) queda como `maps_url` sin pin. Vacía, sin ubicar. */
+export function ubicacionDeHoja(celda) {
+  const t = String(celda == null ? '' : celda).trim();
+  const r = t ? parseGmaps(t) : null;
+  if (r && !r.corto) {
+    return { maps_url: /^https?:/i.test(t) ? t : '', lat: r.lat, lng: r.lng,
+             geo_fuente: r.exacta ? 'maps_pin' : 'maps_camara' };
+  }
+  return { maps_url: r && r.corto ? t : '', lat: null, lng: null, geo_fuente: 'sin_ubicar' };
+}
+
 /** Quita el «(Tipo)» final y parte «Contacto - Negocio» en sus dos mitades. Conservador a
  *  propósito: si no hay separador, todo se queda como negocio y el contacto va vacío. Es
  *  mejor un contacto vacío que un nombre partido al azar, que es lo que se pinta en la
@@ -467,10 +480,11 @@ export function desdeVentaDeHoja(venta) {
     compromiso_texto: '',
     dir_texto: String(v.direccion || ''),
     entrecalles: '',
-    maps_url: '',
-    lat: null,
-    lng: null,
-    geo_fuente: 'sin_ubicar',
+    /* La columna AB «Ubicacion»: «lat,lng» cuando alguien la resolvió —la plataforma, o
+       «Registrar nueva venta» de la hoja desde puente-sheets-13—, o el link tal cual cuando la
+       hoja no lo pudo leer. Lo que sea coordenada es el pin; un link es `maps_url`, y si es el
+       corto, la sincronización lo termina de leer (`resolverLinksPendientes`). */
+    ...ubicacionDeHoja(v.ubicacion),
     sub: num(v.sub),
     neto: num(v.neto),
     /* `precio_auth` es lo que se cobra, y aquí lo que se cobra es el neto de la hoja: no hay
@@ -513,10 +527,18 @@ function armarProyecto(entrada, extra, etapa) {
 
   const disp = String(extra.disp || '').trim() || Prefs.dispositivo();
   const tipos = tiposDerivados(origen.items);
-  const u = parseGmaps(origen.maps || '');
+  /* Los datos para la entrega que se capturaron al ganar (js/mod/datos-entrega.js): el teléfono,
+     la dirección y el link como los corrigió quien registró la venta, y la coordenada si el link
+     ya se leyó —el corto de WhatsApp lo lee la hoja antes de llegar aquí—. Lo que no viene se
+     toma de la cotización, como siempre. */
+  const pone = k => typeof extra[k] === 'string';
+  const mapsUrl = pone('maps_url') ? extra.maps_url.trim() : String(origen.maps || '');
+  const dada = Number.isFinite(extra.lat) && Number.isFinite(extra.lng) && !(extra.lat === 0 && extra.lng === 0)
+    ? { lat: extra.lat, lng: extra.lng, fuente: String(extra.geo_fuente || 'maps_pin') } : null;
+  const u = dada || parseGmaps(mapsUrl);
   /* `parseGmaps` devuelve `{corto:true}` para un maps.app.goo.gl, que desde el navegador
-     es imposible de expandir. Eso no es una coordenada: el proyecto queda `sin_ubicar` y
-     la pantalla del mapa le dice al usuario qué hacer con ese link. */
+     es imposible de expandir. Eso no es una coordenada: el proyecto queda `sin_ubicar` con el
+     link guardado, y la sincronización se lo pide a la hoja (`resolverLinksPendientes`). */
   const tieneCoord = !!(u && !u.corto && isFinite(u.lat) && isFinite(u.lng));
 
   const netoOrigen = num(origen.neto);
@@ -529,7 +551,7 @@ function armarProyecto(entrada, extra, etapa) {
     nombre: nombreDerivado(origen, tipos),
     contacto: String(origen.cliente || '').trim(),
     negocio: String(origen.proy || '').trim(),
-    tel: String(origen.tel || '').trim(),
+    tel: pone('tel') ? telefonoLimpio(extra.tel) : String(origen.tel || '').trim(),
     etapa,
     tipo_trabajo: tipos,
     fecha_ganado: esISO(extra.fecha_ganado) ? extra.fecha_ganado : hoyISO(),
@@ -538,15 +560,19 @@ function armarProyecto(entrada, extra, etapa) {
        del anticipo»— y adivinar una fecha de ahí es cómo se produce una agenda que dice
        cosas que nadie prometió. La fecha real se captura una vez, en la agenda. */
     compromiso_texto: String(origen.entrega || ''),
-    dir_texto: String(origen.dirRaw || origen.direccion || ''),
+    dir_texto: pone('dir_texto') ? extra.dir_texto.trim() : String(origen.dirRaw || origen.direccion || ''),
     entrecalles: String(origen.entrecalles || ''),
-    maps_url: String(origen.maps || ''),
+    maps_url: mapsUrl,
     lat: tieneCoord ? u.lat : null,
     lng: tieneCoord ? u.lng : null,
     geo_fuente: tieneCoord ? (u.fuente || 'maps_pin') : 'sin_ubicar',
-    /* Cómo sale del taller (js/datos/entrega.js). El cotizador no lo pregunta: nace instalación
-       y se cambia en la ficha, que es donde se sabe que va por paquetería o que lo recogen. */
-    entrega: 'instalacion',
+    /* Cómo sale del taller (js/datos/entrega.js). El cotizador no lo pregunta; desde octubre de
+       2026 lo pregunta «Se ganó», y sin respuesta nace instalación. */
+    entrega: ENTREGAS.includes(extra.entrega) ? extra.entrega : 'instalacion',
+    /* «Todavía no la tengo» (js/datos/datos-de-entrega.js): se registró la venta sin dirección
+       o sin link a propósito. No quita la falta; solo cambia cómo la dice el Tablero. Es de
+       este lado y no viaja a la hoja. */
+    ...(extra.ubicacion_pendiente ? { ubicacion_pendiente: true } : {}),
     /* Dinero: se copia para poder pintarlo sin volver a abrir el historial. NO se
        recalcula, ni aquí ni en ningún otro lado de este archivo.
        Lo que el buzón TRAE manda, aunque sea cero: con `||`, un anticipo de $0 registrado a
@@ -768,6 +794,66 @@ export function tienePin(p) {
   return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
 }
 
+/* ----- Los links cortos que se quedaron sin leer -----
+   El link de Maps que llega por WhatsApp es el corto (maps.app.goo.gl), y leerlo pide a la hoja
+   (`/expandir`), o sea señal. «Se ganó», «Completar» y el panel del Mapa lo intentan al guardar;
+   si no hubo cómo, el link se queda en `maps_url` sin pin y esto lo termina en la siguiente
+   vuelta de la sincronización (js/app.js), sin que nadie tenga que volver a pegarlo.
+
+   Es idempotente: lo que ya tiene pin no entra, así que correrlo dos veces no hace nada dos
+   veces. Y no insiste: lo que la hoja dijo que no es un mapa, o que abrió un mapa sin
+   coordenadas, no se vuelve a preguntar en esta sesión (eso lo arregla una persona, y el
+   Tablero se lo dice); lo que falló por señal se reintenta pasados diez minutos, no en cada
+   vuelta de 30 segundos. Cinco por vuelta: es una petición a la hoja por link. */
+const _linksLeidos = new Map();     // url → {ts, definitivo}
+const MS_REINTENTO_LINK = 10 * 60 * 1000;
+const LINKS_POR_VUELTA = 5;
+const EN_LA_LINEA_DEL_TALLER = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
+
+/**
+ * Le saca el pin al link guardado de los proyectos que se instalan y no tienen uno.
+ * @param {function(string):Promise<Object>} expandir `Sync.expandir`
+ * @param {{ahora?:number}} [o]
+ * @returns {Promise<Resultado>} valor = {resueltos, pendientes, sin_coord}
+ */
+export async function resolverLinksPendientes(expandir, o = {}) {
+  const ahora = Number(o && o.ahora) || Date.now();
+  const cero = { resueltos: 0, pendientes: 0, sin_coord: 0 };
+  /* Pagos no pone pines (CAMPOS_ROL): ni se pregunta a la hoja. */
+  if (!puedeEscribir(Prefs.rol(), 'lat')) return ok(cero);
+  if (!DB.estado().ok) return ok(cero);
+  const proys = await DB.listar('proyectos');
+  const cuenta = { ...cero };
+  let preguntados = 0;
+  for (const p of proys || []) {
+    if (preguntados >= LINKS_POR_VUELTA) break;
+    if (!p || !EN_LA_LINEA_DEL_TALLER.includes(p.etapa) || entregaDe(p) !== 'instalacion' || tienePin(p)) continue;
+    const url = String(p.maps_url || '').trim();
+    if (!url) continue;
+    const visto = _linksLeidos.get(url);
+    if (visto && (visto.definitivo || ahora - visto.ts < MS_REINTENTO_LINK)) continue;
+    preguntados++;
+    const r = await resolverLink(url, expandir);
+    /* Un pin fuera de México no se pone solo: casi siempre es un link a medio copiar, y quien
+       sabe si la obra está en Zapopan es una persona (el Mapa lo pregunta al pegarlo). */
+    if (r.ok && !r.sospechoso) {
+      const a = await actualizar(p.id, { lat: r.lat, lng: r.lng, geo_fuente: r.exacta ? 'maps_pin' : 'maps_camara' });
+      _linksLeidos.set(url, { ts: ahora, definitivo: true });
+      if (a.ok) cuenta.resueltos++;
+      continue;
+    }
+    const pendiente = !r.ok && r.motivo === 'pendiente';
+    _linksLeidos.set(url, { ts: ahora, definitivo: !pendiente });
+    if (pendiente) {
+      cuenta.pendientes++;
+      /* Sin señal o sin puente, el siguiente link tampoco va a llegar: se deja para la otra vuelta. */
+      break;
+    }
+    cuenta.sin_coord++;
+  }
+  return ok(cuenta);
+}
+
 /**
  * @param {{etapa?:string, etapas?:string[], vivos?:boolean, desde?:string, hasta?:string,
  *          sinFecha?:boolean, sinUbicar?:boolean, conPendiente?:boolean, texto?:string}} [filtro]
@@ -867,11 +953,25 @@ const CAMPOS_ROL = {
   direccion: null,   // todo lo escribible
   /* La entrega, también fabricación: es el taller el que empaca o entrega en mostrador, y quien
      se entera primero de que «ese no se instala, se manda». */
+  /* Y el teléfono y la dirección, desde que el Tablero pide «Faltan datos» (octubre de 2026):
+     el taller es quien llama para instalar y quien recibe la dirección por WhatsApp. La hoja ya
+     se los dejaba escribir (PUENTE_ROLES de puente/hoja-apps-script.gs); aquí faltaban. */
   fabricacion: new Set(['notas', 'lat', 'lng', 'geo_fuente', 'maps_url', 'entrecalles', 'plazo_k',
-                        'entrega', 'sync']),
+                        'entrega', 'tel', 'dir_texto', 'sync']),
+  /* El teléfono, también pagos: cobra por WhatsApp y la hoja ya se lo deja escribir. La entrega,
+     la dirección y el pin no: no los decide quien cobra. */
   pagos: new Set(['notas', 'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado',
-                  'pct_comision', 'sync']),
+                  'pct_comision', 'tel', 'sync']),
 };
+
+/** Si este rol puede escribir ese campo. Para que una pantalla enseñe solo lo que se va a poder
+ *  guardar —el panel «Completar» del Tablero— en vez de dejar llenar y rechazar al final. La
+ *  regla sigue viviendo aquí: `actualizar` la vuelve a preguntar. PURA. */
+export function puedeEscribir(rol, campo) {
+  if (!ESCRIBIBLES.has(campo)) return false;
+  const permitidos = CAMPOS_ROL[rol];
+  return !permitidos || permitidos.has(campo);
+}
 
 /**
  * Parche superficial. Rechaza `origen`, `folio_global`, `creado_en` y los campos de fórmula

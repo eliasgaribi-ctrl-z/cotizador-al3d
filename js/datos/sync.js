@@ -80,7 +80,7 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
         cliente. Se guarda tal cual y se devuelve tal cual.
 
    GET  /expandir?u=<url corta de Google Maps>
-     -> 200 { url } | 422 { ok:false, mensaje }
+     -> 200 { url } | 422 { ok:false, codigo, mensaje }   (ver `expandir`, abajo)
         Existe porque desde el navegador es imposible: la 30x de maps.app.goo.gl no manda
         Access-Control-Allow-Origin, en `no-cors` la respuesta es opaca y su lista de
         headers está vacía por especificación. Del lado servidor son cuatro líneas.
@@ -202,6 +202,20 @@ export async function crearCarpeta(nombre) {
     return { ok: false, codigo: 'SIN_CONFIG', mensaje: 'Sin puente a la hoja no se puede abrir una carpeta en Drive.' };
   }
   return _adaptador.crearCarpeta(nombre);
+}
+
+/** Sigue un link corto de Maps hasta el largo, por la hoja (`/expandir`). Lo usa
+ *  `Geo.resolverLink`. No pasa por la bandeja: es una lectura. Sin puente o sin señal contesta
+ *  con su código —`SIN_CONFIG`, `SIN_RED`— y quien llama guarda el link para después. */
+export async function expandir(u) {
+  if (!configurado() || typeof _adaptador.expandir !== 'function') {
+    return { ok: false, codigo: 'SIN_CONFIG', mensaje: 'Sin puente a la hoja no se puede leer un link corto.' };
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { ok: false, codigo: 'SIN_RED', mensaje: MSG.SIN_RED };
+  }
+  try { return await _adaptador.expandir(u); }
+  catch (e) { return { ok: false, codigo: (e && e.codigo) || 'SIN_RED', mensaje: (e && e.message) || MSG.SIN_RED }; }
 }
 
 /** Instantáneo, sin red y sin await. Es lo que la banda de la barra superior consulta en

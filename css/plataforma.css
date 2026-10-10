@@ -4127,3 +4127,26 @@ button.ct-tt-anio:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px
 .ct-tt-vz dt{display:flex;align-items:center}
 .ct-tt-vz dd{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* ── fin de Control · por tipo de trabajo ── */
+
+/* ----- «Datos para la entrega» (js/mod/datos-entrega.js) -----
+   El bloque que «Se ganó» y «Completar» comparten. Es un <fieldset> para que el lector de
+   pantalla oiga «Datos para la entrega» al entrar; sin el marco ni el relleno que el navegador le
+   pone, con una raya arriba que lo separa de la fecha y el plazo. */
+.pf-de{margin:var(--e4) 0 0;padding:var(--e4) 0 0;border:0;border-top:1px solid var(--linea);min-width:0}
+.pf-de[data-de-modo="completar"]{margin-top:var(--e3);padding-top:0;border-top:0}
+/* La leyenda flotada: sin eso el navegador la monta encima de la raya de arriba y la corta. */
+.pf-de-t{float:left;width:100%;display:flex;align-items:center;gap:var(--e2);padding:0;margin:0 0 var(--e3);
+  font-size:var(--t3);font-weight:650;color:var(--n8)}
+.pf-de-t+*{clear:both}
+.pf-de-t .svgi{width:18px;height:18px;color:var(--a-fuerte)}
+.pf-de .tipo-seg{flex-wrap:wrap}
+.pf-de-msg{margin-top:var(--e2)}
+.pf-de-taller,.pf-de-nopuede{display:flex;gap:var(--e2);align-items:flex-start}
+.pf-de-taller .svgi,.pf-de-nopuede .svgi{flex:0 0 auto;margin-top:2px}
+.pf-de [data-de-campo="pendiente"] .hintnote{margin-top:var(--e1)}
+
+/* ----- «Faltan datos» en el Tablero -----
+   Lo que se entrega en una semana o menos lleva su barra de color al frente y el ícono en rojo:
+   la palabra «se entrega mañana» ya lo dice, y la barra lo dice antes de leer. */
+.tb-falta-que{font-weight:650;color:var(--n8)}
+.tb-falta.pronto{box-shadow:inset 3px 0 0 var(--mal);padding-left:var(--e2)}

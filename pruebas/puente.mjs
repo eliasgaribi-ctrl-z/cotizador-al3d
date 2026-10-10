@@ -351,7 +351,14 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 12', VERSION_ESPERADA, 'puente-sheets-12');
+  eq('la plataforma espera la 13', VERSION_ESPERADA, 'puente-sheets-13');
+  /* A la 12 solo le falta lo del formulario de la hoja: la plataforma funciona igual con ella, y
+     el aviso no puede asustar con columnas que la 12 ya tiene. */
+  const a12 = avisoVersion('puente-sheets-12');
+  cierto('a la 12 le dice que «Registrar nueva venta» no pide teléfono, entrega ni dirección',
+    /Registrar nueva venta/.test(a12) && /teléfono/.test(a12) && /Faltan datos/.test(a12));
+  cierto('  y que lo demás funciona igual, sin hablar de la columna AF', /Lo demás funciona igual/.test(a12) && !/columna AF/.test(a12));
+  cierto('a la 11 le dice lo de AF y lo del formulario', /columna AF/.test(avisoVersion('puente-sheets-11')) && /Registrar nueva venta/.test(avisoVersion('puente-sheets-11')));
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
   eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);

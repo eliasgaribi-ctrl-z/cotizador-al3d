@@ -25,6 +25,7 @@ import vm from 'node:vm';
 import { deNotion, ventaDeHoja, VERSION_ESPERADA } from '../js/datos/puente.js';
 import { saldoDe, unificar, vendidoDe, resumenMensual } from '../js/datos/ventas.js';
 import { desdeVentaDeHoja } from '../js/datos/proyectos.js';
+import { parseGmaps } from '../js/datos/geo.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -450,9 +451,13 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   const validacion = { requireValueInList: l => { validacion._lista = l; return validacion; },
                        setAllowInvalid: x => { validacion._libre = x; return validacion; },
                        build: () => ({ lista: validacion._lista, libre: validacion._libre }) };
+  /* Los diálogos del menú: se guarda el HTML que se iba a enseñar, para leer qué campos pide. */
+  const dialogos = [];
   const ctx2 = vm.createContext({
     SpreadsheetApp: { getActive: () => ss, flush() {}, newDataValidation: () => validacion,
-                      ProtectionType: { RANGE: 'RANGE' } },
+                      ProtectionType: { RANGE: 'RANGE' },
+                      getUi: () => ({ showModalDialog: (o, titulo) => dialogos.push({ html: o._html, titulo }) }) },
+    HtmlService: { createHtmlOutput: html => { const o = { _html: html, setWidth: () => o, setHeight: () => o }; return o; } },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: k => (Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null),
       setProperty: (k, v) => { props[k] = String(v); } }) },
@@ -488,7 +493,7 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   const empujar = (ops, rol) => run('rutaEmpujar_(' + JSON.stringify({ ops }) + ', ' + JSON.stringify(rol) + ')');
   /* Una hora como la guarda Sheets cuando ya la volvió hora: el Date de 1899, del contexto del .gs. */
   const hora = texto => new DateDelGs(horaDeHoja(texto));
-  return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja, hora };
+  return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja, hora, dialogos };
 }
 const respuesta = (codigo, cuerpo) => ({ getResponseCode: () => codigo, getContentText: () => JSON.stringify(cuerpo) });
 
@@ -679,7 +684,7 @@ console.log('\nEL CANDADO — toda escritura sobre Ventas lo toma (defecto 10)')
   H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC' });
   H.v._g[2][11] = 100;
   const antes = H.candados.length;
-  H.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100' })`);
+  H.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100', telefono: '3312345678', entrega: 'Instalación' })`);
   H.run(`guardarAbono({ folio: 'V-001', monto: '10' })`);
   cierto('guardarVenta y guardarAbono toman el candado', H.candados.length >= antes + 2);
   eq('el formulario de venta usa la misma marca de folios que el puente', H.celda('V-002', 'Proyecto'), 'Beto');
@@ -687,7 +692,7 @@ console.log('\nEL CANDADO — toda escritura sobre Ventas lo toma (defecto 10)')
   const O = hojaDeMentiras({ candadoLibre: false });
   O.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
   let dijo = '';
-  try { O.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100' })`); }
+  try { O.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100', telefono: '3312345678', entrega: 'Instalación' })`); }
   catch (e) { dijo = e.message; }
   cierto('con el puente escribiendo, el formulario dice por qué no entra', /ocupada con otra escritura/.test(dijo));
   eq('y no escribió nada', O.fila('V-002'), 0);
@@ -1225,6 +1230,141 @@ console.log('\nLA ENTREGA — columna AF, puente-sheets-12');
 
   /* Y la realineación de una sola vez sigue llegando solo hasta AD. */
   eq('la realineación de Y:AD no toca AF', V.run('propuestaDeRealineacion(SpreadsheetApp.getActive().getSheetByName("Ventas"))').ancho, 6);
+}
+
+console.log('\nREGISTRAR NUEVA VENTA PIDE LOS DATOS PARA LA ENTREGA — puente-sheets-13');
+{
+  const venta = o => JSON.stringify({ proyecto: 'Laura - AVIDA Market', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí',
+    subtotal: '18000', telefono: '+52 1 33.1234.5678', entrega: 'Instalación', direccion: '', maps: '', ...o });
+  /* Una hoja ya preparada: con AE y AF. */
+  const lista = () => { const H = hojaDeMentiras(); H.run('prepararHojaParaElPuente()'); return H; };
+
+  /* El formulario: los campos nuevos están, con la entrega en desplegable de las tres. */
+  const D = hojaDeMentiras();
+  D.run('dialogoVenta()');
+  const html = D.dialogos[0] && D.dialogos[0].html || '';
+  cierto('el formulario pide el teléfono', /id="telefono"/.test(html) && /Teléfono del cliente \*/.test(html));
+  cierto('cómo se entrega, con las tres de la lista', /id="entrega"/.test(html) &&
+    ['Instalación', 'Paquetería', 'Recolección en taller'].every(x => html.includes('<option' + (x === 'Instalación' ? ' selected' : '') + '>' + x + '</option>')));
+  cierto('la dirección y el link de Maps', /id="direccion"/.test(html) && /id="maps"/.test(html) && /el de WhatsApp sirve/.test(html));
+  cierto('y el navegador no deja mandar sin los diez dígitos', /length<10/.test(html));
+
+  /* Lo obligatorio, del lado de la hoja: un formulario viejo en caché, o alguien llamando
+     google.script.run a mano, no se lo salta. */
+  for (const [que, o, frase] of [
+    ['sin teléfono', { telefono: '' }, /Falta el teléfono/],
+    ['con un teléfono de 8 dígitos', { telefono: '3312 3456' }, /10 dígitos/],
+    ['sin entrega', { entrega: '' }, /cómo se entrega/],
+    ['con una entrega inventada', { entrega: 'Por avión' }, /cómo se entrega/],
+  ]) {
+    const H = lista();
+    let dijo = '';
+    try { H.run('guardarVenta(' + venta(o) + ')'); } catch (e) { dijo = e.message; }
+    cierto(que + ' no registra, y dice por qué', frase.test(dijo));
+    eq('  y no escribió ninguna fila', H.fila('V-001'), 0);
+  }
+
+  /* Paquetería: teléfono en AE como texto, entrega en AF, destino en AC, nada en AB. */
+  const P = lista();
+  const r1 = P.run('guardarVenta(' + venta({ entrega: 'paqueteria', direccion: 'Av. México 1200, Puerto Vallarta', maps: 'https://maps.app.goo.gl/noSeLee' }) + ')');
+  eq('paquetería: teléfono limpio, entrega de la lista, destino', [P.celda(r1.folio, 'Telefono'), P.celda(r1.folio, 'Entrega'), P.celda(r1.folio, 'Direccion')],
+     ['+52 1 33 1234 5678', 'Paquetería', 'Av. México 1200, Puerto Vallarta']);
+  eq('  el teléfono en una celda de texto sin formato (si no, «+52…» se vuelve número)', P.v._f[P.fila(r1.folio)][P.C['Telefono']], '@');
+  eq('  con paquetería el link no se lee ni se escribe', [P.celda(r1.folio, 'Ubicacion'), P.pedidasAGoogle.length], ['', 0]);
+  eq('  y no hay nada que decir', r1.nota, '');
+  cierto('  el candado se tomó', P.candados.length > 0);
+
+  /* Instalación con el link largo: la coordenada sale sin salir a Google. */
+  const L = lista();
+  const r2 = L.run('guardarVenta(' + venta({ direccion: 'Av. Vallarta 1300', maps: 'https://www.google.com/maps/place/Expo/@20.6543,-103.3901,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d20.6551!4d-103.3925' }) + ')');
+  eq('instalación con link largo: «lat,lng» en Ubicación AB, sin preguntar a Google',
+     [L.celda(r2.folio, 'Ubicacion'), L.celda(r2.folio, 'Direccion'), L.celda(r2.folio, 'Entrega'), L.pedidasAGoogle.length],
+     ['20.6551,-103.3925', 'Av. Vallarta 1300', 'Instalación', 0]);
+
+  /* El corto de WhatsApp: la hoja lo sigue (la misma función que /expandir) y lee el largo. */
+  const redir = url => ({ getResponseCode: () => 302, getHeaders: () => ({ Location: url }), getContentText: () => '' });
+  const S = hojaDeMentiras({ google: [redir('https://www.google.com/maps/place/Taller/data=!4m2!3d20.7214!4d-103.3918')] });
+  S.run('prepararHojaParaElPuente()');
+  const r3 = S.run('guardarVenta(' + venta({ maps: 'https://maps.app.goo.gl/AbCd123' }) + ')');
+  eq('el link corto se sigue y AB queda con la coordenada', [S.celda(r3.folio, 'Ubicacion'), S.pedidasAGoogle], ['20.7214,-103.3918', ['https://maps.app.goo.gl/AbCd123']]);
+  eq('  sin nada que decir', r3.nota, '');
+
+  /* Sin red (Google no contesta): la venta se registra igual y el link se queda en AB. */
+  const N = lista();
+  const r4 = N.run('guardarVenta(' + venta({ maps: 'https://maps.app.goo.gl/SinRed' }) + ')');
+  eq('sin red, la venta entra y el link se queda en Ubicación', [N.fila(r4.folio) > 0, N.celda(r4.folio, 'Ubicacion')], [true, 'https://maps.app.goo.gl/SinRed']);
+  cierto('  y lo dice: la plataforma lo vuelve a intentar', /vuelve a intentar/.test(r4.nota));
+  /* Y la plataforma, al bajarla, la toma como link por leer —no como pin—. */
+  const bajada = N.run('rutaJalar_({}, "direccion")').registros.find(x => x.datos.id_notion === r4.folio).datos;
+  const p4 = desdeVentaDeHoja(ventaDeHoja(bajada));
+  eq('  la plataforma la baja con teléfono, entrega y el link pendiente', [p4.tel, p4.entrega, p4.maps_url, p4.lat],
+     ['+52 1 33 1234 5678', 'instalacion', 'https://maps.app.goo.gl/SinRed', null]);
+  const p2 = desdeVentaDeHoja(ventaDeHoja(L.run('rutaJalar_({}, "direccion")').registros[0].datos));
+  eq('  y la del link largo, con su pin', [p2.lat, p2.lng, p2.dir_texto], [20.6551, -103.3925, 'Av. Vallarta 1300']);
+
+  /* Recolección: ni dirección ni link, aunque se hayan escrito. */
+  const R = lista();
+  const r5 = R.run('guardarVenta(' + venta({ entrega: 'Recolección en taller', direccion: 'no va', maps: 'https://maps.app.goo.gl/x' }) + ')');
+  eq('recolección: AF dice recolección, AC y AB vacías, Google ni se entera',
+     [R.celda(r5.folio, 'Entrega'), R.celda(r5.folio, 'Direccion'), R.celda(r5.folio, 'Ubicacion'), R.pedidasAGoogle.length],
+     ['Recolección en taller', '', '', 0]);
+
+  /* Una dirección que empieza con «=» no se vuelve fórmula. */
+  const F = lista();
+  const r6 = F.run('guardarVenta(' + venta({ direccion: '=IMPORTXML("http://x")' }) + ')');
+  eq('una dirección con «=» al frente se escribe como texto', F.celda(r6.folio, 'Direccion'), '\'=IMPORTXML("http://x")');
+
+  /* Una hoja que todavía no tiene AE ni AF: la venta se registra y se dice qué no se guardó. */
+  const V = hojaDeMentiras();
+  const r7 = V.run('guardarVenta(' + venta({ direccion: 'Av. Patria 100' }) + ')');
+  eq('sin AE ni AF la venta entra, con su dirección', [V.fila(r7.folio) > 0, V.celda(r7.folio, 'Direccion')], [true, 'Av. Patria 100']);
+  cierto('  y dice que el teléfono y la entrega esperan a «Preparar la hoja»', /teléfono ni la entrega/.test(r7.nota) && /Preparar la hoja/.test(r7.nota));
+
+  eq('la versión es la 13', api.PUENTE_VERSION, 'puente-sheets-13');
+  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-13');
+}
+
+console.log('\nLA HOJA LEE EL LINK DE MAPS IGUAL QUE LA PLATAFORMA (coordenadasDeMaps_ = parseGmaps)');
+{
+  /* La copia de `parseGmaps` en el .gs, contra el original, con todos los formatos que conoce
+     pruebas/geo.mjs y los casos que tienen que salir null. Una regla que cambie de un lado y no
+     del otro daría dos pines distintos para el mismo link. */
+  const casos = [
+    'https://www.google.com/maps/place/Av.+Vallarta+1300,+Guadalajara/@20.6736,-103.3440,17z/',
+    'https://www.google.com/maps/place/Expo+Guadalajara/@20.6543,-103.3901,17z/data=!3m1!4b1!4m6!3m5!1s0x8428b18e1e0a1b1f:0x0!8m2!3d20.6551!4d-103.3925',
+    'https://www.google.com/maps?q=20.5230,-103.4470',
+    'https://maps.google.com/?q=20.7214%2C-103.3918',
+    'https://www.google.com/maps/search/20.6134,+-103.4370',
+    'https://www.google.com/maps/@20.6597,-103.3496,15z',
+    'https://maps.google.com/maps?ll=20.6768,-103.3475&z=16&t=m',
+    'https://www.google.com/maps/dir/Guadalajara/Zapopan/data=!4m8!4m7!1m5!1m1!1s0x0:0x0!2m2!1d-103.3918!2d20.7214!1m0',
+    'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3732.5!2d-103.3496!3d20.6597!2m3',
+    'https://www.google.com/maps/place/20.6597,-103.3496',
+    'https://maps.google.com/?q=loc:+20.6597,-103.3496',
+    'https://www.google.com/maps/dir/?api=1&destination=20.6597,-103.3496',
+    'geo:20.6597,-103.3496?z=17',
+    '20.673611, -103.344000',
+    '+20.6736,+-103.344',
+    'https://www.google.com/maps/place/Tienda%20Ni%C3%B1o/@20.67,-103.34,17z',
+    'https://www.google.com/maps/place/Tienda%E0%A4/@20.67,-103.34,17z',
+    'https://www.google.com/maps/@-103.3496,20.6597,15z',
+    'https://www.google.com/maps/@40.7128,-74.0060,15z',
+    'https://www.google.com/maps/@0,0,15z',
+    'https://www.google.com/maps/place/Guadalajara',
+    '20, -103',
+    'Av. Vallarta 1300',
+    '',
+  ];
+  const H = hojaDeMentiras();
+  const gs = u => H.run('JSON.stringify(coordenadasDeMaps_(' + JSON.stringify(u) + '))');
+  const js = u => { const r = parseGmaps(u); return JSON.stringify(r && !r.corto ? { lat: r.lat, lng: r.lng, exacta: r.exacta } : r && r.corto ? { corto: true } : null); };
+  const distintos = casos.filter(u => gs(u) !== js(u));
+  eq('las dos leen igual los ' + casos.length + ' casos', distintos.map(u => [u, gs(u), js(u)]), []);
+  eq('el corto de WhatsApp: hay que seguirlo, de los dos lados', [gs('https://maps.app.goo.gl/AbC'), js('https://maps.app.goo.gl/AbC')], ['{"corto":true}', '{"corto":true}']);
+  /* /expandir y el formulario usan la MISMA función de un salto, con la misma lista blanca. */
+  eq('el formulario no sigue un link fuera de Maps', H.run('JSON.stringify(ubicacionDeLiga_("https://maps.app.goo.gl.evil.com/x"))'),
+     JSON.stringify({ ok: false, ubicacion: 'https://maps.app.goo.gl.evil.com/x', mensaje: 'El link de Maps no se pudo leer aquí: quedó en Ubicación y la plataforma lo vuelve a intentar.' }));
+  eq('ni /expandir', H.run('rutaExpandir_({ u: "https://evil.example.com/x" }).codigo'), 'DATO_INVALIDO');
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

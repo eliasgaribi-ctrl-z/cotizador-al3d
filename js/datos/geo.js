@@ -44,12 +44,28 @@ export const AVISO_CORTO =
   'Ese es un link corto y el navegador no puede abrirlo. Ábrelo, espera el mapa y ' +
   'copia el link de la barra de direcciones.';
 
+/** Lo que se dice cuando el link corto no se pudo leer en ese momento: sin señal, sin puente o
+ *  con la hoja sin contestar. No es un error de quien lo pegó, y el link no se pierde: se guarda
+ *  en el proyecto y la sincronización lo vuelve a intentar sola (ver `resolverLink` y
+ *  `proyectos.resolverLinksPendientes`). */
+export const AVISO_CORTO_PENDIENTE =
+  'Es el link corto de WhatsApp y para leerlo hace falta señal. Quedó guardado: el pin se ' +
+  'pone solo en cuanto el teléfono sincronice con la hoja.';
+
+/** Lo que se dice cuando el texto no trae coordenadas por ningún lado. Lo comparten el panel de
+ *  pegar link del Mapa, «Se ganó» y «Completar» del Tablero. */
+export const AVISO_SIN_COORD =
+  'Ese texto no trae coordenadas. El link bueno es el que sale de «Compartir» en Google Maps ' +
+  '—el corto de WhatsApp también sirve— o el par de números con punto decimal que sale al ' +
+  'dejar el dedo sobre un punto.';
+
 /** true para maps.app.goo.gl y goo.gl/maps.
  *  Desde el navegador es IMPOSIBLE expandirlos y no hay truco que lo cambie: la 30x no
  *  manda Access-Control-Allow-Origin, en `no-cors` la respuesta es opaca y por
  *  especificación su lista de headers está vacía (no hay `Location` que leer, y
  *  `response.url` viene en blanco), y `redirect:'manual'` da una opaque-redirect igual
- *  de ilegible. Con el puente de Fase 3 un endpoint /expandir lo hace del lado servidor. */
+ *  de ilegible. Lo hace la hoja: `/expandir` del puente sigue la redirección del lado
+ *  servidor, y `resolverLink` (abajo) es quien se lo pide. */
 export function esAcortado(u) {
   return /^(?:https?:\/\/)?(?:maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i.test(String(u || '').trim());
 }
@@ -134,6 +150,63 @@ export function parseGmaps(url) {
     }
   }
   return null;
+}
+
+/* Cuántas redirecciones se siguen como mucho. maps.app.goo.gl casi siempre llega en una al link
+   largo con `!3d!4d`; goo.gl/maps a veces pasa por dos. Más de tres ya no es Maps llevándote a un
+   lugar, es una página de consentimiento o algo que se quedó dando vueltas. */
+const SALTOS = 3;
+
+/**
+ * Saca la coordenada de lo que alguien pegó, siguiendo el link corto si hace falta.
+ *
+ * Primero `parseGmaps`, sin red. Si es un link corto (el que llega por WhatsApp) se le pide a
+ * `expandir` —en la app, `Sync.expandir`, que va a `/expandir` de la hoja— que lo siga hasta el
+ * largo, y ese se vuelve a leer. Si no hubo cómo preguntar (sin señal, sin puente, la hoja no
+ * contestó) NO es un error: el resultado es `pendiente`, quien llama guarda el link en `maps_url`
+ * y la sincronización lo vuelve a intentar sola.
+ *
+ * `expandir(u)` contesta `{ok:true, url}` o `{ok:false, codigo, mensaje}`. Solo un
+ * `DATO_INVALIDO` es definitivo —la hoja dijo que eso no es un link de Maps—; cualquier otro
+ * código es «ahorita no se pudo», y se reintenta. Se le puede pasar null: sin quién expanda,
+ * todo link corto queda pendiente.
+ *
+ * @returns {Promise<{ok:true, lat:number, lng:number, fuente:string, exacta:boolean,
+ *   sospechoso?:boolean, url:string, largo?:string}
+ *   | {ok:false, motivo:'vacio'|'sin_coord'|'pendiente', mensaje:string, url:string, codigo?:string}>}
+ *   `url` es siempre lo que se pegó, que es lo que se guarda en `maps_url`: el corto es el que
+ *   reconoce quien lo mandó, y el que el instalador abre en su teléfono.
+ */
+export async function resolverLink(texto, expandir) {
+  const url = String(texto == null ? '' : texto).trim();
+  if (!url) return { ok: false, motivo: 'vacio', mensaje: 'Falta el link.', url };
+  const r = parseGmaps(url);
+  if (!r) return { ok: false, motivo: 'sin_coord', mensaje: AVISO_SIN_COORD, url };
+  if (!r.corto) return { ok: true, ...r, url };
+  if (typeof expandir !== 'function') return { ok: false, motivo: 'pendiente', mensaje: AVISO_CORTO_PENDIENTE, url };
+
+  let u = url;
+  for (let i = 0; i < SALTOS; i++) {
+    let e;
+    try { e = await expandir(u); } catch (_) { e = null; }
+    if (!e || !e.ok) {
+      const codigo = (e && e.codigo) || 'SIN_RED';
+      if (codigo === 'DATO_INVALIDO') {
+        return { ok: false, motivo: 'sin_coord', codigo, url,
+          mensaje: 'Ese link corto no lleva a un mapa de Google. Pide que te lo manden otra vez desde «Compartir» en Google Maps.' };
+      }
+      return { ok: false, motivo: 'pendiente', codigo, mensaje: AVISO_CORTO_PENDIENTE, url };
+    }
+    const largo = String(e.url || '').trim();
+    /* La hoja contesta el mismo link cuando ya no hay a dónde seguir (una página que abre
+       directo, sin redirección): de ahí no sale nada nuevo. */
+    if (!largo || largo === u) break;
+    const p = parseGmaps(largo);
+    if (p && !p.corto) return { ok: true, ...p, url, largo };
+    u = largo;
+  }
+  return { ok: false, motivo: 'sin_coord', url,
+    mensaje: 'El link corto abre un mapa sin coordenadas (una búsqueda, o un negocio sin pin). En Google Maps deja el dedo sobre el lugar y comparte ese.' };
 }
 
 /* ---------------------------------------------------------------------------
