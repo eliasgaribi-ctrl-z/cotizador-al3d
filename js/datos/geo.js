@@ -156,7 +156,10 @@ export const TILES = {
     maxZoom: 20,
     sub: 'abcd',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-    nota: 'Más cupo (fair use de 5M de tiles al mes). Uso comercial serio: licencia Enterprise.',
+    /* Desde 2026 CARTO pide llave: sin ella cada cuadro llega con «API KEY REQUIRED» encima
+       (comprobado en octubre, con cualquier Referer). Se queda en la lista para el día que haya
+       llave, y la nota lo dice para que nadie lo elija creyendo que es una mejora. */
+    nota: 'Hoy pide llave de CARTO: sin ella los cuadros salen tachados con «API KEY REQUIRED». No lo elijas hasta tenerla.',
   },
   /* STUB. Preparado, no implementado: el usuario pidió OSM como borrador y Google Maps
      listo en la estructura para después. Para prenderlo hacen falta dos cosas y nada más:

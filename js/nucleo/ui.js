@@ -638,7 +638,8 @@ const _esqTarjeta = (dentro, cls) => '<div class="card esq' + (cls ? ' ' + cls :
  *  Ajustes una lista, y el resto la cinta de cuentas con tres renglones, que es lo que pintan. */
 export function esqueletoModulo(mod, nombre) {
   let cuerpo;
-  if (mod === 'mapa') cuerpo = '<div class="pf-cuentas">' + _esqCuenta.repeat(3) + '</div><div class="esq-b esq-bloque esq-mapa"></div>';
+  /* El mapa ocupa la sección entera y las cuentas viven en su hoja: la silueta es el bloque solo. */
+  if (mod === 'mapa') cuerpo = '<div class="esq-b esq-bloque esq-mapa"></div>';
   else if (mod === 'ajustes') cuerpo = _esqTarjeta(_esqFila.repeat(4));
   else cuerpo = '<div class="pf-cuentas">' + _esqCuenta.repeat(4) + '</div>' + _esqTarjeta(_esqFila.repeat(3));
   return '<div class="pf-esqueleto" data-mod="' + esc(mod) + '" aria-busy="true"><div aria-hidden="true">' + cuerpo + '</div>' +

@@ -691,92 +691,250 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 
 /* ============================================================================
    Mapa
-   ============================================================================ */
-/* Leaflet usa z-index 400 en sus paneles y 1000 en sus controles. Sin aislar, el botón de
+   ============================================================================
+   Octubre de 2026: el mapa ocupa la sección entera y todo lo demás flota encima, como en Google
+   Maps (la decisión 5 de js/mod/mapa.js). Antes eran dos columnas —el mapa con tres tiras de
+   filtros apiladas encima, y la ruta al lado— y en el teléfono el mapa medía 45 vh con la ruta
+   debajo: se sentía un formulario con un mapa adentro.
+
+   Leaflet usa z-index 400 en sus paneles y 1000 en sus controles. Sin aislar, el botón de
    zoom se pinta encima del filete de marca (200) y encima del aviso que dice que algo no se
    pudo guardar. `isolation:isolate` crea un contexto de apilamiento propio: sus 1000 se
-   quedan dentro de esta caja. */
-/* El mapa y la ruta, uno al lado del otro. `minmax(0,1.5fr)` y no `1.5fr` a secas: un mapa de
-   Leaflet mide lo que le den y sin el mínimo en 0 la columna crece con su contenido y empuja
-   la ruta fuera de la pantalla. La ruta se pega arriba al desplazarse porque es lo que se lee
-   mientras se mira el mapa. */
-.mapa-2col{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);
-  gap:var(--e4);align-items:start}
-.mapa-2col>.mapa-col{min-width:0}
-/* El aire entre las tres tiras y el mapa. Cada una traía el margen de su clase genérica
-   —4 px las de chips, cero la de botones— y medido en el teléfono quedaban así: etapas y
-   rango a 4 px, «Encuadrar» pegado a los chips de rango y el mapa pegado a «Encuadrar», sin
-   un solo píxel entre medias. Tres controles distintos se leían como un bloque. */
-#mapa-rango{margin-top:var(--e2)}
-#mapa-acc,#mapa-modo:not(:empty),#mapa-lienzo{margin-top:var(--e3)}
+   quedan dentro de esta caja. Adentro, el lienzo va en 0 —y crea el suyo, así que sus 400 y
+   1000 no le ganan a lo que flota— y encima la tira (2), la barra de arriba y los botones
+   redondos (3) y la hoja (4).
+
+   El alto es lo que le queda a la ventana debajo de donde empieza la sección: js/mod/mapa.js
+   mide ese punto y lo publica en `--mapa-top`. dvh y no vh: con la barra de direcciones de
+   Chrome a la vista, 100vh es el visor GRANDE y el mapa se salía por abajo. */
+/* `overflow:clip` y no solo `hidden`: una caja con `hidden` se puede desplazar por programa, y el
+   navegador lo hace solo al enfocar algo de la hoja que está fuera de la vista —el mapa entero se
+   corría hacia arriba y la búsqueda desaparecía—. `hidden` queda para el navegador que no conoce
+   `clip`. */
+.mapa-app{position:relative;isolation:isolate;z-index:1;overflow:hidden;overflow:clip;
+  height:calc(100dvh - var(--mapa-top,72px) - var(--mapa-pie,16px));min-height:420px;
+  border:1px solid var(--linea);border-radius:var(--rr4);background:var(--sup2)}
+.mapa-caja{position:absolute;inset:0}
+#mapa-lienzo{position:absolute;inset:0;z-index:0;background:var(--sup2)}
+/* La página no reserva hueco abajo con el mapa puesto: el mapa ya termina donde termina la
+   ventana, y el relleno de abajo solo servía para que la página se desplazara hacia una franja
+   vacía. Es lo mismo que hace el marco del cotizador (`pf-marco-lleno`). */
+.pf-wrap:has(#mod-mapa:not([hidden]) > .mapa-app){padding-bottom:0}
+/* En el teléfono, a sangre: sin el relleno lateral de la página, sin borde y pegado al
+   encabezado. `--pad-lat` es el relleno que la .wrap publica para quien quiera salirse. El dock
+   de módulos flota encima del mapa, como flota encima de cualquier pantalla, y la hoja asoma
+   por encima de él. */
 @media(max-width:759px){
-  .mapa-2col{grid-template-columns:minmax(0,1fr)}
+  .mapa-app{--mapa-pie:0px;min-height:360px;border:0;border-radius:0;
+    margin:calc(-1 * var(--e4)) calc(-1 * var(--pad-lat-der,10px)) 0 calc(-1 * var(--pad-lat,10px))}
 }
-@media(min-width:1100px){
-  .mapa-2col>.mapa-col:last-child{position:sticky;top:calc(64px + var(--e3));
-    max-height:calc(100dvh - 64px - 2*var(--e3));overflow-y:auto;overscroll-behavior:contain;
-    scrollbar-gutter:stable;padding-right:2px}
-  /* El mapa termina en el doblez: los filtros de arriba y la leyenda de abajo caben con él en
-     la pantalla, y no hay que bajar para ver el mapa entero. */
-  #mapa-lienzo,.mapa-2col .esq-mapa{height:max(420px,calc(100dvh - 64px - 320px))}
-}
-/* Los cuatro filtros de etapa llevan dos nombres, el largo y el corto, en el mismo par
-   `.lg`/`.sm` que el selector de tipo de una partida. En la computadora se lee «G · Vendido,
-   sin empezar (1)»; en el teléfono, «G · Vendido (1)», porque con el largo los cuatro chips
-   ocupaban cuatro renglones y el mapa empezaba debajo del doblez. El nombre entero sigue
-   viviendo en el `aria-label` y en la leyenda de debajo del mapa. */
-#mapa-etapas .sm{display:none}
-@media(max-width:759px){
-  #mapa-etapas .lg{display:none}
-  #mapa-etapas .sm{display:inline}
-}
-/* dvh y no vh: con la barra de direcciones de Chrome a la vista, 100vh es el visor GRANDE y el
-   panel se salía del velo por abajo (los modales del cotizador ya miden en dvh). */
-#mapa-lienzo{position:relative;isolation:isolate;z-index:1;height:60dvh;min-height:320px;
-  border-radius:var(--rr3);overflow:hidden;border:1px solid var(--linea);background:var(--sup2)}
-/* En el teléfono, 45 vh: la mitad de la pantalla para el mapa y la otra mitad para la ruta,
-   que es la que se lee parada por parada. Con 52 vh la primera parada quedaba justo debajo
-   del doblez. */
-@media(max-width:759px){#mapa-lienzo{height:45dvh;min-height:280px}}
+
 /* Leaflet trae su propia tipografía y sus propios grises. Se le imponen los de la app: un
    mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
 .leaflet-container{font-family:inherit;background:var(--n1)}
-.leaflet-popup-content-wrapper{border-radius:var(--rr1);box-shadow:var(--clay)}
-.leaflet-popup-content{margin:var(--e3);font-weight:400;font-size:var(--t2);line-height:1.5;color:var(--ink)}
-.leaflet-popup-content b{font-weight:700}
 .leaflet-bar a{color:var(--n7)}
-/* El zoom, con el id por lo mismo que el cursor de más abajo: vendor/leaflet.css se lee
-   DESPUÉS de esta hoja y su `.leaflet-bar a{background:#fff;color:black}` le ganaba a la
-   línea de arriba. De noche eso era una caja blanca con signos negros encima de un mapa
-   oscuro. Y en el teléfono Leaflet lo deja en 30 px, cuando todo lo demás que se toca en la
-   app mide 44: los dos botones del mapa eran los únicos que pedían puntería. */
-#mapa-lienzo .leaflet-bar{border-color:var(--linea)}
-#mapa-lienzo .leaflet-bar a{background:var(--sup);color:var(--tinta);border-bottom-color:var(--linea)}
-#mapa-lienzo .leaflet-bar a:focus{background:var(--sup2)}@media(hover:hover){#mapa-lienzo .leaflet-bar a:hover{background:var(--sup2)}}
-#mapa-lienzo .leaflet-bar a.leaflet-disabled{background:var(--sup2);color:var(--tinta3)}
-@media(hover:none),(pointer:coarse){
-  #mapa-lienzo .leaflet-bar a{width:44px;height:44px;line-height:44px;font-size:22px}
-}
-/* La atribución de OpenStreetMap es obligatoria por su licencia y se queda visible.
-   No se esconde ni se encoge hasta que no se lea. */
+/* Los cuadros de OpenStreetMap, con el tono de Google Maps. Los de OSM son los de un mapa de
+   cartógrafo —cada parque en verde fuerte, cada edificio con su borde, las avenidas en naranja— y
+   quien usa esta pantalla para ir a la obra lee Google Maps o Waze: colores apagados, calles
+   claras y los pines como lo único que grita. CARTO Voyager se parecía más, pero ya pide llave
+   (ver `tiles()` en js/datos/prefs.js), así que el parecido se le da aquí, con un filtro sobre la
+   capa de los cuadros y nada más: los pines, la ruta y el crédito no se tocan. De noche el mapa
+   se voltea a oscuro, como el de Google con el tema oscuro: un rectángulo blanco en medio de una
+   app oscura deslumbra en la cabina de la camioneta a las seis de la mañana. */
+#mapa-lienzo .leaflet-tile-pane{filter:saturate(.62) brightness(1.04) contrast(.94)}
+html[data-tema="oscuro"] #mapa-lienzo .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) saturate(.5) brightness(.92) contrast(.88)}
+/* La atribución de los cuadros es obligatoria por su licencia y se queda visible.
+   No se esconde ni se encoge hasta que no se lea. Con la hoja de abajo puesta, los controles de
+   abajo SUBEN con ella (`--mapa-abajo`, que mide js/mod/mapa.js), igual que el logotipo de
+   Google sube con la suya: debajo de una hoja el crédito no se vería. */
 .leaflet-control-attribution{font-size:10px;background:rgba(var(--sup-rgb),.85)}
+#mapa-lienzo .leaflet-bottom{bottom:var(--mapa-abajo,0px);transition:bottom .32s var(--ease-out)}
+.mapa-app:has(.mapa-hoja.sin-animar) #mapa-lienzo .leaflet-bottom{transition:none}
+/* Leaflet trae su propio destello celeste al tocar (vendor/leaflet.css), que carga después de
+   esta hoja; el resto de la app no destella. */
+#mapa-lienzo .leaflet-container a,#mapa-lienzo.leaflet-container a{-webkit-tap-highlight-color:transparent}
 
-/* La leyenda del mapa: forma Y palabra, nunca color solo. Uno de cada doce hombres no
-   distingue el verde del ámbar, y este mapa se lee para decidir a dónde va la camioneta. */
-.mapa-leyenda{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e4);margin-top:var(--e3);
+/* ----- Lo que flota arriba: la búsqueda, los chips y la barra del pin a mano -----
+   La caja no recibe toques —el mapa de entre medias se sigue arrastrando—; sus piezas sí. */
+/* Va por encima de la hoja (5 contra 4) para que la lista de la búsqueda se despliegue sobre
+   ella; con la hoja subida del todo, los chips se quitan, porque la hoja termina justo debajo
+   de la búsqueda y quedarían flotando sobre su contenido. */
+.mapa-arriba{position:absolute;z-index:5;top:var(--e3);left:var(--e3);right:var(--e3);
+  display:flex;flex-direction:column;gap:var(--e2);pointer-events:none}
+.mapa-arriba>*{pointer-events:auto}
+.mapa-app[data-estado-hoja="alta"] .mapa-arriba>.mapa-chips{visibility:hidden}
+.mapa-arriba>#mapa-modo:empty{display:none}
+/* La píldora de búsqueda. 16 px de letra en el campo: con menos, Safari del iPhone acerca la
+   página entera al tocarlo. */
+.mapa-buscar{display:flex;align-items:center;gap:var(--e2);height:50px;padding:0 3px 0 var(--e4);
+  border:1px solid var(--linea);border-radius:25px;background:var(--sup);box-shadow:var(--clay);
+  transition:border-color var(--mv-r),box-shadow var(--mv-r)}
+.mapa-buscar>.svgi{flex:none;width:20px;height:20px;color:var(--tinta2)}
+.mapa-buscar:focus-within{border-color:var(--a);box-shadow:0 0 0 3px var(--a-borde),var(--clay)}
+.mapa-q{flex:1;min-width:0;height:44px;padding:0;border:0;background:transparent;
+  font:inherit;font-size:16px;color:var(--tinta);outline:none;-webkit-appearance:none;appearance:none}
+.mapa-q::placeholder{color:var(--tinta3)}
+.mapa-q::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+.mapa-buscar-x{flex:none;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;
+  background:transparent;color:var(--tinta2);cursor:pointer}
+.mapa-buscar-x .svgi{width:18px;height:18px}
+.mapa-buscar-x:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+/* Lo que encontró la búsqueda, en una tarjeta debajo de la píldora y encima de todo lo demás: no
+   empuja los chips ni los botones redondos, los tapa mientras está abierta. */
+.mapa-sug{position:absolute;z-index:1;top:58px;left:0;right:0;list-style:none;margin:0;padding:var(--e1);border:1px solid var(--linea);border-radius:var(--rr4);
+  background:var(--sup);box-shadow:var(--clay);max-height:min(50dvh,360px);overflow-y:auto;overscroll-behavior:contain}
+.mapa-sug-i{display:flex;align-items:center;gap:var(--e3);min-height:48px;padding:6px 10px;border-radius:var(--rr3);cursor:pointer}
+.mapa-sug-i.activa{background:var(--a-suave)}
+.mapa-sug-nada{padding:var(--e3);font-size:var(--t2);color:var(--tinta2)}
+/* Los chips de filtro: UNA fila que se desliza de lado, a sangre del borde de la caja, sin
+   barra de desplazamiento a la vista. Cada chip flota con su sombra sobre el mapa. */
+.mapa-chips{display:flex;align-items:center;gap:6px;margin:0 calc(-1 * var(--e3));padding:2px var(--e3) 6px;
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-padding-inline:var(--e3);scrollbar-width:none}
+.mapa-chips::-webkit-scrollbar{display:none}
+.mapa-chips-g{display:flex;gap:6px;flex:none}
+.mapa-chips-sep{flex:none;width:1px;height:24px;margin:0 2px;background:var(--n4)}
+.chip.mapa-chip{flex:none;min-height:40px;padding:0 14px;border-radius:999px;white-space:nowrap;box-shadow:var(--clay)}
+.chip.mapa-chip:not(.on){background:var(--sup)}
+.chip.mapa-chip .mapa-pin-mini{margin-left:-4px}
+.mapa-chip-n{font-variant-numeric:tabular-nums;font-weight:600;opacity:.75}
+@media(pointer:coarse){.chip.mapa-chip{min-height:44px}}
+/* La barra del modo «pin a mano», flotando debajo de los chips. */
+#mapa-modo .mapa-modo{margin:0;box-shadow:var(--clay)}
+
+/* ----- Los botones redondos de la derecha: dónde estoy y ver todas -----
+   Se paran debajo de lo que flota arriba (`--mapa-arriba-h`, que mide js/mod/mapa.js). */
+.mapa-fabs{position:absolute;z-index:3;right:var(--e3);top:calc(var(--mapa-arriba-h,124px) + var(--e2));
+  display:flex;flex-direction:column;gap:var(--e2)}
+/* Acercar y alejar van con los demás, pegados entre sí como en Google Maps, y solo donde hay ratón:
+   con el dedo se acerca con dos dedos y los dos botones solo tapaban el mapa. */
+.mapa-fabs-zoom{display:flex;flex-direction:column;gap:2px}
+@media(pointer:coarse){.mapa-fabs-zoom{display:none}}
+.mapa-fabs-zoom .mapa-fab:first-child{border-radius:24px 24px 6px 6px}
+.mapa-fabs-zoom .mapa-fab:last-child{border-radius:6px 6px 24px 24px}
+.mapa-fab{width:48px;height:48px;display:grid;place-items:center;padding:0;border:1px solid var(--linea);border-radius:50%;
+  background:var(--sup);color:var(--a-fuerte);box-shadow:var(--clay);cursor:pointer;
+  transition:background var(--mv-r),transform var(--mv-liq)}
+.mapa-fab .svgi{width:22px;height:22px}
+.mapa-fab:active{transform:scale(.94)}
+.mapa-fab:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+.mapa-fab.buscando .svgi{animation:mapa-buscando 1s var(--ease-out) infinite alternate}
+@keyframes mapa-buscando{to{opacity:.35}}
+/* El punto azul de «dónde estoy», y su aro de precisión. Leaflet los pinta con atributos de
+   presentación, que cualquier regla de hoja de estilos les gana. */
+.mapa-yo{fill:var(--a);fill-opacity:1;stroke:var(--sup);stroke-width:3}
+.mapa-yo-aro{fill:var(--a);fill-opacity:.12;stroke:var(--a);stroke-opacity:.35;stroke-width:1}
+
+/* ----- La hoja de abajo -----
+   En el teléfono sube desde abajo con tres paradas; su posición es `--hoja-y` (el `translateY`)
+   y la escribe js/mod/mapa.js. El cuerpo se desplaza por dentro, y su relleno de abajo suma lo
+   que la hoja tiene fuera de la vista y lo que tapa el dock, para que lo último de la lista se
+   pueda alcanzar en cualquier parada. */
+.mapa-hoja{position:absolute;z-index:4;inset:0;display:flex;flex-direction:column;
+  background:var(--sup);border-radius:18px 18px 0 0;box-shadow:var(--clay),0 -6px 24px -12px rgba(var(--tinta-rgb,26,29,51),.35);
+  transform:translateY(var(--hoja-y,72%));transition:transform .32s var(--ease-out)}
+.mapa-hoja.sin-animar{transition:none}
+/* El asa: 44 px de alto para el dedo, de los que 14 caen sobre el principio del cuerpo, donde
+   no hay nada que tocar. La rayita es el dibujo. */
+.mapa-hoja-asa{position:relative;z-index:1;flex:none;display:flex;justify-content:center;width:100%;height:44px;
+  margin-bottom:-14px;padding:10px 0 0;border:0;border-radius:18px 18px 0 0;background:transparent;
+  cursor:grab;touch-action:none}
+.mapa-hoja-asa>span{width:40px;height:5px;border-radius:3px;background:var(--n4)}
+.mapa-hoja-asa:focus-visible{outline:2px solid var(--a);outline-offset:-4px}
+.mapa-hoja-cuerpo{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:var(--e4) var(--e4) calc(var(--hoja-y,0px) + var(--mapa-dock,0px) + var(--e4))}
+.mapa-hoja-cab{padding-top:var(--e1)}
+/* Las tres cuentas, como píldoras. «Sin ubicar» es un botón: lleva a la lista que lo arregla. */
+.mapa-cuentas{display:flex;gap:6px;margin:0 calc(-1 * var(--e4));padding:0 var(--e4);overflow-x:auto;scrollbar-width:none}
+.mapa-cuentas::-webkit-scrollbar{display:none}
+.mapa-cuenta{flex:none;display:inline-flex;align-items:center;gap:5px;min-height:40px;padding:0 12px;white-space:nowrap;
+  border:1px solid transparent;border-radius:999px;background:var(--sup2);
+  font:inherit;font-size:var(--t2);font-weight:500;color:var(--tinta2)}
+.mapa-cuenta b{font-family:var(--f-cifra);font-size:var(--t4);font-weight:650;color:var(--tinta);font-variant-numeric:tabular-nums}
+.mapa-cuenta.urge{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+.mapa-cuenta.urge b{color:var(--av)}
+button.mapa-cuenta{cursor:pointer}
+button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+@media(pointer:coarse){.mapa-cuenta{min-height:44px}}
+.mapa-acc{margin-top:var(--e3)}
+.mapa-acc .btn{min-height:48px}
+#mapa-oculto{margin-top:var(--e3)}
+#mapa-ruta,#mapa-faltan,#mapa-obras{margin-top:var(--e4)}
+#mapa-faltan:empty,#mapa-obras:empty{display:none}
+.mapa-hoja-h{margin:0 0 var(--e2);font-family:var(--f-cifra);font-size:var(--t4);font-weight:650;color:var(--tinta)}
+/* La lista de las obras del mapa: un renglón por obra, todo el renglón es el botón. */
+.mapa-obras{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.mapa-obra{display:flex;align-items:center;gap:var(--e3);width:100%;min-height:52px;padding:6px 8px;
+  border:0;border-radius:var(--rr3);background:transparent;font:inherit;color:var(--tinta);text-align:left;cursor:pointer}
+.mapa-obra:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+.mapa-obra-tx{display:grid;min-width:0}
+.mapa-obra-t{font-weight:600;font-size:var(--t3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapa-obra-d{font-size:var(--t2);line-height:1.3;color:var(--tinta2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(hover:hover){
+  .mapa-obra:hover,.mapa-sug-i:hover{background:var(--sup2)}
+  .mapa-fab:hover{background:var(--sup2)}
+}
+/* La leyenda: forma Y palabra, nunca color solo. Uno de cada doce hombres no distingue el
+   verde del ámbar, y este mapa se lee para decidir a dónde va la camioneta. */
+.mapa-leyenda{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e4);margin-top:var(--e4);
   font-weight:500;font-size:var(--t2);line-height:1;color:var(--muted)}
 .mapa-leyenda span{display:inline-flex;align-items:center;gap:6px}
-.mapa-leyenda i{width:12px;height:12px;border:2px solid;display:inline-block}
-.mapa-leyenda i.listo{border-color:var(--a);border-radius:50%}
-.mapa-leyenda i.taller{border-color:var(--amber-ico);border-radius:2px}
-.mapa-leyenda i.instalado{border-color:var(--green-ico);border-radius:50%;background:var(--green-ico)}
 /* El pin de una obra sin ubicar no existe: no hay pin en medio del océano. Van en una lista
    aparte, y la lista lo dice. */
-.mapa-sinubicar{margin-top:var(--e4)}
-/* Leaflet trae su propio destello celeste al tocar (vendor/leaflet.css), que carga después de
-   esta hoja; el resto de la app no destella. Y su globo aparece con una curva lineal. */
-#mapa-lienzo .leaflet-container a,#mapa-lienzo.leaflet-container a{-webkit-tap-highlight-color:transparent}
-#mapa-lienzo .leaflet-fade-anim .leaflet-popup,#mapa-lienzo.leaflet-fade-anim .leaflet-popup{transition:opacity .16s var(--ease-out)}
+.mapa-sinubicar .pf-fila-acc{flex-wrap:wrap}
+
+/* ----- La ficha de una obra ----- */
+.mapa-ficha-cab{display:flex;align-items:flex-start;gap:var(--e3);padding-top:var(--e1)}
+.mapa-ficha-cab>.mapa-pin-mini{margin-top:2px;scale:1.35;transform-origin:50% 0}
+.mapa-ficha-tx{flex:1;min-width:0}
+.mapa-ficha-t{margin:0;font-family:var(--f-cifra);font-size:var(--t5);font-weight:650;line-height:1.2;color:var(--tinta);overflow-wrap:anywhere}
+.mapa-ficha-sub{margin:3px 0 0;font-size:var(--t2);line-height:1.4;color:var(--tinta2)}
+.mapa-ficha-x.pf-cerrar{flex:none;width:44px;height:44px;margin:-6px -6px 0 0;border-radius:50%;background:var(--sup2)}
+.mapa-ficha-etq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:var(--e2) 0 0}
+.mapa-ficha-fecha{display:flex;align-items:center;gap:6px;margin:var(--e2) 0 0;font-size:var(--t2);line-height:1.4;color:var(--tinta2)}
+.mapa-ficha-fecha .svgi{flex:none;width:16px;height:16px}
+.mapa-ficha-fecha.urge{color:var(--av);font-weight:600}
+/* Los botones de la calle: una fila que se desliza de lado, como la de Google Maps («Cómo
+   llegar», «Iniciar», «Llamar»…). Píldoras de 44 px con su palabra; el primero, lleno. */
+.mapa-ficha-acc{display:flex;gap:var(--e2);margin:var(--e3) calc(-1 * var(--e4)) 0;padding:2px var(--e4) 4px;
+  overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.mapa-ficha-acc::-webkit-scrollbar{display:none}
+.mapa-ficha-acc .btn.mapa-ficha-b{flex:none;width:auto;min-height:44px;margin-top:0;padding:0 16px;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;text-decoration:none}
+.mapa-ficha-acc .btn-gho.mapa-ficha-b{background:var(--sup);border-color:var(--linea);color:var(--a-fuerte)}
+.mapa-ficha-b .svgi{width:18px;height:18px}
+.mapa-ficha-acc+.hintnote{margin-top:var(--e3)}
+.mapa-ficha-dir{margin-top:var(--e4);padding:var(--e3);border-radius:var(--rr3);background:var(--sup2)}
+.mapa-ficha-lab{margin:0 0 4px;font-size:var(--t1);font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--tinta3)}
+.mapa-ficha-dir .mapa-dir{margin:0;font-size:var(--t3);line-height:1.45;color:var(--tinta)}
+.mapa-ficha-dato{margin:var(--e3) 0 0;font-size:var(--t3);color:var(--tinta)}
+.mapa-ficha-dato span{color:var(--tinta2)}
+.mapa-ficha-pie{margin-top:var(--e4)}
+
+/* En la tableta y la ventana mediana la hoja sigue siendo hoja, pero no de lado a lado: una hoja de
+   800 px de ancho con una columna de botones adentro es una página, no una hoja. Se queda del
+   ancho de un teléfono, a la izquierda, con la búsqueda y los chips encima de ella. */
+@media(min-width:760px) and (max-width:1099px){
+  .mapa-arriba{right:auto;width:min(440px,calc(100% - 2 * var(--e3) - 60px))}
+  .mapa-hoja{right:auto;left:var(--e3);width:min(440px,calc(100% - 2 * var(--e3) - 60px));
+    border:1px solid var(--linea);border-bottom:0}
+  .mapa-app .mapa-caja>.mapa-tira:not([hidden]){right:auto;width:min(440px,calc(100% - 2 * var(--e3) - 60px));left:var(--e3);padding:0 6%}
+}
+
+/* ----- En la computadora, panel a la izquierda -----
+   De 1100 px para arriba la hoja deja de ser hoja: es un panel flotante debajo de la búsqueda,
+   como Google Maps en el navegador, siempre abierto y con su propio desplazamiento. Los botones
+   redondos se van a la esquina de arriba a la derecha. */
+@media(min-width:1100px){
+  .mapa-arriba{right:auto;width:380px}
+  .mapa-fabs{top:var(--e3)}
+  .mapa-hoja{inset:auto;top:calc(var(--mapa-arriba-h,124px) + var(--e2));left:var(--e3);bottom:var(--e3);width:380px;
+    transform:none;transition:none;border:1px solid var(--linea);border-radius:var(--rr4);box-shadow:var(--clay)}
+  .mapa-hoja-asa{display:none}
+  .mapa-hoja-cuerpo{padding:var(--e4)}
+  /* El crédito de los cuadros, a la derecha del panel: debajo de él no se vería. */
+  #mapa-lienzo .leaflet-bottom.leaflet-left{left:calc(380px + 2 * var(--e3))}
+  .mapa-ficha-acc{flex-wrap:wrap;margin-inline:0;padding-inline:0;overflow:visible}
+}
 
 /* ============================================================================
    Modales de la plataforma
@@ -1305,51 +1463,59 @@ button.cal-plazo:active{transform:scale(.97)}
 .hintnote.nota-mal{background:var(--mal-bg);border:1px solid var(--mal-borde);color:var(--mal)}
 
 /* ============================================================================
-   Mapa — lo que el pin necesitaba y no existía todavía
+   Mapa — el pin
    ============================================================================ */
 
-/* El pin. Es un `L.divIcon`, así que Leaflet le pone el ancho y el alto como estilo en
-   línea (`iconSize`) y le REEMPLAZA la clase por la que se le pase: no queda nada del
-   cuadrito blanco de `.leaflet-div-icon`, y por eso todo lo que se ve del pin se define
-   aquí. `box-sizing` explícito porque el borde de 2 px tiene que caber DENTRO de los 26 px
-   del `iconSize`; sin él el pin queda descentrado de su propia coordenada.
+/* El pin es la gota de Google Maps: un cuadrado girado 45° con tres esquinas redondas y la
+   cuarta en punta, hacia abajo, y la letra derecha encima. Es un `L.divIcon`, así que Leaflet le
+   pone el ancho y el alto como estilo en línea (`iconSize`) y le REEMPLAZA la clase por la que se
+   le pase: no queda nada del cuadrito blanco de `.leaflet-div-icon`, y por eso todo lo que se ve
+   del pin se define aquí. Las medidas de abajo son las de `iconoDe` (js/mod/mapa.js): con 32 px
+   de ancho, el cuadrado de 24 empieza a 3 px del borde y su punta cae a 32 px, que es el ancla.
 
-   Las tres formas son las de `.mapa-leyenda`, y la letra de adentro es el cuarto indicio
-   después de la forma, el relleno y el color: uno de cada doce hombres no distingue el
-   verde del ámbar, y este mapa se lee para decidir a dónde manejar. */
-.mapa-pin{box-sizing:border-box;display:grid;place-items:center;border:2px solid;
-  background:var(--card);font-weight:800;font-size:11px;line-height:1;letter-spacing:0;box-shadow:var(--clay)}
-/* Con las dos clases, y no por gusto: vendor/leaflet.css se lee DESPUÉS de esta hoja
-   (index.html) y trae `.leaflet-marker-icon{display:block}`, que pesa lo mismo que `.mapa-pin`
-   y por ir después le ganaba. Sin la rejilla, `place-items` no hace nada y la letra del pin
-   —G, T, L, I, o el número de la parada— salía pegada a la esquina de arriba a la izquierda
-   en vez de al centro. */
-.leaflet-marker-icon.mapa-pin{display:grid}
+   Las formas son la decisión 2 de ese archivo, ahora en gota: lo que todavía no está listo para
+   instalar —vendido y en el taller— es un ROMBO (`--pin-radio` chico), y lo listo y lo instalado
+   una GOTA redonda. La letra de adentro es el cuarto indicio después de la forma, el relleno y
+   el color: uno de cada doce hombres no distingue el verde del ámbar, y este mapa se lee para
+   decidir a dónde manejar. Las mismas cuatro variables pintan el pin en chico (`.mapa-pin-mini`)
+   de los chips, la leyenda, las listas y la ficha: es la misma marca en todos lados. */
+.mapa-pin,.mapa-pin-mini{--pin-borde:var(--n4);--pin-fondo:var(--sup);--pin-tinta:var(--n7);--pin-radio:22%}
 /* Vendido y sin empezar: gris, que en `.pf-etapa` es exactamente lo que significa. No se
    pinta ámbar porque ámbar es «está en el taller» y esto todavía no entró. */
-.mapa-pin.ganado{border-color:var(--n4);color:var(--n7);border-radius:3px}
-.mapa-pin.taller{border-color:var(--amber-ico);color:var(--av);border-radius:3px}
-.mapa-pin.listo{border-color:var(--a);color:var(--a-fuerte);border-radius:50%}
+.mapa-pin.taller,.mapa-pin-mini.taller{--pin-borde:var(--amber-ico);--pin-tinta:var(--av)}
+.mapa-pin.listo,.mapa-pin-mini.listo{--pin-borde:var(--a);--pin-tinta:var(--a-fuerte);--pin-radio:50%}
 /* El relleno es el indicio de «ya está puesto»: se ve incluso reducido a cuatro píxeles,
    que es como se ve un pin cuando el mapa está en toda la ciudad. El aro conserva el verde
-   de la leyenda para que el cuadrito de abajo y el pin sean la misma cosa, pero el relleno
-   va con --ok y no con --green-ico: la letra es blanca de 11 px, y sobre --green-ico el
-   contraste es 3,39:1 —debajo del mínimo para texto chico— mientras que sobre --ok es
-   5,19:1. Es el mismo par que ya usa `.btn-ok`. */
-.mapa-pin.instalado{border-color:var(--green-ico);background:var(--ok);color:#fff;
-  border-radius:50%}
+   de la leyenda, pero el relleno va con --ok y no con --green-ico: con --green-ico la letra
+   no llega al contraste mínimo para texto chico, con --ok sí. La letra va con el color de la
+   superficie, que es blanca de día y oscura de noche, cuando --ok se aclara. */
+.mapa-pin.instalado,.mapa-pin-mini.instalado{--pin-borde:var(--green-ico);--pin-fondo:var(--ok);--pin-tinta:var(--sup);--pin-radio:50%}
+
+.mapa-pin{position:relative;box-sizing:border-box;background:none;border:0}
+/* Con las dos clases, y no por gusto: vendor/leaflet.css se lee DESPUÉS de esta hoja
+   (index.html) y trae `.leaflet-marker-icon{display:block}`, que pesa lo mismo que `.mapa-pin`
+   y por ir después le ganaba. */
+.leaflet-marker-icon.mapa-pin{display:block}
+.mapa-pin::before{content:"";position:absolute;box-sizing:border-box;left:4px;top:3px;width:24px;height:24px;
+  border:2.5px solid var(--pin-borde);background:var(--pin-fondo);
+  border-radius:var(--pin-radio) var(--pin-radio) 0 var(--pin-radio);transform:rotate(45deg);box-shadow:var(--clay)}
+.mapa-pin>b{position:absolute;left:0;right:0;top:3px;height:24px;display:grid;place-items:center;
+  font:800 12px/1 var(--f-cifra);letter-spacing:0;color:var(--pin-tinta)}
 /* En la ruta del día la letra se cambia por el número de la parada, y el pin se levanta del
    resto con un aro del acento: la numeración tiene que leerse como un conjunto. */
-.mapa-pin.ruta{box-shadow:0 0 0 3px var(--a-borde),var(--clay)}
-/* El pin que se está poniendo a mano: mismo tamaño, borde punteado y el icono de pin
-   adentro. Punteado porque todavía no está guardado, y eso hay que verlo. */
-.mapa-pin.mano{border-color:var(--a);border-style:dashed;color:var(--a-fuerte);
-  border-radius:50%;background:var(--card)}
-.mapa-pin.mano .svgi{width:14px;height:14px}
+.mapa-pin.ruta::before{box-shadow:0 0 0 3px var(--a-borde),var(--clay)}
+/* El elegido —el de la ficha abierta, o la parada de ahora en la tira— crece: 40 px de ancho,
+   el cuadrado de 30 y la punta a 40, que es su ancla. Y un aro del acento lleno. */
+.mapa-pin.sel::before{left:5px;top:4px;width:30px;height:30px;border-width:3px;box-shadow:0 0 0 3px var(--a),var(--clay)}
+.mapa-pin.sel>b{top:4px;height:30px;font-size:15px}
 
-/* La cuarta entrada de la leyenda. Las tres que ya estaban no cubrían «vendido, sin
-   empezar», y ese es el estado en el que un proyecto pasa más días. */
-.mapa-leyenda i.ganado{border-color:var(--n4);border-radius:2px}
+/* El pin en chico, para leerse junto a una palabra. */
+.mapa-pin-mini{position:relative;flex:none;display:inline-block;width:20px;height:22px;vertical-align:middle}
+.mapa-pin-mini::before{content:"";position:absolute;box-sizing:border-box;left:3px;top:1px;width:14px;height:14px;
+  border:2px solid var(--pin-borde);background:var(--pin-fondo);
+  border-radius:var(--pin-radio) var(--pin-radio) 0 var(--pin-radio);transform:rotate(45deg)}
+.mapa-pin-mini>b{position:absolute;left:0;right:0;top:1px;height:14px;display:grid;place-items:center;
+  font:800 8.5px/1 var(--f-cifra);color:var(--pin-tinta)}
 
 /* La línea de la ruta. Leaflet pinta el trazo con atributos de presentación (`stroke`,
    `stroke-width`), que pierden contra cualquier regla de hoja de estilos: por eso la
@@ -1358,20 +1524,13 @@ button.cal-plazo:active{transform:scale(.97)}
    sugerido, no un trazado por calles. */
 .mapa-ruta-linea{stroke:var(--a);stroke-width:3;stroke-dasharray:7 7;fill:none;opacity:.85}
 
-/* Mientras se pone un pin a mano ya NO se cambia el cursor a una mira en cruz (F9): la mira ahora
-   es la retícula fija del centro, y lo que se hace con el ratón y con el dedo es arrastrar el
-   mapa debajo de ella; una cruz de cursor diría «haz clic donde va», que es lo contrario. De
-   paso se va una regla que nunca llegó a aplicarse: el lienzo ES el `.leaflet-container`, y un
-   selector de descendiente no se alcanza a sí mismo. */
-
 /* La barra del modo «pin a mano». Es `.hintnote.nota-av` —el mismo ámbar de «esto que
    estás viendo tiene una condición»— pero lleva dos botones adentro, y `.hintnote` es un
    inline-block pensado para texto suelto: los botones quedaban pegados a la última palabra
    y en el teléfono partían el renglón a la mitad. */
-.mapa-modo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);width:100%;
-  margin-bottom:var(--e3)}
+.mapa-modo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);width:100%;min-height:52px}
 .mapa-modo>span{flex:1 1 12ch;min-width:0}
-.mapa-modo{min-height:52px}
+.mapa-modo .btn{width:auto;margin-top:0}
 
 /* La dirección tal como la escribieron, con sus renglones. Reacomodarla en un párrafo es lo
    que convierte «interior 4, atrás de la farmacia» en una calle que no existe, y esa
@@ -2424,11 +2583,13 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 @media(max-width:920px){.esq-cols.pb-esq-cols{grid-template-columns:1fr}}
 /* El del mapa va suelto, sin tarjeta alrededor, y su brillo —de --sup2 a --n2— se confunde
    con el lienzo de la página: con el borde de tarjeta se lee como lo que es, el hueco del mapa. */
-/* Con el alto del lienzo de verdad (60 dvh, y 45 en el teléfono) y no con 420 px sueltos (F16): la
-   silueta y el mapa que la reemplaza tienen que medir lo mismo, o al llegar el mapa lo de abajo
-   salta justo cuando se empezaba a leer. */
-.esq-mapa{height:60dvh;min-height:320px;border:1px solid var(--linea);border-radius:var(--rr3)}
-@media(max-width:759px){.esq-mapa{height:45dvh;min-height:280px}}
+/* Con el alto de la sección de verdad y no con 420 px sueltos (F16): la silueta y el mapa que la
+   reemplaza tienen que medir lo mismo, o al llegar el mapa todo salta justo cuando se empezaba a
+   ver. El mapa ocupa lo que le queda a la ventana (`.mapa-app`), y la silueta igual; en el
+   teléfono, a sangre como él. */
+.esq-mapa{height:calc(100dvh - var(--mapa-top,72px) - var(--e4));min-height:420px;border:1px solid var(--linea);border-radius:var(--rr4)}
+@media(max-width:759px){.esq-mapa{height:calc(100dvh - var(--mapa-top,56px));min-height:360px;border-radius:0;border:0;
+  margin:calc(-1 * var(--e4)) calc(-1 * var(--pad-lat-der,10px)) 0 calc(-1 * var(--pad-lat,10px))}}
 @media(prefers-reduced-motion:reduce){
   .pf-arranque,.pf-esqueleto{animation:none}
   .pf-progreso.on::before{animation:none;width:100%;transform:none;opacity:.6}
@@ -3602,37 +3763,37 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:cl
 /* F9 · La retícula del pin a mano. La forma, el tamaño y el contorno con el color de la superficie
    son de la pieza (`.reticula`, sistema.css); aquí solo se decide dónde se apila y cómo llega.
    500 queda por encima de los paneles de Leaflet (400) y por debajo de sus controles (800 y 1000),
-   para que la cruz nunca tape el zoom ni el crédito de OpenStreetMap. Llega con un fundido breve
+   para que la cruz nunca tape el zoom ni el crédito de los cuadros. Llega con un fundido breve
    y un asentarse de 1.5 a 1: es un momento, no un bucle. */
 .mapa-reticula{z-index:500;animation:mapa-reticula-entra .2s var(--ease-out)}
 @keyframes mapa-reticula-entra{from{opacity:0;scale:1.5}}
 
-/* F12 · Las paradas del día como tarjetas sobre el mapa. La caja envuelve al lienzo y a la tira para
-   pegar la segunda al borde de abajo de la primera. La tira es del teléfono: en la computadora la
-   ruta ya está en su columna, al lado del mapa, y la lista se queda. Con dos clases y no con una,
-   porque `.paginas{display:grid}` (sistema.css) pesa una, y así esta regla le gana sin depender de
-   qué hoja se lea después. */
-.mapa-caja{position:relative}
+/* F12 · Las paradas del día como tarjetas sobre el mapa. La tira es del teléfono y de la tableta:
+   en la computadora la ruta ya está en el panel, al lado del mapa, y la lista se queda. Con dos
+   clases y no con una, porque `.paginas{display:grid}` (sistema.css) pesa una, y así esta regla
+   le gana sin depender de qué hoja se lea después. */
 .mapa-caja>.mapa-tira{display:none}
-@media(max-width:759px){
-  /* Con la tira encima, los 45 dvh de antes dejaban poco mapa a la vista: se agranda, y la lista de
-     abajo ya no lo necesita (sus filas se esconden más abajo). */
-  .mapa-caja.con-tira #mapa-lienzo{height:62dvh;min-height:380px}
-  /* `bottom` deja libre el crédito de OpenStreetMap (10 px de letra más su caja, unos 20 px): su
-     licencia exige que se vea, y las pruebas miden que las dos cajas no se toquen. El contenedor de
-     la tira no recibe toques (el mapa de entre tarjeta y tarjeta sigue arrastrándose); las tarjetas
-     sí. El 8 % de cada lado es lo que deja la tarjeta de en medio centrada y asomar las vecinas. */
+@media(max-width:1099px){
+  /* Se para encima de lo que tapa la hoja (`--mapa-abajo`) y deja libre el crédito de los cuadros
+     (10 px de letra más su caja, unos 20 px): su licencia exige que se vea, y las pruebas miden que
+     las dos cajas no se toquen. El contenedor de la tira no recibe toques (el mapa de entre
+     tarjeta y tarjeta sigue arrastrándose); las tarjetas sí. El 8 % de cada lado es lo que deja la
+     tarjeta de en medio centrada y asomar las vecinas. Con la hoja subida o una ficha abierta la
+     tira se quita: la ficha dice lo mismo y más, y una tira flotando a media pantalla no es de
+     nadie. */
   .mapa-caja>.mapa-tira:not([hidden]){display:grid;position:absolute;left:0;right:0;
-    bottom:var(--mapa-cred,26px);z-index:2;padding:0 8%;--pag-ancho:100%;--pag-hueco:10px;
-    pointer-events:none;overflow-y:hidden}
+    bottom:calc(var(--mapa-abajo,0px) + var(--mapa-cred,26px));z-index:2;padding:0 8%;--pag-ancho:100%;--pag-hueco:10px;
+    pointer-events:none;overflow-y:hidden;transition:bottom .32s var(--ease-out)}
+  .mapa-app.con-ficha .mapa-caja>.mapa-tira,.mapa-app[data-estado-hoja="alta"] .mapa-caja>.mapa-tira,
+  .mapa-app[data-estado-hoja="media"] .mapa-caja>.mapa-tira{display:none}
   /* Las filas de la ruta se esconden mientras la tira dice lo mismo; la nota de la salida supuesta,
      que está en el mismo recuadro, se queda. `display:none` y no solo a la vista: que el lector de
      pantalla tampoco lea cada parada dos veces. */
   #mapa-ruta.con-tira .mapa-ruta-filas{display:none}
 }
 .mapa-parada{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:var(--e3);row-gap:var(--e2);
-  align-items:center;padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr3);
-  background:var(--sup);box-shadow:var(--clay);pointer-events:auto;
+  align-items:center;padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr4);
+  background:var(--sup);box-shadow:var(--clay);pointer-events:auto;cursor:pointer;
   transition:border-color var(--mv-r),transform var(--mv-liq)}
 /* La tarjeta de ahora lleva el borde del acento: forma (grosor) y color a la vez, y la pieza ya
    marca `.pagina-actual`. */
@@ -3645,19 +3806,20 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:cl
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mapa-parada-d{font-size:var(--t2);line-height:1.3;color:var(--tinta2);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mapa-parada-ir{grid-column:1 / -1;min-height:44px;text-decoration:none}
+.mapa-parada-ir{grid-column:1 / -1;min-height:44px;text-decoration:none;border-radius:999px}
 
 /* El nombre de la parada y su hora de la lista de la ruta son dos `<span>` en línea y se leían
    pegados («…(Letras Luz)A las 9:00 a.m.»). Cada uno en su renglón, que es como los pinta el
    resto de las listas de la app (sus contenedores los hacen bloque). */
 #mapa-ruta .pf-fila-t,#mapa-ruta .pf-fila-d{display:block}
 
-/* F29 · La barra de acción sube 12 px con un fundido de 180 ms al aparecer. `@starting-style` vale
-   para un elemento que pasa de `display:none` a visible, que es lo que hace `hidden=false`; en un
-   navegador que no lo conoce la barra aparece de golpe, como hasta hoy. Solo para la barra de ESTA
-   pantalla (`.mapa-mbar`, que pone js/mod/mapa.js): `.pf-mbar` es de todo el documento. */
-.pf-mbar.mapa-mbar{transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
-@starting-style{.pf-mbar.mapa-mbar{opacity:0;transform:translateY(12px)}}
+/* El botón del asistente flota en la esquina de abajo, justo donde asoma la hoja: sube encima de
+   ella (`--mapa-ia-sube`, lo que asoma) en vez de taparle las cuentas, y se aparta mientras la hoja
+   está subida (`mapa-hoja-arriba`, en el documento, que js/mod/mapa.js quita al salir). */
+@media(max-width:1099px){
+  html:has(#mod-mapa:not([hidden]) > .mapa-app) .pf-ia-btn{translate:0 calc(-1 * var(--mapa-ia-sube,0px))}
+  html.mapa-hoja-arriba:has(#mod-mapa:not([hidden]) > .mapa-app) .pf-ia-btn{opacity:0;pointer-events:none}
+}
 /* ── fin de pf-mapa ── */
 
 /* ── Plataforma · Ajustes y asistente ── */
@@ -3812,14 +3974,15 @@ button.ct-mes-ver:active{transform:none}
 /* ── fin de rm · pf-material ── */
 /* ── rm · pf-mapa ── */
 /* Se apaga el ADORNO, no la información. Lo que se queda: la retícula (es la mira), el borde de la
-   tarjeta de ahora y todo lo que la pieza de las páginas dice con palabras. Lo que se va: la
-   llegada de la retícula, el apretón de la tarjeta, y la barra de acción sigue apareciendo —llegó
-   una acción— pero sin subir: solo el fundido, en 150 ms. El trazo de la ruta, el crecer y encogerse
-   de los pines y la rueda de las cuentas son de JavaScript y se quedan quietos por su cuenta. */
+   tarjeta de ahora, el pin elegido más grande y todo lo que la pieza de las páginas dice con
+   palabras. Lo que se va: la llegada de la retícula, el apretón de la tarjeta y del botón redondo,
+   el parpadeo de «buscando dónde estoy», y la hoja y lo que sube con ella llegan a su parada sin
+   deslizarse. El trazo de la ruta, el crecer y encogerse de los pines y la rueda de las cuentas son
+   de JavaScript y se quedan quietos por su cuenta. */
 .mapa-reticula{animation:none}
-.mapa-parada:active{transform:none}
-.pf-mbar.mapa-mbar{transition-duration:.15s}
-@starting-style{.pf-mbar.mapa-mbar{transform:none}}
+.mapa-parada:active,.mapa-fab:active{transform:none}
+.mapa-fab.buscando .svgi{animation:none;opacity:.5}
+.mapa-hoja,#mapa-lienzo .leaflet-bottom,.mapa-caja>.mapa-tira:not([hidden]){transition:none}
 /* ── fin de rm · pf-mapa ── */
 /* ── rm · pf-ajustes ── */
 /* La respuesta nueva del asistente sigue apareciendo —es información: llegó—, pero sin subir: solo el
