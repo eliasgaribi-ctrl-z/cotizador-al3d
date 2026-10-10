@@ -3991,3 +3991,123 @@ button.ct-mes-ver:active{transform:none}
 .ia-msg[data-nueva]{animation-name:aparece;animation-duration:.15s}
 /* ── fin de rm · pf-ajustes ── */
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   Control · por tipo de trabajo (js/mod/control.js, `htmlPorTipo`)
+   ══════════════════════════════════════════════════════════════════════════════════════════
+   Las tarjetas y las gráficas de arriba de Control. Bloque propio y al final del archivo, para
+   que se pueda mover o quitar entero.
+
+   Un color por tipo, el mismo en la tarjeta, en la barra, en la leyenda y en el globo: los
+   tokens `--tt-c*` viven en :root porque el globo (pieza 4) se pinta en <body>, fuera de la
+   tarjeta. Salen de las familias del sistema —el azul para las cajas de luz, el violeta
+   (`--a2`) para las letras, el aguamarina (`--a3`) para el vinil, el verde para el acrílico,
+   el ámbar para lo especial— y el «sin iluminación» de cada familia es el mismo tono, más
+   claro: cajas con cajas, letras con letras. «Sin tipo» es gris y RAYADO: no es un tipo, es un
+   hueco por llenar, y se distingue sin depender del color. Ninguno va solo: siempre hay una
+   etiqueta de texto al lado o una leyenda. */
+:root{
+  --tt-c1:#3b57e6; --tt-c2:#8098ff; --tt-c3:#7b3ff8; --tt-c4:#b590ff;
+  --tt-c5:#0f9fc0; --tt-c6:#15a06a; --tt-c7:#c98a12; --tt-co:#c4507a; --tt-cx:#8b90b8;
+}
+html[data-tema="oscuro"]{
+  --tt-c1:#6d86ff; --tt-c2:#b7c4ff; --tt-c3:#b48cff; --tt-c4:#dccbff;
+  --tt-c5:#4fcbe6; --tt-c6:#3fc282; --tt-c7:#f5c26b; --tt-co:#f08aa8; --tt-cx:#6f76a8;
+}
+:is(.ct-tt,.ct-tt-vz) .tt-1{--tt:var(--tt-c1)}
+:is(.ct-tt,.ct-tt-vz) .tt-2{--tt:var(--tt-c2)}
+:is(.ct-tt,.ct-tt-vz) .tt-3{--tt:var(--tt-c3)}
+:is(.ct-tt,.ct-tt-vz) .tt-4{--tt:var(--tt-c4)}
+:is(.ct-tt,.ct-tt-vz) .tt-5{--tt:var(--tt-c5)}
+:is(.ct-tt,.ct-tt-vz) .tt-6{--tt:var(--tt-c6)}
+:is(.ct-tt,.ct-tt-vz) .tt-7{--tt:var(--tt-c7)}
+:is(.ct-tt,.ct-tt-vz) .tt-o{--tt:var(--tt-co)}
+:is(.ct-tt,.ct-tt-vz) .tt-x{--tt:var(--tt-cx)}
+
+.ct-tt{margin-bottom:var(--e4)}
+.ct-tt-barra{justify-content:space-between}
+.ct-tt-pista{font-size:var(--t1);color:var(--tinta3)}
+/* El punto de color que acompaña a cada nombre. */
+.ct-tt-pt{display:inline-block;flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:var(--tt,var(--n5));
+  margin-right:6px;vertical-align:-1px}
+.tt-x .ct-tt-pt,.ct-tt-pila i.tt-x{background:repeating-linear-gradient(135deg,var(--tt) 0 2px,transparent 2px 4px);
+  box-shadow:inset 0 0 0 1px var(--tt)}
+
+/* ----- Las tarjetas -----
+   En la computadora, una rejilla que se reparte sola. En el teléfono, un riel que se desliza de
+   lado con su tope en cada tarjeta: nueve tarjetas una debajo de otra empujaban la pantalla de
+   Control tres pantallas para abajo. */
+.ct-tt-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:var(--e3);margin-bottom:var(--e3)}
+.ct-tt-cards:focus-visible{outline:2px solid var(--a-tx);outline-offset:3px;border-radius:var(--rr3)}
+.ct-tt-card{display:flex;flex-direction:column;gap:2px;min-width:0;padding:14px var(--e4) 12px;background:var(--sup);
+  border:1px solid var(--linea);border-radius:var(--rr3);box-shadow:inset 0 4px 0 var(--tt,var(--tinta))}
+.ct-tt-card.total{background:var(--sup2)}
+.ct-tt-nom{display:flex;align-items:center;font-weight:600;font-size:var(--t2);line-height:1.3;color:var(--tinta2);min-height:2.6em}
+.ct-tt-card.total .ct-tt-nom{color:var(--tinta)}
+.ct-tt-n{font-family:var(--f-cifra);font-weight:600;font-size:var(--t7);line-height:1.1;color:var(--tinta);
+  font-variant-numeric:tabular-nums}
+.ct-tt-card.cero .ct-tt-n{color:var(--tinta3)}
+.ct-tt-u{font-size:var(--t2);color:var(--tinta3)}
+.ct-tt-imp{margin-top:4px;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
+  font-variant-numeric:tabular-nums}
+.ct-tt-cmp{margin-top:6px;font-size:var(--t1);font-weight:600;line-height:1.35;color:var(--tinta3)}
+.ct-tt-cmp.sube{color:var(--ok)}
+.ct-tt-cmp.baja{color:var(--mal)}
+.ct-tt-aviso{color:var(--av)}
+@media(max-width:759px){
+  .ct-tt-cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(150px,46%);
+    overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;padding-bottom:6px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .ct-tt-card{scroll-snap-align:start}
+  .ct-tt-pista{flex:1 1 100%}
+}
+
+/* ----- La gráfica de meses: columnas apiladas -----
+   Cada columna es un botón de todo su alto (más de 44 px, y 36 de ancho como mínimo), con el
+   número de trabajos encima. Si no caben —desde la primera venta pueden ser cuarenta meses—,
+   corren de lado y arrancan en el final (control.js, `ubicarMesesTipo`). */
+.ct-tt-graf{margin-top:var(--e2)}
+.ct-tt-cols{display:flex;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;padding:4px 2px 6px;scrollbar-width:thin}
+.ct-tt-cols:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px;border-radius:var(--rr2)}
+.ct-tt-col{flex:1 0 36px;min-width:36px;display:flex;flex-direction:column;align-items:stretch;gap:4px;margin:0;padding:4px 0;
+  background:none;border:0;border-radius:var(--rr2);font:inherit;color:inherit;text-align:center}
+button.ct-tt-col{cursor:pointer}
+@media(hover:hover){button.ct-tt-col:hover{background:var(--sup2)}}
+button.ct-tt-col:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px}
+.ct-tt-area{height:168px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;
+  border-bottom:1px solid var(--linea)}
+.ct-tt-num{font-family:var(--f-cifra);font-weight:600;font-size:var(--t1);color:var(--tinta);font-variant-numeric:tabular-nums}
+.ct-tt-cols .ct-tt-pila{display:flex;flex-direction:column-reverse;gap:1px;width:70%;max-width:28px;
+  border-radius:4px 4px 0 0;overflow:hidden;background:var(--sup)}
+.ct-tt-pila i{display:block;flex:1 1 0;min-height:2px;min-width:2px;background:var(--tt)}
+.ct-tt-et{font-size:var(--t1);font-weight:600;line-height:1.2;color:var(--tinta2);white-space:nowrap}
+.ct-tt-et small{display:block;font-weight:400;color:var(--tinta3)}
+.ct-tt-col.actual .ct-tt-et{color:var(--a-tx)}
+.ct-tt-col.vacio .ct-tt-et{color:var(--tinta3)}
+
+/* ----- La gráfica de años: barras de lado, apiladas ----- */
+.ct-tt-anios{display:grid;gap:4px}
+.ct-tt-anio{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:var(--e3);
+  min-height:48px;margin:0;padding:4px 6px;background:none;border:0;border-radius:var(--rr2);font:inherit;color:inherit;text-align:left}
+button.ct-tt-anio{cursor:pointer}
+@media(hover:hover){button.ct-tt-anio:hover{background:var(--sup2)}}
+button.ct-tt-anio:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px}
+.ct-tt-anio .ct-tt-et{font-size:var(--t3);font-family:var(--f-cifra)}
+.ct-tt-riel{display:block;height:20px;min-width:0}
+.ct-tt-anios .ct-tt-pila{display:flex;flex-direction:row;gap:1px;height:100%;border-radius:0 4px 4px 0;overflow:hidden;background:var(--sup)}
+.ct-tt-v{text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-tt-v small{display:block;font-family:var(--f-texto);font-weight:400;font-size:var(--t1);color:var(--tinta3)}
+@media(max-width:400px){
+  .ct-tt-anio{grid-template-columns:40px minmax(0,1fr) auto;gap:var(--e2)}
+  .ct-tt-v{font-size:var(--t2)}
+}
+
+/* ----- La leyenda y el globo ----- */
+.ct-tt-ley{display:flex;flex-wrap:wrap;gap:6px 14px;margin:var(--e3) 0 0;padding:0;list-style:none;
+  font-size:var(--t1);color:var(--tinta2)}
+.ct-tt-ley li{display:flex;align-items:center}
+.ct-tt-vz{margin-top:8px}
+.ct-tt-vz dt{display:flex;align-items:center}
+.ct-tt-vz dd{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* ── fin de Control · por tipo de trabajo ── */

@@ -18,6 +18,9 @@
        empezando por las más chicas (la regla del negocio: bajar el número de pendientes).
        «Pagar estas» ARMA LA LISTA para registrarla en la hoja; esta pantalla no marca pagos.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
+   Y ARRIBA de las cuatro, desde octubre de 2026, lo vendido POR TIPO DE TRABAJO: una tarjeta
+   por tipo (este mes, este año o todo, contra el periodo anterior) y la gráfica mes a mes o
+   año por año. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
 
    De dónde salen los números, desde septiembre de 2026: de la HOJA de finanzas y de este
    teléfono, en una sola lista (`Ventas.unificar`). El puente baja el récord entero de la
@@ -51,6 +54,7 @@ import * as Proy from '../datos/proyectos.js';
 import * as Cot from '../datos/cotizador.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Ventas from '../datos/ventas.js';
+import * as PorTipo from '../datos/ventas-por-tipo.js';
 import { comisionDe, PCT_COMISION } from '../datos/asistente-contexto.js';
 import * as Bitacora from '../datos/bitacora.js';
 import * as Sync from '../datos/sync.js';
@@ -63,6 +67,13 @@ let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
 let TAB = 'ventas';          // ventas | cobrar | comisiones | bitacora — sobrevive a salir y volver
 let PERIODO = '3m';          // mes | 3m | 12m | todo
+/* Lo vendido por tipo de trabajo, arriba de todo: el periodo de las tarjetas y la gráfica que
+   se ve. Sobreviven a salir y volver, como la pestaña. Por defecto el año: es la pregunta del
+   dueño («cuántas letras llevamos»), y el mes a los nueve días casi siempre dice poco. */
+let TT_PER = 'anio';         // mes | anio | todo
+let TT_VISTA = 'mes';        // mes | anio — la gráfica de abajo de las tarjetas
+let _ttScroll = null;        // dónde se dejó la gráfica de meses (null: al final, lo más nuevo)
+let _vzTT = null;            // el globo de un mes o un año de la gráfica por tipo
 let BUSCA = '';
 let ENTIDAD = '';            // filtro de la bitácora
 let BUSCA_BIT = '';
@@ -141,6 +152,11 @@ export async function montar(contenedor, ctx) {
   if (P && typeof P.vistazo === 'function') {
     _vz = P.vistazo(cont, { delegar: '.ct-mes-ver', titulo: 'Ventas del mes', alinear: 'centro',
       contenido: ancla => vistazoMes(ancla && ancla.dataset ? ancla.dataset.mes : '') });
+    /* Y otro para las columnas de la gráfica por tipo: el número exacto de cada tipo en ese mes
+       o año, que en una barra apilada no se puede leer a ojo, y que un `title` no enseña en un
+       teléfono. */
+    _vzTT = P.vistazo(cont, { delegar: '.ct-tt-ver', titulo: 'Por tipo de trabajo', alinear: 'centro',
+      contenido: ancla => vistazoTipo(ancla && ancla.dataset ? ancla.dataset.ttSerie : '', ancla && ancla.dataset ? ancla.dataset.ttK : '') });
   }
 
   if (!DB.estado().ok) {
@@ -172,6 +188,7 @@ export function desmontar() {
      un contenedor que el router reutiliza, y uno que se queda puesto abriría un globo vacío en
      la pantalla siguiente. */
   if (_vz) { try { _vz.destruir(); } catch (_) {} _vz = null; }
+  if (_vzTT) { try { _vzTT.destruir(); } catch (_) {} _vzTT = null; }
   if (_io) { _io.disconnect(); _io = null; }
   clearTimeout(_vozCom); _vozCom = 0;
   /* El hueco de acciones del encabezado NO es de este módulo: vive en index.html y lo
@@ -232,8 +249,11 @@ async function leer() {
   }
   const bitacora = await Bitacora.listar({ limite: 400 });
   const comisiones = comisionesDe(ventas);
+  /* Por tipo de trabajo: la misma lista unificada, repartida. Las series no dependen del
+     periodo elegido y se sacan una vez; las tarjetas sí, y se sacan al pintar. */
+  const porTipo = { mes: PorTipo.seriePorMes(ventas, { hoy }), anio: PorTipo.seriePorAnio(ventas, { hoy }) };
   return { hoy, proyectos, ventas, union, bajada, sinDecidir, historial, fechaInst, kpi, meses, conv,
-           cartera, almacen, bitacora, comisiones };
+           cartera, almacen, bitacora, comisiones, porTipo };
 }
 
 /* F54. Las comisiones de las ventas del récord UNIFICADO —la hoja paga las de todas, también las
@@ -464,6 +484,7 @@ function pintar() {
 function despuesDePintar() {
   rodarCuentas(cont);
   vigilarBarras();
+  ubicarMesesTipo();
   if (TRAYENDO && !SILENCIOSA) encenderBoton();
   aplicarCierre();
 }
@@ -483,7 +504,7 @@ function htmlPantalla() {
   else if (TAB === 'bitacora') cuerpo = pintarBitacora();
   else cuerpo = pintarVentas();
 
-  return '<div class="ag-barra ct-pestanas">' + tabs + '</div>' + cuerpo;
+  return htmlPorTipo() + '<div class="ag-barra ct-pestanas">' + tabs + '</div>' + cuerpo;
 }
 
 /* «Por cobrar» es de la hoja cuando TODOS los saldos bajaron de allá; «(estimado)» si alguno
@@ -494,6 +515,174 @@ function etiquetaCobrar() {
   if (!conSaldo || deHoja === conSaldo) return { t: 'Por cobrar', em: conSaldo ? 'según la hoja' : '' };
   if (!deHoja) return { t: 'Por cobrar (estimado)', em: 'total menos anticipo' };
   return { t: 'Por cobrar (parte estimado)', em: deHoja + ' de ' + conSaldo + ' con saldo de la hoja' };
+}
+
+/* ============================================================================
+   Lo vendido por tipo de trabajo — arriba de todo, en las cuatro pestañas
+   ============================================================================
+   La petición del dueño: tener a la vista cuántas letras, cuántas cajas de luz, cuántos
+   viniles se han vendido, este mes, este año y desde que se trabaja. Va ARRIBA de las
+   pestañas porque es lo primero que se quiere ver al abrir Control, y no es de ninguna de las
+   cuatro: es el resumen de todas.
+
+   La aritmética está en js/datos/ventas-por-tipo.js, que es pura y tiene pruebas; ahí está
+   escrito cómo cuenta una venta con dos tipos (en los dos; el total general, una vez).
+
+   Tres piezas:
+     · las TARJETAS —una por tipo, más la del total—: cuántos trabajos, de cuánto (solo a quien
+       ve dinero) y contra el periodo anterior, con ▲/▼ y la palabra, no solo el color;
+     · el selector del PERIODO de las tarjetas: este mes, este año, todo;
+     · la GRÁFICA, mes a mes desde la primera venta o año por año: barras apiladas por tipo,
+       con el número encima, y cada columna es un botón que abre su desglose exacto (pieza 4).
+   Los colores de cada tipo salen de una sola tabla (`PorTipo.claseTipo`) y viven en el bloque
+   «Control · por tipo de trabajo» del final de css/plataforma.css. Ningún dato va solo en color:
+   cada tarjeta dice su nombre y la gráfica lleva leyenda con texto. */
+
+const nTrab = n => n + (n === 1 ? ' trabajo' : ' trabajos');
+const nVentas = n => n + (n === 1 ? ' venta' : ' ventas');
+
+function htmlPorTipo() {
+  const dinero = Prefs.veDinero();
+  const r = PorTipo.resumenPorTipo(D.ventas, { hoy: D.hoy, periodo: TT_PER });
+  const per = segmento([
+    { v: 'mes', t: 'Este mes' }, { v: 'anio', t: 'Este año' }, { v: 'todo', t: 'Todo' },
+  ], TT_PER, 'data-tt-per', 'Periodo de las tarjetas por tipo');
+  const que = TT_PER === 'anio' ? 'en ' + r.rango.etiqueta : r.rango.etiqueta;
+
+  const tarjetas = [tarjetaTotal(r, dinero)].concat(r.tipos.map(x => tarjetaTipo(x, r, dinero))).join('');
+  const sinTipo = r.tipos.find(x => x.tipo === PorTipo.SIN_TIPO);
+  const avisos = [];
+  if (sinTipo && sinTipo.n) {
+    avisos.push(nVentas(sinTipo.n) + ' de este periodo no ' + (sinTipo.n === 1 ? 'tiene' : 'tienen') +
+      ' tipo de trabajo capturado: se corrige en la columna «Tipo de trabajo» de la hoja.');
+  }
+  if (r.sinFecha) avisos.push(nVentas(r.sinFecha) + ' sin fecha de anticipo no ' + (r.sinFecha === 1 ? 'cae' : 'caen') + ' en ningún periodo.');
+
+  return '<section class="card ct-tt" id="ct-tt" aria-labelledby="ct-tt-h">' +
+    '<div class="card-h"><h2 id="ct-tt-h">' + ico('i-control') + ' Vendido por tipo de trabajo</h2>' +
+      '<span class="folio">' + esc(que) + '</span></div>' +
+    '<div class="card-b">' +
+      '<div class="ag-barra ct-tt-barra">' + per + '</div>' +
+      '<div class="ct-tt-cards" role="list" tabindex="0" aria-label="Tarjetas por tipo de trabajo, ' + esc(que) + '">' + tarjetas + '</div>' +
+      (avisos.length ? '<p class="pf-nota ct-tt-aviso">' + avisos.map(esc).join(' ') + '</p>' : '') +
+      graficaPorTipo(dinero) +
+      '<p class="pf-nota">Una venta con varios tipos —letras y bastidor, por ejemplo— cuenta como un trabajo en ' +
+        'cada tipo que lleva' + (dinero ? ', y su importe entero aparece en cada uno de esos tipos: la hoja no dice ' +
+        'cuánto fue de cada parte. Por eso las tarjetas pueden sumar más que el total, que cuenta cada venta una sola vez.' : '.') +
+        ' Son las mismas ventas de la pestaña Ventas: sin las que no se dieron, por la fecha de su anticipo.' +
+        (TT_PER === 'anio' ? ' «Este año» se compara con el año anterior hasta el mismo día.' : '') + '</p>' +
+    '</div></section>';
+}
+
+/* La comparación con el periodo anterior, en palabras y con flecha: ▲ y ▼ no se leen solos. */
+function comparacion(ahora, antes, etiqueta) {
+  if (antes === null || antes === undefined) return '';
+  const d = ahora - antes;
+  const cls = d > 0 ? ' sube' : (d < 0 ? ' baja' : '');
+  const txt = d > 0 ? '▲ ' + d + ' más que en ' : (d < 0 ? '▼ ' + (-d) + ' menos que en ' : '= igual que en ');
+  return '<span class="ct-tt-cmp' + cls + '">' + esc(txt + etiqueta) + ' (' + antes + ')</span>';
+}
+
+function tarjetaTotal(r, dinero) {
+  const ant = r.rango.anterior;
+  return '<div class="ct-tt-card total" role="listitem">' +
+    '<span class="ct-tt-nom">Total</span>' +
+    '<b class="ct-tt-n">' + r.total.ventas + '</b>' +
+    '<span class="ct-tt-u">' + (r.total.ventas === 1 ? 'venta' : 'ventas') + ' · ' + nTrab(r.total.trabajos) + '</span>' +
+    (dinero ? '<span class="ct-tt-imp">' + esc(money(r.total.importe)) + '</span>' : '') +
+    (ant ? comparacion(r.total.ventas, r.total.ventasAnt, ant.etiqueta) : '') +
+  '</div>';
+}
+
+function tarjetaTipo(x, r, dinero) {
+  const ant = r.rango.anterior;
+  return '<div class="ct-tt-card ' + x.clase + (x.n ? '' : ' cero') + '" role="listitem">' +
+    '<span class="ct-tt-nom"><i class="ct-tt-pt" aria-hidden="true"></i>' + esc(x.nombre) + '</span>' +
+    '<b class="ct-tt-n">' + x.n + '</b>' +
+    '<span class="ct-tt-u">' + (x.n === 1 ? 'trabajo' : 'trabajos') + '</span>' +
+    (dinero ? '<span class="ct-tt-imp">' + esc(money(x.importe)) + '</span>' : '') +
+    (ant ? comparacion(x.n, x.nAnt, ant.etiqueta) : '') +
+  '</div>';
+}
+
+/* La gráfica. Cuenta TRABAJOS, no dinero: es la pregunta («cuántas cajas»), y apilar importes
+   duplicaría el de las ventas con dos tipos. El importe del mes o del año, sin duplicar, está en
+   el globo de cada columna y, en la de años, a un lado. */
+function graficaPorTipo(dinero) {
+  const vista = segmento([{ v: 'mes', t: 'Por mes' }, { v: 'anio', t: 'Por año' }], TT_VISTA, 'data-tt-vista', 'Gráfica por tipo');
+  const serie = TT_VISTA === 'anio' ? D.porTipo.anio : D.porTipo.mes;
+  if (!serie.length) {
+    return '<div class="ct-tt-graf"><div class="ag-barra ct-tt-barra">' + vista + '</div>' +
+      '<p class="pf-nota">Todavía no hay ventas con fecha que graficar. Cuando baje el récord de la hoja, o se gane una ' +
+      'cotización, aparecen aquí por tipo.</p></div>';
+  }
+  const tipos = PorTipo.tiposVisibles(D.ventas);
+  const tope = Math.max(1, ...serie.map(f => f.trabajos));
+  const pila = f => tipos.filter(t => f.porTipo[t]).map(t =>
+    '<i class="' + PorTipo.claseTipo(t) + '" style="flex-grow:' + f.porTipo[t] + '"></i>').join('');
+  const leyenda = '<ul class="ct-tt-ley" aria-label="Colores de cada tipo">' + tipos.map(t =>
+    '<li class="' + PorTipo.claseTipo(t) + '"><i class="ct-tt-pt" aria-hidden="true"></i>' + esc(PorTipo.nombreTipo(t)) + '</li>').join('') + '</ul>';
+
+  let cuerpo;
+  if (TT_VISTA === 'anio') {
+    cuerpo = '<div class="ct-tt-anios">' + serie.map(f => {
+      const interior = '<span class="ct-tt-et">' + esc(f.etiqueta) + '</span>' +
+        '<span class="ct-tt-riel">' + (f.trabajos ? '<span class="ct-tt-pila" style="width:' +
+          Math.max(2, Math.round(f.trabajos / tope * 100)) + '%">' + pila(f) + '</span>' : '') + '</span>' +
+        '<span class="ct-tt-v">' + esc(nTrab(f.trabajos)) + '<small>' + esc(nVentas(f.ventas)) +
+          (dinero ? ' · ' + esc(money(f.importe)) : '') + '</small></span>';
+      return f.ventas
+        ? '<button type="button" class="ct-tt-anio ct-tt-ver" data-tt-serie="anio" data-tt-k="' + esc(f.clave) +
+          '" aria-haspopup="dialog" aria-expanded="false">' + interior + '<span class="solo-voz">, ver por tipo</span></button>'
+        : '<div class="ct-tt-anio">' + interior + '</div>';
+    }).join('') + '</div>';
+  } else {
+    cuerpo = '<div class="ct-tt-cols" tabindex="0" role="group" aria-label="Trabajos vendidos mes a mes, desde ' +
+      esc(serie[0].etiqueta) + '">' + serie.map((f, i) => {
+      const [mm, aa] = f.etiqueta.split(' ');
+      const conAnio = i === 0 || f.clave.endsWith('-01');
+      const interior = '<span class="ct-tt-area">' +
+          (f.trabajos ? '<span class="ct-tt-num">' + f.trabajos + '</span><span class="ct-tt-pila" style="height:' +
+            Math.max(3, Math.round(f.trabajos / tope * 100)) + '%">' + pila(f) + '</span>' : '') + '</span>' +
+        '<span class="ct-tt-et">' + esc(mm) + (conAnio ? '<small>' + esc(aa) + '</small>' : '') + '</span>';
+      const actual = f.clave === D.hoy.slice(0, 7) ? ' actual' : '';
+      return f.ventas
+        ? '<button type="button" class="ct-tt-col ct-tt-ver' + actual + '" data-tt-serie="mes" data-tt-k="' + esc(f.clave) +
+          '" aria-haspopup="dialog" aria-expanded="false" aria-label="' + esc(f.etiqueta + ': ' + nTrab(f.trabajos) +
+          ' en ' + nVentas(f.ventas) + ', ver por tipo') + '">' + interior + '</button>'
+        : '<div class="ct-tt-col vacio' + actual + '" role="img" aria-label="' + esc(f.etiqueta + ': sin ventas') + '">' + interior + '</div>';
+    }).join('') + '</div>';
+  }
+  return '<div class="ct-tt-graf"><div class="ag-barra ct-tt-barra">' + vista +
+    '<span class="ct-tt-pista">Toca ' + (TT_VISTA === 'anio' ? 'un año' : 'un mes') + ' para ver el número de cada tipo</span></div>' +
+    cuerpo + leyenda + '</div>';
+}
+
+/* El globo de un mes o un año: cada tipo con su número exacto (y su importe a quien ve dinero),
+   de mayor a menor, y el total sin duplicar. Se calcula al abrir, con lo que haya en `D`. */
+function vistazoTipo(serie, k) {
+  if (!D || !D.porTipo) return '';
+  const f = (serie === 'anio' ? D.porTipo.anio : D.porTipo.mes).find(x => x.clave === k);
+  if (!f) return '';
+  const dinero = Prefs.veDinero();
+  const tipos = Object.keys(f.porTipo).sort((a, b) => f.porTipo[b] - f.porTipo[a] || a.localeCompare(b, 'es'));
+  return '<span class="vistazo-t">' + esc(f.etiqueta) + '</span>' +
+    '<dl class="ct-vz-tot"><dt class="suma">' + esc(nVentas(f.ventas) + ' · ' + nTrab(f.trabajos)) + '</dt>' +
+      '<dd class="suma">' + (dinero ? esc(money(f.importe)) : '') + '</dd></dl>' +
+    '<dl class="ct-tt-vz">' + tipos.map(t =>
+      '<dt class="' + PorTipo.claseTipo(t) + '"><i class="ct-tt-pt" aria-hidden="true"></i>' + esc(PorTipo.nombreTipo(t)) + '</dt>' +
+      '<dd><b>' + f.porTipo[t] + '</b>' + (dinero ? ' · ' + esc(money(f.importeTipo[t])) : '') + '</dd>').join('') + '</dl>' +
+    (dinero && tipos.length > 1 ? '<p class="ct-vz-nota">El importe de una venta con varios tipos aparece en cada uno.</p>' : '');
+}
+
+/* La gráfica de meses corre de lado cuando no cabe (desde la primera venta pueden ser cuarenta
+   meses). Al pintarse se queda donde se dejó y, la primera vez, en el final: lo más nuevo es lo
+   que se busca. */
+function ubicarMesesTipo() {
+  const c = cont && cont.querySelector('.ct-tt-cols');
+  if (!c) return;
+  c.scrollLeft = _ttScroll === null ? c.scrollWidth : _ttScroll;
+  c.addEventListener('scroll', () => { _ttScroll = c.scrollLeft; }, { passive: true });
 }
 
 /* ----- Ventas ----- */
@@ -1067,6 +1256,10 @@ function alClic(ev) {
     if (r.k) copiarTexto(textoLista(r), 'Lista copiada: pégala donde registras los abonos');
     return;
   }
+  const ttp = t.closest('[data-tt-per]');
+  if (ttp) { TT_PER = ttp.dataset.ttPer; pintar(); return; }
+  const ttv = t.closest('[data-tt-vista]');
+  if (ttv) { TT_VISTA = ttv.dataset.ttVista; pintar(); return; }
   const per = t.closest('[data-periodo]');
   if (per) { PERIODO = per.dataset.periodo; pintar(); return; }
   const ent = t.closest('[data-entidad]');
