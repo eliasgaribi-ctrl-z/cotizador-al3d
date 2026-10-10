@@ -1,0 +1,17 @@
+{
+  "name": "al3d-supabase-pruebas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pruebas de base de datos de AL3D (migraciones, RLS y RPC de Supabase) sobre PGlite, sin Docker ni red.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "sh correr.sh",
+    "autoprueba": "node autoprueba.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
+  }
+}

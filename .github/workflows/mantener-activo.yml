@@ -1,0 +1,60 @@
+# Mantiene despierto el proyecto de Supabase del plan gratuito.
+#
+# El plan Free PAUSA el proyecto tras una semana sin actividad (verificado en supabase.com/pricing,
+# 2026-10-10) y no trae respaldos automáticos: un cron semanal no deja margen, así que esto llama
+# cada 2 días a la API con la llave PÚBLICA. Esa llave es pública por diseño (la protege RLS) y por
+# eso vive en variables del repositorio y no en secretos. La llave secreta (service_role) NUNCA
+# entra aquí.
+#
+# Qué llama (comprobado contra un proyecto real el 2026-10-10): /rest/v1/ a secas YA NO sirve, el
+# sistema nuevo de llaves lo reserva a la llave secreta (responde 401). Por eso son dos llamadas que
+# sí contestan con la pública: la salud de Auth (200) y una consulta a una tabla, que llega hasta la
+# base (200, 401 o 403 según los permisos; lo que importa es que NO sea un error 5xx ni un proyecto
+# pausado). Si el proyecto ya se pausó, el flujo se pone en rojo y GitHub avisa por correo.
+#
+# Se configura una vez, desde Settings > Secrets and variables > Actions > Variables:
+#   SUPABASE_PROYECTOS   una línea por proyecto:  <URL del proyecto> <llave pública (sb_publishable_…)>
+# Si la variable no existe el flujo avisa y termina bien: no falla en repositorios sin Supabase.
+#
+# GitHub solo ejecuta los flujos programados del archivo que está en la rama principal.
+name: Mantener activo Supabase
+
+on:
+  schedule:
+    - cron: '17 9 */2 * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consulta mínima a Auth y a la base de cada proyecto
+        env:
+          PROYECTOS: ${{ vars.SUPABASE_PROYECTOS }}
+        run: |
+          if [ -z "$PROYECTOS" ]; then
+            echo "No hay variable SUPABASE_PROYECTOS en el repositorio: no hay nada que mantener activo."
+            exit 0
+          fi
+          fallos=0
+          while read -r url llave; do
+            [ -z "$url" ] && continue
+            case "$url" in
+              https://*.supabase.co|https://*.supabase.co/) ;;
+              *) echo "Ignoro una dirección que no es de supabase.co."; continue ;;
+            esac
+            base="${url%/}"
+            auth=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H "apikey: $llave" "$base/auth/v1/health")
+            datos=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H "apikey: $llave" "$base/rest/v1/empresas?select=id&limit=1")
+            case "$datos" in 2??|4??) datos_ok=1 ;; *) datos_ok=0 ;; esac
+            if [ "$auth" = "200" ] && [ "$datos_ok" = "1" ]; then
+              echo "Despierto: $base (auth $auth, base $datos)"
+            else
+              echo "NO responde bien: $base (auth $auth, base $datos): ¿está pausado? Se reactiva desde el panel de Supabase."
+              fallos=$((fallos+1))
+            fi
+          done <<< "$PROYECTOS"
+          [ "$fallos" -eq 0 ]

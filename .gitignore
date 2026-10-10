@@ -1,1 +1,18 @@
 __pycache__/
+
+# Supabase, secretos y datos de clientes. OJO: Pages publica el repositorio ENTERO (ver _headers),
+# así que lo que se commitea queda en https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/<ruta>.
+# Nada de aquí es para guardarse en el árbol: ni llaves, ni volcados, ni reportes con nombres,
+# teléfonos o importes de clientes (el importador los escribe FUERA del repositorio).
+.env
+.env.*
+!.env.example
+**/.env
+supabase/.temp/
+supabase/.branches/
+supabase/functions/**/.env
+node_modules/
+*.dump
+*.sql.gz
+reportes/
+respaldos/
