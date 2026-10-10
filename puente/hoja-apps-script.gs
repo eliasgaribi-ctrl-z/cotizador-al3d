@@ -1016,6 +1016,7 @@ function ordenarVentas(h) {
      renglón al que llega puede no tener el '@' (ver horaDeCelda). */
   horasATexto(h, orden);
   telefonosATexto(h, ancho);
+  notasATexto_(h, ancho);
   var bloques = bloquesCapturados(ancho);
   bloques.forEach(function (b) {
     h.getRange(2, b[0], n, b[1] - b[0] + 1)
@@ -1029,6 +1030,13 @@ function ordenarVentas(h) {
 function telefonosATexto(h, ancho) {
   if (ancho < COL['Telefono']) return;
   h.getRange(2, COL['Telefono'], FIN - 1, 1).setNumberFormat('@');
+}
+
+/** AG (notas) y AI (sellos) en texto sin formato antes de reescribirlas, por lo mismo que AE. */
+function notasATexto_(h, ancho) {
+  if (ancho < COL['Sellos']) return;
+  h.getRange(2, COL['Notas'], FIN - 1, 1).setNumberFormat('@');
+  h.getRange(2, COL['Sellos'], FIN - 1, 1).setNumberFormat('@');
 }
 
 /** Elias BBVA cobra sin factura; cualquier otra cuenta lleva IVA. */
@@ -1136,7 +1144,32 @@ function alEditar(e) {
       for (var g = ini; g <= fin; g++) aplicarIva(h, g);
     }
 
-    /* 3) arriba lo que esta en fabricacion (columna C) */
+    /* 3) el sello de lo que se cambió a mano en las columnas de la obra (puente-sheets-14): lo
+          tecleado aquí es un cambio como el de cualquier teléfono, y si es el más reciente gana
+          en todos. Borrar a mano NO cuenta como cambio —se le quita el sello—: una celda que se
+          vació por un resbalón no le borra el dato a ningún teléfono, y el teléfono que lo tiene
+          lo vuelve a subir. Para borrar algo en todos, se borra en la plataforma. */
+    if (colFin >= COL['Fecha instalacion'] && tieneColumnasDeObra(h)) {
+      var tocadas = SELLADAS.filter(function (n) { return COL[n] >= col && COL[n] <= colFin; });
+      if (tocadas.length) {
+        var ahoraE = Date.now();
+        var hastaE = Math.min(fin, FIN);
+        for (var fe = ini; fe <= hastaE; fe++) {
+          if (String(h.getRange(fe, COL['Proyecto']).getValue()).trim() === '') continue;
+          var conDato = [], vacias = [];
+          tocadas.forEach(function (n) {
+            /* La hora va con la fecha: sin fecha no hay cita, y su sello es el de la fecha. */
+            var c = n === 'Hora instalacion' ? COL['Fecha instalacion'] : COL[n];
+            var x = h.getRange(fe, c).getValue();
+            (x === '' || x === null ? vacias : conDato).push(n);
+          });
+          if (conDato.length) sellarFila_(h, fe, conDato, ahoraE);
+          if (vacias.length) sellarFila_(h, fe, vacias, 0);
+        }
+      }
+    }
+
+    /* 4) arriba lo que esta en fabricacion (columna C) */
     if (col <= 3 && colFin >= 3) {
       SpreadsheetApp.flush();
       ordenarVentas(h);
@@ -1533,6 +1566,13 @@ function escribirDatosDeEntrega_(h, fila, x) {
   else falto.push('el teléfono');
   if (tieneColumnaEntrega(h)) h.getRange(fila, COL['Entrega']).setValue(x.entrega);
   else falto.push('la entrega');
+  /* Lo que se escribió aquí es el dato más nuevo de esa venta (puente-sheets-14). */
+  var escritas = [];
+  if (x.direccion) escritas.push('Direccion');
+  if (x.ubicacion && x.ubicacion.ubicacion) escritas.push('Ubicacion');
+  if (tieneColumnaTelefono(h)) escritas.push('Telefono');
+  if (tieneColumnaEntrega(h)) escritas.push('Entrega');
+  if (escritas.length) sellarFila_(h, fila, escritas, Date.now());
   if (x.ubicacion && !x.ubicacion.ok) nota.push(x.ubicacion.mensaje);
   if (falto.length) nota.push('No se guardó ' + falto.join(' ni ') + ': falta correr ⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente.');
   return nota.join(' ');
@@ -1829,8 +1869,16 @@ function dialogoTokens() {
    con la misma lógica de /expandir (expandirLiga_)— y escribe «lat,lng» en Ubicación AB, la
    dirección en AC, el teléfono en AE (texto) y la entrega en AF. Hasta la 12 ese formulario no
    los pedía y las ventas registradas aquí llegaban a los teléfonos sin ellos. Ninguna columna
-   nueva: no hace falta volver a correr «Preparar la hoja». */
-var PUENTE_VERSION = 'puente-sheets-13';
+   nueva: no hace falta volver a correr «Preparar la hoja».
+   puente-sheets-14 (10 de octubre de 2026): una sola sincronización para todo el equipo. Viajan
+   en los dos sentidos la etapa de obra, las notas (AG, nueva), el plazo de taller (AH, nueva), la
+   fecha y la hora de instalación —también cuando se mueven o se cancelan—, y las correcciones del
+   teléfono, la dirección, la ubicación y la entrega. Quién gana: el cambio más reciente, dato por
+   dato, con la hora de cada cambio guardada en «Sellos» (AI, nueva y oculta; ver SELLADAS). Lo
+   que se teclea a mano en esas columnas también se sella (alEditar). Ninguna pestaña nueva. Una
+   hoja sin AG:AI no truena: /jalar baja hasta AF y las notas y el plazo se rechazan con su razón.
+   Las crea «3 · Preparar la hoja para el puente». */
+var PUENTE_VERSION = 'puente-sheets-14';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1898,11 +1946,21 @@ var COL = {
   /* Cómo sale el trabajo del taller (puente-sheets-12): «Instalación», «Paquetería» o
      «Recolección en taller», de la lista ENTREGAS. Vacía es Instalación: es lo que eran todas
      las ventas antes de que existiera la columna. No es dinero: la ven los tres roles. */
-  'Entrega':                      32    // AF
+  'Entrega':                      32,   // AF
+  /* Las notas del proyecto (puente-sheets-14): lo que el taller, Pagos o Dirección le apuntan a
+     la obra en la ficha. Texto libre; lo leen y lo escriben los tres roles. */
+  'Notas':                        33,   // AG
+  /* El plazo de taller (puente-sheets-14): cuánto se tarda el taller en hacerlo, uno de los cinco
+     cubos de PLAZOS_TALLER («2 semanas»…). Vacío es «el que propone la plataforma». */
+  'Plazo taller':                 34,   // AH
+  /* Cuándo se cambió cada dato de la obra (puente-sheets-14), en JSON: {«Etapa de obra»: ms, …}.
+     Es lo que decide quién gana cuando dos teléfonos cambian lo mismo: el cambio más reciente
+     (ver SELLADAS). La escribe el puente y la pone al día alEditar; no se teclea. Oculta. */
+  'Sellos':                       35    // AI
 };
 
 var COL_FOLIO = 1;                      // A — el id interno (V-001)
-var ULTIMA_COL = 32;
+var ULTIMA_COL = 35;
 /* Hasta dónde llega la realineación de una sola vez de Y:AD (ver realinearColumnasDelPuente).
    AE no entra —ni AF, que nació en la 12—: nació en puente-sheets-11, cuando ordenarVentas ya movía las columnas del puente
    con su fila, así que nunca estuvo revuelta y la bitácora no tiene nada que decir de ella. */
@@ -1921,7 +1979,87 @@ function anchoDelPuente(h) {
   /* AF igual que AE (puente-sheets-12): cuenta solo con su encabezado «Entrega». Sin AE no se
      llega a preguntar: AF depende de que AE esté, y «Preparar la hoja» crea las dos juntas. */
   if (ancho >= COL['Entrega'] && !tieneColumnaEntrega(h)) ancho = COL['Entrega'] - 1;
+  /* AG:AI (puente-sheets-14) van las tres juntas y cuentan solo con sus tres encabezados: una AG
+     que alguien usaba para otra cosa no se lee como notas ni se escribe encima. */
+  if (ancho >= COL['Notas'] && !tieneColumnasDeObra(h)) ancho = COL['Notas'] - 1;
   return ancho;
+}
+function tieneColumnasDeObra(h) {
+  if (h.getMaxColumns() < COL['Sellos']) return false;
+  var cab = h.getRange(1, COL['Notas'], 1, 3).getValues()[0].map(function (x) { return String(x).trim(); });
+  return cab[0] === 'Notas' && cab[1] === 'Plazo taller' && cab[2] === 'Sellos';
+}
+
+/* ── Los cinco plazos de taller, como se leen en la columna AH (puente-sheets-14) ──────────────
+   Son las etiquetas de PLAZOS de js/datos/taller.js, en el mismo orden (la plataforma guarda el
+   número del cubo, 1 a 5; aquí se escribe lo que una persona entiende). pruebas/puente.mjs
+   compara las dos listas. */
+var PLAZOS_TALLER = ['1 semana', '1.5 semanas', '2 semanas', '2.5 semanas', '3 semanas o más'];
+/* Lo tecleado a mano, a la etiqueta: «2», «2 sem», «1½», «1,5», «3+»… se leen en semanas. Lo que
+   no es ninguno de los cinco sale vacío: no se inventa. La misma regla que `plazoDesdeHoja` del
+   lado de la plataforma. */
+function plazoDeCelda(v) {
+  var s = String(v == null ? '' : v).trim().toLowerCase().replace('½', '.5').replace(',', '.');
+  if (!s) return '';
+  var m = /^(\d+(?:\.\d+)?)/.exec(s);
+  if (!m) return '';
+  var n = Number(m[1]);
+  if (n >= 3) return PLAZOS_TALLER[4];
+  for (var i = 0; i < 4; i++) if (n === [1, 1.5, 2, 2.5][i]) return PLAZOS_TALLER[i];
+  return '';
+}
+
+/* ── Quién gana: el cambio más reciente, dato por dato (puente-sheets-14) ─────────────────────
+   Estas son las columnas de la OBRA que cualquier teléfono puede cambiar y que todos tienen que
+   ver igual. De cada una se guarda en «Sellos» (AI) CUÁNDO se cambió —la hora del teléfono en que
+   la persona lo hizo, no la de llegada—, y un cambio que llega con una hora anterior a la que ya
+   tiene la celda no la pisa: es el teléfono que estuvo sin señal y llega tarde con algo que otro
+   ya cambió después. La fecha y la hora de instalación son UN dato (la cita) y comparten sello,
+   el de «Fecha instalacion». El dinero no está aquí: de ése la hoja es la dueña y baja siempre. */
+var SELLADAS = ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion',
+                'Telefono', 'Entrega', 'Notas', 'Plazo taller'];
+function claveDeSello_(nombre) { return nombre === 'Hora instalacion' ? 'Fecha instalacion' : nombre; }
+/* Un sello del futuro (un teléfono con el reloj adelantado) ganaría para siempre. Lo más que se
+   acepta es la hora de la hoja más diez minutos. */
+var SELLO_HOLGURA_MS = 10 * 60 * 1000;
+function selloValido_(x, ahora) {
+  var n = Number(x);
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.min(Math.floor(n), ahora + SELLO_HOLGURA_MS);
+}
+/** Los sellos de una fila como objeto ({} si no tiene, o si la celda no es JSON). */
+function sellosDeCelda_(x) {
+  var s = String(x == null ? '' : x).trim();
+  if (!s) return {};
+  try {
+    var o = JSON.parse(s.charAt(0) === "'" ? s.slice(1) : s);
+    if (!o || typeof o !== 'object') return {};
+    var out = {};
+    SELLADAS.forEach(function (k) { var n = Number(o[k]); if (isFinite(n) && n > 0) out[k] = Math.floor(n); });
+    return out;
+  } catch (e) { return {}; }
+}
+function sellosATexto_(o) {
+  var out = {}, hay = false;
+  SELLADAS.forEach(function (k) { if (o && Number(o[k]) > 0) { out[k] = Number(o[k]); hay = true; } });
+  return hay ? JSON.stringify(out) : '';
+}
+/** Le pone a la fila el sello `ms` en esas columnas (o se lo quita, con ms = 0). Sin la columna
+ *  AI no hace nada. Devuelve si escribió. */
+function sellarFila_(h, fila, nombres, ms) {
+  if (!tieneColumnasDeObra(h)) return false;
+  var celda = h.getRange(fila, COL['Sellos']);
+  var antes = sellosDeCelda_(celda.getValue());
+  var s = {};
+  for (var k in antes) s[k] = antes[k];
+  nombres.forEach(function (n) {
+    var c = claveDeSello_(n);
+    if (ms > 0) s[c] = ms; else delete s[c];
+  });
+  var texto = sellosATexto_(s);
+  if (texto === sellosATexto_(antes)) return false;
+  celda.setNumberFormat('@').setValue(texto);
+  return true;
 }
 function tieneColumnaEntrega(h) {
   if (h.getMaxColumns() < COL['Entrega']) return false;
@@ -1984,15 +2122,17 @@ var PUENTE_ROLES = {
               'Estatus', 'Cuenta ', 'Fecha Anticipo e Instalacion', 'Fecha Liquidacion',
               'Folio cotizacion', 'Etapa de obra', 'Fecha instalacion', 'Hora instalacion',
               'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision', 'Telefono',
-              'Entrega'],
+              'Entrega', 'Notas', 'Plazo taller'],
   /* El teléfono, los tres (puente-sheets-11): fabricación llama al cliente para instalar y pagos
      le cobra por WhatsApp, y cualquiera de los dos puede ser quien se entera de que cambió. */
   /* La entrega (puente-sheets-12), dirección y fabricación: el taller es quien empaca o entrega en
      mostrador. Pagos la lee y no la escribe. */
   fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion',
-                'Telefono', 'Entrega'],
+                'Telefono', 'Entrega', 'Notas', 'Plazo taller'],
+  /* Las notas, los tres (puente-sheets-14): son las mismas que cada rol ya escribía en la ficha. El
+     plazo de taller, dirección y fabricación: lo decide quien hace el trabajo. */
   pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
-          'Porcentaje comision', 'Telefono']
+          'Porcentaje comision', 'Telefono', 'Notas']
 };
 
 /* ── Lo que cada rol puede LEER ─────────────────────────────────────────────
@@ -2336,7 +2476,10 @@ function rutaEsquema_() {
     { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
     { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' },
     { nombre: 'Telefono', tipo: 'texto', para: 'el teléfono del cliente, para llamarle o escribirle por WhatsApp (puente-sheets-11)' },
-    { nombre: 'Entrega', tipo: 'lista', para: 'cómo sale el trabajo del taller; vacía es Instalación (puente-sheets-12)', opciones: ENTREGAS }
+    { nombre: 'Entrega', tipo: 'lista', para: 'cómo sale el trabajo del taller; vacía es Instalación (puente-sheets-12)', opciones: ENTREGAS },
+    { nombre: 'Notas', tipo: 'texto', para: 'las notas del proyecto, las mismas en todos los teléfonos (puente-sheets-14)' },
+    { nombre: 'Plazo taller', tipo: 'lista', para: 'cuánto tarda el taller en hacerlo; vacío es el que propone la plataforma (puente-sheets-14)', opciones: PLAZOS_TALLER },
+    { nombre: 'Sellos', tipo: 'texto', para: 'cuándo se cambió cada dato de la obra, para que gane el cambio más reciente; la escribe el puente (puente-sheets-14)' }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
@@ -2349,8 +2492,8 @@ function rutaEsquema_() {
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
       : sinAccesos
-        ? 'Las diez columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
-        : 'La hoja ya tiene las diez columnas que la plataforma necesita, y la pestaña «Accesos».' };
+        ? 'Las ' + necesarias.length + ' columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
+        : 'La hoja ya tiene las ' + necesarias.length + ' columnas que la plataforma necesita, y la pestaña «Accesos».' };
 }
 
 /* ------------------------------------------------------------------ /jalar */
@@ -2432,6 +2575,14 @@ function aplanarFila(fila, tz) {
      '' —que la plataforma lee como «la hoja no dice», no como «cámbialo a Instalación»—. Lo
      tecleado a mano sale ya como la opción de la lista (entregaDeCelda). */
   if (fila.length >= COL['Entrega']) out['Entrega'] = entregaDeCelda(v('Entrega'));
+  /* Las notas, el plazo y los sellos (puente-sheets-14), con la misma regla: sin AG:AI no va
+     ninguna de las tres llaves, y la plataforma sabe que esa fila no dice cuándo cambió nada —se
+     queda con lo de antes—. Los sellos van como objeto, ya leídos. */
+  if (fila.length >= COL['Sellos']) {
+    out['Notas'] = String(v('Notas') == null ? '' : v('Notas'));
+    out['Plazo taller'] = plazoDeCelda(v('Plazo taller'));
+    out['Sellos'] = sellosDeCelda_(v('Sellos'));
+  }
   return out;
 }
 
@@ -2578,13 +2729,22 @@ function unaOperacion(h, op, rol, anotaciones) {
       return false;
     });
   }
+  /* Las notas y el plazo contra una hoja sin AG:AI (puente-sheets-14), igual que la entrega. */
+  if (anchoDelPuente(h) < COL['Sellos']) {
+    armado.celdas = armado.celdas.filter(function (c) {
+      if (c.col !== COL['Notas'] && c.col !== COL['Plazo taller']) return true;
+      armado.rechazadas.push({ nombre: nombreDeColumna(c.col), sinColumna: true,
+        por: 'la hoja todavía no tiene las columnas AG:AI (notas, plazo y sellos): falta correr Preparar la hoja (⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente)' });
+      return false;
+    });
+  }
   if (!armado.celdas.length && !armado.abono) {
     /* Si lo único que traía era el teléfono y la hoja no tiene su columna, eso es lo que se dice:
        «este teléfono no puede escribir: Telefono» mandaba a revisar el rol, que está bien. */
     var sinColumna = armado.rechazadas.length && armado.rechazadas.every(function (x) { return x.sinColumna; });
     return { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
              mensaje: sinColumna
-               ? 'No se escribió ' + (armado.rechazadas[0].nombre === 'Entrega' ? 'la entrega' : 'el teléfono') + ': ' + armado.rechazadas[0].por + '.'
+               ? 'No se escribió ' + ({ 'Entrega': 'la entrega', 'Notas': 'la nota', 'Plazo taller': 'el plazo de taller' }[armado.rechazadas[0].nombre] || 'el teléfono') + ': ' + armado.rechazadas[0].por + '.'
                : armado.rechazadas.length
                ? 'Este teléfono no puede escribir: ' + armado.rechazadas.map(function (x) { return x.nombre; }).join(', ')
                : 'No había nada que escribir.',
@@ -2718,12 +2878,55 @@ function unaOperacion(h, op, rol, anotaciones) {
     }
   }
 
+  /* ── Quién gana (puente-sheets-14) ─────────────────────────────────────────────────────
+     De las columnas de la obra (SELLADAS) se escribe solo lo que llega con un sello igual o más
+     nuevo que el que ya tiene la celda; lo más viejo se devuelve en `viejos` —no es un error: otro
+     teléfono, o alguien en la hoja, lo cambió después, y gana—. Una operación sin `sellos` es de
+     una versión anterior de la plataforma: se escribe como siempre y se sella con la hora de
+     llegada. Un sello en cero es «no sé cuándo cambió» (un dato de antes de los sellos): se escribe
+     solo donde la celda tampoco tiene sello. */
+  var viejos = [], sellosNuevos = null;
+  if (anchoDelPuente(h) >= COL['Sellos']) {
+    var ahora = Date.now();
+    var conSellos = !!(op.sellos && typeof op.sellos === 'object');
+    var guardados = sellosDeCelda_(h.getRange(fila, COL['Sellos']).getValue());
+    sellosNuevos = {};
+    for (var kg in guardados) sellosNuevos[kg] = guardados[kg];
+    armado.celdas = armado.celdas.filter(function (c) {
+      var nombre = nombreDeColumna(c.col);
+      if (SELLADAS.indexOf(nombre) === -1) return true;
+      var clave = claveDeSello_(nombre);
+      var llega = conSellos ? selloValido_(op.sellos[nombre] || op.sellos[clave], ahora) : ahora;
+      var tiene = Number(guardados[clave]) || 0;
+      if (tiene && llega < tiene) {
+        viejos.push({ nombre: nombre, por: 'ya tenía un cambio más reciente' });
+        return false;
+      }
+      if (llega > (Number(sellosNuevos[clave]) || 0)) sellosNuevos[clave] = llega;
+      return true;
+    });
+    if (!armado.celdas.length && !armado.abono) {
+      /* Todo lo que traía era más viejo que lo que ya hay: se contesta que sí —ya está, y lo que
+         hay es más nuevo— para que el teléfono lo despache, y con la fila como quedó para que la
+         baje. */
+      var tzV = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+      var hoyV = aplanarFila(h.getRange(fila, 1, 1, anchoDelPuente(h)).getValues()[0], tzV);
+      return { id: op.id, ok: true, creada: creada, remoto: sinLoQueNoLeToca(hoyV, rol),
+               rechazadas: armado.rechazadas, viejos: viejos };
+    }
+  }
+
   armado.celdas.forEach(function (c) {
     var celda = h.getRange(fila, c.col);
     /* El formato ANTES del valor: puesto después, Sheets ya volvió hora el «10:00». */
     if (c.texto) celda.setNumberFormat('@');
     celda.setValue(c.valor);
   });
+  if (sellosNuevos) {
+    var textoSellos = sellosATexto_(sellosNuevos);
+    var celdaS = h.getRange(fila, COL['Sellos']);
+    if (textoSellos !== sellosATexto_(sellosDeCelda_(celdaS.getValue()))) celdaS.setNumberFormat('@').setValue(textoSellos);
+  }
   if (armado.abono && !registrarAbonoDesdePuente(h, fila, armado.abono)) {
     armado.rechazadas.push({ nombre: 'Abono Comision', por: 'no se encontró renglón libre en «' + ABONOS + '»: el abono no se registró' });
     armado.abono = null;
@@ -2741,7 +2944,7 @@ function unaOperacion(h, op, rol, anotaciones) {
      que movía una etapa recibía de vuelta el subtotal, el neto, el anticipo, la comisión y
      la cuenta de esa venta: la lectura cerrada en /jalar se abría por aquí. */
   return { id: op.id, ok: true, creada: creada, remoto: sinLoQueNoLeToca(datos, rol),
-           rechazadas: armado.rechazadas };
+           rechazadas: armado.rechazadas, viejos: viejos };
 }
 
 function nombreDeColumna(col) {
@@ -2823,6 +3026,18 @@ function armarCeldas(datos, rol) {
       var ent = entregaDeCelda(valor);
       if (!ent) { rechazadas.push({ nombre: nombre, por: 'la entrega es «Instalación», «Paquetería» o «Recolección en taller»' }); continue; }
       celdas.push({ col: col, valor: ent });
+    } else if (nombre === 'Plazo taller') {
+      /* Vacío vuelve al plazo que propone la plataforma. Lo demás, uno de los cinco cubos. */
+      if (valor === null || valor === undefined || String(valor).trim() === '') { celdas.push({ col: col, valor: '' }); continue; }
+      var pz = plazoDeCelda(valor);
+      if (!pz) { rechazadas.push({ nombre: nombre, por: 'el plazo es uno de: ' + PLAZOS_TALLER.join(', ') }); continue; }
+      celdas.push({ col: col, valor: pz });
+    } else if (nombre === 'Notas') {
+      /* Texto libre, como la dirección, pero largo: una nota cortada a 2000 bajaría cortada a
+         todos los teléfonos y se comería el final de la de cada uno. Una celda aguanta 50 000. */
+      /* En texto sin formato ('@', como el teléfono): ahí «10:00» no se vuelve hora ni «=…»
+         fórmula, y por eso tampoco lleva apóstrofo, que se quedaría escrito en la nota. */
+      celdas.push({ col: col, valor: String(valor == null ? '' : valor).slice(0, 40000), texto: true });
     } else if (nombre === 'Telefono') {
       /* Vacío borra la celda: es alguien corrigiendo. Lo demás se limpia con la regla de
          telefonoLimpio y, si no queda ni un dígito, se rechaza con su razón en vez de escribir
@@ -4185,9 +4400,13 @@ function textoProtegido(v) {
    que no es un teléfono limpio se protege como cualquier otro texto. */
 function filasProtegidas(filas, desde) {
   var kTel = COL['Telefono'] - (desde || 1);
+  /* Las notas y los sellos (puente-sheets-14) también viven en texto sin formato (notasATexto_):
+     ahí un «- pedir medidas» no es fórmula, y el apóstrofo se quedaría escrito en la nota. */
+  var kNotas = COL['Notas'] - (desde || 1), kSellos = COL['Sellos'] - (desde || 1);
   return filas.map(function (r) {
     return r.map(function (v, k) {
       if (k === kTel && typeof v === 'string' && v !== '' && telefonoLimpio(v) === v) return v;
+      if ((k === kNotas || k === kSellos) && typeof v === 'string') return v;
       return textoProtegido(v);
     });
   });
@@ -4458,10 +4677,26 @@ function prepararHojaParaElPuente() {
     ['Direccion', 220],
     ['Porcentaje comision', 90],
     ['Telefono', 140],
-    ['Entrega', 120]
+    ['Entrega', 120],
+    ['Notas', 260],
+    ['Plazo taller', 120],
+    ['Sellos', 60]
   ];
   var cab = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
+  /* AG:AI (puente-sheets-14) nacen en columnas que antes no eran del puente. Si alguna ya trae
+     OTRO encabezado, alguien la está usando para otra cosa: no se le escribe encima —se avisa y
+     las tres se quedan fuera; lo demás sí se prepara—. */
+  var ocupadas = ['Notas', 'Plazo taller', 'Sellos'].filter(function (n) {
+    var c = cab[COL[n] - 1];
+    return c !== undefined && c !== '' && c !== n;
+  });
+  if (ocupadas.length) {
+    nuevas = nuevas.filter(function (n) { return ['Notas', 'Plazo taller', 'Sellos'].indexOf(n[0]) === -1; });
+    avisar('Las columnas AG, AH y AI de Ventas ya tienen otro encabezado (' +
+      ocupadas.map(function (n) { return '«' + cab[COL[n] - 1] + '»'; }).join(', ') +
+      '), así que no se crearon las notas, el plazo de taller ni los sellos. Muévelas a otra parte y vuelve a correr esto.');
+  }
 
   /* Las posiciones salen de COL y no de un 25 contado a mano: si un día se mueve una
      columna en COL, ésta se mueve con ella en vez de quedarse escribiendo al lado. */
@@ -4485,6 +4720,18 @@ function prepararHojaParaElPuente() {
   h.getRange(2, COL['Entrega'], FIN - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(ENTREGAS, true)
       .setAllowInvalid(false).build()).setHorizontalAlignment('center');
+
+  /* AG:AI (puente-sheets-14): las notas en texto, el plazo con su desplegable y los sellos en
+     texto y ocultos —son de la plataforma, no de quien lee la hoja—. Ninguna se llena: vacías no
+     le dicen nada a ningún teléfono. */
+  if (tieneColumnasDeObra(h)) {
+    h.getRange(2, COL['Notas'], FIN - 1, 1).setNumberFormat('@').setHorizontalAlignment('left');
+    h.getRange(2, COL['Plazo taller'], FIN - 1, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(PLAZOS_TALLER, true)
+        .setAllowInvalid(false).build()).setHorizontalAlignment('center');
+    h.getRange(2, COL['Sellos'], FIN - 1, 1).setNumberFormat('@');
+    try { h.hideColumns(COL['Sellos']); } catch (eOculta) { /* se ve, pero funciona igual */ }
+  }
 
   // Etapa de obra: lista cerrada, igual que en la plataforma
   h.getRange(2, 26, FIN - 1, 1).setDataValidation(

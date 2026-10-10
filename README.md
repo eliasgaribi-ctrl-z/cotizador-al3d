@@ -376,8 +376,8 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               54 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   44 más, que piden Chromium y un servidor
+    pruebas/correr.sh               55 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   45 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

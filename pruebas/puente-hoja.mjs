@@ -1100,7 +1100,7 @@ console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
     eq(rol + ' lo ve bajar', api.sinLoQueNoLeToca({ 'Telefono': '33 1', 'Anticipo': 5 }, rol)['Telefono'], '33 1');
   }
   cierto('no es dinero', api.CAMPOS_DE_DINERO.indexOf('Telefono') === -1);
-  eq('AE es la 31, y ULTIMA_COL (32, la entrega) la alcanza', [api.COL['Telefono'], api.ULTIMA_COL], [31, 32]);
+  eq('AE es la 31, y ULTIMA_COL (35, los sellos) la alcanza', [api.COL['Telefono'], api.ULTIMA_COL], [31, 35]);
   eq('se escribe como texto, limpio', api.armarCeldas({ 'Telefono': '+52 1 33.1234.5678' }, 'fabricacion').celdas.map(c => [c.valor, c.texto]),
      [['+52 1 33 1234 5678', true]]);
   eq('sin un dígito se rechaza con su razón', api.armarCeldas({ 'Telefono': 'no tiene' }, 'pagos').rechazadas.map(x => x.nombre), ['Telefono']);
@@ -1129,7 +1129,7 @@ console.log('\nEL TELÉFONO DEL CLIENTE — columna AE, puente-sheets-11');
   eq('la crea con su encabezado', V.v._g[1][ae], 'Telefono');
   eq('en texto sin formato, para que «+52…» no se vuelva número', [V.v._f[2][ae], V.v._f[309][ae]], ['@', '@']);
   V.run('prepararHojaParaElPuente()');
-  eq('correrla otra vez no agrega otra columna (AE y AF: 32)', V.v.getMaxColumns(), 32);
+  eq('correrla otra vez no agrega otra columna (hasta AI: 35)', V.v.getMaxColumns(), 35);
   const r2 = V.empujar([{ id: 'op3', id_notion: 'V-001', datos: { 'Telefono': '+52 1 33 1234 5678' } }], 'pagos');
   eq('ya con AE, pagos lo escribe tal cual, sin apóstrofo', [r2.resultados[0].ok, V.celda('V-001', 'Telefono')], [true, '+52 1 33 1234 5678']);
   eq('y lo que vuelve trae el teléfono', r2.resultados[0].remoto['Telefono'], '+52 1 33 1234 5678');
@@ -1170,7 +1170,7 @@ console.log('\nLA ENTREGA — columna AF, puente-sheets-12');
     eq(rol + ' la ve bajar', api.sinLoQueNoLeToca({ 'Entrega': 'Paquetería', 'Anticipo': 5 }, rol)['Entrega'], 'Paquetería');
   }
   eq('pagos la manda y se le rechaza', api.armarCeldas({ 'Entrega': 'Paquetería' }, 'pagos').rechazadas.map(x => x.nombre), ['Entrega']);
-  eq('AF es la 32, y ULTIMA_COL la alcanza', [api.COL['Entrega'], api.ULTIMA_COL], [32, 32]);
+  eq('AF es la 32, y ULTIMA_COL la alcanza', [api.COL['Entrega'], api.ULTIMA_COL], [32, 35]);
   eq('la lista: las tres opciones', hojaDeMentiras().run('ENTREGAS'), ['Instalación', 'Paquetería', 'Recolección en taller']);
   eq('lo tecleado a mano se vuelve la opción de la lista',
      api.armarCeldas({ 'Entrega': 'paqueteria' }, 'fabricacion').celdas.map(c => c.valor), ['Paquetería']);
@@ -1203,7 +1203,7 @@ console.log('\nLA ENTREGA — columna AF, puente-sheets-12');
      [['Instalación', 'Paquetería', 'Recolección en taller'], false]);
   eq('no la llena: vacía es instalación', V.celda('V-001', 'Entrega'), '');
   V.run('prepararHojaParaElPuente()');
-  eq('correrla otra vez no agrega otra columna', [V.v.getMaxColumns(), V.v._g[1][af]], [32, 'Entrega']);
+  eq('correrla otra vez no agrega otra columna', [V.v.getMaxColumns(), V.v._g[1][af]], [35, 'Entrega']);
   eq('/esquema ya no la pide', V.run('rutaEsquema_()').faltan.some(x => x.nombre === 'Entrega'), false);
   const r2 = V.empujar([{ id: 'op3', id_notion: 'V-001', datos: { 'Entrega': 'Paquetería' } }], 'fabricacion');
   eq('ya con AF, fabricación la escribe', [r2.resultados[0].ok, V.celda('V-001', 'Entrega')], [true, 'Paquetería']);
@@ -1320,8 +1320,8 @@ console.log('\nREGISTRAR NUEVA VENTA PIDE LOS DATOS PARA LA ENTREGA — puente-s
   eq('sin AE ni AF la venta entra, con su dirección', [V.fila(r7.folio) > 0, V.celda(r7.folio, 'Direccion')], [true, 'Av. Patria 100']);
   cierto('  y dice que el teléfono y la entrega esperan a «Preparar la hoja»', /teléfono ni la entrega/.test(r7.nota) && /Preparar la hoja/.test(r7.nota));
 
-  eq('la versión es la 13', api.PUENTE_VERSION, 'puente-sheets-13');
-  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-13');
+  eq('la versión es la 14', api.PUENTE_VERSION, 'puente-sheets-14');
+  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-14');
 }
 
 console.log('\nLA HOJA LEE EL LINK DE MAPS IGUAL QUE LA PLATAFORMA (coordenadasDeMaps_ = parseGmaps)');
