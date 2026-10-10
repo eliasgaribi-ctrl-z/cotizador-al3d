@@ -53,15 +53,15 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Límites del plan gratuito | hecho | Verificados el 2026-10-10 (ver «Verificado vs. no verificado») |
 | Arnés de pruebas de base de datos en PGlite | hecho | [`supabase/tests/`](../supabase/tests/README.md): `arnes/`, `autoprueba.mjs`, `correr.sh` |
 | Módulos puros de las funciones: sello de autorización, enlace corto de Maps, inteligencia artificial y verificación | hecho y verificado | `supabase/functions/_shared/{sello,maps,ia,verificar}.js` y `pruebas/supabase-{sello,maps,ia}.mjs`. Probados contra el `.gs` **real** cargado en una máquina virtual (22 127 casos del sello) y, por mutación, rompiéndolos a propósito: cada rotura la detecta alguna prueba |
-| Las 11 migraciones (base común, acceso, proyectos y dinero, fórmulas, almacén, funciones de obra, de pagos, notario, cupos, espejo, auditoría) | hecho y verificado | `supabase/migrations/0001`…`0011` (17 tablas, vistas con `security_invoker`, funciones `SECURITY DEFINER` con `search_path` fijo). **Aplicadas sin error en el proyecto real `al3d-pruebas`** y la auditoría `0011` pasó ahí |
-| Pruebas de la base: acceso, RLS y dinero, fórmulas al centavo, obra y etapas, pagos, almacén, notario, cupos, sincronización y auditoría | hecho y verificado en PGlite | `supabase/tests/`: **32 archivos, 772 comprobaciones, 0 fallos** (`sh supabase/tests/correr.sh`, ~4 min). Cada caso lleva su id de `supabase/DISENO.md` §10, permitido **y** denegado por rol. 70 mutaciones a las migraciones: las que sobrevivieron al principio se reforzaron y hoy todas mueren |
-| **Prueba de humo en Supabase real**: las tres áreas simuladas con sus reglas de acceso (Fabricación no ve dinero, Pagos cobra y reenviar un cobro no lo suma dos veces, la persona ajena no ve nada, anon denegado, fórmulas 4640 / 3640 / 400) | hecho y verificado **en el proyecto real** | `supabase/opcional/prueba-de-humo.sql`: **23 de 23** el 2026-10-10. Además, desde internet con solo la llave pública: anon no lee `proyectos` ni `ventas_dinero`, no inserta, no ejecuta `mi_acceso` y el esquema `interno` no está expuesto |
+| Las 12 migraciones (base común, acceso, proyectos y dinero, fórmulas, almacén, funciones de obra, de pagos, notario, cupos, espejo, auditoría) | hecho y verificado | `supabase/migrations/0001`…`0012` (17 tablas, vistas con `security_invoker`, funciones `SECURITY DEFINER` con `search_path` fijo). **Aplicadas sin error en el proyecto real `al3d-pruebas`** y la auditoría `0011` pasó ahí, también después de `0012` (el endurecimiento que dejó la revisión adversarial) |
+| Pruebas de la base: acceso, RLS y dinero, fórmulas al centavo, obra y etapas, pagos, almacén, notario, cupos, sincronización y auditoría | hecho y verificado en PGlite | `supabase/tests/`: **33 archivos, 780 comprobaciones, 0 fallos** (`sh supabase/tests/correr.sh`, ~4 min). Cada caso lleva su id de `supabase/DISENO.md` §10, permitido **y** denegado por rol. 70 mutaciones a las migraciones: las que sobrevivieron al principio se reforzaron y hoy todas mueren |
+| **Prueba de humo en Supabase real**: las tres áreas simuladas con sus reglas de acceso (Fabricación no ve dinero, Pagos cobra y reenviar un cobro no lo suma dos veces, la persona ajena no ve nada, anon denegado, fórmulas 4640 / 3640 / 400) | hecho y verificado **en el proyecto real** | `supabase/opcional/prueba-de-humo.sql`: **27 de 27** el 2026-10-10 (los cuatro últimos son del endurecimiento: `NaN` e `Infinity` se rechazan y una cuenta de correo que no es de Google no reclama Dirección). Además, desde internet con solo la llave pública: anon no lee `proyectos` ni `ventas_dinero`, no inserta, no ejecuta `mi_acceso` y el esquema `interno` no está expuesto |
 | Funciones del servidor: `salud`, `verificar`, `maps`, `ia` | hecho y verificado en node y en Deno | `supabase/functions/*` y `pruebas/supabase-funciones.mjs` (452 comprobaciones en node y 401 bajo Deno 2.9.6; `deno check` pasa). **No se han desplegado** (necesitan tus secretos) |
 | Inicio de sesión con Google (Supabase Auth) | configurado en el proyecto de pruebas; **falta el cliente** | Google habilitado en `al3d-pruebas` con el Client ID público de la app (el flujo de «ID token» no pide secreto), Site URL y redirecciones de GitHub Pages y pages.dev. El código del cliente (puerta) está en la segunda entrega |
 | Probar el inicio de sesión en iPhone con la aplicación instalada | bloqueado por Elías | `DECISIONES-SUPABASE.md`, Q-08 |
 | Cargar los secretos reales | bloqueado por Elías | `PLAN-SUPABASE.md` §4.12; lista de nombres en `supabase/README.md` |
 
-**Puerta de salida:** pruebas de RLS en verde para los tres roles; ninguna fila real todavía. **Cumplida**: PGlite 772/772 y el proyecto real 23/23, sin una sola fila real.
+**Puerta de salida:** pruebas de RLS en verde para los tres roles; ninguna fila real todavía. **Cumplida**: PGlite 780/780 y el proyecto real 27/27, sin una sola fila real.
 
 ## Fase 2 — Importar
 
@@ -147,8 +147,8 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | **Límites del plan gratuito de Supabase:** 500 MB de base de datos, 1 GB de archivos, 5 GB de egress (datos que salen), 500 000 invocaciones de funciones al mes, 200 conexiones de Realtime (la actualización en vivo), **pausa tras una semana sin actividad** y **sin respaldos automáticos** | En la página de precios, `supabase.com/pricing`, el 2026-10-10 | — |
 | **La firma HMAC de dos argumentos de Apps Script** (`Utilities.computeHmacSha256Signature(valor, clave)`) codifica el valor **y la clave** en ASCII, sustituyendo por «?» cada carácter que no es ASCII. **No es UTF-8** | Ejecutada el 2026-10-10 en Apps Script de verdad (un proyecto de prueba, con claves de prueba): doce firmas | `pruebas/datos/hmac-apps-script-real.json`. El bloque 5 de `pruebas/supabase-sello.mjs` exige que el módulo del sello las reproduzca byte a byte, y los sellos nuevos se firman con esa misma codificación |
 | **Las 60 pruebas de node del repositorio pasan** (las 55 que ya había más las 5 nuevas) | `sh pruebas/correr.sh`: Windows 11, Node 24.17, 4 min 26 s, salida 0, el 2026-10-10 | `pruebas/*.mjs` |
-| **Las 11 migraciones corren en Supabase de verdad** y su auditoría pasa | Aplicadas una por una en el Editor SQL de `al3d-pruebas` el 2026-10-10. La auditoría `0011` **abortó la primera vez** por una función que Supabase mismo instala (`rls_auto_enable`, de tipo `event_trigger`, que no se puede invocar como RPC); se corrigió la auditoría, con prueba, y pasó | `supabase/migrations/0011_auditoria.sql`, `supabase/tests/auditoria/auditoria.mjs` |
-| **Prueba de humo en el proyecto real: 23 de 23** | 2026-10-10, en el Editor SQL de `al3d-pruebas`; siempre se deshace sola | `supabase/opcional/prueba-de-humo.sql` |
+| **Las 12 migraciones corren en Supabase de verdad** y su auditoría pasa | Aplicadas una por una en el Editor SQL de `al3d-pruebas` el 2026-10-10. La auditoría `0011` **abortó la primera vez** por una función que Supabase mismo instala (`rls_auto_enable`, de tipo `event_trigger`, que no se puede invocar como RPC); se corrigió la auditoría, con prueba, y pasó | `supabase/migrations/0011_auditoria.sql`, `supabase/tests/auditoria/auditoria.mjs` |
+| **Prueba de humo en el proyecto real: 27 de 27** | 2026-10-10, en el Editor SQL de `al3d-pruebas`; siempre se deshace sola | `supabase/opcional/prueba-de-humo.sql` |
 | Acceso anónimo cerrado, comprobado desde internet con la llave pública | 2026-10-10: `proyectos` y `ventas_dinero` dan 401 («permission denied»), insertar también, `mi_acceso` también, y el esquema `interno` no está expuesto (`PGRST106`) | — |
 | Los 6 puntos que el plan 4.6 mandaba verificar del plan gratuito | 2026-10-10 en supabase.com/pricing (ver arriba) | — |
 | `/rest/v1/` a secas **ya no sirve** para mantener despierto el proyecto (pide llave secreta: 401); sí contestan con la llave pública `/auth/v1/health` y una consulta a una tabla | 2026-10-10 contra `al3d-pruebas`; el flujo de GitHub se probó en sus 4 escenarios (sin variable, dirección ajena, proyecto real, proyecto inexistente → rojo) | `.github/workflows/mantener-activo.yml` |
@@ -185,6 +185,38 @@ El plan se aprobó tal como está y no se reescribe: estas notas lo corrigen.
 
 ---
 
+## Revisión adversarial del SQL (2026-10-10)
+
+Un revisor que **no escribió** las migraciones intentó romperlas en el arnés: unos 100 ataques y 96 mutaciones diseñadas (60 corridas contra la batería completa). Informe completo en el PR #100.
+
+**Limpio** (sin hallazgos): **ninguna fuga de dinero hacia Fabricación** (22 importes únicos metidos por todos los caminos de escritura, ninguno apareció en 78 fuentes que Fabricación puede leer: tablas, vistas, funciones, errores, catálogo, Realtime); ninguna escalada por membresía (escritura directa, `miembro_*`, correo sin verificar, anónimo, claims forjados, alias de Gmail, baja en caliente); privilegios, `search_path` y vistas `security_invoker` limpios; aislamiento de lectura entre empresas; libros y autorizaciones inmutables (ni `service_role` puede editarlos); idempotencia por `op_id`; inyección SQL en `almacen_aplicar`.
+
+**Corregido en `0012_endurecimiento.sql`, con pruebas que fallan sin ella:**
+
+| Hallazgo | Qué pasaba | Arreglo |
+|---|---|---|
+| **A-1 (alta)** | `NaN`, `Infinity` y valores enormes pasaban la guarda `monto <= 0` (en `numeric`, NaN no es `<= 0`): Pagos liquidaba **todas** las comisiones pendientes con `repartir_abono_fifo('NaN')` sin un depósito, en un libro solo-agregar | Las tres funciones de cobro y reparto exigen `0 < monto < 1e9`; las tablas lo exigen también |
+| M-5 | Un `subtotal` de `9e131071` rompía la vista de fórmulas y el cuadre para todos | Cota en `ventas_dinero` |
+| M-2 | Un requerimiento con cantidad `NaN` o `>= 1e7` rompía las salidas de material y el corte de etapa de todos | Cota en `requerimientos` |
+| M-1 | `emitir_salidas_derivadas(p_hoy)` confiaba en la fecha del cliente: Pagos con `2099-12-31` consumía material de forma irreversible | El día lo decide el servidor (el del cliente solo cuenta si difiere a lo más 1 día) |
+| M-3 | Textos sin tope: filas de 8 MB que sincronizan todos los teléfonos; 62 MB permanentes en un reparto | Topes de longitud |
+| M-6 | El planificador estima con estadísticas de filas que la RLS oculta (canal lateral por `EXPLAIN`/`count=planned`) | Sin estadísticas en las columnas de texto y fecha de las tablas de dinero |
+| Configuración | Con «Confirm email» apagado, una cuenta de correo y contraseña reclamaba la invitación de Dirección | `correo_verificado()` exige proveedor Google; `config.toml` sin registros por correo ni anónimos; **proveedor de correo apagado en `al3d-pruebas`** (verificado: solo `google` activo) |
+| Mutantes M52, M53, M54 | Ninguna prueba llamaba una función con el id de un proyecto de **otra empresa**: quitar el filtro por empresa habría dejado a una Dirección ajena cobrar o editar | Prueba de cruce entre empresas por función |
+
+**Abierto, a propósito** (no bloquea porque todo está apagado, **bloquea encender** lo que se indica):
+
+| Hallazgo | Riesgo | Antes de encender |
+|---|---|---|
+| `subida_unica` acepta `usuario`, `rol`, `ts` y `id` del cliente en la bitácora: Fabricación puede forjar un «Cobro de $999,999» atribuido a Pagos y ocupar el `op_id` de un evento real | media | La subida única del historial (fase 2) |
+| La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`) | media | Decidir: acotar a unos segundos o que Dirección gane siempre |
+| `almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material | media | Fase de almacén |
+| Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`) | media | Fase de almacén |
+| Ids y contadores globales entre empresas (oráculo de existencia, `folio_cot:*` sin tope), invitación cruzada | baja hoy (solo existe `al3d`) | Antes de dar de alta una segunda empresa |
+| `origen_obra`: la lista blanca es de primer nivel y `contiene_dinero` es una lista de nombres | baja hoy (`renders` y `propuesta` son listas de imágenes) | Cuando el cliente mande `origen` |
+| Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales | baja | Con la subida única |
+| La hoja espejo tiene todo el dinero **fuera de RLS** (R-05 del diseño) | depende de con quién se comparta el archivo de Drive | Antes de encender el espejo: que Fabricación no tenga acceso a ese archivo |
+
 ## Lo que NO entra en esta entrega (segunda entrega)
 
 No se hizo por una razón concreta, no por olvido: cada pieza necesita datos reales, secretos o una decisión tuya, o es código de cliente que no se puede validar sin los teléfonos.
@@ -199,7 +231,9 @@ No se hizo por una razón concreta, no por olvido: cada pieza necesita datos rea
 ## Cierre de la primera entrega
 
 - [x] `README.md` ya dice **60** pruebas de node (se movió con cada prueba nueva) y `pruebas/publicacion.mjs` pasa.
-- [x] Corridas completas: `sh pruebas/correr.sh` (60 archivos, salida 0) y `sh supabase/tests/correr.sh` (32 archivos, 772 comprobaciones, 0 fallos).
+- [x] Corridas completas: `sh pruebas/correr.sh` (60 archivos, salida 0) y `sh supabase/tests/correr.sh` (33 archivos, 780 comprobaciones, 0 fallos).
 - [x] Migraciones aplicadas, auditadas y probadas en el proyecto real de pruebas.
-- [ ] Revisión de seguridad adversarial del SQL (un agente que no lo escribió intenta romperlo): ver el PR.
+- [x] Revisión de seguridad adversarial del SQL por alguien que no lo escribió: hecha; lo crítico y barato está en `0012`, el resto está en la tabla «Abierto, a propósito».
+- [x] La CI de Linux cazó una prueba vieja del espejo (comparaba el texto de un `REVOKE` que el endurecimiento cambió): corregida.
+- [ ] Segunda opinión con otro modelo (prompt en `docs/REVISION-INDEPENDIENTE-SUPABASE.md`): pendiente, a cargo de Elías.
 - [ ] Que Elías revise, confirme o cambie las decisiones (`DECISIONES-SUPABASE.md`) y apruebe el PR en GitHub.
