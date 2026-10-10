@@ -153,10 +153,12 @@ begin
   execute 'reset role';
 
   -- 6) El catálogo de la base REAL (lo mismo que audita la migración 0011, pero aquí a la vista).
+  -- Se exime el tipo `event_trigger`: con «RLS automático» encendido Supabase instala public.rls_auto_enable() (no se puede llamar
+  -- como RPC: «cannot display a value of type event_trigger»; comprobado contra el proyecto real el 2026-10-10).
   select count(*) into n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-   where s.nspname in ('public', 'interno') and has_function_privilege('anon', p.oid, 'execute');
+   where s.nspname in ('public', 'interno') and p.prorettype <> 'pg_catalog.event_trigger'::regtype and has_function_privilege('anon', p.oid, 'execute');
   select string_agg(p.proname, ', ') into t from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-   where s.nspname in ('public', 'interno') and has_function_privilege('anon', p.oid, 'execute');
+   where s.nspname in ('public', 'interno') and p.prorettype <> 'pg_catalog.event_trigger'::regtype and has_function_privilege('anon', p.oid, 'execute');
   inf := inf || jsonb_build_object('caso', 'C19 ninguna función de public/interno ejecutable por anon', 'ok', n = 0, 'det', coalesce(t, '0'));
   select count(*) into n from pg_class c join pg_namespace s on s.oid = c.relnamespace
    where s.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity;
