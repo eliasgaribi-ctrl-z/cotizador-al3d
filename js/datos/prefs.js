@@ -217,6 +217,11 @@ export function sello() {
 /** ¿Ya se presentó quien usa este dispositivo? Si no, la plataforma lo pregunta una vez. */
 export const sinPresentar = () => !nombre();
 
+/* Por omisión sigue OpenStreetMap, y no CARTO Voyager, aunque Voyager se parece más a Google Maps.
+   Se intentó en octubre de 2026 y no se puede: CARTO ya no sirve sus cuadros sin llave —cada uno
+   llega con la marca «API KEY REQUIRED» encima, con cualquier Referer, comprobado—, así que
+   cambiar la omisión habría dejado el mapa de todos tachado. El parecido con Google se le da a los
+   cuadros de OSM en la hoja de estilos (`#mapa-lienzo .leaflet-tile-pane`). */
 export function tiles() {
   const t = get(CLAVES.TILES, 'osm');
   return ['osm', 'carto', 'google'].includes(t) ? t : 'osm';
