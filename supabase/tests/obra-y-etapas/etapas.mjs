@@ -262,11 +262,15 @@ describir('ET-14 y ET-15 la degradación: emitir_salidas_derivadas', () => {
       igual([r.ok, r.proyectos], [true, 2]);
     });
   });
-  prueba('p_hoy mueve el día: con la fecha de dentro de 3 días la instalación de «en 3 días» también emite', async () => {
-    await conInstalaciones(async db => {
-      const r = await sesionDe(db, db.u.dir).transaccion(async t => rpcT(t, 'emitir_salidas_derivadas', { p_hoy: new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10) }));
-      igual(r.proyectos, 3, 'd1, d2 y d3; ni la cita cancelada (d4) ni el proyecto cancelado (d5)');
-    });
+  prueba('p_hoy ya NO mueve el día a voluntad (hallazgo M-1 de la revisión adversarial): solo cuenta si difiere a lo más 1 día de hoy en México; +3 días, +2000 días y 2099 se ignoran', async () => {
+    const dia = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    /* Sin p_hoy emiten d1 y d2 (2 proyectos). Con +3 días antes emitía también d3; ahora se ignora y sigue en 2: nadie puede consumir material por adelantado. */
+    for (const [quien, p_hoy] of [['dir', dia(3)], ['pag', dia(3)], ['pag', '2099-12-31'], ['fab', dia(2000)]]) {
+      await conInstalaciones(async db => {
+        const r = await sesionDe(db, db.u[quien]).transaccion(async t => rpcT(t, 'emitir_salidas_derivadas', { p_hoy }));
+        igual([r.ok, r.proyectos], [true, 2], quien + ' con p_hoy ' + p_hoy);
+      });
+    }
   });
 });
 

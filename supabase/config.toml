@@ -52,3 +52,16 @@ verify_jwt = false
 
 [functions.espejo]
 verify_jwt = false
+
+# Autenticación: SOLO Google. La revisión adversarial (2026-10-10) mostró que `correo_verificado()` confiaba en `email_confirmed_at` y que, con las
+# confirmaciones por correo apagadas (el valor por omisión de la CLI), alguien con correo y contraseña reclamaba una invitación. La migración 0012 ya exige
+# además el proveedor Google; esto cierra el otro lado: no se pueden crear cuentas con correo ni sesiones anónimas. Se aplica al proyecto con `supabase config push`
+# o a mano en Authentication > Sign In / Providers (Email apagado). Las altas con Google siguen abiertas (`enable_signup`): la persona nueva entra y la RLS le niega
+# todo mientras no esté en `miembros` (sin_acceso).
+[auth]
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true

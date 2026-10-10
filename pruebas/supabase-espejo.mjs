@@ -1881,7 +1881,7 @@ console.log('\n18. EL CONTRATO CON LA BASE — supabase/migrations/ y config.tom
        Object.values(E.FLUJOS).map(f => [columnas[f.vista] ? columnas[f.vista].includes(f.ts) : false, columnas[f.vista] ? columnas[f.vista].includes(f.id) : false, columnas[f.vista] ? columnas[f.vista].includes('empresa_id') : false]),
        Object.values(E.FLUJOS).map(() => [true, true, true]));
     cierto('las dos vistas son solo de service_role (nadie más ve el dinero) y están en el esquema public, el que sirve PostgREST',
-           /revoke all on public\.espejo_ventas, public\.espejo_abonos from public, anon, authenticated;/i.test(limpia)
+           /revoke all on public\.espejo_ventas, public\.espejo_abonos from public, anon, authenticated(, service_role)?;/i.test(limpia)
            && /grant select on public\.espejo_ventas, public\.espejo_abonos to service_role;/i.test(limpia));
 
     /* ── los valores: todo lo que la base puede mandar, la hoja lo acepta ── */

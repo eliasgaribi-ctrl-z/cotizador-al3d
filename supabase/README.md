@@ -7,7 +7,7 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 | Carpeta o archivo | Qué es |
 |---|---|
 | [`DISENO.md`](DISENO.md) | El diseño del esquema: tablas, reglas de acceso, funciones, vista de fórmulas, plan de pruebas |
-| `migrations/` | Las 11 migraciones SQL, en orden (`0001` a `0011`); ver [`migrations/README.md`](migrations/README.md) |
+| `migrations/` | Las 12 migraciones SQL, en orden (`0001` a `0012`); ver [`migrations/README.md`](migrations/README.md) |
 | `tests/` | Pruebas de la base con PGlite (PostgreSQL en WASM, sin Docker): `sh supabase/tests/correr.sh`; ver [`tests/README.md`](tests/README.md) |
 | `functions/` | Funciones del servidor (Deno): `salud`, `verificar`, `maps`, `ia`, `espejo`, con su código compartido en `_shared/` |
 | `opcional/` | Lo que no corre en PGlite: `prueba-de-humo.sql` (para un proyecto real), `storage.sql`, `semilla_materiales.mjs`, `keepalive.md` |
@@ -18,8 +18,9 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 1. **Crear el proyecto** con «Enable Data API» encendido, «Automatically expose new tables» **apagado** y «Enable automatic RLS»
    encendido (cada migración declara sus propios `GRANT`/`REVOKE`; con la exposición automática encendida los privilegios finales
    quedan iguales, y una prueba lo demuestra).
-2. **Correr `migrations/0001` … `0011` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
-   se corre de una vez. `0011` es la **auditoría**: si algo quedó mal protegido, aborta nombrando la regla (GR-xx).
+2. **Correr `migrations/0001` … `0012` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
+   se corre de una vez. `0011` es la **auditoría**: si algo quedó mal protegido, aborta nombrando la regla (GR-xx); `0012` es el
+   endurecimiento que dejó la revisión adversarial. Después de `0012` conviene volver a correr `0011` (es idempotente).
    Si Supabase pregunta por «operaciones destructivas» es el aviso genérico por los `REVOKE`/`ALTER`; en un proyecto vacío es seguro.
 3. **Correr `opcional/prueba-de-humo.sql`** completo. Simula a las tres áreas y siempre se deshace; el «error» final
    `HUMO_RESULTADO {"fallos":0,…}` es el resultado esperado (verde = `fallos` en 0).

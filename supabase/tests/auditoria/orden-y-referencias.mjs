@@ -1,7 +1,7 @@
 // El orden de las migraciones y lo que cada archivo nombra — A.md §9.1: «un archivo no depende de nada posterior».
 //
 // Dos comprobaciones que ninguna otra prueba hace:
-//   1. ESTÁTICA, sobre el texto de los once archivos: cada objeto (`interno.x`, `public.x`) que un archivo nombra —también DENTRO del cuerpo de una función plpgsql, que
+//   1. ESTÁTICA, sobre el texto de los doce archivos: cada objeto (`interno.x`, `public.x`) que un archivo nombra —también DENTRO del cuerpo de una función plpgsql, que
 //      Postgres no revisa al crearla— existe, y lo define ese mismo archivo o uno ANTERIOR. Un nombre mal escrito en un cuerpo de función solo truena el día que alguien
 //      llama a esa función; aquí truena al correr las pruebas.
 //   2. DINÁMICA: cada archivo carga sobre una base que tiene SOLO sus dependencias declaradas (la tabla «Depende de» de §9.1) y un archivo no carga sin ellas.
@@ -54,8 +54,8 @@ function referencias(texto0) {
 }
 
 describir('referencias estáticas: todo lo que un archivo nombra existe y es de ese archivo o de uno anterior', () => {
-  prueba('hay once archivos numerados del 0001 al 0011 sin huecos', () => {
-    igual(ARCHIVOS.map(NUM), Array.from({ length: 11 }, (_, i) => i + 1));
+  prueba('hay doce archivos numerados del 0001 al 0012 sin huecos', () => {
+    igual(ARCHIVOS.map(NUM), Array.from({ length: 12 }, (_, i) => i + 1));
     cierto(DEF.size > 100, 'se encontraron las definiciones: ' + DEF.size);
   });
   prueba('ningún archivo nombra un objeto que NO exista en ninguna migración (un nombre mal escrito en el cuerpo de una función solo truena al llamarla)', () => {
@@ -63,7 +63,7 @@ describir('referencias estáticas: todo lo que un archivo nombra existe y es de 
     for (const [f, t] of Object.entries(TEXTOS)) for (const r of referencias(t)) if (!DEF.has(r)) huerfanas.push(`${f}: ${r}`);
     igual(huerfanas, []);
   });
-  prueba('ningún archivo nombra un objeto que defina un archivo POSTERIOR (el orden 0001…0011 es suficiente y necesario)', () => {
+  prueba('ningún archivo nombra un objeto que defina un archivo POSTERIOR (el orden 0001…0012 es suficiente y necesario)', () => {
     const adelantadas = [];
     for (const [f, t] of Object.entries(TEXTOS)) for (const r of referencias(t)) if (DEF.has(r) && DEF.get(r) > NUM(f)) adelantadas.push(`${f} nombra ${r}, que define 000${DEF.get(r)}`.replace('000' + DEF.get(r), String(DEF.get(r)).padStart(4, '0')));
     igual(adelantadas, []);
@@ -98,7 +98,7 @@ describir('referencias estáticas: todo lo que un archivo nombra existe y es de 
 });
 
 describir('idempotencia dinámica: volver a aplicar todo sobre una base ya migrada y con datos', () => {
-  prueba('los once archivos se aplican DOS veces más sin error, no tocan un solo dato, no cambian lo que cada rol ve ni lo que puede ejecutar, y la auditoría sigue limpia', async () => {
+  prueba('los doce archivos se aplican DOS veces más sin error, no tocan un solo dato, no cambian lo que cada rol ve ni lo que puede ejecutar, y la auditoría sigue limpia', async () => {
     const db = await crearBaseDePruebas();
     try {
       db.u = await sembrarUsuarios(db);
