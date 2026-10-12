@@ -78,8 +78,8 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Pieza | Estado | Evidencia |
 |---|---|---|
 | Ruta `espejo` en el Apps Script y función de Supabase que la llama | hecho y verificado con dobles, **apagado** | [`puente/ESPEJO.md`](../puente/ESPEJO.md); `pruebas/supabase-espejo.mjs` (592 comprobaciones; 113 roturas a propósito, todas detectadas). Con el modo espejo apagado las 13 pruebas existentes que leen el `.gs` dan lo mismo antes y después |
-| Parche de seguridad del `/expandir` (la lista blanca aceptaba `https://maps.google.com:x@evil.example/` y conectaba a evil.example) | hecho y verificado | `puente/hoja-apps-script.gs` (`expandirLiga_`) y su prueba. **Es un hueco que existe hoy en producción**: se corrige cuando se pegue el código nuevo en Apps Script |
-| Pegar y publicar el código nuevo en Apps Script | bloqueado por Elías | `DECISIONES-SUPABASE.md`, Q-10. El código del repositorio no toca la hoja real |
+| Parche de seguridad del `/expandir` (la lista blanca aceptaba `https://maps.google.com:x@evil.example/` y conectaba a evil.example) | hecho y verificado | `puente/hoja-apps-script.gs` (`expandirLiga_`) y su prueba. Corre en producción desde la versión 17 del Apps Script (2026-10-12) |
+| Pegar y publicar el código nuevo en Apps Script | hecho el 2026-10-12, **espejo apagado** | Versión 18 de la implementación de siempre (misma URL), `puente-sheets-14` de `main` (`09a7842`), 366,228 caracteres, comprobado tras recargar el editor. Se corrió «3 · Preparar la hoja»: Ventas tiene AG «Notas», AH «Plazo taller» y AI «Sellos» oculta. Mientras no se carguen `ESPEJO_SECRETO` y `MODO_ESPEJO` (no existían antes de esta versión), `/espejo` no hace nada |
 | La plataforma escribe en la base a través de la bandeja | pendiente | — |
 | Cuadre diario automático | pendiente | — |
 
@@ -131,7 +131,7 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Probar el inicio de sesión con Google en el iPhone con la aplicación instalada | Fase 1 | `DECISIONES-SUPABASE.md`, Q-08 |
 | Probar un QR impreso real en las dos direcciones (`github.io` y `pages.dev`) | Antes de retirar `/verificar` de Apps Script | `DECISIONES-SUPABASE.md`, Q-11 |
 | Confirmar que el plan gratuito alcanza para el tamaño actual (las imágenes y los respaldos son lo más probable que lo rebase) | Antes de la fase 2 | `PLAN-SUPABASE.md` §9, punto 7 |
-| Pegar y publicar en Apps Script el código con la ruta `espejo`, y subir el tope de filas (`FIN`) | Fase 3 | `DECISIONES-SUPABASE.md`, Q-10 |
+| Subir el tope de filas (`FIN`) y cargar `ESPEJO_SECRETO` y `MODO_ESPEJO` (el código con la ruta `espejo` ya está publicado desde el 2026-10-12) | Fase 3 | `DECISIONES-SUPABASE.md`, Q-10 |
 | Avisar al equipo de que la hoja deja de ser editable y pasarla a solo lectura | Fase 4 | `PLAN-SUPABASE.md` §9, punto 3 |
 
 ---
@@ -165,7 +165,6 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Que el **Editor SQL corre cada archivo como una sola transacción** | Lo vimos funcionar (11 archivos, ningún estado a medias) pero no se pudo forzar un error a medio archivo para comprobar el retroceso | — |
 | Las **45 pruebas de navegador** | No corren en Windows: usan rutas de Linux para el navegador (por ejemplo `pruebas/navegador/publicas.mjs`, líneas 38 y 46). No hay integración continua | Quien monte un entorno de Linux, o adapte las rutas |
 | Lo que hace Google Sheets en los **empates de redondeo** de `ROUND` | Solo se midió el redondeo de JavaScript. La prueba que cuenta es comparar contra los valores reales de la hoja, por folio | Una exportación de la hoja real, para la prueba de cuadre |
-| Que el código de Apps Script que corre en producción sea el del repositorio | `puente/DESPLIEGUE.md` dice que «la copia que manda es la de la hoja»; las pruebas leen la del repositorio | Elías, bajando el código de la hoja |
 | Que la **copia de la hoja** conserve las propiedades del script (sello, llaves de IA, tokens) y sus disparadores | No hay documentación que lo afirme; hay que probarlo con una copia desechable antes de llamar «respaldo» a esa copia | Elías o quien haga la copia |
 | Qué datos del perfil de Google guardará el servicio de entrada de Supabase | Se decide al construir el inicio de sesión | Fase 1 |
 
