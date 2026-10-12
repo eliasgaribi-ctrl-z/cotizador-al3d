@@ -67,6 +67,10 @@ import * as Prefs from '../datos/prefs.js';
    dos módulos que la puerta necesita siempre, así que tampoco se está pagando de más. */
 import * as Ingreso from './ingreso.js';
 import * as Puente from '../datos/puente.js';
+/* El captcha va estático por lo mismo que los dos de arriba: nada de esperar un archivo en la red
+   entre una pantalla y lo que se hace con ella. Si no hay clave (js/nucleo/captcha.js) no hace
+   nada, y la puerta es la de siempre. */
+import * as Captcha from './captcha.js';
 import { $, esc } from './ui.js';
 import { hoyISO } from './fechas.js';
 
@@ -155,6 +159,12 @@ const MSG = {
                               'Cada día se vuelve a entrar con Google: así se sabe quién usa este aparato.'),
   SIN_RED_HOY: aviso('Para entrar hoy hace falta señal: cada día se confirma con Google quién usa este ' +
                      'aparato. Conéctate y vuelve a intentar; ya adentro, el resto del día funciona sin red.'),
+  /* El captcha. `ESPERA` sale solo si alguien toca «Entrar» antes de que termine: mientras tanto el
+     botón no abre la ventana de Google, porque el visto bueno suele llegar en uno o dos segundos
+     y una ventana que se abre antes de tiempo se abre sin él. `ABIERTO` es el fallo abierto de
+     captcha.js: se dice, y se deja entrar. */
+  CAPTCHA_ESPERA: 'Un momento: se está comprobando que eres una persona. Cuando termine, toca «Entrar con Google» otra vez.',
+  CAPTCHA_ABIERTO: 'No se pudo cargar la comprobación de «no soy un robot» —puede ser falta de señal o un bloqueador de anuncios—. Puedes entrar igual.',
   CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
                            esc(correo) + '</b>. Conéctate a internet y vuelve a entrar.'),
 };
@@ -337,7 +347,9 @@ async function confirmar(conPantalla, alPaso) {
  *   · `sin_red` — no se pudo preguntar. NO es lo mismo y no cierra nada.
  *
  * @param {boolean} [conPantalla] true para abrir la ventana de Google; por omisión renueva
- *        callado, que es lo que se puede hacer sin un click de la persona.
+ *        callado, y con el token vencido y sin un toque reciente de la persona `renovar()` no
+ *        abre nada y esto termina en `sin_red` (ver la cabecera de ingreso.js): una pestaña
+ *        restaurada al abrir Chrome no debe abrirle la ventana de cuentas a nadie.
  * @param {Function} [alPaso] `(clave, estado, detalle)` — quién está esperando a quién, para que
  *        la pantalla lo pueda enseñar (F10). Los dos pasos son `google` y `hoja`, en ese orden,
  *        que es el orden real: primero Google dice quién eres, después la hoja dice qué te toca.
@@ -571,6 +583,7 @@ function pedirEntrada(av, pendiente, echando) {
     /* Se cierra la puerta y se sigue, sin que nadie toque nada. Ver arriba. */
     const entrar = r => {
       if (echando) { location.reload(); return; }
+      if (_cap) { try { _cap.quitar(); } catch (_) {} _cap = null; }
       pararFondo();
       despertar();
       document.documentElement.classList.remove('con-puerta');
@@ -622,6 +635,9 @@ function pedirEntrada(av, pendiente, echando) {
          de texto subrayado no lo habría visto nadie. */
       const btn = caja.querySelector('[data-puerta="entrar"]');
       if (!btn || saliendo || btn.dataset.estado === 'trabajando') return;
+      /* Antes de lo demás —incluido soltar la sesión de «Entrar con otra cuenta»—: un toque que no
+         va a abrir nada no tiene por qué cambiar nada. */
+      if (captchaEnEspera(caja, btn)) return;
       const otra = caja.querySelector('[data-puerta="otra"]');
       if (b.dataset.puerta === 'otra') {
         /* «Entrar con otra cuenta»: se suelta la sesión de ESTE aparato para que Google
@@ -804,6 +820,7 @@ function pintar(caja, av) {
      tardía que dice «fuera»— ya no vuelve a entrar: sería moverse sin que nadie tocara nada. */
   const entra = !_yaEntro && !sinMovimiento();
   _yaEntro = true;
+  const pideCaptcha = Captcha.configurado();
   /* El fondo vive fuera de la caja y sobrevive al repintado: es el mismo nodo, con su lienzo y
      sus ondas, y no vuelve a arrancar de cero. */
   const fondo = caja.querySelector('.puerta-fondo');
@@ -821,7 +838,12 @@ function pintar(caja, av) {
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +
       (cuerpo ? '<p class="puerta-aviso' + (fuera ? ' es-no' : '') + '" role="alert">' + cuerpo + '</p>' : '') +
-      '<button type="button" class="puerta-btn" data-puerta="entrar">' + G_GOOGLE + ' Entrar con Google</button>' +
+      /* El recuadro del captcha, si hay clave. Nace vacío: Turnstile lo llena, y casi siempre
+         se queda invisible (`interaction-only`). La nota es para lo único que hay que decir. */
+      (pideCaptcha ? '<div class="puerta-captcha" data-captcha="' + (_captchaListo ? 'listo' : 'espera') + '"></div>' +
+        '<p class="puerta-captcha-nota" role="status" hidden></p>' : '') +
+      '<button type="button" class="puerta-btn" data-puerta="entrar"' +
+        (pideCaptcha ? ' data-captcha="' + (_captchaListo ? 'listo' : 'espera') + '"' : '') + '>' + G_GOOGLE + ' Entrar con Google</button>' +
       (fuera ? '<button type="button" class="puerta-otra" data-puerta="otra">Entrar con otra cuenta</button>' : '') +
       /* Los dos pasos nacen escondidos: antes de tocar no hay nada que esperar, y enseñar una
          lista de pendientes a quien todavía no ha apretado sería pintarle trabajo que no pidió. */
@@ -839,8 +861,51 @@ function pintar(caja, av) {
   /* La clase se quita cuando la cascada termina, para que el `:active` del botón vuelva a
      poder encogerlo: una animación con `both` puesta le gana a cualquier transform. */
   if (entra && cj) setTimeout(() => cj.classList.remove('entra'), 1200);
+  iniciarCaptcha(caja, pideCaptcha);
   const b = caja.querySelector('[data-puerta="entrar"]');
   if (b) b.focus();
+}
+
+/* ----- El captcha de la puerta -----
+   Corre desde que la puerta se pinta, no desde el clic: para cuando la persona lee y toca, el
+   visto bueno ya suele estar. Y se pide ANTES del clic por una razón más seria que la comodidad:
+   la ventana de Google solo se abre dentro del gesto del toque (ver la cabecera), y esperar un
+   desafío dentro del clic gastaría ese permiso. Por eso, si el captcha no ha terminado, el
+   toque NO abre Google: avisa y espera a que se toque otra vez.
+
+   Una vez pasado, se queda pasado mientras esta página siga viva: repintar la puerta —una
+   comprobación tardía que dice «fuera»— no vuelve a pedirlo. */
+let _cap = null;
+let _captchaListo = false;
+
+function iniciarCaptcha(caja, pide) {
+  if (_cap) { try { _cap.quitar(); } catch (_) {} _cap = null; }
+  if (!pide || _captchaListo) return;
+  const el = caja.querySelector('.puerta-captcha');
+  if (!el) return;
+  const btn = caja.querySelector('[data-puerta="entrar"]');
+  const nota = caja.querySelector('.puerta-captcha-nota');
+  const tema = document.documentElement.getAttribute('data-tema') === 'oscuro' ? 'dark' : 'light';
+  const decir = txt => { if (nota) { nota.textContent = txt; nota.hidden = !txt; } };
+  _cap = Captcha.vigilar(el, {
+    tema,
+    alCambiar: (estado) => {
+      if (estado === 'listo') _captchaListo = true;
+      el.dataset.captcha = estado;
+      if (btn) btn.dataset.captcha = estado;
+      decir(estado === 'abierto' ? MSG.CAPTCHA_ABIERTO : '');
+    },
+    /* El recuadro solo ocupa sitio cuando Cloudflare pide un clic. */
+    alInteractivo: visible => { el.dataset.interactivo = visible ? '1' : '0'; },
+  });
+}
+
+/** El toque llegó antes de que terminara la comprobación: se dice, y no se abre Google. */
+function captchaEnEspera(caja, btn) {
+  if (!btn || btn.dataset.captcha !== 'espera') return false;
+  const nota = caja.querySelector('.puerta-captcha-nota');
+  if (nota) { nota.textContent = MSG.CAPTCHA_ESPERA; nota.hidden = false; }
+  return true;
 }
 
 let _yaEntro = false;

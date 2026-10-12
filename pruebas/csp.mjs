@@ -93,6 +93,12 @@ const HOJA = 'https://script.google.com/macros/s/x/exec', REDIRECCION = 'https:/
 cierto('la plataforma habla con la hoja', permite(POL['index.html'], 'connect-src', HOJA) && permite(POL['index.html'], 'connect-src', REDIRECCION));
 cierto('  y con Google para entrar', permite(POL['index.html'], 'script-src', 'https://accounts.google.com/gsi/client') && permite(POL['index.html'], 'connect-src', 'https://www.googleapis.com/oauth2/v3/userinfo'));
 cierto('  y deja abrir la ventanilla de Google', permite(POL['index.html'], 'frame-src', 'https://accounts.google.com/gsi/iframe'));
+cierto('  y deja cargar el captcha de la puerta (Turnstile: su guion y su recuadro, nada más)',
+  permite(POL['index.html'], 'script-src', 'https://challenges.cloudflare.com/turnstile/v0/api.js') &&
+  permite(POL['index.html'], 'frame-src', 'https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/if/ov2/av0/rcv/x/y/z') &&
+  !permite(POL['index.html'], 'connect-src', 'https://challenges.cloudflare.com/'));
+eq('  y ninguna otra página le abre la puerta a Cloudflare',
+  PAGINAS.filter(p => p !== 'index.html' && POL[p] && permite(POL[p], 'script-src', 'https://challenges.cloudflare.com/turnstile/v0/api.js')), []);
 cierto('  y empotra el cotizador y el anidador, que son de aquí', (POL['index.html']['frame-src'] || []).includes("'self'"));
 cierto('  y pinta los dos mapas', permite(POL['index.html'], 'img-src', 'https://tile.openstreetmap.org/1/1/1.png') && permite(POL['index.html'], 'img-src', 'https://a.basemaps.cartocdn.com/rastertiles/voyager/1/1/1.png'));
 cierto('el cotizador habla con la hoja, y la redirección de Apps Script', permite(POL['cotizador.html'], 'connect-src', HOJA) && permite(POL['cotizador.html'], 'connect-src', REDIRECCION));
@@ -123,6 +129,7 @@ const SALIDAS = [
   { re: /\.src\s*=\s*'(https:\/\/[^']+\.js)'/g, dir: 'script-src' },
   { re: /workerSrc\s*=\s*'(https:\/\/[^']+)'/g, dir: 'worker-src' },
   { re: /const GIS = '(https:\/\/[^']+)'/g, dir: 'script-src' },
+  { re: /const TURNSTILE = '(https:\/\/[^']+)'/g, dir: 'script-src' },
   { re: /url:\s*'(https:\/\/[^']+\{z\}[^']*)'/g, dir: 'img-src' },
   { re: /const API = '(https:\/\/[^']+)'/g, dir: 'connect-src' },
 ];

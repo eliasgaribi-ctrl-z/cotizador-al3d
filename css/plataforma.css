@@ -2919,6 +2919,16 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
    lo dicen sin escribir una palabra más. `sacudida` ya existe en el sistema. */
 .puerta-aviso.otra-vez{animation:sacudida .25s var(--ease-out)}
 
+/* El captcha de la puerta (js/nucleo/captcha.js). Casi siempre el recuadro no se ve —Turnstile en
+   `interaction-only`—, así que el contenedor no reserva sitio: solo cuando Cloudflare pide un
+   clic (`data-interactivo="1"`) se le deja aire contra el botón. Mientras la comprobación no
+   termina, el botón se ve apagado, pero NO es `disabled`: un toque a tiempo dice qué se espera en
+   vez de no hacer nada, y el foco no se mueve. */
+.puerta-captcha{display:flex;justify-content:center}
+.puerta-captcha[data-interactivo="1"]{margin-bottom:var(--e4)}
+.puerta-captcha-nota{font-size:var(--t3);line-height:1.55;text-align:left;color:var(--tinta2);margin:0 0 var(--e3)}
+.puerta-btn[data-captcha="espera"]{opacity:.72;cursor:default}
+
 /* ── fin de pf-esqueleto ── */
 
 /* ── Plataforma · la puerta animada (F10 v2) ──

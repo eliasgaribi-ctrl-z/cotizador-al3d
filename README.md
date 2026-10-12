@@ -45,6 +45,15 @@ archivos estáticos que se sirven tal cual, desde GitHub Pages
 
 ### Lo más reciente (octubre de 2026)
 
+- **La ventana de Google ya no salta sola al abrir Chrome.** Renovar el permiso abre una
+  ventana de Google, y se renovaba también sin que nadie tocara nada —al arrancar y en cada
+  petición al puente—: con las ventanas permitidas, al cerrar y abrir Chrome saltaba la de
+  cuentas aunque la plataforma estuviera en una pestaña de fondo. Ahora solo se renueva con un
+  toque reciente de la persona.
+- **Captcha en la puerta** (Cloudflare Turnstile, `js/nucleo/captcha.js`): casi nunca se ve, y si
+  no carga —sin señal, un bloqueador— la puerta se abre igual y lo dice. Se enciende pegando la
+  clave de sitio en `SITE_KEY`; vacía, la puerta es la de siempre. Frena lo automático; lo que
+  protege los datos sigue siendo Google y la lista de «Accesos» de la hoja.
 - **La carpeta de los diseños, en la ficha del proyecto.** La hoja lee «Trabajos Pendientes» de
   Drive y cada proyecto del taller enseña su carpeta, el `.cdr` y el PDF de órdenes de
   fabricación. Tablero, Proyectos y el taller marcan **Órdenes listas / Sin órdenes / Sin
@@ -365,7 +374,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento quince archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento dieciséis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -376,7 +385,7 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               60 archivos, solo node, unos segundos
+    pruebas/correr.sh               61 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   45 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
