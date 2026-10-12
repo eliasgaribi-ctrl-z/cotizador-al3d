@@ -112,6 +112,64 @@ console.log('\nENTRAR CON GOOGLE TAMBIÉN VE EL IDENTIFICADOR NUEVO');
   eq('cerrar la ventana de entrar contesta DATO_INVALIDO, que es lo que app.js oye para no insistir', r.codigo, 'DATO_INVALIDO');
 }
 
+console.log('\nLA VENTANA DE GOOGLE NO SE ABRE SOLA');
+{
+  /* Al cerrar y abrir Chrome, la plataforma restaurada en una pestaña de fondo renovaba el token
+     por su cuenta al arrancar, y con las ventanas permitidas para el sitio saltaba la ventana de
+     cuentas de Google y se quitaba sola. Renovar solo se intenta con un gesto reciente. */
+  const pedidasTotal = () => GOOGLE.clientes.reduce((n, c) => n + c.pedidas, 0);
+  const conGesto = on => {
+    if (on) Object.defineProperty(globalThis.navigator, 'userActivation', { value: { isActive: true }, configurable: true });
+    else delete globalThis.navigator.userActivation;
+  };
+  const sembrar = () => {
+    Ingreso.salir();
+    Prefs.setIngreso({ clientId: 'ingreso-Z.apps.googleusercontent.com', correo: 'beto@al3d.mx' });
+  };
+  GOOGLE.hace = (cli, op) => { GOOGLE.ultimaOp = op; cli.callback({ access_token: 'tok-z', expires_in: 3600 }); };
+
+  sembrar();
+  let antes = pedidasTotal();
+  let r = await Ingreso.renovar();
+  eq('sin gesto, renovar no abre la ventana y lo dice', [r.ok, r.codigo, pedidasTotal() - antes], [false, 'SIN_GESTO', 0]);
+  eq('  ni crea el cliente de Google para eso', de('openid email').some(c => c.cfg.client_id === 'ingreso-Z.apps.googleusercontent.com'), false);
+  eq('  y el token sigue sin existir', Ingreso.dentro(), false);
+
+  conGesto(true);
+  r = await Ingreso.renovar();
+  eq('con un toque reciente, renueva (ventana callada)', [r.ok, pedidasTotal() - antes], [true, 1]);
+  eq('  sin enseñar el selector: prompt vacío y la cuenta de la vez pasada',
+     GOOGLE.ultimaOp, { prompt: '', login_hint: 'beto@al3d.mx' });
+  conGesto(false);
+
+  sembrar();
+  antes = pedidasTotal();
+  r = await Ingreso.renovar({ gesto: true });
+  eq('un clic que el navegador no sabe decir (gesto:true) también renueva', [r.ok, pedidasTotal() - antes], [true, 1]);
+
+  /* «Entrar con Google» de la puerta viene SIEMPRE de un clic: no se le pide gesto. */
+  sembrar();
+  antes = pedidasTotal();
+  r = await Ingreso.entrar(false);
+  eq('el botón de la puerta no depende de userActivation', [r.ok, pedidasTotal() - antes], [true, 1]);
+  Ingreso.salir();
+
+  const ing = sinComentarios(leer('js/nucleo/ingreso.js'));
+  const ent = (ing.match(/export async function entrar\(callado, opc\) \{[\s\S]*?\n\}/) || [''])[0];
+  cierto('el freno va antes de la red, del guion de Google y de la ventana',
+         ent.indexOf("mal('SIN_GESTO', MSG.SIN_GESTO)") > 0 &&
+         ent.indexOf("mal('SIN_GESTO', MSG.SIN_GESTO)") < ent.indexOf('navigator.onLine') &&
+         ent.indexOf("mal('SIN_GESTO', MSG.SIN_GESTO)") < ent.indexOf('await cargarGis()'));
+  cierto('  y solo frena la renovación callada: entrar a mano nunca se frena', ent.includes('if (callado && !(opc && opc.gesto) && !hayGesto())'));
+  const pt = sinComentarios(leer('js/datos/puente.js'));
+  const tg = (pt.match(/async function tokenDeGoogle\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  cierto('cada petición al puente espera un toque antes de renovar',
+         tg.includes('if (!Ingreso.hayGesto()) return') &&
+         tg.indexOf('Ingreso.hayGesto()') < tg.indexOf('_renovadoEn = Date.now()'));
+  const pu = sinComentarios(leer('js/nucleo/puerta.js'));
+  cierto('la puerta no pide ventana por su cuenta: solo entrar(false), que sale del botón', !/Ingreso\.entrar\(true\)/.test(pu) && (pu.match(/Ingreso\.entrar\(/g) || []).length === 1);
+}
+
 console.log('\nLA MITAD DEL COTIZADOR DE UN RESPALDO SE REVISA ANTES DE GUARDARLA');
 {
   const { revisarMitadCotizador: rev } = await import('../js/mod/ajustes.js');
@@ -181,7 +239,8 @@ console.log('\nEL PERMISO DE GOOGLE, CON FRENO, Y CON EL PASE DETRÁS');
          /const MS_ENTRE_RENOVACIONES = 60000;/.test(app) && clic.includes('ahora - _renovadoEn < MS_ENTRE_RENOVACIONES') &&
          /const MS_ENTRE_RENOVACIONES = 60000;/.test(leer('js/datos/puente.js')));
   cierto('  y tras cerrar la ventana, un buen rato sin insistir', clic.includes("r.codigo === 'DATO_INVALIDO'") && clic.includes('_renovarDesde = Date.now() + MS_TRAS_NEGARSE'));
-  cierto('  apuntando el intento ANTES de abrir la ventana', clic.indexOf('_renovadoEn = Date.now()') < clic.indexOf('await Ingreso.renovar()'));
+  cierto('  apuntando el intento ANTES de abrir la ventana', clic.indexOf('_renovadoEn = Date.now()') < clic.indexOf('await Ingreso.renovar('));
+  cierto('  diciendo que viene de un clic, para los navegadores que no exponen userActivation', clic.includes('await Ingreso.renovar({ gesto: true })'));
   cierto('renovado, se da la vuelta a la hoja sin esperarla', /import\('\.\/nucleo\/puerta\.js'\)\.then\(P => P\.reconfirmar\(\)\)/.test(clic) && !/await import\('\.\/nucleo\/puerta\.js'\)/.test(clic));
 
   const pu = sinComentarios(leer('js/nucleo/puerta.js'));

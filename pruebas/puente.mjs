@@ -494,11 +494,20 @@ console.log('\nEL RELEVO CONTRA UN PUENTE DE MENTIRAS (defectos 3, 5, 8 y 9)');
   const guardado = { al3d_pf_ingreso: JSON.stringify({ correo: 'ana@al3d.mx' }) };
   globalThis.localStorage = { getItem: k => (k in guardado ? guardado[k] : null), setItem: (k, v) => { guardado[k] = String(v); }, removeItem: k => { delete guardado[k]; } };
   const antes = pedidas.length;
+  /* Sin un toque reciente —el arranque, un temporizador, una pestaña restaurada de fondo— no se
+     intenta: renovar abre una ventana de Google, y con las ventanas permitidas para el sitio se
+     abría sola al cerrar y abrir Chrome. */
+  const s0 = await fab.salud();
+  eq('con un ingreso hecho pero sin un toque reciente, no se baja ni se abre nada de Google', guiones.length, 0);
+  eq('  y la petición sale igual con lo que haya', [s0.ok, pedidas.length], [true, antes + 1]);
+  Object.defineProperty(globalThis.navigator, 'userActivation', { value: { isActive: true }, configurable: true });
   const s1 = await fab.salud();
-  eq('con un ingreso hecho y el token caducado, la petición lo renueva primero', guiones.filter(u => /accounts\.google\.com\/gsi/.test(u)).length, 1);
-  eq('y si Google no contesta, la petición sale igual con lo que haya', [s1.ok, pedidas.length], [true, antes + 1]);
+  eq('con un toque reciente y el token caducado, la petición lo renueva primero (y el intento sin toque no gastó el turno del minuto)',
+     guiones.filter(u => /accounts\.google\.com\/gsi/.test(u)).length, 1);
+  eq('y si Google no contesta, la petición sale igual con lo que haya', [s1.ok, pedidas.length], [true, antes + 2]);
   await fab.salud();
   eq('un intento por minuto: la siguiente no vuelve a abrir ventana', guiones.length, 1);
+  delete globalThis.navigator.userActivation;
 }
 
 

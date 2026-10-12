@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 42 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 43 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 94;
+const APP_VERSION = 95;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -106,6 +106,9 @@ const APP_FILES = [
      que ésta conteste, así que una copia sin este archivo es una copia que entra por el
      camino de emergencia y lo dice en la banda de arriba. */
   './js/nucleo/puerta.js',
+  /* El captcha de la puerta. Lo importa puerta.js de forma estática, así que sin este archivo la
+     puerta no arranca: va en el mismo conjunto, no aparte. */
+  './js/nucleo/captcha.js',
   /* Los nueve fondos de lienzo de la puerta (tanda 3). Llegan con import() y la puerta abre sin
      ellos, pero sin red el fondo se quedaría liso. */
   './js/nucleo/puerta-fondos.js',
@@ -509,7 +512,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 42 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 43 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

@@ -1867,7 +1867,8 @@ async function arrancar() {
       const Ingreso = await import('./nucleo/ingreso.js');
       if (!Ingreso.configurado() || !Ingreso.correo() || Ingreso.dentro()) return;
       _renovadoEn = Date.now();
-      const r = await Ingreso.renovar();
+      /* `gesto:true`: esto viene de un clic aunque el navegador no sepa decirlo. */
+      const r = await Ingreso.renovar({ gesto: true });
       if (r && r.ok) {
         sincronizarCallado();
         import('./nucleo/puerta.js').then(P => P.reconfirmar()).catch(() => {});

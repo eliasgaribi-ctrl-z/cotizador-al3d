@@ -37,6 +37,22 @@
    respaldo: esa clave no está en la lista de `RESPALDO_KEYS`. También se guarda el CORREO,
    que sirve para que la pantalla diga con quién estás dentro sin esperar a la red, y para
    decirle a Google qué cuenta renovar sin enseñar el selector de cuentas.
+
+   ── La ventana de Google solo se abre si la persona acaba de tocar algo ────────
+   Renovar el token con Google es abrir una ventana —se cierra sola si la cuenta ya está
+   escogida, pero se ve—. Se renovaba también SIN que nadie tocara nada: al arrancar la
+   comprobación del pase (js/nucleo/puerta.js) y en cada petición al puente
+   (js/datos/puente.js). Con las ventanas emergentes permitidas para el sitio —cosa normal, es
+   lo que Chrome ofrece la primera vez que se entra— eso significaba que al cerrar y abrir
+   Chrome, con la plataforma restaurada en una pestaña de fondo, saltaba la ventana de cuentas
+   de Google y se quitaba sola. Una pestaña que nadie está mirando no tiene por qué abrirle una
+   ventana a nadie.
+
+   Ahora `entrar(true)` —y con él `renovar()`— no abre nada si no hay un gesto reciente de la
+   persona (`navigator.userActivation`, o `{gesto:true}` cuando quien llama sabe que viene de un
+   clic). Sin gesto contesta `SIN_GESTO` en el acto y NO toca la red ni el guion de Google. Lo que
+   no se renovó solo lo renueva el siguiente toque (app.js), que además da la vuelta a la hoja
+   (`reconfirmar`).
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
@@ -121,6 +137,7 @@ const MSG = {
   ORIGEN: origen => 'Google no deja entrar desde ' + (origen === 'null' ? 'un archivo abierto en el ordenador' : origen) +
     ': esa dirección no está autorizada para esta app. Abre la plataforma desde ' + URL_APP + ' y vuelve a intentar.',
   BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
+  SIN_GESTO: 'El permiso de Google se renueva con tu siguiente toque: sin él, la ventana de Google se abriría sola con la app en segundo plano.',
 };
 
 /* El token de acceso, en memoria y nada más. Ver la cabecera. */
@@ -166,6 +183,16 @@ export function correo() {
  *  que caduca en el vuelo vuelve como 401 y la persona ve un error de 40 segundos de reloj. */
 export const dentro = () => !!(_tok && _tok.token && _tok.expira > Date.now());
 
+/** true si la persona tocó algo hace un momento (la «activación transitoria» del navegador, unos
+ *  cinco segundos). Es lo que deja abrir una ventana, y es lo que NO hay en una pestaña
+ *  restaurada al abrir Chrome ni en un temporizador. Si el navegador no sabe decirlo, false: más
+ *  vale no abrir una ventana que abrirla donde nadie mira. */
+export function hayGesto() {
+  try {
+    return !!(typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.isActive);
+  } catch (_) { return false; }
+}
+
 /** El token para mandarle al puente, o '' si no hay. Nunca lanza: quien llama decide qué
  *  hacer sin token, y lo que hace es caer al token de dispositivo. */
 export const token = () => (dentro() ? _tok.token : '');
@@ -203,13 +230,19 @@ export function cargarGis() {
  * la persona el navegador la bloquea como emergente.
  *
  * @param {boolean} [callado] true para renovar sin pantalla (`prompt:''`). Solo funciona si
- *        ya hubo un consentimiento antes y la sesión de Google de ese navegador sigue viva.
+ *        ya hubo un consentimiento antes y la sesión de Google de ese navegador sigue viva. Y
+ *        solo se intenta con un gesto reciente de la persona: ver la cabecera.
+ * @param {{gesto?:boolean}} [opc] `gesto:true` cuando quien llama sabe que viene de un toque y
+ *        el navegador no expone `userActivation`.
  * @returns {Promise<Resultado>} valor = {correo, expira}
  */
-export async function entrar(callado) {
+export async function entrar(callado, opc) {
   const id = clienteId();
   if (!id) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);
   if (dentro()) return ok({ correo: correo(), expira: _tok.expira });
+  /* Antes de la red, del guion y de la ventana: sin un toque de la persona, renovar es abrir una
+     ventana de Google en una pestaña que nadie mira. */
+  if (callado && !(opc && opc.gesto) && !hayGesto()) return mal('SIN_GESTO', MSG.SIN_GESTO);
 
   /* Antes de la red y antes de la ventana: desde un origen que Google no conoce, lo único
      que la ventana puede enseñar es el error 400. Ver ORIGENES. */
@@ -292,11 +325,13 @@ export async function entrar(callado) {
 }
 
 /** Renueva sin pantalla. Se llama al arrancar, y falla en silencio a propósito: que no se
- *  pueda renovar no es un error que mostrar, es el día en que se entra a mano. */
-export async function renovar() {
+ *  pueda renovar no es un error que mostrar, es el día en que se entra a mano. Sin un gesto
+ *  reciente de la persona no abre nada y contesta `SIN_GESTO` (ver la cabecera).
+ *  @param {{gesto?:boolean}} [opc] ver `entrar()`. */
+export async function renovar(opc) {
   if (dentro()) return ok({ correo: correo(), expira: _tok.expira });
   if (!correo()) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);   // nunca entró: no hay qué renovar
-  return await entrar(true);
+  return await entrar(true, opc);
 }
 
 async function preguntarCorreo(tok) {

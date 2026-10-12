@@ -932,10 +932,15 @@ function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codig
    Ahora cada petición lo renueva si hace falta, con la misma regla que el arranque
    (js/app.js): hubo un ingreso en este aparato y el token ya no está vivo.
 
-   Con dos topes. Cinco segundos: la renovación callada de Google abre y cierra una ventana,
-   y si se queda esperando a la persona, la petición sale igual —con el token de dispositivo
-   si lo hay—, en vez de colgar el bombeo. Y un intento por minuto: sin eso, un bombeo de
-   cuarenta operaciones con Google caído serían cuarenta ventanas. */
+   Con tres topes. Primero, solo con un toque reciente de la persona: la renovación abre una
+   ventana de Google, y con las ventanas permitidas para el sitio también se abría sola —al
+   cerrar y abrir Chrome, con la plataforma restaurada en una pestaña de fondo, el bombeo del
+   arranque la lanzaba—. Sin toque ni se intenta, y tampoco se gasta el turno del minuto: el
+   primer toque de verdad sí la renueva. Después, cinco segundos: la renovación callada de
+   Google abre y cierra una ventana, y si se queda esperando a la persona, la petición sale
+   igual —con el token de dispositivo si lo hay—, en vez de colgar el bombeo. Y un intento por
+   minuto: sin eso, un bombeo de cuarenta operaciones con Google caído serían cuarenta
+   ventanas. */
 const MS_RENOVAR = 5000;
 const MS_ENTRE_RENOVACIONES = 60000;
 let _renovadoEn = 0;
@@ -943,6 +948,7 @@ let _renovadoEn = 0;
 async function tokenDeGoogle() {
   if (Ingreso.dentro()) return Ingreso.token();
   if (!Ingreso.configurado() || !Ingreso.correo()) return '';
+  if (!Ingreso.hayGesto()) return '';
   if (Date.now() - _renovadoEn < MS_ENTRE_RENOVACIONES) return '';
   _renovadoEn = Date.now();
   let t = 0;
