@@ -1,0 +1,41 @@
+# Pruebas automáticas. Antes de esto nadie las corría salvo a mano (el crítico de la migración lo
+# marcó como el riesgo P-13: un cambio podía romper el puente sin que nadie se enterara).
+#
+# - node: las pruebas de node de pruebas/ (sin dependencias: node y nada más).
+# - base-de-datos: migraciones, RLS y funciones SQL de supabase/ sobre PGlite (PostgreSQL en WASM),
+#   sin Docker. OJO: valida el SQL y las políticas, pero no es Supabase; la validación real es el
+#   proyecto de pruebas (ver supabase/tests/README.md).
+# Las de navegador (pruebas/navegador/) piden Chromium y un servidor y no corren aquí todavía.
+name: Pruebas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Pruebas de node
+        run: sh pruebas/correr.sh
+
+  base-de-datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Migraciones, RLS y funciones SQL (PGlite)
+        run: sh supabase/tests/correr.sh

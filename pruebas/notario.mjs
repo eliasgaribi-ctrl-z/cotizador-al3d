@@ -83,11 +83,18 @@ function libro() {
   };
 }
 const aBytes = buf => Array.from(buf, b => (b > 127 ? b - 256 : b));   // los bytes de Apps Script son con signo
+/* Utilities.computeHmacSha256Signature(String, String) NO codifica en UTF-8. Comprobado el 2026-10-10 en
+   Apps Script real (doce HMAC en pruebas/datos/hmac-apps-script-real.json, que reproduce la prueba de
+   pruebas/supabase-sello.mjs): pasa el valor Y la clave a bytes como US-ASCII, con un «?» por cada punto
+   de código que no sea ASCII (un emoji es UN «?»). Este doble hace lo mismo, para que lo que firma el .gs
+   aquí sea lo que firmaría allá. computeDigest NO está medido en Apps Script real (solo el HMAC lo está):
+   se queda en UTF-8, y el .gs no lo usa para el sello. */
+const asciiConInterrogaciones = s => Buffer.from(Array.from(String(s), c => (c.codePointAt(0) < 128 ? c.codePointAt(0) : 63)));
 const Utilities = {
   DigestAlgorithm: { SHA_256: 'sha256' },
   getUuid: () => randomUUID(),
   computeDigest: (_alg, s) => aBytes(createHash('sha256').update(String(s), 'utf8').digest()),
-  computeHmacSha256Signature: (valor, clave) => aBytes(createHmac('sha256', String(clave)).update(String(valor), 'utf8').digest()),
+  computeHmacSha256Signature: (valor, clave) => aBytes(createHmac('sha256', asciiConInterrogaciones(clave)).update(asciiConInterrogaciones(valor)).digest()),
   base64EncodeWebSafe: bytes => Buffer.from(bytes.map(b => (b + 256) % 256)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
   formatDate: (d, _tz, fmt) => {
     const p = n => String(n).padStart(2, '0');

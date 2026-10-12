@@ -1,0 +1,17 @@
+{
+  "_nota": "Salidas REALES de Utilities.computeHmacSha256Signature(valor, clave) (forma de 2 argumentos, String/String) en Google Apps Script, ejecutadas el 2026-10-10 en un proyecto desechable. Claves FALSAS de prueba. Salida: bytes con signo convertidos a hex (b<0 ? b+256 : b). Resultado: el valor Y la clave se codifican como US-ASCII con '?' por cada punto de código no-ASCII (NO UTF-8).",
+  "vectores": [
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "abc", "hex": "ea7458fcb5d5bd9a4461e1dd592e0288dc612b73d6b010162a7d010f95ed1205" },
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "áéíóú ñ", "hex": "1d0bf07f506fb8ac626f9b8c187b8ba7f3d978248dae8291f56a985932943a71" },
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "Letras 3D · 8 × 40 cm «Acrílico»", "hex": "3e539687a873717b67b360c3dcaf8ac2dc94861d9414791ad8d68f18e78bb710" },
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "😀 emoji", "hex": "5058932bf5c5588b73e9b69791b5683d4e88f77bec4196621bd8a66d89ba69d4" },
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "a\u0000b", "hex": "05dbe54dcd38267f977908af0b6fd02758fb4daba4b7d27b6e8cd8aaa84daf9a" },
+    { "clave": "clave-falsa-solo-para-pruebas", "texto": "", "hex": "b5f63470092bd721b0cd403444dddd58753d0967e98cab188917dda18f71908f" },
+    { "clave": "clavé-ñ-falsa", "texto": "abc", "hex": "e2b64d29801b0e0039f404c2b2139a8e70e985bf602d8442fea74b42895617e6" },
+    { "clave": "clavé-ñ-falsa", "texto": "áéíóú ñ", "hex": "77c26b40a46dceae89de88aa66932e8e03d42a8e5ffc1a0c5b36b90aafdec4d9" },
+    { "clave": "clavé-ñ-falsa", "texto": "Letras 3D · 8 × 40 cm «Acrílico»", "hex": "62e401f4aedb212d4d4d9fe1451137fdb2277935cc7033c98a47880b7e1a6f12" },
+    { "clave": "clavé-ñ-falsa", "texto": "😀 emoji", "hex": "7fc7fb1cafefe53c84fc9060b608ce2aec913a55a6f00be239d390fc3843b656" },
+    { "clave": "clavé-ñ-falsa", "texto": "a\u0000b", "hex": "ec7b27b55cdce55af9cb92a3c8e2e81774d9c8e8f48981326334c6dfea373cc1" },
+    { "clave": "clavé-ñ-falsa", "texto": "", "hex": "81b0bd62a9665f18a39c09debdc4fe5fb720e7eab1838e73a7b97f5da7a01a45" }
+  ]
+}

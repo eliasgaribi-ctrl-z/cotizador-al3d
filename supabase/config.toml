@@ -1,0 +1,67 @@
+# Configuración de la CLI de Supabase para este repositorio (supabase start / functions serve /
+# functions deploy / config push). Lo MÍNIMO válido: formato verificado el 2026-10-10 contra
+# https://supabase.com/docs/guides/local-development/cli/config
+#
+# SIN SECRETOS, jamás: este archivo se publica con el sitio (Pages publica el repositorio entero).
+# Las llaves y los secretos propios (SELLO_AUTORIZACION, IA_KEYS) se cargan con
+# `supabase secrets set` o en el panel; en local, en supabase/functions/.env (ignorado por git).
+
+# Lo único requerido. Solo distingue proyectos en una misma computadora (nombres de los contenedores
+# del stack local); no es el «ref» del proyecto de Supabase, que se enlaza con `supabase link`.
+project_id = "cotizador-al3d"
+
+[api]
+enabled = true
+# SOLO `public`: el esquema `interno` (ayudantes y núcleos de las reglas) no se expone por la API
+# (A.md §1.1). La documentación dice que `public` y `storage` van siempre incluidos.
+schemas = ["public"]
+# Tope de filas por respuesta de PostgREST (el valor por omisión, escrito a propósito): el cliente
+# pagina de a 500 para que nunca llegue a él sin avisar (A.md §10.17, EX-07).
+max_rows = 1000
+
+# NO se fija `[db] major_version`: la documentación dice que tiene que ser el de la base REMOTA y no
+# lo sé (la CLI usa 15 si falta). Confírmalo en el panel del proyecto y agrégalo antes de
+# `supabase start`.
+
+# ---------------------------------------------------------------------------------------------
+# Las funciones. verify_jwt = false en TODAS, y es a propósito:
+#   · Las llaves nuevas (sb_publishable_ / sb_secret_) no son JWT y la comprobación de la
+#     plataforma las trata de leer como JWT; la documentación manda apagarla y comprobar en código.
+#   · `salud` y `verificar` son públicas (el QR de un PDF no trae sesión).
+#   · `ia` y `maps` piden la sesión de la persona, y la comprueban en código con
+#     supabase.auth.getUser(jwt) y la RPC mi_acceso (supabase/functions/_shared/auth.js).
+#   · `espejo` no la dispara una persona sino un cron o un webhook con un secreto compartido
+#     (cabecera x-espejo-secreto): lo que la protege es ese secreto, comprobado en su handler. Sin
+#     esta línea la plataforma le pediría un JWT a quien la dispara y contestaría 401 antes de
+#     llegar al código.
+# Cada una vive en supabase/functions/<nombre>/index.ts, que es el punto de entrada por omisión:
+# no hace falta `entrypoint`.
+# ---------------------------------------------------------------------------------------------
+
+[functions.salud]
+verify_jwt = false
+
+[functions.verificar]
+verify_jwt = false
+
+[functions.maps]
+verify_jwt = false
+
+[functions.ia]
+verify_jwt = false
+
+[functions.espejo]
+verify_jwt = false
+
+# Autenticación: SOLO Google. La revisión adversarial (2026-10-10) mostró que `correo_verificado()` confiaba en `email_confirmed_at` y que, con las
+# confirmaciones por correo apagadas (el valor por omisión de la CLI), alguien con correo y contraseña reclamaba una invitación. La migración 0012 ya exige
+# además el proveedor Google; esto cierra el otro lado: no se pueden crear cuentas con correo ni sesiones anónimas. Se aplica al proyecto con `supabase config push`
+# o a mano en Authentication > Sign In / Providers (Email apagado). Las altas con Google siguen abiertas (`enable_signup`): la persona nueva entra y la RLS le niega
+# todo mientras no esté en `miembros` (sin_acceso).
+[auth]
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true

@@ -12,6 +12,12 @@
   X-Robots-Tag: noindex
 /herramientas/*
   X-Robots-Tag: noindex
+/supabase/*
+  X-Robots-Tag: noindex
+/scripts/*
+  X-Robots-Tag: noindex
+/.github/*
+  X-Robots-Tag: noindex
 /README.md
   X-Robots-Tag: noindex
 

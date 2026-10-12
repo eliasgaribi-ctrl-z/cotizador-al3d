@@ -1,8 +1,26 @@
 # Cómo se monta el puente
 
-Diez minutos, una vez. Ya no hay Worker de Cloudflare, ni `wrangler`, ni secretos que
-guardar fuera del repo: el puente vive dentro de la hoja. (Cloudflare sigue en la foto, pero
-solo como uno de los dos lugares desde donde se **sirve el sitio**, no como puente.)
+Diez minutos, una vez. Ya no hay Worker de Cloudflare ni `wrangler`: el puente vive dentro de
+la hoja. Los secretos —los tokens de dispositivo, la clave que sella las autorizaciones y las
+llaves de IA— no están en el repo: viven en las propiedades del script (ver «Dónde viven los
+secretos»). (Cloudflare sigue en la foto, pero solo como uno de los dos lugares desde donde se
+**sirve el sitio**, no como puente.)
+
+## Migración a Supabase (en construcción)
+
+El plan para pasar la fuente de verdad de la hoja a Supabase está en
+[`docs/PLAN-SUPABASE.md`](../docs/PLAN-SUPABASE.md), con las decisiones en
+[`docs/DECISIONES-SUPABASE.md`](../docs/DECISIONES-SUPABASE.md) y el avance en
+[`docs/ESTADO-SUPABASE.md`](../docs/ESTADO-SUPABASE.md). **Por ahora no cambia nada de lo que hay
+que hacer aquí**: la migración está en construcción y apagada, el puente de la hoja es el que
+corre y los pasos de abajo son los de hoy. Cuando exista la ruta `espejo` se documentará en
+[`README.md`](README.md) y aquí se agregarán sus pasos de montaje, con su secreto.
+
+Una cosa sí vale desde ya para quien toque el repositorio: se publica entero (ver «Las cabeceras
+del sitio», al final), así que lo que se agregue en `supabase/` y `scripts/` también queda a la
+vista. `_headers` ya les pone `noindex` y `.gitignore` deja fuera los `.env`, los volcados y las
+carpetas `reportes/` y `respaldos/`; los secretos nunca van al repositorio
+([`docs/PLAN-SUPABASE.md`](../docs/PLAN-SUPABASE.md) §4.12).
 
 ## Lo que hay montado
 

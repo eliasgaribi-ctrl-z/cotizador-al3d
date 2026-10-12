@@ -3,6 +3,8 @@
 
 Todo lo que sigue está verificado contra `/home/user/cotizador-al3d/index.html` (10 075 líneas, en producción) y `/home/user/cotizador-al3d/sw.js`. Lo que no pude verificar (comportamiento de red, CORS, aceptación de un `.ics` por un cliente real) está marcado **[POR VERIFICAR]** y por regla dura vive en Fase 2, nunca en Fase 1.
 
+> **Nota del 10/oct/2026 — cómo leer este documento hoy.** Conserva las decisiones de agosto con su fecha y no se reescribe. Varias ya se movieron sin que cambie el texto: donde dice Notion, el dinero vive hoy en la hoja de Google «Finanzas AL3D»; donde dice Worker, hoy es un Apps Script dentro de esa hoja; y el contrato del puente es `puente-sheets-14`, no el 9. Aparte, la **ruta a Supabase** —aprobada el 10/oct/2026 y **en construcción, apagada**: todo lo nuevo nace apagado y, mientras lo esté, la app, el service worker y el puente se comportan igual que hoy, y la hoja sigue siendo la fuente de verdad hasta la fase 4— contradice o completa algunos puntos. Esos puntos llevan una nota «Ruta Supabase (en construcción, apagado)» con enlace a [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) y [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md); el avance real está en [`ESTADO-SUPABASE.md`](ESTADO-SUPABASE.md). Ojo con las «fases»: las de este documento (1 local, 2 Calendar, 3 puente a la hoja) no son las del plan de Supabase (0 a 6).
+
 ---
 
 ## 1. DECISIÓN Y POR QUÉ
@@ -116,6 +118,19 @@ y la caché de ubicaciones se quedan en cada dispositivo, apartados en la bandej
 Contra una hoja que todavía corre la 8 o una anterior, lo del almacén se aparta igual y se
 reincorpora solo el día que la hoja se actualice. Ver §5.13.
 
+> **Actualización del 10/oct/2026.** La versión del contrato que espera hoy el repositorio es
+> **`puente-sheets-14`**, no la 9 (`PUENTE_VERSION` en `puente/hoja-apps-script.gs:1881` y
+> `VERSION_ESPERADA` en `js/datos/puente.js:881`). De la 9 a la 14 se sumaron el teléfono y la
+> entrega del cliente, los datos de entrega al registrar la venta y la regla «gana el cambio más
+> reciente, dato por dato»; el detalle está en [`puente/README.md`](../puente/README.md).
+>
+> **Ruta Supabase (en construcción, apagado).** Esta fase describe lo que corre hoy y sigue
+> valiendo mientras la migración esté apagada. El plan pasa la lectura y la escritura a un cliente
+> de Supabase con RLS y deja el Apps Script solo para el espejo hacia la hoja y para Drive. Los
+> tres tokens de dispositivo del paso 4 se retiran en la fase 5, y la pestaña «Accesos» pasa a la
+> tabla `miembros` ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §3.1, §3.2, §4.8 y §5;
+> [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.1).
+
 ---
 
 ## 4. MODELO DE DATOS CONGELADO
@@ -141,6 +156,17 @@ reincorpora solo el día que la hoja se actualice. Ver §5.13.
 | Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante` | **La hoja de finanzas (antes Notion). Nadie más. Nunca se recalculan aquí** | las lee. `Pago Pendiente` baja positivo: lo que te deben |
 | `Porcentaje comision` (en puntos; hoy la comisión es fija de 10 % y el modal de Registrar Venta la muestra de solo lectura) | **la hoja** (el modal ya no lo decide) | lo guarda como `pct_comision` y lo baja si cambió allá; las ventas viejas conservan el suyo (p. ej. 15), que es informativo: la fórmula R no lo lee |
 | Memoria técnica del proyecto | **Notion** (cuerpo de página) | lee; agrega bloques al final |
+
+> **Ruta Supabase (en construcción, apagado).** Esta tabla describe lo que corre hoy: la hoja es
+> la fuente del dinero, del récord de ventas y de las fórmulas. Con la migración la **fuente de la
+> verdad pasa a ser la base de Supabase** y la hoja queda como espejo de solo lectura:
+> `ventas_hoja` desaparece (la base ya es el récord, con las ≥199 filas anteriores a la
+> plataforma incluidas) y el dinero vive en una tabla aparte, `ventas_dinero`, que solo leen
+> Dirección y Pagos. El cambio no es de un día: **la hoja sigue siendo la fuente hasta la
+> fase 4**, y no se declara de solo lectura mientras no existan las pantallas de Pagos y siete días
+> de cuadre ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §3.1 y §5;
+> [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.2, Q-01 y Q-04). Sobre quién calcula las
+> fórmulas, ver el punto 4 de §11.
 
 ### 4.1 Qué pasa cuando el cotizador reescribe una entrada del historial
 
@@ -177,6 +203,16 @@ Las once están en `CLAVES` de `datos/prefs.js` y en ningún otro sitio: un mód
 
 **`al3d_pf_puente` no entra en el respaldo de la plataforma.** Lleva el token de dispositivo en claro, y un respaldo se manda por WhatsApp o por correo: una llave que viaja así deja de ser secreta (`js/datos/db.js`, arriba de `exportar`).
 
+> **Ruta Supabase (en construcción, apagado).** Hoy nadie escribe `al3d_pf_empresa` y
+> `Prefs.empresa()` devuelve siempre `'al3d'` (`js/datos/prefs.js:323`). Con la migración la
+> empresa activa la decide la membresía de cada persona y no esta clave
+> ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.1). `al3d_pf_puente`, con su token de dispositivo en
+> claro, se retira junto con los tokens en la fase 5 (§4.8 del plan). Y una sesión de Supabase
+> —que supabase-js guarda por omisión en `localStorage`— sería otra credencial en el aparato: si
+> entra o no al respaldo está sin decidir, y el criterio de arriba —una llave que viaja en un
+> respaldo deja de ser secreta— apunta a que no. Las decisiones del acceso están en
+> [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) (Q-08 y Q-09).
+
 ### 4.3 IndexedDB — todo lo que crece
 
 Verificado: `grep -c -i indexeddb index.html` = **0**. Es un recurso virgen en este origen. Y la razón por la que es obligatorio: `saveHistorial` (`:6602-6624`) ya degrada por falta de cuota soltando `aiFile.url` de la cotización más antigua a la más reciente hasta que quepa, y el usuario ve *"No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas"*. **Un libro de movimientos creciendo en localStorage destruiría imágenes del historial del cotizador, que es el único dato irrecuperable del sistema.**
@@ -197,6 +233,17 @@ IndexedDB  'al3d_pf'  v2
 ```
 
 La lista real es `ALMACENES` en `datos/db.js`; la migración crea lo que falte, sin borrar nada.
+
+> **Al día de hoy (10/oct/2026)** la base local es la versión 3 y tiene doce almacenes: a los de
+> arriba se sumó `ventas_hoja`, el espejo del récord de la hoja (`js/datos/db.js:22-33`).
+>
+> **Ruta Supabase (en construcción, apagado).** El destino de cada almacén está en
+> [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §3.1: casi todos pasan a tablas de la base,
+> `ventas_hoja` desaparece, `avisos` y `geo` no se migran y `pendientes` se reconstruye (y se
+> drena antes del corte). Lo afinan [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.8 (los
+> ids siguen siendo de texto), Q-04 y Q-09. Una cosa que el plan no dice y el código sí: `blobs`
+> está declarado pero hoy nadie escribe en él; las imágenes de referencia viven en otra base de
+> datos, `al3d_cot_imgs` (`js/cotizador/imagenes.js:18`), que no entra a `DB.exportar`.
 
 ### 4.4 `proyecto`
 
@@ -732,6 +779,35 @@ export function resolver(opId:string, quien:'mio'|'suyo'): Promise<Resultado>
 
 **Nota de honestidad que va en el código:** Notion no tiene comparación-e-intercambio (ni `If-Match`, ni ETag, ni versión de página) ni restricciones de unicidad. El campo `esperado` estrecha la ventana de sobrescritura, **no la cierra**. La UI dice "cambió en Notion mientras no tenías señal", no "nunca se pierde nada". Para los `movimientos` la idempotencia sí es real y es la que importa: el id lo genera el cliente y `jalar()` descarta ids ya presentes, así que un reintento **no resta el material dos veces**.
 
+> **Lo que hace de verdad `sync.js` hoy (verificado en el código, 10/oct/2026).** El contrato de
+> arriba es el de agosto y varias frases ya no son ciertas; la cabecera del propio archivo se
+> reescribió con lo que sí ocurre. En corto:
+>
+> - **El reintento no es exponencial ni respeta `Retry-After`.** `esperaMs` no tiene un solo
+>   llamador y `Retry-After` no se lee en ninguna parte de `js/`. Reintentar es que los
+>   disparadores vuelven a correr el bombeo —1.5 s después de encolar, al arrancar, al volver la
+>   señal, cada 30 s con la app a la vista y al volver a la pestaña (`js/app.js:1819-1842`)—, y
+>   cada vuelta intenta toda la bandeja: sin espera creciente, sin tope de intentos y sin
+>   descartar nada por viejo.
+> - **`esperado` viaja siempre en `null`** (todo lo que encola lo manda así) y el Apps Script nunca
+>   contesta `CONFLICTO`: el estado `conflicto` no ocurre con el puente real, `Sync.conflictos()`
+>   no la llama nadie y `Sync.resolver()` solo una prueba de navegador. La «nota de
+>   honestidad» de arriba habla de Notion, que ya no está; quien decide hoy qué cambio gana es la
+>   regla de sellos por dato de `puente-sheets-14` (`obraDeLaFila`, `js/datos/puente.js:512`, y la
+>   compuerta del Apps Script).
+> - Lo que la bandeja sí guarda y aparta, con su razón, es lo que no tiene destino
+>   (`sin_destino`: avisos, constantes y caché de ubicaciones) y lo que la hoja rechazó para
+>   siempre (`rechazada`).
+>
+> **Ruta Supabase (en construcción, apagado).** Se conservan la bandeja `pendientes` y la regla de
+> sellos; lo que cambia es el transporte (el cliente de Supabase en lugar de `/empujar` y
+> `/jalar`) y la lectura, que pasa a Realtime y deja el sondeo de 30 s como respaldo
+> ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.4; [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md)
+> Q-06). Un detalle que conviene tener presente: hoy una operación que falla sin que el relevo la
+> marque `definitivo` se reintenta en cada vuelta para siempre y, si su código es de red, de llave
+> o desconocido, detiene la cola detrás de ella; el transporte nuevo tiene que marcar bien lo
+> definitivo.
+
 ### 5.12 `nucleo/gcal.js` — Fase 2
 
 ```js
@@ -786,6 +862,19 @@ Cinco decisiones, y ninguna es de estilo:
 5. **El id de la página se escribe al vuelo y sin encolar.** Encolar desde el relevo que está vaciando la cola es un bucle que se manda a sí mismo. Se escribe con `DB` directo, y solo campos de los que la dueña es Notion: `notion_page_id` y `notion_estado`.
 
 El vocabulario está duplicado a propósito entre este archivo y el Worker —el Worker no se importa, se pega en un editor— y `pruebas/puente.mjs` lee el Worker como texto y compara las listas, porque una duplicación que nadie compara es una duplicación que se separa.
+
+> **Al día de hoy (10/oct/2026).** Este archivo ya no le habla a un Worker ni a Notion: el relevo
+> (`nombre: 'hoja'`, `js/datos/puente.js:1355`) le habla por POST al Apps Script de la hoja. Los
+> nombres `aNotion`, `deNotion`, `notion_page_id` y `estatus_notion` son heredados y hoy
+> significan **la hoja**, y la prueba de coherencia de la última frase, `pruebas/puente.mjs`, lee
+> `puente/hoja-apps-script.gs` (línea 294) y no un Worker. La lista `ALMACENES` que lleva (`:202`)
+> y el espejo `ESPEJOS = ['ventas_hoja']` (`:230`) siguen como se describen arriba.
+>
+> **Ruta Supabase (en construcción, apagado).** Para el transporte nuevo el plan prevé tocar este
+> archivo —mapeos y sellos— ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §8), y las columnas SQL nuevas
+> no heredan el nombre «notion»: el traductor del cliente las mapea
+> ([`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.9). Mientras la migración esté apagada
+> (como está hoy) el relevo se comporta igual que ahora (A.1).
 
 ---
 
@@ -1058,6 +1147,16 @@ js/tema.js                          Clásico, en el <head> de las tres páginas:
 js/cotizador/*.js                   Los doce guiones clásicos del cotizador (catálogo, núcleo, partidas, proceso, IA, entrega, historial, escalador, venta, vectorizador, notario, arranque). Orden fijado por cotizador.html
 ```
 
+> **Ruta Supabase (en construcción, apagado).** El árbol conserva los nombres de agosto y no trae
+> nada de la migración. El plan agrega carpetas nuevas en la raíz: `supabase/` (funciones,
+> pruebas y, cuando existan, migraciones) y `scripts/` (el importador de la hoja), y toca algunos
+> archivos de arriba —`js/datos/db.js`, `sync.js`, `puente.js`, `prefs.js`, `js/app.js`,
+> `js/nucleo/ingreso.js` y `puerta.js`— ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §8). Lo que ya
+> existe en esas carpetas y en qué fase va cada pieza se lleva en
+> [`ESTADO-SUPABASE.md`](ESTADO-SUPABASE.md), no aquí. Mientras la migración esté apagada,
+> `puente/hoja-apps-script.gs`, `puente/README.md` y `puente/DESPLIEGUE.md` siguen siendo la
+> referencia del puente que corre ([`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.1 y A.2).
+
 ### Cómo se carga sin build
 
 `plataforma.html` trae un `<link rel="stylesheet">` a los dos CSS y **un solo punto de entrada**:
@@ -1175,6 +1274,26 @@ function registrarGanada(){
 
 **La frontera del dinero para FABRICACIÓN no es un difuminado.** Verificado que `aplicarBlurPrecios` (`:2894`) solo tapa cuando `Q.estado==='borrador'`, así que sería inerte para proyectos ganados, y sus selectores son ids del cotizador. Para FABRICACIÓN, **el importe no se pinta**: `mod/proyectos.js` y `mod/material.js` consultan `Prefs.rol()` y omiten los campos, no los tapan.
 
+> **Al día de hoy (10/oct/2026).** El rol ya no se valida contra «el token del dispositivo»: el
+> Apps Script verifica con Google la cuenta con la que se entró y busca su correo en la pestaña
+> «Accesos» (`identidadDelIngreso` y `rolDelCorreo`, `puente/hoja-apps-script.gs:2305` y `:2363`);
+> el token de dispositivo queda como salida de emergencia. La frontera sigue estando en el
+> servidor. Lo que el servidor sí hace hoy con el dinero es quitárselo a Fabricación *después* de
+> leer (`sinLoQueNoLeToca`, `.gs:2590`), y el tope «Fabricación mueve la etapa hasta Listo» solo
+> lo aplica la pantalla (`TOPE_ROL`, `js/datos/proyectos.js:1116`): el Apps Script acepta
+> cualquiera de las ocho etapas de un rol que pueda escribirla (`.gs:2992-2994`).
+>
+> **Ruta Supabase (en construcción, apagado).** El rol sale de `miembros` y lo hace valer la
+> base: RLS en cada tabla, vistas por área para lectura y funciones para las acciones (autorizar,
+> cobrar, mover etapa), con la misma matriz de hoy —`PUENTE_ROLES`, `CAMPOS_ROL` y `TOPE_ROL`
+> pasados a la base: Dirección todo; Pagos dinero, cobranza, estatus, cuenta, teléfono y notas, sin
+> mover la etapa; Fabricación la etapa hasta «Listo», dirección, pin, entrega, teléfono y almacén,
+> sin ver dinero— ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.2 y §4.3;
+> [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.3, Q-03 y Q-05). Dos diferencias contra
+> hoy: el tope de etapa de Fabricación, que hoy solo aplica la pantalla, se impone en la base; y
+> el dinero deja de quitarse *después* de leer la fila para vivir en una tabla aparte que
+> Fabricación no puede leer (la fila ni siquiera le llega por la API).
+
 ### 8.1 Inicio / recordatorios — `#/hoy`
 Filas calculadas, ordenadas por lo que se rompe primero. Todo desde IndexedDB, abre sin señal. Arriba, la **banda de frescura** de `Sync.frescura()`: `Al día` o, en ámbar con el patrón `.cand-partidas`, `Fabricación no comparte desde el martes · lo que ves del almacén tiene 3 días`.
 
@@ -1281,6 +1400,13 @@ Dep: `Proyectos.listar`, `Geo.*`.
 
 **Honestidad, y va en el entregable, no escondida aquí:** A6 a A13 son **reglas de pantalla**. Si nadie abre la plataforma en cinco días, nadie las ve. No hay cron y no lo puede haber: un cron externo no puede crear eventos en el calendario personal del director sin un refresh token de servidor, que es justo lo que el token model no da. Las que **tienen** que llegar a un teléfono (A1–A5) son alarmas del calendario creadas por adelantado. Fase 2 mueve A8, A9 y A11 a eventos reales de Calendar.
 
+> **Ruta Supabase (en construcción, apagado).** Lo de arriba sigue siendo cierto para los
+> recordatorios de Calendar. El plan agrega, aparte, avisos programados que no tocan el calendario
+> de nadie: uno cada 2 días que mantiene despierto el proyecto de Supabase (el plan gratuito lo
+> pausa tras una semana sin actividad) y un respaldo semanal a Drive que se enciende después de la
+> fase 4 ([`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) Q-20; [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md)
+> §4.6 y §6).
+
 **Detalles del `.ics` que hay que respetar o esto no funciona:** `UID` estable (`inst-<id>@al3d.mx`; si cambia, el importador duplica en vez de actualizar); al mover, se conserva el `UID` y se sube `SEQUENCE` (= `instalaciones.movida`); variante UTC sin `VTIMEZONE`, con la conversión hecha sobre los campos y **no** pasando por `Date` (`OFFSET_MX = 6`, fijo desde que México abolió el horario de verano el 30/oct/2022); plegado a **75 octetos** sin partir un carácter multibyte (con `ó`, `é` y `ñ` en cada descripción esto no es teórico); escapado en orden `\` → `;` → `,` → salto de línea, y `:` **no** se escapa; **CRLF en todas las líneas, incluida la última**. **[POR VERIFICAR]** que Google Calendar y Apple Calendar acepten el archivo sin quejarse: hay que probarlo en los tres teléfonos antes de cerrar Fase 1.
 
 `wa.me` **solo lleva texto, no adjunta archivos**. El `.ics` y el archivo de respaldo van por `navigator.share({files:[…]})` con respaldo a `descargarArchivo()` (`:6865`, ya existe). **[POR VERIFICAR]** `navigator.canShare({files})` en el iPhone y en el Fold; el respaldo funciona siempre.
@@ -1339,11 +1465,34 @@ El usuario ya diseñó este sistema en Notion y murió con `Tipo de proyecto` en
 
 1. **No se migran los 199 proyectos fuera de Notion.** Migrar significa reimplementar cinco fórmulas, recrear siete vistas, perder el texto libre de las 199 páginas —que no tiene esquema y por eso es lo único intransferible— y volver a enseñarle a tres personas dónde se trabaja. Y significa repetir el fracaso de la copia (B) a mayor escala: un esquema nuevo mejor que nadie llena.
 
+   > **Ruta Supabase (en construcción, apagado).** Este «no migrar» hablaba de sacar los proyectos
+   > de Notion, que ya salió: esas filas viven hoy en la hoja. La migración que sí se está
+   > construyendo es otra —de la hoja a Supabase— y **sí importa la hoja completa, las ≥199 filas
+   > anteriores a la plataforma incluidas** (fase 2), sin que el script decida conflictos por su
+   > cuenta: los reporta y alguien los revisa ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §5;
+   > [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) Q-04 y Q-14).
+
 2. **No se llama a la API de Notion desde el navegador. Nunca, ni con CORS arreglado.** No manda `Access-Control-Allow-Origin`, `Notion-Version` dispara preflight, y `Authorization: Bearer secret_…` es un token de escritura total sobre el workspace. Aun si Notion arreglara CORS mañana, ese token no puede vivir en un HTML publicado. El puente vive en un Worker o no vive.
 
 3. **No se altera el esquema de Notion por API.** La plataforma detecta las propiedades que faltan y muestra la lista con nombre y tipo exactos para que un humano las cree. Es la única forma de garantizar que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años y $X.XM.
 
 4. **No se recalcula ninguna fórmula de Notion.** `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante`, `Fecha Comision` se leen. Nunca se calculan aquí. Dos implementaciones de la misma fórmula divergen en semanas y el sistema empieza a dar dos respuestas.
+
+   > **Matiz del 10/oct/2026.** Lo importante sigue siendo cierto hoy: el cliente **no escribe**
+   > ninguna de esas fórmulas (el puente rechaza escribirlas, con su razón: `PUENTE_FORMULAS`,
+   > `puente/hoja-apps-script.gs:2103`). Pero «nunca se calculan aquí» ya no es literal para los
+   > *estimados*: cuando la hoja todavía no bajó la fórmula, la pantalla calcula un saldo estimado
+   > (`js/datos/ventas.js:59`, que ahí mismo se rotula «saldo estimado») y una comisión de reserva de
+   > 10 % del subtotal (`js/datos/asistente-contexto.js:51`); en cuanto la hoja baja la fórmula,
+   > manda la fórmula.
+   >
+   > **Ruta Supabase (en construcción, apagado).** Aquí sí cambia el reparto: la base reproduce
+   > esas fórmulas con una vista SQL, **al centavo** (`numeric`, y `round(numeric, 2)` en neto,
+   > saldo, comisión y restante), y una prueba de cuadre compara el resultado contra los valores de
+   > la hoja. Lo que se conserva es la regla «el cliente no escribe importes derivados»
+   > ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.10; [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.7).
+   > Esa prueba de cuadre **es nueva**: hoy ninguna prueba evalúa las fórmulas de la hoja (se
+   > prueban sus réplicas en JS y se lee su texto, nada más).
 
 5. **No se arregla la divergencia de precios, se menciona.** La página *¿Cómo Cotizar?* cobra por **tipo de letra** ($30 sin luz / $35 recta / $40 puntas / $50 manuscrita, −20 % sin iluminación); el cotizador cobra por **material** ($30 al pintado … $55 acero) más $5 cursiva o $10 compleja. Son dos ejes distintos. **Manda el catálogo del cotizador**: es más nuevo, más granular y está en producción. La pantalla de constantes lo dice con una línea para que nadie compare un precio con el ejemplo de su propia página de Notion y crea que hay un bug.
 
@@ -1361,15 +1510,62 @@ El usuario ya diseñó este sistema en Notion y murió con `Tipo de proyecto` en
 
 12. **No se intenta expandir los links cortos de Google Maps desde el navegador.** `maps.app.goo.gl` no manda CORS en su 30x, en `no-cors` la respuesta es opaca con lista de headers vacía por especificación, y `redirect:'manual'` tampoco. **No hay truco.** La pantalla dice: *"Ese es un link corto y el navegador no puede abrirlo. Ábrelo, espera el mapa y copia el link de la barra."* Con el puente de Fase 3, un endpoint `/expandir` lo hace solo.
 
-13. **No se usa Supabase.** Se pausa a la semana de inactividad —y el rol de PAGOS abre la app una vez al mes—, tiene **cero días de retención de respaldo** en el plan gratuito, y una sola tabla con RLS apagada expone todo a una anon key que va publicada a propósito. Añade tres modos de falla nuevos que el usuario no puede leer ni depurar, y **no arregla el campo vacío**, que es el problema de este negocio.
+13. **No se usa Supabase.** *(Decisión de agosto de 2026, **revertida el 10/oct/2026**: ver la nota de abajo.)* Se pausa a la semana de inactividad —y el rol de PAGOS abre la app una vez al mes—, tiene **cero días de retención de respaldo** en el plan gratuito, y una sola tabla con RLS apagada expone todo a una anon key que va publicada a propósito. Añade tres modos de falla nuevos que el usuario no puede leer ni depurar, y **no arregla el campo vacío**, que es el problema de este negocio.
+
+    > **Esta decisión se revirtió el 10/oct/2026.** [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md), aprobado
+    > ese día, hace de Supabase la fuente de verdad —con la hoja de Google como espejo de solo
+    > lectura— y se está construyendo. **Está en construcción y apagado: hoy, en producción, no se
+    > usa Supabase**, y la hoja sigue siendo la fuente hasta la fase 4. Las razones de arriba no se
+    > negaron: se volvieron a comprobar el 10/oct/2026 en la página de precios de Supabase (el plan
+    > gratuito se pausa tras una semana sin actividad y no hace respaldos automáticos), y el plan
+    > las convirtió en requisitos con una respuesta cada una
+    > ([`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md)):
+    >
+    > - **Pausa a la semana:** un aviso programado desde fuera (GitHub Actions) llama cada 2 días a
+    >   una función pública `salud`. Un solo aviso semanal no deja margen (Q-20).
+    > - **Cero respaldos:** una función `respaldo` y un Apps Script que escribe a Drive, cada
+    >   semana, que se enciende después de la fase 4 (Q-20). Antes de la fase 2 se saca además una
+    >   copia completa de la hoja y la exportación de cada teléfono ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §6).
+    > - **RLS apagada:** toda tabla nace con RLS encendida y con sus `GRANT` escritos, las tablas
+    >   de negocio no admiten escritura directa (solo funciones con las reglas dentro) y hay
+    >   pruebas por rol, entre ellas que sin sesión no se lee nada (A.3 y A.4;
+    >   [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.12, regla 4, y §7).
 
 14. **No se usa Vercel Hobby.** Su plan gratuito es explícitamente no comercial. Descalificado para una empresa.
+
+    > **Sigue en pie con la ruta Supabase (en construcción, apagado).** El sitio se queda en GitHub
+    > Pages y no se usa Vercel ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §2 y §4.6; las decisiones, en
+    > [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md)).
 
 15. **No se suscribe un `.ics` publicado en el repo.** Google refresca cada 12–24 h y no se puede forzar. Sirve para una agenda de consulta con un día de atraso; no para "acabo de agendar".
 
 16. **No hay usuarios, ni login, ni base de usuarios en Fase 1.** Tres personas, tres dispositivos, un rol por dispositivo. En Fase 3 la autoridad de escritura vive en el token del dispositivo dentro del Worker, que mapea `token → rol → lista blanca de propiedades escribibles`. Cambiar el segmento de rol en la UI no da permisos: da otro tablero.
 
+    > **Matiz del 10/oct/2026.** El texto describe la Fase 1 de agosto y hoy, en producción, ya no es
+    > literal: desde septiembre de 2026 se entra con la cuenta de Google (`js/nucleo/ingreso.js`),
+    > quién entra y con qué rol lo dice la pestaña «Accesos» de la hoja (`rolDelCorreo`,
+    > `puente/hoja-apps-script.gs:2363`), la autoridad de escritura vive en el Apps Script de la hoja
+    > (el Worker ya no existe) y los tres tokens de dispositivo quedan solo como salida de
+    > emergencia ([`puente/README.md`](../puente/README.md)). Lo que no cambia: **cambiar el rol en
+    > la pantalla no da permisos**.
+    >
+    > **Ruta Supabase (en construcción, apagado).** Con la migración el login sigue siendo con
+    > Google, pero a través de Supabase Auth. Quién entra y con qué área pasa a la tabla `miembros`
+    > (un renglón por persona; hoy tres áreas: dirección, fabricación y pagos), los permisos los
+    > hace valer la base con RLS y con funciones —en la base y no en la pantalla— y los tokens de
+    > dispositivo se retiran en la fase 5 ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §4.2 y §4.8;
+    > [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) A.3 y Q-08).
+
 17. **Los instaladores no tienen acceso, y no aparecen en el modelo.** Ni fila, ni token, ni app. Reciben un WhatsApp armado con dirección, link de mapa, hora, qué se instala y a quién buscar. Es una decisión del usuario y se respeta tal cual.
+
+    > **Sigue cierto, hoy y con la migración (en construcción, apagado).** Entran Dirección,
+    > Fabricación y Pagos, y nada más, y los instaladores siguen fuera y siguen recibiendo el
+    > WhatsApp armado. Lo único que el plan deja previsto para después (fase 6) es un rol `cliente`
+    > para que los **clientes**, no los instaladores, vean el estatus de su proyecto, con una vista
+    > sin dinero ni notas internas. Si algún día un instalador debe ver sus obras, es un cambio de
+    > esquema que no entra en la primera versión ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md) §1, §4.8 y
+    > §5; [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md); el estado real de cada fase, en
+    > [`ESTADO-SUPABASE.md`](ESTADO-SUPABASE.md)).
 
 18. **No se extrae hoy el `<style>` de `index.html`.** Reordenar seis capas de cascada donde gana la última regla y donde la capa de barro pisa a propósito a la de estructura, en un archivo de 10 075 líneas en producción, es exactamente el cambio que no se puede permitir. Se copia, se regenera con una herramienta que hace diff, y se converge la próxima vez que ese archivo se toque por otra razón.
 

@@ -979,6 +979,7 @@ function bloquesCapturados(ancho) {
 
 /** Reacomoda Ventas. Es idempotente: correrla dos veces no cambia nada. */
 function ordenarVentas(h) {
+  if (modoEspejo_()) return;   // hoja espejo: el orden lo trae la base, no se reescribe nada (ver /espejo)
   h = h || SpreadsheetApp.getActive().getSheetByName('Ventas');
   if (!h) return;
   /* Mientras Y:AD no estén realineadas —o no se sepa—, no se reacomoda nada. Mover A:X sin
@@ -1055,6 +1056,7 @@ function aplicarIva(h, fila) {
 
 /** Revisa el IVA de lo que todavia no se liquida. No toca el historico. */
 function normalizarIvaActivos(h) {
+  if (modoEspejo_()) return;   // hoja espejo: el IVA ya viene resuelto por la base (ver /espejo)
   var n = FIN - 1;
   var d = h.getRange(2, 1, n, 6).getValues();
   for (var i = 0; i < n; i++) {
@@ -1071,6 +1073,7 @@ function normalizarIvaActivos(h) {
  * cuenta, y reacomodo de la hoja cuando cambia el estatus.
  */
 function alEditar(e) {
+  if (modoEspejo_()) return;   // hoja espejo: no pone folios, IVA, sellos ni reordena (ver /espejo)
   /* Con el candado del puente, como toda escritura sobre Ventas. Sin él, un reacomodo de
      aquí corría las filas en mitad de una subida —que ya había decidido en qué fila
      escribir— y un folio de aquí y uno del puente salían iguales. Si el puente no lo suelta
@@ -2213,10 +2216,18 @@ function doPost(e) {
       return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
     }
 
-    /* /verificar es la única ruta que no pide quién eres: la abre el QR de un PDF desde el
+    /* /verificar es la única ruta abierta al público, sin pedir quién eres: la abre el QR de un PDF desde el
        teléfono de un cliente. Va antes de las dos puertas, con su propio cupo. */
     if (ruta === 'verificar') {
       return responder(rutaVerificar_(cuerpo));
+    }
+
+    /* /espejo tampoco pide quién eres, y por una razón distinta: no la llama ningún teléfono ni
+       ninguna persona, la llama la función `espejo` de la base de datos, y se presenta con un secreto
+       compartido que rutaEspejo_ compara ella misma. Va antes de las dos puertas porque un token de
+       dispositivo o una cuenta de Google no sirven aquí, y el secreto no sirve en ninguna otra ruta. */
+    if (ruta === 'espejo') {
+      return responder(rutaEspejo_(cuerpo));
     }
 
     /* Las dos puertas, en este orden. La identidad manda cuando viene: es la que sabe QUIÉN
@@ -3163,7 +3174,13 @@ function rutaExpandir_(cuerpo) {
    blanca de dominios sea una sola. */
 function expandirLiga_(liga) {
   var u = String(liga || '').trim();
-  var m = /^https?:\/\/([^\/:?#]+)/i.exec(u);
+  /* El host solo puede ser letras, números, puntos y guiones, y lo que le sigue tiene que ser «/»,
+     «?», «#» o el final. Con la expresión de antes (`[^\/:?#]+`) el host se cortaba en el primer
+     «:», y «https://maps.google.com:x@evil.example/» daba «maps.google.com» —que está en la
+     lista— mientras UrlFetchApp conectaba a lo que va después del «@»: evil.example. Ahora ni un
+     usuario, ni una contraseña, ni un puerto pasan: el «:» y el «@» no caben en la clase, y detrás
+     del host no puede venir nada más. La lista blanca de abajo es la misma de siempre. */
+  var m = /^https?:\/\/([a-z0-9.-]+)(?=[\/?#]|$)/i.exec(u);
   var host = m ? m[1].toLowerCase() : '';
   if (!host || DOMINIOS_MAPS.indexOf(host) === -1) {
     return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Solo se siguen ligas de Google Maps.' };
@@ -3274,7 +3291,7 @@ function anotar_(anotaciones) {
       var que = (a.campos || []).join(', ');
       if (a.abono) que += (que ? ' + ' : '') + 'abono de comisión ' + a.abono;
       return [ahora, a.rol, a.folio, a.fila, que || '(nada)',
-              a.creada ? 'fila nueva' : ''];
+              a.creada ? 'fila nueva' : (a.nota || '')];
     });
     b.getRange(b.getLastRow() + 1, 1, filas.length, 6).setValues(filas);
     b.getRange(2, 1, b.getLastRow(), 1).setNumberFormat('dd/mm/yyyy HH:mm:ss');
@@ -5910,4 +5927,801 @@ function autorizarDrive() {
   ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/drive']);
   var r = carpetaDeTrabajos_();
   return r.ok ? 'Drive autorizado: «' + r.carpeta.getName() + '».' : (r.mensaje + ' ' + r.detalle);
+}
+
+/* =========================================================================================
+   /espejo — LA HOJA, COMO ESPEJO DE SOLO LECTURA DE LA BASE DE DATOS (Supabase)
+
+   A partir de la fase 4 de la migración la verdad vive en la base de datos y esta hoja deja de
+   ser donde se captura: es una copia que se llena sola, para que el Tablero, la cobranza, las
+   comisiones, las vistas y el correo de los lunes sigan calculándose como siempre. Lo que se
+   escriba a mano aquí se pisa con el siguiente cambio de la base.
+
+   Quién llama: la función `espejo` de Supabase (supabase/functions/espejo), cada pocos minutos.
+   No la llama ningún teléfono ni ninguna persona, y por eso va ANTES de las dos puertas de
+   doPost (como /verificar) con la suya propia: un secreto compartido. Son tres propiedades del
+   script (aquí solo viven los NOMBRES; el valor no está en el código ni en el repositorio):
+
+     · ESPEJO_SECRETO  la identidad de quien llama. Se compara en tiempo constante. Sin ella, con
+                       otra, o con una de menos de 32 caracteres, la respuesta es la misma que
+                       le da la puerta a quien no trae token —no confirma que la ruta existe— y
+                       no se toca nada.
+     · MODO_ESPEJO     «si» declara que esta hoja ES un espejo. Mientras no esté: la ruta se
+                       niega a escribir (una llamada por error no puede pisar la hoja viva, que
+                       hasta la fase 4 es la fuente de verdad) y alEditar, normalizarIvaActivos y
+                       ordenarVentas hacen lo de siempre. Con ella: los tres quedan inocuos, para
+                       que no reescriban lo que la base mandó.
+     · ESPEJO_SELLOS   opcional. Apagada, el espejo NO escribe la columna AI «Sellos» (una hoja
+                       espejo no decide quién gana ningún cambio); con «si» la escribe tal cual la
+                       manda la base, por si algún día se regresa a leer de la hoja.
+
+   LO QUE LLEGA (el cuerpo de /espejo, con `secreto` al lado de `ruta`):
+
+       { ruta: 'espejo', secreto: '…', lote: {
+           id: 'esp-…',                       lo que se quiera para reconocer el lote en la bitácora
+           modo: 'incremental' | 'completo',  informativo
+           ventas: [ { a_folio: 'V-014', b_proyecto: '…', c_estatus: '…', … }, … ],
+           abonos: [ { a_folio: 'V-014', abonos: [ { c_importe, d_fecha, e_nota, f_pago }, … ] }, … ] } }
+
+   Las llaves de cada venta son las columnas de la vista espejo_ventas (a_folio = columna A,
+   b_proyecto = B…; ver espejoColumnasVentas_). Los abonos de un folio llegan COMPLETOS y juntos:
+   una hoja de abonos no tiene un id por renglón, así que lo que se reconcilia es el conjunto del
+   folio, no un renglón. `{ ruta: 'espejo', secreto, accion: 'estado' }` no escribe nada y dice
+   cuántas filas libres quedan.
+
+   QUÉ HACE, Y QUÉ NUNCA:
+
+     · La identidad es el FOLIO (columna A), jamás el número de fila: la hoja se reacomodaba por
+       estatus y, aunque aquí ya no, las filas de hoy están donde estén. Un folio que no está se da
+       de alta en la primera fila libre; uno que está se pone al día en su fila.
+     · Escribe solo las columnas CAPTURADAS —A:G, I:J, L:N, Y:AH (y AI con ESPEJO_SELLOS)— y solo las
+       celdas cuyo valor cambió. H, K y O:X son fórmulas de la hoja y no se tocan nunca: un lote que
+       trae una llave de esas columnas se rechaza completo. En «Abonos comisión» escribe A, C, D, E y
+       F; la B es la fórmula del nombre.
+     · Lo que se teclea como texto (la hora, el teléfono, las notas, los sellos) lleva su '@' antes
+       del valor, y un texto que empieza con = + - @ lleva su apóstrofo (lo que la hoja volvería
+       fórmula). La base no guarda ese apóstrofo; aquí se pone.
+     · Es atómica por lote: todo se valida y se calcula con el candado puesto y ANTES de escribir; si
+       algo no cabe o no vale, no se escribe nada. Una caída a la mitad del escribir (la cuota de
+       Google) se repara con el reintento: aplicar el mismo lote dos veces deja la misma hoja.
+     · Respeta FIN. Si el lote necesita más filas libres de las que hay, contesta CAPACIDAD_AGOTADA y
+       no escribe nada (subir FIN y todos los $2:$310 es un paso del despliegue, no de esta ruta).
+     · No crea ninguna pestaña. Anota en la «Bitácora del puente» —si existe— con rol «espejo»; pone
+       una nota en A1 de Ventas y de Abonos («esto es un espejo, las ediciones se pisan») y la fecha
+       y hora de la última sincronización en la columna que sigue a la última del puente (AJ).
+   ========================================================================================= */
+var PROP_ESPEJO_SECRETO = 'ESPEJO_SECRETO';
+var PROP_MODO_ESPEJO = 'MODO_ESPEJO';
+var PROP_ESPEJO_SELLOS = 'ESPEJO_SELLOS';
+var ESPEJO_SECRETO_MIN = 32;          // un secreto más corto que esto no se acepta, ni configurado ni recibido
+var ESPEJO_MAX_VENTAS = 100;          // ventas por lote (el cuerpo entero ya topa en 64 KB, ver doPost)
+var ESPEJO_MAX_ABONOS = 400;          // renglones de abonos por lote
+var ESPEJO_ABONOS_FILAS = 1999;       // «Abonos comisión» llega del renglón 2 al 2000 (ver filaLibreEnAbonos)
+
+/* Una propiedad del script como texto; vacío si no existe o si el servicio no contesta. */
+function espejoPropiedad_(nombre) {
+  try {
+    var v = PropertiesService.getScriptProperties().getProperty(nombre);
+    return v == null ? '' : String(v);
+  } catch (e) { return ''; }
+}
+
+function espejoEncendida_(nombre) {
+  var v = espejoPropiedad_(nombre).trim().toLowerCase();
+  return v === 'si' || v === 'sí' || v === 'true' || v === '1';
+}
+
+/** ¿Esta hoja es un espejo? Falsa si la propiedad no está o no se pudo leer: ante la duda, todo se
+ *  comporta como siempre. La preguntan alEditar, normalizarIvaActivos y ordenarVentas. */
+function modoEspejo_() { return espejoEncendida_(PROP_MODO_ESPEJO); }
+
+function espejoConSellos_() { return espejoEncendida_(PROP_ESPEJO_SELLOS); }
+
+/** Igualdad de dos textos sin salir en la primera diferencia: recorre SIEMPRE el más largo y junta
+ *  las diferencias, de modo que lo que tarda no dice en qué posición falla. */
+function espejoIgual_(a, b) {
+  a = String(a == null ? '' : a);
+  b = String(b == null ? '' : b);
+  var largo = Math.max(a.length, b.length), dif = a.length ^ b.length;
+  for (var i = 0; i < largo; i++) dif |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return dif === 0;
+}
+
+/** ¿Quien llama trae el secreto del espejo? Compara siempre, aunque no haya secreto configurado, y
+ *  después exige el largo mínimo: no hay camino corto que distinga «no hay secreto» de «es otro». */
+function espejoAutenticado_(cuerpo) {
+  var esperado = espejoPropiedad_(PROP_ESPEJO_SECRETO);
+  var dado = (cuerpo && typeof cuerpo.secreto === 'string') ? cuerpo.secreto : '';
+  var igual = espejoIgual_(esperado, dado);
+  return igual && esperado.length >= ESPEJO_SECRETO_MIN;
+}
+
+/* ---------------------------------------------------------------- /espejo */
+function rutaEspejo_(cuerpo) {
+  if (!espejoAutenticado_(cuerpo)) {
+    /* La misma respuesta, letra por letra, que la puerta de doPost le da a quien no trae token: para
+       quien no tiene el secreto, esta ruta no se distingue de cualquier otra. */
+    return { ok: false, codigo: 'ROL_SIN_PERMISO',
+             mensaje: 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' };
+  }
+  var accion = String((cuerpo && cuerpo.accion) || 'lote');
+  if (accion === 'estado') return espejoEstado_();
+  if (accion !== 'lote') {
+    return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La acción del espejo es «lote» o «estado».' };
+  }
+  if (!modoEspejo_()) {
+    return { ok: false, codigo: 'ESPEJO_APAGADO',
+             mensaje: 'Esta hoja todavía no es un espejo: falta MODO_ESPEJO = si en las propiedades del script. No se escribió nada.' };
+  }
+  return espejoLote_(cuerpo.lote);
+}
+
+/** Qué tan llena está la hoja y cuándo se sincronizó por última vez. No escribe nada. */
+function espejoEstado_() {
+  var ss = SpreadsheetApp.getActive();
+  var h = ss.getSheetByName('Ventas');
+  var a = ss.getSheetByName(ABONOS);
+  var out = { ok: true, version: PUENTE_VERSION, modo_espejo: modoEspejo_(), sellos: espejoConSellos_(),
+              fin: FIN, ventas: null, abonos: null, ultima_sincronizacion: null };
+  if (h) {
+    var b = h.getRange(2, COL['Proyecto'], FIN - 1, 1).getValues(), ocupadas = 0;
+    for (var i = 0; i < b.length; i++) if (String(b[i][0]).trim() !== '') ocupadas++;
+    out.ventas = { ocupadas: ocupadas, libres: (FIN - 1) - ocupadas };
+    try {
+      if (h.getMaxColumns() >= espejoColMarca_()) {
+        var marca = h.getRange(2, espejoColMarca_()).getValue();
+        if (esFecha(marca)) out.ultima_sincronizacion = marca.toISOString();
+      }
+    } catch (e) { /* sin la marca no hay última sincronización, y nada más */ }
+  }
+  if (a && a.getMaxColumns() >= COL_PAGO) {
+    var d = a.getRange(2, 1, ESPEJO_ABONOS_FILAS, COL_PAGO).getValues(), ocupAb = 0;
+    for (var j = 0; j < d.length; j++) if (!espejoRenglonVacio_(d[j])) ocupAb++;
+    out.abonos = { ocupadas: ocupAb, libres: ESPEJO_ABONOS_FILAS - ocupAb };
+  }
+  return out;
+}
+
+/* Vacío en «Abonos comisión» es lo mismo que para filaLibreEnAbonos: nada en A ni de C a F (B es la
+   fórmula del nombre y no cuenta). */
+function espejoRenglonVacio_(r) {
+  for (var c = 0; c < COL_PAGO; c++) {
+    if (c !== 1 && r[c] !== '' && r[c] !== null) return false;
+  }
+  return true;
+}
+
+/* ── Qué columna de Ventas recibe cada columna de la vista espejo_ventas ───────────────────
+   Las posiciones salen de COL, y no de un 25 contado a mano: si un día se mueve una columna en COL,
+   el espejo se mueve con ella. pruebas/supabase-espejo.mjs compara esta lista con la de la función
+   (supabase/functions/_shared/espejo.js): una llave escrita distinto de un lado es una columna que
+   el otro no entiende. NO hay H, K ni O:X: son fórmulas. */
+function espejoColumnasVentas_() {
+  return [
+    ['a_folio', COL_FOLIO], ['b_proyecto', COL['Proyecto']], ['c_estatus', COL['Estatus']],
+    ['d_cuenta', COL['Cuenta ']], ['e_tipo', COL['Tipo de trabajo']], ['f_iva', COL['IVA']],
+    ['g_subtotal', COL['Precio Subtotal']], ['i_anticipo', COL['Anticipo']], ['j_liquidacion', COL['Liquidacion']],
+    ['l_fecha_anticipo', COL['Fecha Anticipo e Instalacion']], ['m_fecha_instalacion', COL['Fecha instalacion']],
+    ['n_fecha_liquidacion', COL['Fecha Liquidacion']], ['y_folio_cotizacion', COL['Folio cotizacion']],
+    ['z_etapa', COL['Etapa de obra']], ['aa_hora', COL['Hora instalacion']], ['ab_ubicacion', COL['Ubicacion']],
+    ['ac_direccion', COL['Direccion']], ['ad_pct', COL['Porcentaje comision']], ['ae_telefono', COL['Telefono']],
+    ['af_entrega', COL['Entrega']], ['ag_notas', COL['Notas']], ['ah_plazo', COL['Plazo taller']],
+    ['ai_sellos', COL['Sellos']]
+  ];
+}
+
+/* Cómo se lee cada una: el tipo decide qué se valida, qué se escribe y cómo se compara con lo que
+   ya hay en la celda. */
+var ESPEJO_TIPOS = {
+  a_folio: 'folio', b_proyecto: 'nombre', c_estatus: 'estatus', d_cuenta: 'cuenta', e_tipo: 'tipos',
+  f_iva: 'iva', g_subtotal: 'subtotal', i_anticipo: 'dinero', j_liquidacion: 'dinero',
+  l_fecha_anticipo: 'fecha', m_fecha_instalacion: 'fecha', n_fecha_liquidacion: 'fecha',
+  y_folio_cotizacion: 'texto', z_etapa: 'etapa', aa_hora: 'hora', ab_ubicacion: 'texto', ac_direccion: 'texto',
+  ad_pct: 'pct', ae_telefono: 'telefono', af_entrega: 'entrega', ag_notas: 'notas', ah_plazo: 'plazo',
+  ai_sellos: 'sellos'
+};
+
+/* Las llaves que acompañan a cada fila de la vista y no son columnas de la hoja. */
+var ESPEJO_IGNORABLES = { empresa_id: true, updated_at: true, dinero_updated_at: true, id: true };
+
+/** ¿Esta llave es la de una columna de fórmula? La letra que va antes del primer «_» (h_neto, k_saldo,
+ *  x_revisar…) o una letra suelta («H»). `letras` son las columnas de fórmula de la pestaña: H, K y
+ *  O:X en Ventas; solo la B en «Abonos comisión» (el nombre sale de un VLOOKUP). */
+function espejoEsFormula_(llave, letras) {
+  var m = /^([a-z]{1,2})(?:_|$)/i.exec(String(llave));
+  return !!m && letras.indexOf(m[1].toUpperCase()) !== -1;
+}
+var ESPEJO_FORMULAS_VENTAS = ['H', 'K', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X'];
+var ESPEJO_FORMULAS_ABONOS = ['B'];
+
+/** El texto como se escribe en una celda normal: lo que la hoja volvería fórmula (empieza con = + - @)
+ *  lleva su apóstrofo, que Sheets no guarda y getValues no devuelve (ver textoProtegido). */
+function espejoProtegido_(s) { return /^[=+\-@]/.test(s) ? "'" + s : s; }
+
+/** Un número de verdad: número finito, o texto que lo es. Cualquier otra cosa, null. */
+function espejoNumero_(x) {
+  if (typeof x === 'number') return isFinite(x) ? x : null;
+  if (typeof x === 'string' && /^-?\d+(\.\d+)?$/.test(x.trim())) return Number(x.trim());
+  return null;
+}
+
+/** Una fecha «YYYY-MM-DD» que existe, como Date a medianoche (como la arma armarCeldas); null si no. */
+function espejoFecha_(x) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(x));
+  if (!m) return null;
+  var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  var f = new Date(y, mo - 1, d);
+  if (y < 1900 || y > 2100 || f.getFullYear() !== y || f.getMonth() !== mo - 1 || f.getDate() !== d) return null;
+  return f;
+}
+
+/** Medianoche de ese día EN LA ZONA DE LA HOJA, que es la que usa getValues para leer la fecha de vuelta
+ *  (Utilities.formatDate con la zona de la hoja, como aplanarFila). `new Date(a, m, d)` la arma en la zona
+ *  del proyecto del script, y si ésta fuera otra la fecha se correría un día y se reescribiría en cada
+ *  sincronización. Sin parseDate cae en la de siempre. */
+function espejoDia_(texto, tz) {
+  try { return Utilities.parseDate(texto, tz, 'yyyy-MM-dd'); }
+  catch (e) { return espejoFecha_(texto); }
+}
+
+/** Valida y deja listo el valor de UNA columna de la vista: { ok, v, w, texto } o { ok:false, por }.
+ *  `v` es el valor canónico, el que se compara con lo que ya hay; `w`, lo que se le da a la celda;
+ *  `texto`, si la celda tiene que estar en texto sin formato ('@') antes de escribirla. `tz` es la zona
+ *  de la hoja (para las fechas). */
+function espejoNormalizar_(nombre, x, tz) {
+  var tipo = ESPEJO_TIPOS[nombre];
+  var no = function (por) { return { ok: false, por: por }; };
+  var si = function (v, w, texto) { return { ok: true, v: v, w: w === undefined ? v : w, texto: !!texto }; };
+  var vacio = x === null || x === undefined || (typeof x === 'string' && x.trim() === '');
+  if (x !== null && typeof x === 'object' && tipo !== 'sellos') return no('«' + nombre + '» no es un dato simple');
+  var s = String(x == null ? '' : x);
+  var n;
+
+  if (tipo === 'folio') {
+    s = s.trim().toUpperCase();
+    return /^V-\d{3,7}$/.test(s) ? si(s) : no('el folio «' + s.slice(0, 30) + '» no tiene la forma V-###');
+  }
+  if (tipo === 'nombre') {
+    s = s.trim().slice(0, 2000);
+    return s ? si(s, espejoProtegido_(s)) : no('la venta no trae el nombre del proyecto');
+  }
+  if (tipo === 'texto') { s = s.slice(0, 2000); return si(s, espejoProtegido_(s)); }
+  if (tipo === 'estatus') {
+    if (vacio) return si('');
+    return ESTATUS.indexOf(s.trim()) !== -1 ? si(s.trim()) : no('«' + s.slice(0, 30) + '» no es un estatus de la hoja');
+  }
+  if (tipo === 'cuenta') {
+    if (vacio) return si('');
+    return CUENTAS.indexOf(s.trim()) !== -1 ? si(s.trim()) : no('«' + s.slice(0, 30) + '» no es una cuenta de la hoja');
+  }
+  if (tipo === 'tipos') {
+    if (vacio) return si('');
+    var arr = s.split(/\s*,\s*/).filter(Boolean);
+    var malos = arr.filter(function (t) { return TIPOS_TRABAJO.indexOf(t) === -1; });
+    return malos.length ? no('no son tipos de la hoja: ' + malos.join(', ').slice(0, 60)) : si(arr.join(', '));
+  }
+  if (tipo === 'iva') {
+    if (x === true || s === 'Sí') return si('Sí');
+    if (x === false || s === 'No') return si('No');
+    return no('el IVA es «Sí» o «No»');
+  }
+  if (tipo === 'subtotal') {
+    n = espejoNumero_(x);
+    return n === null ? no('el subtotal no es un número') : si(n);
+  }
+  if (tipo === 'dinero') {
+    n = espejoNumero_(x);
+    if (n === null) return no('«' + nombre + '» no es un número');
+    return n < 0 ? no('«' + nombre + '» no puede ser negativo') : si(n);
+  }
+  if (tipo === 'fecha') {
+    if (vacio) return si('');
+    var f = espejoFecha_(s.trim());
+    return f ? si(s.trim(), espejoDia_(s.trim(), tz)) : no('la fecha de «' + nombre + '» tiene que venir como YYYY-MM-DD');
+  }
+  if (tipo === 'etapa') {
+    if (vacio) return si('');
+    return ETAPAS_OBRA.indexOf(s.trim()) !== -1 ? si(s.trim()) : no('«' + s.slice(0, 30) + '» no es una etapa de obra');
+  }
+  if (tipo === 'hora') {
+    if (vacio) return si('', '', true);
+    var hora = horaEscrita(s);
+    return hora === null ? no('la hora va como HH:MM') : si(hora, hora, true);
+  }
+  if (tipo === 'pct') {
+    if (vacio) return si('');
+    n = espejoNumero_(x);
+    return (n === null || n < 0 || n > 100) ? no('el porcentaje va de 0 a 100') : si(n);
+  }
+  if (tipo === 'telefono') {
+    if (vacio) return si('', '', true);
+    var tel = telefonoLimpio(s);
+    return si(tel, tel, true);
+  }
+  if (tipo === 'entrega') {
+    if (vacio) return si('');
+    return ENTREGAS.indexOf(s.trim()) !== -1 ? si(s.trim()) : no('la entrega es «Instalación», «Paquetería» o «Recolección en taller»');
+  }
+  if (tipo === 'notas') {
+    s = vacio ? '' : s.slice(0, 40000);
+    return si(s, s, true);
+  }
+  if (tipo === 'plazo') {
+    if (vacio) return si('');
+    return PLAZOS_TALLER.indexOf(s.trim()) !== -1 ? si(s.trim()) : no('el plazo es uno de: ' + PLAZOS_TALLER.join(', '));
+  }
+  if (tipo === 'sellos') {
+    if (vacio) return si('', '', true);
+    var crudo = typeof x === 'string' ? x : JSON.stringify(x);
+    var canon = sellosATexto_(sellosDeCelda_(crudo));
+    return canon ? si(canon, canon, true) : no('los sellos no se pudieron leer');
+  }
+  return no('«' + nombre + '» no es una columna del espejo');
+}
+
+/** Lo que hay en una celda, en la misma forma canónica que espejoNormalizar_ le da al valor nuevo. */
+function espejoActual_(tipo, x, tz) {
+  var s = String(x == null ? '' : x);
+  switch (tipo) {
+    case 'folio': return s.trim().toUpperCase();
+    case 'nombre': return s.trim();
+    case 'texto': case 'notas': return s;
+    case 'estatus': case 'cuenta': case 'tipos': case 'iva': case 'etapa': case 'entrega': case 'plazo': return s.trim();
+    case 'subtotal': case 'dinero': case 'pct': return typeof x === 'number' ? x : (x === '' || x == null ? '' : s.trim());
+    case 'fecha': return esFecha(x) ? Utilities.formatDate(x, tz, 'yyyy-MM-dd') : s.trim();
+    case 'hora': return horaDeCelda(x, tz);
+    case 'telefono': return telefonoLimpio(s);
+    case 'sellos': return sellosATexto_(sellosDeCelda_(x));
+  }
+  return s;
+}
+
+/* ── Validar el lote, sin tocar la hoja ───────────────────────────────────────────────── */
+function espejoValidarVentas_(items, conSellos, tz) {
+  var cols = espejoColumnasVentas_(), colDe = {};
+  cols.forEach(function (c) { colDe[c[0]] = c[1]; });
+  var filas = [], rechazadas = [], formulas = [], vistos = {};
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var etiqueta = '#' + (i + 1);
+    if (!it || typeof it !== 'object' || Object.prototype.toString.call(it) === '[object Array]') {
+      rechazadas.push({ flujo: 'ventas', folio: etiqueta, por: 'la fila no es un objeto' });
+      continue;
+    }
+    if (it.a_folio != null) etiqueta = String(it.a_folio).trim().toUpperCase().slice(0, 30) || etiqueta;
+    var vals = {}, malas = [];
+    for (var k in it) {
+      if (!Object.prototype.hasOwnProperty.call(it, k)) continue;
+      if (ESPEJO_IGNORABLES[k] === true) continue;
+      if (espejoEsFormula_(k, ESPEJO_FORMULAS_VENTAS)) { formulas.push(k); continue; }
+      if (!Object.prototype.hasOwnProperty.call(colDe, k)) { malas.push('«' + String(k).slice(0, 30) + '» no es una columna del espejo'); continue; }
+      if (k === 'ai_sellos' && !conSellos) continue;
+      var r = espejoNormalizar_(k, it[k], tz);
+      if (!r.ok) { malas.push(r.por); continue; }
+      vals[colDe[k]] = { nombre: k, tipo: ESPEJO_TIPOS[k], v: r.v, w: r.w, texto: r.texto };
+    }
+    if (!vals[COL_FOLIO]) malas.push('falta el folio');
+    if (!vals[COL['Proyecto']]) malas.push('falta el nombre del proyecto');
+    if (vals[COL_FOLIO]) {
+      if (Object.prototype.hasOwnProperty.call(vistos, 'f:' + vals[COL_FOLIO].v)) malas.push('el folio viene dos veces en el lote');
+      vistos['f:' + vals[COL_FOLIO].v] = true;
+    }
+    if (malas.length) { rechazadas.push({ flujo: 'ventas', folio: etiqueta, por: malas[0] }); continue; }
+    filas.push({ folio: vals[COL_FOLIO].v, vals: vals });
+  }
+  return { filas: filas, rechazadas: rechazadas, formulas: formulas };
+}
+
+function espejoValidarAbonos_(grupos) {
+  var out = [], rechazadas = [], formulas = [], vistos = {}, renglones = 0;
+  for (var i = 0; i < grupos.length; i++) {
+    var g = grupos[i];
+    var etiqueta = '#' + (i + 1);
+    if (!g || typeof g !== 'object' || Object.prototype.toString.call(g) === '[object Array]') {
+      rechazadas.push({ flujo: 'abonos', folio: etiqueta, por: 'el grupo no es un objeto' });
+      continue;
+    }
+    if (g.a_folio != null) etiqueta = String(g.a_folio).trim().toUpperCase().slice(0, 30) || etiqueta;
+    var folio = String(g.a_folio == null ? '' : g.a_folio).trim().toUpperCase();
+    var mala = '';
+    for (var k in g) {
+      if (!Object.prototype.hasOwnProperty.call(g, k) || k === 'a_folio' || k === 'abonos' || ESPEJO_IGNORABLES[k] === true) continue;
+      if (espejoEsFormula_(k, ESPEJO_FORMULAS_ABONOS)) formulas.push(k);
+      else if (!mala) mala = '«' + String(k).slice(0, 30) + '» no es una llave de un folio de abonos';
+    }
+    if (!/^V-\d{3,7}$/.test(folio)) mala = mala || 'el folio «' + folio.slice(0, 30) + '» no tiene la forma V-###';
+    if (Object.prototype.hasOwnProperty.call(vistos, 'f:' + folio)) mala = mala || 'el folio viene dos veces en el lote';
+    vistos['f:' + folio] = true;
+    if (Object.prototype.toString.call(g.abonos) !== '[object Array]' || !g.abonos.length) {
+      /* Un folio sin abonos no se manda: dejaría en blanco los renglones de ese folio por un error de la
+         lectura, y los abonos no se borran nunca (solo se corrigen con otro renglón). */
+      mala = mala || 'los abonos de un folio vienen en una lista que no está vacía';
+    }
+    var lista = [];
+    if (!mala) {
+      for (var j = 0; j < g.abonos.length && !mala; j++) {
+        var x = g.abonos[j];
+        if (!x || typeof x !== 'object') { mala = 'un abono no es un objeto'; break; }
+        for (var kk in x) {
+          if (!Object.prototype.hasOwnProperty.call(x, kk)) continue;
+          if (kk === 'a_folio' || kk === 'c_importe' || kk === 'd_fecha' || kk === 'e_nota' || kk === 'f_pago' || ESPEJO_IGNORABLES[kk] === true) continue;
+          if (espejoEsFormula_(kk, ESPEJO_FORMULAS_ABONOS)) formulas.push(kk);
+          else mala = '«' + String(kk).slice(0, 30) + '» no es una columna de los abonos';
+        }
+        if (mala) break;
+        var imp = espejoNumero_(x.c_importe);
+        if (imp === null || Math.abs(imp) >= 1e7) { mala = 'el importe de un abono no es un número de menos de $10,000,000'; break; }
+        var fecha = '';
+        if (x.d_fecha !== null && x.d_fecha !== undefined && String(x.d_fecha).trim() !== '') {
+          fecha = String(x.d_fecha).trim();
+          if (!espejoFecha_(fecha)) { mala = 'la fecha de un abono tiene que venir como YYYY-MM-DD'; break; }
+        }
+        var pago = (x.f_pago === null || x.f_pago === undefined) ? '' : String(x.f_pago).trim();
+        if (pago && !/^P-\d{3,}$/.test(pago)) { mala = 'el id de pago de un abono no tiene la forma P-###'; break; }
+        var nota = String(x.e_nota == null ? '' : x.e_nota).slice(0, 2000);
+        lista.push({ c: imp, d: fecha, e: nota, f: pago });
+      }
+    }
+    if (mala) { rechazadas.push({ flujo: 'abonos', folio: etiqueta, por: mala }); continue; }
+    renglones += lista.length;
+    out.push({ folio: folio, abonos: lista });
+  }
+  return { grupos: out, rechazadas: rechazadas, formulas: formulas, renglones: renglones };
+}
+
+/** Un abono en una sola cadena, para saber si dos son el mismo: importe, fecha (solo el día), nota y
+ *  pago. La hoja vieja guardaba la hora en la fecha; aquí cuenta el día. */
+function espejoClaveAbono_(imp, fecha, nota, pago) {
+  return [imp, fecha, nota, pago].join('\u0001');
+}
+
+/* ── El lote ─────────────────────────────────────────────────────────────────────────── */
+function espejoLote_(lote) {
+  var malo = function (mensaje, extra) {
+    var r = { ok: false, codigo: 'DATO_INVALIDO', mensaje: mensaje };
+    for (var k in (extra || {})) r[k] = extra[k];
+    return r;
+  };
+  if (!lote || typeof lote !== 'object') return malo('Falta el lote.');
+  var ventas = lote.ventas == null ? [] : lote.ventas;
+  var abonos = lote.abonos == null ? [] : lote.abonos;
+  if (Object.prototype.toString.call(ventas) !== '[object Array]' || Object.prototype.toString.call(abonos) !== '[object Array]') {
+    return malo('Las ventas y los abonos del lote van en listas.');
+  }
+  if (ventas.length > ESPEJO_MAX_VENTAS) return malo('El lote trae demasiadas ventas (' + ESPEJO_MAX_VENTAS + ' como mucho).');
+  var conSellos = espejoConSellos_();
+  var ss = SpreadsheetApp.getActive();
+  var tz = ss.getSpreadsheetTimeZone();
+
+  /* 1. Validar TODO antes de tocar nada. Una llave de columna de fórmula tumba el lote entero: no es
+        un dato malo de una venta, es un lote mal armado (o alguien probando). */
+  var vv = espejoValidarVentas_(ventas, conSellos, tz);
+  var va = espejoValidarAbonos_(abonos);
+  if (vv.formulas.length || va.formulas.length) {
+    return malo('El lote intenta escribir columnas de fórmula (H, K y O a X de Ventas, B de abonos): se rechaza completo y no se escribió nada.',
+                { motivo: 'formulas' });
+  }
+  if (va.renglones > ESPEJO_MAX_ABONOS) return malo('El lote trae demasiados abonos (' + ESPEJO_MAX_ABONOS + ' renglones como mucho).');
+  var rechazadas = vv.rechazadas.concat(va.rechazadas);
+  if (rechazadas.length) {
+    return malo(rechazadas.length + ' fila(s) del lote no valen: no se escribió nada.', { rechazadas: rechazadas.slice(0, 50) });
+  }
+
+  var h = ss.getSheetByName('Ventas');
+  if (!h) return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no tiene pestaña "Ventas".' };
+  var a = ss.getSheetByName(ABONOS);
+  var ancho = anchoDelPuente(h);
+  var anchoMinimo = COL[conSellos ? 'Sellos' : 'Plazo taller'];
+  if (vv.filas.length && ancho < anchoMinimo) {
+    return { ok: false, codigo: 'ESQUEMA_INCOMPLETO',
+             mensaje: 'La hoja todavía no tiene las columnas AE a AI de Ventas: falta correr ⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente. No se escribió nada.' };
+  }
+  if (va.grupos.length && (!a || a.getMaxColumns() < COL_PAGO)) {
+    return { ok: false, codigo: 'ESQUEMA_INCOMPLETO',
+             mensaje: 'La pestaña «' + ABONOS + '» no existe o no llega a la columna F «Pago». No se escribió nada.' };
+  }
+
+  /* 2. El candado de toda escritura sobre Ventas y los abonos. Si está ocupado, el reintento de la función
+        lo vuelve a intentar. */
+  var candado = LockService.getScriptLock();
+  try { candado.waitLock(25000); }
+  catch (e) {
+    return { ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está ocupada con otra escritura. Se vuelve a intentar solo.' };
+  }
+  try {
+    /* 3. El plan, leyendo la hoja una vez. Todavía no se escribe nada. */
+    var pv = vv.filas.length ? espejoPlanVentas_(h, vv.filas, ancho, tz) : null;
+    var pa = va.grupos.length ? espejoPlanAbonos_(a, va.grupos, tz) : null;
+
+    /* 4. Capacidad: si no cabe, no se escribe NADA —ni siquiera lo que sí cabía—. */
+    var sinLugarV = pv ? pv.sinLugar : [], sinLugarA = pa ? pa.sinLugar : [];
+    if (sinLugarV.length || sinLugarA.length) {
+      return { ok: false, codigo: 'CAPACIDAD_AGOTADA', capacidad_agotada: true,
+               mensaje: 'La hoja no tiene filas libres para todo el lote (Ventas llega al renglón ' + FIN + ', abonos al 2000): no se escribió nada. Subir FIN es un paso del despliegue.',
+               ventas: { sin_lugar: sinLugarV.slice(0, 50), libres: pv ? pv.libres : null, fin: FIN },
+               abonos: { sin_lugar: sinLugarA.slice(0, 50), libres: pa ? pa.libres : null, filas: ESPEJO_ABONOS_FILAS } };
+    }
+
+    /* 5. Escribir. */
+    var celdasV = 0, celdasA = 0;
+    if (pv) {
+      pv.limpiar.forEach(function (fila) { limpiarFila(h, fila); });
+      celdasV = espejoEscribir_(h, pv.porFila, FIN);
+    }
+    if (pa) celdasA = espejoEscribir_(a, pa.porFila, ESPEJO_ABONOS_FILAS + 1);
+    SpreadsheetApp.flush();
+
+    /* 6. Las marcas y la bitácora no tumban una sincronización que ya escribió. */
+    var ahora = new Date();
+    var anotaciones = [];
+    /* Lo que había antes de lo que se pisó va en la columna «Nota» de la bitácora: si alguien editó la
+       hoja a mano, ahí queda lo que había por si hace falta recuperarlo. */
+    if (pv) pv.cambios.forEach(function (c) {
+      anotaciones.push({ rol: 'espejo', folio: c.folio, fila: c.fila, creada: c.creada, campos: c.campos, abono: null, nota: c.antes });
+    });
+    if (pa) pa.cambios.forEach(function (c) {
+      anotaciones.push({ rol: 'espejo', folio: c.folio, fila: c.fila, creada: false, campos: [c.texto], abono: null, nota: c.antes });
+    });
+    var anotada = espejoAnotar_(ss, anotaciones);
+    var texto = 'ok · ' + (lote.modo === 'completo' ? 'completa' : 'al día') + (lote.id ? ' · ' + String(lote.id).slice(0, 40) : '');
+    var marcada = espejoMarcar_(h, a, tz, ahora, texto);
+
+    return {
+      ok: true, ts: ahora.getTime(), lote: String(lote.id == null ? '' : lote.id).slice(0, 80),
+      ventas: pv ? { recibidas: vv.filas.length, nuevas: pv.nuevas, cambiadas: pv.cambiadas, sin_cambio: pv.sinCambio,
+                     celdas: celdasV, duplicadas: pv.duplicadas.slice(0, 20) } : null,
+      abonos: pa ? { folios: va.grupos.length, agregados: pa.agregados, reescritos: pa.reescritos, borrados: pa.borrados,
+                     sin_cambio: pa.sinCambio, celdas: celdasA } : null,
+      capacidad: { fin: FIN, ventas_libres: pv ? pv.libres - pv.nuevas : null, abonos_libres: pa ? pa.libres - pa.agregados : null },
+      bitacora: anotada, anotadas: anotada ? anotaciones.length : 0, marca: marcada
+    };
+  } catch (err) {
+    /* Una caída a la mitad (la cuota de Google, un tiempo agotado) deja el lote a medias: no se esconde.
+       Aplicarlo otra vez es seguro, porque lo ya escrito no cambia. */
+    try { console.error('espejo: ' + (err && err.stack || err)); } catch (_) {}
+    return { ok: false, codigo: 'DESCONOCIDO', parcial: true,
+             mensaje: 'El espejo falló escribiendo. Vuelve a mandar el lote: aplicarlo dos veces deja la misma hoja.' };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/** El plan de Ventas: qué celdas cambian y en qué fila, y qué folios son altas. Lee la hoja una sola vez
+ *  y NO escribe. `porFila` es { fila: { columna: { w, texto } } }. */
+function espejoPlanVentas_(h, filas, ancho, tz) {
+  var datos = h.getRange(2, 1, FIN - 1, ancho).getValues();
+  var colA = COL_FOLIO - 1, colB = COL['Proyecto'] - 1;
+  var bloques = bloquesCapturados(ancho);
+  var indice = {};                                    // 'f:V-001' → las filas de la hoja con ese folio
+  for (var i = 0; i < datos.length; i++) {
+    var f = String(datos[i][colA]).trim().toUpperCase();
+    if (!f) continue;
+    if (!Object.prototype.hasOwnProperty.call(indice, 'f:' + f)) indice['f:' + f] = [];
+    indice['f:' + f].push(i + 2);
+  }
+  var delLote = {};
+  filas.forEach(function (x) { delLote['f:' + x.folio] = true; });
+
+  /* Una fila libre es una sin proyecto, prefiriendo la que de verdad está vacía (como primeraFilaLibre).
+     Una que tiene el folio de este lote no es libre: el folio la encuentra y la pone al día. */
+  var vacias = [], restos = [];
+  for (var j = 0; j < datos.length; j++) {
+    if (String(datos[j][colB]).trim() !== '') continue;
+    var fj = String(datos[j][colA]).trim().toUpperCase();
+    if (fj && delLote['f:' + fj]) continue;
+    (filaSinNada(datos[j], bloques) ? vacias : restos).push(j + 2);
+  }
+  var libres = vacias.concat(restos);
+  var disponibles = libres.slice();
+
+  var plan = { porFila: {}, cambios: [], limpiar: [], sinLugar: [], nuevas: 0, cambiadas: 0, sinCambio: 0,
+               duplicadas: [], libres: libres.length };
+  /* Las altas van en orden de folio, para que la hoja se llene igual cada vez. */
+  var ordenadas = filas.slice().sort(function (x, y) { return numeroDeFolio(x.folio) - numeroDeFolio(y.folio); });
+  ordenadas.forEach(function (fila) {
+    var hallada = indice['f:' + fila.folio];
+    var cols = Object.keys(fila.vals).map(Number).sort(function (x, y) { return x - y; });
+    var celdas = {}, campos = [], antes = [];
+    if (hallada) {
+      if (hallada.length > 1) plan.duplicadas.push(fila.folio);
+      var r = hallada[0];
+      cols.forEach(function (c) {
+        var n = fila.vals[c];
+        var hay = espejoActual_(n.tipo, datos[r - 2][c - 1], tz);
+        if (hay === n.v) return;
+        celdas[c] = { w: n.w, texto: n.texto };
+        campos.push(nombreDeColumna(c).trim());
+        if (hay !== '') antes.push(nombreDeColumna(c).trim() + '=' + String(hay).slice(0, 40));
+      });
+      if (campos.length) {
+        plan.porFila[r] = celdas;
+        plan.cambiadas++;
+        plan.cambios.push({ folio: fila.folio, fila: r, creada: false, campos: campos, antes: espejoAntes_(antes) });
+      } else plan.sinCambio++;
+      return;
+    }
+    if (!disponibles.length) { plan.sinLugar.push(fila.folio); return; }
+    var destino = disponibles.shift();
+    if (restos.indexOf(destino) !== -1) plan.limpiar.push(destino);
+    cols.forEach(function (c) {
+      var n = fila.vals[c];
+      if (n.v === '' && c !== COL_FOLIO) return;          // una fila nueva ya está en blanco: no se escribe nada
+      celdas[c] = { w: n.w, texto: n.texto };
+      campos.push(c === COL_FOLIO ? 'Folio' : nombreDeColumna(c).trim());
+    });
+    plan.porFila[destino] = celdas;
+    plan.nuevas++;
+    plan.cambios.push({ folio: fila.folio, fila: destino, creada: true, campos: campos, antes: '' });
+  });
+  return plan;
+}
+
+/** Lo que había antes de lo que el espejo pisó, como texto para la columna «Nota» de la bitácora (acotado). */
+function espejoAntes_(partes) {
+  return partes.length ? ('antes: ' + partes.join(' · ')).slice(0, 300) : '';
+}
+
+/** El plan de «Abonos comisión»: el conjunto de abonos de cada folio contra los renglones que ya tiene.
+ *  Los que ya están no se tocan; un renglón que ya no corresponde a ningún abono se reescribe con uno que
+ *  falta; lo que sobra se deja en blanco y lo que falta va a la primera fila libre. */
+function espejoPlanAbonos_(a, grupos, tz) {
+  var datos = a.getRange(2, 1, ESPEJO_ABONOS_FILAS, COL_PAGO).getValues();
+  var indice = {}, libres = [];
+  for (var i = 0; i < datos.length; i++) {
+    if (espejoRenglonVacio_(datos[i])) { libres.push(i + 2); continue; }
+    var f = String(datos[i][0]).trim().toUpperCase();
+    if (!f) continue;                                  // con datos y sin folio: de nadie, no se toca
+    if (!Object.prototype.hasOwnProperty.call(indice, 'f:' + f)) indice['f:' + f] = [];
+    indice['f:' + f].push(i + 2);
+  }
+  var plan = { porFila: {}, cambios: [], sinLugar: [], agregados: 0, reescritos: 0, borrados: 0, sinCambio: 0,
+               libres: libres.length };
+  var actual = function (fila) {
+    var r = datos[fila - 2];
+    var imp = typeof r[2] === 'number' ? r[2] : (r[2] === '' || r[2] == null ? '' : String(r[2]).trim());
+    var fecha = esFecha(r[3]) ? Utilities.formatDate(r[3], tz, 'yyyy-MM-dd') : String(r[3] == null ? '' : r[3]).trim();
+    return { c: imp, d: fecha, e: String(r[4] == null ? '' : r[4]), f: String(r[5] == null ? '' : r[5]).trim() };
+  };
+  var ordenados = grupos.slice().sort(function (x, y) { return numeroDeFolio(x.folio) - numeroDeFolio(y.folio); });
+  ordenados.forEach(function (g) {
+    var filas = indice['f:' + g.folio] || [];
+    var pendientes = {};                               // clave → filas de la hoja con ese abono, todavía sin pareja
+    filas.forEach(function (fila) {
+      var x = actual(fila);
+      var k = espejoClaveAbono_(x.c, x.d, x.e, x.f);
+      if (!Object.prototype.hasOwnProperty.call(pendientes, k)) pendientes[k] = [];
+      pendientes[k].push(fila);
+    });
+    var faltan = [];                                   // los abonos de la base que la hoja todavía no tiene
+    g.abonos.forEach(function (x) {
+      var k = espejoClaveAbono_(x.c, x.d, x.e, x.f);
+      if (Object.prototype.hasOwnProperty.call(pendientes, k) && pendientes[k].length) pendientes[k].shift();
+      else faltan.push(x);
+    });
+    var sobran = [];                                   // renglones de la hoja que no son de ningún abono de la base
+    Object.keys(pendientes).forEach(function (k) { pendientes[k].forEach(function (fila) { sobran.push(fila); }); });
+    sobran.sort(function (x, y) { return x - y; });
+
+    var agregados = 0, reescritos = 0, borrados = 0, primera = 0, antes = [];
+    var comoEra = function (fila, que) {
+      var y = actual(fila);
+      return 'fila ' + fila + que + [y.c, y.d, y.e, y.f].join(' | ');
+    };
+    var celdaDe = function (x) {
+      return {
+        3: { w: x.c, texto: false },
+        4: { w: x.d ? espejoDia_(x.d, tz) : '', texto: false },
+        5: { w: espejoProtegido_(x.e), texto: false },
+        6: { w: x.f, texto: false }
+      };
+    };
+    /* Un renglón que sobra se reescribe con un abono que falta: así una edición a mano se corrige en su lugar. */
+    while (faltan.length && sobran.length) {
+      var x1 = faltan.shift(), fila1 = sobran.shift(), ya = actual(fila1), c1 = celdaDe(x1), cambio = {};
+      if (ya.c !== x1.c) cambio[3] = c1[3];
+      if (ya.d !== x1.d) cambio[4] = c1[4];
+      if (ya.e !== x1.e) cambio[5] = c1[5];
+      if (ya.f !== x1.f) cambio[6] = c1[6];
+      plan.porFila[fila1] = cambio;
+      antes.push(comoEra(fila1, ' era '));
+      if (!primera) primera = fila1;
+      reescritos++;
+    }
+    /* Lo que sigue faltando va a filas libres; si no alcanzan, el lote entero espera. */
+    if (faltan.length > libres.length - (plan.agregados + agregados)) {
+      plan.sinLugar.push(g.folio);
+      return;
+    }
+    faltan.forEach(function (x2) {
+      var fila2 = libres[plan.agregados + agregados];
+      var c2 = celdaDe(x2);
+      c2[1] = { w: g.folio, texto: false };
+      plan.porFila[fila2] = c2;
+      if (!primera) primera = fila2;
+      agregados++;
+    });
+    sobran.forEach(function (fila3) {
+      plan.porFila[fila3] = { 1: { w: '', texto: false }, 3: { w: '', texto: false }, 4: { w: '', texto: false },
+                              5: { w: '', texto: false }, 6: { w: '', texto: false } };
+      antes.push(comoEra(fila3, ' se vació: '));
+      if (!primera) primera = fila3;
+      borrados++;
+    });
+    plan.agregados += agregados; plan.reescritos += reescritos; plan.borrados += borrados;
+    if (agregados + reescritos + borrados) {
+      plan.cambios.push({ folio: g.folio, fila: primera,
+                          texto: 'Abonos comisión: +' + agregados + ' ~' + reescritos + ' -' + borrados,
+                          antes: antes.length ? ('antes: ' + antes.join(' ; ')).slice(0, 300) : '' });
+    } else plan.sinCambio++;
+  });
+  return plan;
+}
+
+/** Escribe un plan: `porFila` es { fila: { columna: { w, texto } } }. Lo que va como texto lleva su '@'
+ *  ANTES del valor, como unaOperacion (con el formato puesto después, Sheets ya volvió hora el «10:00»).
+ *  Las celdas seguidas de una misma fila van en un solo setValues. Devuelve cuántas celdas escribió. */
+function espejoEscribir_(h, porFila, ultimaFila) {
+  var filas = Object.keys(porFila).map(Number).sort(function (x, y) { return x - y; });
+  var enTexto = {};
+  filas.forEach(function (f) {
+    for (var c in porFila[f]) if (porFila[f][c].texto) enTexto[c] = true;
+  });
+  Object.keys(enTexto).forEach(function (c) { h.getRange(2, Number(c), ultimaFila - 1, 1).setNumberFormat('@'); });
+  var escritas = 0;
+  filas.forEach(function (f) {
+    var cols = Object.keys(porFila[f]).map(Number).sort(function (x, y) { return x - y; });
+    var i = 0;
+    while (i < cols.length) {
+      var j = i;
+      while (j + 1 < cols.length && cols[j + 1] === cols[j] + 1) j++;
+      if (j === i) h.getRange(f, cols[i]).setValue(porFila[f][cols[i]].w);
+      else {
+        var valores = [];
+        for (var k = i; k <= j; k++) valores.push(porFila[f][cols[k]].w);
+        h.getRange(f, cols[i], 1, valores.length).setValues([valores]);
+      }
+      escritas += j - i + 1;
+      i = j + 1;
+    }
+  });
+  return escritas;
+}
+
+/* La columna que sigue a la última del puente (AJ): ahí vive la fecha de la última sincronización. Queda
+   fuera de A:AI —del filtro, del reacomodo y de /jalar— y no es dato de nadie. */
+function espejoColMarca_() { return ULTIMA_COL + 1; }
+
+var ESPEJO_TITULO_MARCA = 'Espejo · última sincronización';
+
+/** La nota «esto es un espejo» y la fecha y hora de la última sincronización. Sin crear pestañas. Si no se
+ *  puede escribir, la sincronización ya hecha no se deshace: devuelve false. */
+function espejoMarcar_(h, a, tz, ahora, estado) {
+  try {
+    var cuando = Utilities.formatDate(ahora, tz, 'yyyy-MM-dd') + ' ' + Utilities.formatDate(ahora, tz, 'HH:mm:ss');
+    var nota = 'ESTA HOJA ES UN ESPEJO DE SOLO LECTURA de la base de datos de AL3D. Se llena sola.\n' +
+               'Las ediciones manuales se pisan con el siguiente cambio de la base: no captures nada aquí, las ediciones se hacen en la plataforma.\n' +
+               'Las columnas de cálculo (H, K y O a X) siguen siendo fórmulas de la hoja.\n' +
+               'Última sincronización: ' + cuando + '.';
+    h.getRange(1, 1).setNote(nota);
+    if (a) a.getRange(1, 1).setNote(nota);
+    var col = espejoColMarca_();
+    if (h.getMaxColumns() < col) h.insertColumnsAfter(h.getMaxColumns(), col - h.getMaxColumns());
+    var t = h.getRange(1, col);
+    if (String(t.getValue()) !== ESPEJO_TITULO_MARCA) {
+      t.setValue(ESPEJO_TITULO_MARCA).setBackground(AZUL).setFontColor('#ffffff').setFontWeight('bold')
+       .setFontSize(10).setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
+      h.setColumnWidth(col, 170);
+    }
+    h.getRange(2, col).setValue(ahora).setNumberFormat('dd/mm/yyyy HH:mm:ss').setHorizontalAlignment('center');
+    h.getRange(3, col).setValue(estado).setFontColor('#6b7684').setFontStyle('italic').setHorizontalAlignment('center');
+    return true;
+  } catch (e) { return false; }
+}
+
+/** Anota en la «Bitácora del puente» —la de siempre, con rol «espejo»— si existe. Aquí no se crea ninguna
+ *  pestaña: sin bitácora, no se anota. */
+function espejoAnotar_(ss, anotaciones) {
+  if (!anotaciones.length || !ss.getSheetByName(BITACORA)) return false;
+  anotar_(anotaciones);
+  return true;
 }

@@ -53,9 +53,16 @@ const noImplementado = new Proxy({}, { get: () => () => { throw new Error('servi
 
 /* Apps Script devuelve bytes CON SIGNO (−128..127) y aHex() los vuelve a subir con
    (b+256)%256. Se devuelven sin signo: aHex da lo mismo con unos y con otros, y así la firma
-   de la prueba es la misma que la de la hoja. */
+   de la prueba es la misma que la de la hoja.
+
+   Y NO codifica en UTF-8. Comprobado el 2026-10-10 en Apps Script real (doce HMAC en
+   pruebas/datos/hmac-apps-script-real.json, que reproduce la prueba de pruebas/supabase-sello.mjs):
+   computeHmacSha256Signature(String, String) pasa el texto Y la clave a bytes como US-ASCII, con un
+   «?» por cada punto de código que no sea ASCII (un emoji es UN «?»). Este doble hace lo mismo, para que
+   lo que firma el .gs aquí sea lo que firmaría allá. */
+const asciiConInterrogaciones = s => Buffer.from(Array.from(String(s), c => (c.codePointAt(0) < 128 ? c.codePointAt(0) : 63)));
 const Utilities = {
-  computeHmacSha256Signature: (texto, clave) => [...createHmac('sha256', String(clave)).update(String(texto), 'utf8').digest()],
+  computeHmacSha256Signature: (texto, clave) => [...createHmac('sha256', asciiConInterrogaciones(clave)).update(asciiConInterrogaciones(texto)).digest()],
   formatDate: (d, _tz, patron) => {
     const p = new Date(d);
     const dd = String(p.getUTCDate()).padStart(2, '0'), mm = String(p.getUTCMonth() + 1).padStart(2, '0');
