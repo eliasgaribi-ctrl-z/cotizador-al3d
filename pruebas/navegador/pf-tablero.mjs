@@ -296,14 +296,17 @@ if (activa('p3')) {
     'y al tocarla va derecho a Proyectos, donde se decide');
   await irA(p, '#/hoy', 1500);
 
-  /* «Ganados sin fecha» abre el Calendario. Desde 7dabd21 el Calendario solo tiene la lente de
-     Instalaciones (la de Taller, con su grupo «con el reloj corriendo», está apagada): ahí
-     esos proyectos se ven en su cuenta de arriba. */
+  /* «Ganados sin fecha» abre el Calendario con la hoja «Agendar»: es la lista de esos proyectos y
+     donde se les pone día. (Iba a la lente de Taller, apagada desde 7dabd21: el Calendario solo
+     enseña entregas y ahí no se veían.) */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
   await p.locator('[data-cuenta-va="sinfecha"]').tap();
   await esp(p, 1800);
-  const cal = await p.evaluate(() => ({ hash: location.hash, txt: (document.getElementById('mod-fabricacion') || {}).textContent || '' }));
-  que(cal.hash === '#/agenda' && /Ganados? sin fecha/.test(cal.txt), '«Ganados sin fecha» abre el Calendario, que los cuenta arriba');
+  const cal = await p.evaluate(() => { const h = document.getElementById('pf-hoja');
+    return { hash: location.hash, hoja: !!(h && h.classList.contains('show')), txt: h ? h.textContent.replace(/\s+/g, ' ') : '' }; });
+  que(cal.hash === '#/agenda' && cal.hoja && /Agendar una instalación/.test(cal.txt),
+    '«Ganados sin fecha» abre el Calendario con la hoja «Agendar», la lista de los que no tienen día',
+    '«Ganados sin fecha» no abrió la hoja «Agendar»: ' + JSON.stringify(cal).slice(0, 160));
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 

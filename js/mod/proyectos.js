@@ -1448,6 +1448,15 @@ function htmlFicha(p) {
     pie.push('<button type="button" class="btn ' + (rol === 'fabricacion' ? 'btn-pri' : 'btn-gho') +
       '" data-hoja="' + esc(p.id) + '">' + ico('i-doc') + ' Orden de trabajo</button>');
   }
+  /* La mesa de corte con este proyecto puesto. Antes de cortar es cuando se acomoda en la lámina
+     —vendido y en diseño—, y solo para quien tiene la mesa en su barra. Es la misma puerta que el
+     renglón del Tablero (`accionAnidar` en js/mod/tablero.js), pero esta no depende de que el
+     proyecto ya tenga fecha: sin ninguna fecha en el taller, el Tablero no pinta renglones. */
+  if ((p.etapa === 'ganado' || p.etapa === 'en_diseno') && CTX && typeof CTX.tieneRuta === 'function' &&
+      CTX.tieneRuta('anidador') && typeof CTX.pasar === 'function') {
+    pie.push('<button type="button" class="btn btn-gho" data-anidar="' + esc(p.id) + '">' +
+      ico('i-anidar') + ' Acomodar en la lámina</button>');
+  }
   /* Solo para la venta que NO está en la hoja. Con `notion_page_id` el renglón ya existe —la
      venta bajó de allá con su id— y este botón llevaba a pegarla en el primer renglón vacío
      de Ventas: la misma venta dos veces, con el saldo y la comisión contados doble. */
@@ -2412,6 +2421,24 @@ async function clicFicha(ev) {
     return;
   }
 
+
+  const anid = t.closest('[data-anidar]');
+  if (anid) {
+    const p = await Proy.obtener(anid.dataset.anidar);
+    cerrarCapa('pf-ficha'); fichaId = null;
+    /* Cerrar la ficha consume su entrada de historial con un `history.back()` ASÍNCRONO: navegar
+       en el mismo tick aterriza en la entrada de abajo y el atrás lo devuelve a Proyectos. Se
+       espera a su `popstate`, con techo, como «Ver almacén» del Tablero y `montarDeVerdad`. */
+    await new Promise(res => {
+      const fin = () => { clearTimeout(t); window.removeEventListener('popstate', fin); res(); };
+      const t = setTimeout(fin, 400);
+      window.addEventListener('popstate', fin);
+    });
+    /* El Tablero recibe el pase, abre su mesa de corte y dice de qué proyecto se viene. */
+    if (p && CTX && CTX.pasar) CTX.pasar('hoy', { vista: 'anidador', proyecto_id: p.id,
+      nombre: p.nombre || '', folio: p.folio_local || '' });
+    return;
+  }
 
   const tsv = t.closest('[data-tsv]');
   if (tsv) { await copiarFila(tsv.dataset.tsv); return; }

@@ -82,8 +82,8 @@ const RUTAS = [
      de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
      pestaña del Tablero sigue existiendo porque es a donde llegan con un pase
      (`ctx.pasar('hoy', {vista:'anidador'})`) el «Acomodar en hoja» del vectorizador del
-     Cotizador empotrado (js/mod/cotizador.js) y el «Acomodar en la lámina» del Calendario,
-     que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta
+     Cotizador empotrado (js/mod/cotizador.js), y es la que abre el «Acomodar en la lámina» de
+     cada renglón del taller y de la ficha de Proyectos, con el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta
      —`rutaDelHash()` exige un solo segmento, lo reescribe a `#/hoy` y abre la carga— y nada
      apunta ahí. El del vectorizador, que no trae proyecto, el Tablero lo sigue de largo hasta
      ESTA ruta: el Tablero no se conserva, y el trazo se perdía al cambiar de pestaña y volver

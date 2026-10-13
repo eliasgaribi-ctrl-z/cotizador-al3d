@@ -221,7 +221,8 @@ function cuentas(d, rol, veDinero) {
   if (rol === 'direccion') {
     c.push(unaCuenta('sinfecha', d.sinFecha.length,
       d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0,
-      aCal({ lente: 'taller' }, 'abrir el Calendario')));
+      /* A la hoja «Agendar», que es la lista de esos proyectos y donde se les pone día. */
+      aCal({ hoja: 'agendar' }, 'abrir el Calendario')));
   }
   if (rol === 'direccion' || rol === 'fabricacion') {
     c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0, aMat));

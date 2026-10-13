@@ -175,8 +175,9 @@ export async function montar(contenedor, ctx) {
      el anidador ya había borrado `al3d_anidar` al leerlo la primera vez —es una entrega de
      un solo uso a propósito, y pruebas/navegador/anidador.mjs lo exige—. La ruta `anidador`
      sí se conserva: se sigue de largo hacia ella, que lee la misma clave y guarda su marco
-     vivo mientras se mira otra cosa. El pase del Calendario trae `proyecto_id` y se queda
-     aquí, porque lo que trae es el aviso de origen que solo pinta esta pantalla.
+     vivo mientras se mira otra cosa. El pase con `proyecto_id` —el «Acomodar en la lámina» de
+     la ficha de Proyectos— se queda aquí, porque lo que trae es el aviso de origen que solo
+     pinta esta pantalla. (El de cada renglón de aquí no necesita pase: ver `accionAnidar`.)
 
      Debajo se pinta igual la CARGA del taller, sin `return`: ir a la mesa puede pedir
      confirmación (el Cotizador que se poda al abrirla, ver `montarDeVerdad` en app.js), y si
@@ -187,9 +188,9 @@ export async function montar(contenedor, ctx) {
                      ctx && typeof ctx.ir === 'function');
   if (aLaMesa) { _vista = 'tablero'; ctx.ir('anidador'); }
   /* La mesa de corte solo para quien tiene la ruta `anidador`. El pase que la pide llega de
-     dos sitios que no miran el rol —el «Acomodar en hoja» del Cotizador empotrado y el del
-     Calendario—, así que la puerta está aquí y no en cada uno: pagos acababa en una mesa de
-     corte que su barra no tiene y con las herramientas del pie escondidas. */
+     sitios que no miran el rol —el «Acomodar en hoja» del Cotizador empotrado—, así que la puerta
+     está aquí y no en cada uno: pagos acababa en una mesa de corte que su barra no tiene y con
+     las herramientas del pie escondidas. */
   if (pase && pase.vista && !aLaMesa) _vista = (pase.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';
   _origen = (pase && pase.proyecto_id) ? pase : null;
 
@@ -622,9 +623,10 @@ function cuentas(d, rol, veDinero) {
 
   /* Los destinos de la pantalla misma son selectores sobre lo que `pintar()` acaba de escribir
      (`data-destino` en cada tarjeta, `data-tarde` en cada renglón con atraso); el de «Ganados
-     sin fecha» es un pase al Calendario, en la lente de Taller, que es donde esos proyectos
-     tienen su grupo «con el reloj corriendo». Sin la ruta (el rol no la tiene) no hay botón. */
-  const aCal = puedeIr('agenda') ? { tipo: 'pasar', ruta: 'agenda', dato: { lente: 'taller' },
+     sin fecha» es un pase al Calendario con la hoja «Agendar» abierta, que es la lista de esos
+     proyectos y donde se les pone día. (Iba a la lente de Taller, apagada desde octubre de 2026:
+     el Calendario solo enseña entregas.) Sin la ruta (el rol no la tiene) no hay botón. */
+  const aCal = puedeIr('agenda') ? { tipo: 'pasar', ruta: 'agenda', dato: { hoja: 'agendar' },
     que: 'abrir el Calendario' } : null;
 
   const c = [];
@@ -941,9 +943,9 @@ function lineaEstaciones(d) {
 }
 
 /* ----- La lista del taller -----
-   El mismo renglón que pinta la lente de Taller del Calendario, con la acción que aquí sí
-   tiene sentido. Tres vacíos, que son tres cosas distintas y no una: no tener nada, no tener
-   nada HOY, y no tener fechas. Confundirlos es lo que hace que alguien no sepa si el sistema
+   El mismo renglón que pintaba la lente de Taller del Calendario (apagada desde octubre de
+   2026), con las acciones que aquí sí tienen sentido. Tres vacíos, que son tres cosas distintas
+   y no una: no tener nada, no tener nada HOY, y no tener fechas. Confundirlos es lo que hace que alguien no sepa si el sistema
    está vacío o roto. */
 function listaTaller(d) {
   if (!d.vivos.length) {
@@ -1047,7 +1049,7 @@ function renglon(v, d) {
       : (v.holgura_dias === 0 ? ' <span class="pf-cuando hoy">hoy</span>' : '')) +
     marcaCarpeta(d.porId.get(v.proyecto_id)) +
     '</p>';
-  const ac = accionesRenglon(v);
+  const ac = accionesRenglon(v, d);
   const cara = filaTaller(v, d.hoy, {
     icono: ICO_ETAPA[v.etapa_real] || 'i-taller',
     plazoEditable: false,
@@ -1090,10 +1092,14 @@ function palabraMaterial(sem) {
    `iAvanza` en -1 cuando el gesto no se ofrece. El botón de avanzar lleva `data-avanza` con el
    id del proyecto: es por donde `rearmarMechas()` lo encuentra después de un repintado, y el
    botón donde se cuelga el Deshacer cuando el avance viene de deslizar. */
-function accionesRenglon(v) {
+function accionesRenglon(v, d) {
   const sig = SIGUIENTE[v.etapa_real];
   const iAbrir = _acciones.push({ tipo: 'abrir', id: v.proyecto_id }) - 1;
-  const abrir = botonIdx('Abrir', 'btn btn-gho pf-btn-corto', iAbrir);
+  const an = accionAnidar(v, d);
+  /* «Acomodar en la lámina» va junto a «Abrir», que es lo que acompaña a todas las ramas. */
+  const abrir = (an ? botonIdx('Acomodar en la lámina', 'btn btn-gho pf-btn-corto', an.i,
+                                'data-anidar="' + esc(v.proyecto_id) + '"') : '') +
+    botonIdx('Abrir', 'btn btn-gho pf-btn-corto', iAbrir);
   if (!sig) return { html: abrir, iAbrir, iAvanza: -1, verbo: '' };
   if (!puedeMover(Prefs.rol(), sig)) {
     return { html: '<p class="pf-nota">' + esc('«' + (VERBO_AVANZA[v.etapa_real] || '') + '» lo marca Dirección.') + '</p>' + abrir,
@@ -1107,6 +1113,23 @@ function accionesRenglon(v) {
     /* El gesto solo donde el botón ofrece Deshacer: ver `avanzaConDeshacer()`. */
     iAvanza: avanzaConDeshacer(v.etapa_real, sig) ? iAvanza : -1,
   };
+}
+
+/* ----- «Acomodar en la lámina», con el proyecto puesto -----
+   El paso que el taller da de verdad antes de cortar: lo que hay que cortar se acomoda en la lámina.
+   Vivía en la lente Taller del Calendario, y cuando el Calendario se quedó solo con las entregas
+   (octubre de 2026) se quedó sin puerta: la Mesa de corte seguía en «Más», pero sin proyecto. Su
+   lugar es este renglón —lo del taller vive en el Tablero— y abre la Mesa de corte de AQUÍ, en la
+   misma pantalla, con el aviso de dónde vienes (`origenHTML`). La ficha de Proyectos tiene la
+   misma puerta, para el proyecto que todavía no tiene renglón aquí (sin ninguna fecha en el
+   taller, la lista dice «Nada tiene fecha de instalación»). Solo en las etapas en que tiene
+   sentido —vendido y en diseño: acomodar piezas de algo ya cortado es una distracción— y solo para
+   quien tiene la mesa (`conMesa`): a pagos no se le ofrece una herramienta que su barra no tiene. */
+function accionAnidar(v, d) {
+  if (!conMesa() || (v.etapa_real !== 'ganado' && v.etapa_real !== 'en_diseno')) return null;
+  const p = d && d.porId ? d.porId.get(v.proyecto_id) : null;
+  return { i: _acciones.push({ tipo: 'anidar', id: v.proyecto_id,
+    nombre: (p && p.nombre) || v.titulo || '', folio: (p && p.folio_local) || '' }) - 1 };
 }
 
 /* Si el paso de `de` a `a` se puede deshacer en su mecha. NO el que cruza el corte —saca material
@@ -1547,6 +1570,20 @@ async function hacer(a, boton) {
   }
   if (a.tipo === 'etapa') { _etapa = a.etapa || null; pintar(); return; }
   if (a.tipo === 'completar') { abrirCompletar(a.id); return; }
+  if (a.tipo === 'anidar') {
+    if (!conMesa()) return;
+    _vista = 'anidador';
+    _origen = { proyecto_id: a.id, nombre: a.nombre, folio: a.folio };
+    pintar();
+    /* La mesa se pinta arriba de la pantalla; el botón estaba en un renglón de más abajo. Y el
+       botón ya no existe: el foco pasa a «Mesa de corte» del segmento, que dice dónde se está,
+       en vez de caerse al <body>. */
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) { window.scrollTo(0, 0); }
+    const seg = _cont && _cont.querySelector('[data-vista="anidador"]');
+    if (seg) { try { seg.focus({ preventScroll: true }); } catch (_) {} }
+    voz('Mesa de corte, con ' + (a.nombre || 'el proyecto'));
+    return;
+  }
   if (a.tipo === 'avanzar') {
     /* La confirmación es SOLO cuando el paso cruza corte, que es la única escritura
        irreversible: al llegar a «cortado» salen del almacén los materiales del proyecto.
