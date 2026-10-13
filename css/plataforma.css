@@ -2163,6 +2163,10 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 @media(hover:hover) and (pointer:fine){.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}}
 .pf-ia-btn:active{transform:scale(.96)}
 .pf-ia-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 0 4px var(--a-borde)}
+/* En claro el aro blanco sobre el fondo casi blanco daba 1,1:1 y el halo 1,5:1: quien llegaba con
+   Tab no sabía que estaba en el botón (auditoría completa 2026-10, mar-2). La tinta del acento, un
+   poco más afuera; el blanco se queda para el oscuro, donde sí se ve. */
+html:not([data-tema="oscuro"]) .pf-ia-btn:focus-visible{outline-color:var(--a-tx);outline-offset:3px;box-shadow:none}
 @media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}}
 @media(max-width:759px){
   .pf-ia-btn{right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px));
@@ -2172,6 +2176,26 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 /* Con un marco vivo (el cotizador o la mesa de corte) el botón le taparía el total al
    cotizador, que ya tiene su propia barra fija: se esconde. */
 body.pf-marco-lleno .pf-ia-btn{display:none}
+/* En la computadora también se lleva su sitio (marco-10, proyectos-7, mar-1): aire al final de la
+   página para que el último renglón salga de debajo del botón, el mismo aire al enfocar con Tab,
+   y se aparta mientras se baja por la página igual que en el teléfono (js/nucleo/asistente.js).
+   `screen`: el papel tiene su propio relleno de .pf-wrap (bloque de impresión de arriba). */
+@media screen and (min-width:760px){
+  .pf-wrap{padding-bottom:calc(48px + 20px + var(--e5))}
+  body.pf-marco-lleno .pf-wrap{padding-bottom:0}
+  html:has(body.pf){scroll-padding-bottom:calc(48px + 20px + var(--e3))}
+  .pf-ia-btn.apartado{translate:0 88px;opacity:0;pointer-events:none}
+}
+/* Y mientras la pantalla no deja margen a la derecha (hasta ~1 700 px el contenido llega al borde),
+   el botón es solo el círculo de 48 —como en el teléfono; el nombre sigue en `aria-label` y
+   `title`— y la pantalla le deja su carril: antes la píldora de 123 px se paraba encima de «Poner
+   fecha» y del importe de las tarjetas sin haber movido nada (marco-10, proyectos-7). El Mapa no:
+   ahí el botón ya sube por encima de la hoja (`--mapa-ia-sube`). */
+@media screen and (min-width:760px) and (max-width:1699px){
+  .pf-ia-btn{width:48px;padding:0;justify-content:center}
+  .pf-ia-btn .tx{display:none}
+  body:not(.pf-marco-lleno) .pf-mod:not(#mod-mapa){padding-right:calc(48px + 20px + 12px - 24px)}
+}
 @media print{.pf-ia-btn,#pf-ia{display:none!important}}
 
 /* ----- El panel ----- más angosto que una ficha y alto como un chat. */
@@ -2408,7 +2432,8 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
      marco vivo el botón se esconde (body.pf-marco-lleno) y el aire sobra. */
   .pf-wrap{--fab-aire:60px;padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px) + var(--fab-aire))}
   body.pf-marco-lleno .pf-wrap{--fab-aire:0px}
-  html:has(body.pf){scroll-padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
+  /* Con el botón del asistente encima: lo que se enfoca con Tab no puede quedar debajo de él (mar-1). */
+  html:has(body.pf){scroll-padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px) + var(--fab-aire,60px))}
   .pf-mbar{bottom:var(--dock)}
   body.pf .toast{bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
   /* La barra de acción lo sube con `translate` y no con `bottom`: así el cambio se anima (entre
