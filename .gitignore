@@ -16,3 +16,5 @@ node_modules/
 *.sql.gz
 reportes/
 respaldos/
+al3d-volcado-*.json
+al3d-respaldo-*.json

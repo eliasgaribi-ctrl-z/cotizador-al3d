@@ -21,7 +21,7 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 |---|---|---|---|
 | 0 | Decisiones y documentación | **hecho**, salvo lo que confirma Elías | Documento de decisión aprobado; no se toca código de producción |
 | 1 | Base y acceso | **hecho y verificado** (PGlite **y** el proyecto real de pruebas). Falta el inicio de sesión de punta a punta (cliente) | Pruebas de RLS (las reglas de qué ve cada área) en verde para los tres roles; ninguna fila real todavía |
-| 2 | Importar | **pendiente** (la base ya tiene lo que necesita; falta el script y tus datos) | Reporte de cuadre que coincida con la hoja y con los teléfonos |
+| 2 | Importar | **script hecho y probado con hojas de mentiras** (PGlite, y el ensayo en el proyecto real de pruebas). Faltan tus datos: la copia de la hoja y los respaldos de los teléfonos | Reporte de cuadre que coincida con la hoja y con los teléfonos |
 | 3 | Doble escritura | **parcial**: la ruta `espejo` y la función están hechas y probadas con dobles, **apagadas**. Falta la escritura desde la bandeja y el cuadre diario | Siete días seguidos de cuadre; si no cuadra, se regresa a la fase 2 |
 | 4 | Cambio de lectura | **pendiente** | Los tres roles lo usan una semana sin incidentes; vuelta atrás: leer otra vez de la hoja, que sigue completa |
 | 5 | Retiro | **pendiente** | El Apps Script queda con dos rutas (`espejo` y `carpetas`) |
@@ -67,7 +67,9 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 
 | Pieza | Estado | Evidencia |
 |---|---|---|
-| Script de importación de una sola vez (hoja y teléfonos), con reporte de conflictos y de cuadre | pendiente | `scripts/` todavía no existe. El script no decide: reporta (`DECISIONES-SUPABASE.md`, Q-14) |
+| Script de importación (hoja y teléfonos), con reporte de conflictos y de cuadre | hecho y verificado con hojas de mentiras | [`scripts/importar-hoja.mjs`](../scripts/importar-hoja.mjs) y [`scripts/importador/`](../scripts/importador/LEEME.md). No se conecta a la base: escribe `ensayo.sql`, `importar.sql` (idempotente) y `cuadre.sql` fuera del repositorio, y se niega a escribir dentro. No decide: reporta (Q-14). Pruebas IM-01 a IM-12 en `supabase/tests/sync-e-importacion/importador.mjs` (22 verificaciones en PGlite, siete de ellas por lo que encontró la revisión del código). **En el proyecto real `al3d-pruebas`** (2026-10-12) se corrió el ensayo (antes y después de las correcciones de la revisión) con 54 ventas inventadas, tres teléfonos y tres sellos: terminó sin errores con los mismos números que en PGlite y no dejó ninguna fila. **No probado en el proyecto real:** la carga confirmada, la segunda corrida y el cuadre (dejarían filas inventadas que la base no deja borrar) |
+| Volcado de la hoja con `getValues()` | hecho, **sin correr** en una hoja real | [`puente/volcado-para-importar.gs`](../puente/volcado-para-importar.gs): se pega en la COPIA de la hoja, nunca en la original; no escribe nada en la hoja |
+| «Solicitudes de autorización» y «Bitácora del puente» | no se importan (se cuentan en el reporte) | Son peticiones en curso e historia; decidir si hacen falta antes de la fase 4 |
 | Copia completa de la hoja y exportación de cada teléfono, antes de tocar nada | bloqueado por Elías | `PLAN-SUPABASE.md` §6 y §10 |
 | Aviso de privacidad actualizado antes de empezar | bloqueado por Elías | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
 
@@ -222,7 +224,6 @@ No se hizo por una razón concreta, no por olvido: cada pieza necesita datos rea
 
 | Pieza | Por qué falta | Qué la desbloquea |
 |---|---|---|
-| **Importador** de la hoja y de los teléfonos (`scripts/importar-hoja.mjs`) con reporte de conflictos y de cuadre (IM-01 a IM-12 de `DISENO.md` §10.15) | Hay que leer la hoja real con `getValues()` y los teléfonos exportan por separado; se prueba con «hojas de mentiras», nunca con datos reales | Tu visto bueno a la fase 2 y la copia completa de la hoja |
 | Función **`autorizar`** (firma el sello con la clave) y **`respaldo`** a Drive | `autorizar` repite el cálculo de precios del servidor con el catálogo; necesita la clave real (`SELLO_AUTORIZACION`) para su prueba de oro. `respaldo` necesita una credencial hacia Drive | Tus secretos y filas reales de «Autorizaciones» |
 | **Cliente**: inicio de sesión con Google en la puerta, escritura en la sombra desde la bandeja, lectura con Realtime, CSP y service worker | Cambia código de producción y no se puede validar sin los teléfonos; con el interruptor apagado no debe cambiar nada y eso se demuestra con las pruebas de navegador, que no corren en Windows | Una sesión con un teléfono y la lista de cambios de contrato (`DISENO.md` §11.5) |
 | **Pantallas de Pagos** (cobro, abono, reparto, corrección) | La base ya las soporta; falta la interfaz | `DECISIONES-SUPABASE.md`, Q-01 |

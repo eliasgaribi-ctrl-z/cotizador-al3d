@@ -1,0 +1,53 @@
+# El importador de la hoja (fase 2)
+
+Pasa a Supabase lo que hoy vive en la hoja «Finanzas AL3D» y en los teléfonos. **Solo lee:** no escribe en la hoja ni se
+conecta a ninguna base. Deja cinco archivos en una carpeta **fuera del repositorio** (si le das una adentro, se niega:
+el repositorio es público y los reportes llevan datos de clientes).
+
+| Archivo | Para qué |
+|---|---|
+| `reporte.md` | Para leerse: qué entraría, qué no y por qué, y los conflictos que hay que decidir a mano |
+| `reporte.json` | Lo mismo, completo, con la tabla de remapeo de ids de los teléfonos |
+| `ensayo.sql` | La carga entera dentro de una transacción que se deshace sola: dice lo que haría sin escribir nada |
+| `importar.sql` | La carga. Idempotente: correrla otra vez con las mismas entradas no cambia nada |
+| `cuadre.sql` | La comparación por folio contra la hoja (H, K, R, S, T, X, O, V, W). Vacía = cuadra |
+
+El importador **no decide**: lo que no está claro (un folio repetido, dos copias de un proyecto con datos distintos y el
+mismo sello, una venta del teléfono que no está en la hoja) va al reporte y se arregla en la hoja o se decide a mano.
+
+## Cómo se usa (cuando toque, con datos reales)
+
+1. **La copia.** Elías hace la copia completa de la hoja (Archivo → Hacer una copia, con fecha en el nombre).
+2. **El volcado, en la copia.** En la COPIA: Extensiones → Apps Script → «+» → Secuencia de comandos; se pega
+   `puente/volcado-para-importar.gs`, se elige `volcarParaImportar` y se da «Ejecutar». Deja en Drive un
+   `al3d-volcado-<fecha>.json`. Se descarga a una carpeta fuera del repositorio.
+3. **Los teléfonos.** Cada persona baja su «Respaldo completo» (Ajustes) y lo manda por un canal privado.
+4. **Correr el importador** (la clave del sello solo hace falta para importar «Autorizaciones»; la carga Elías en su
+   terminal, nunca en el chat):
+   ```
+   node scripts/importar-hoja.mjs --volcado <volcado.json> --salida <carpeta fuera del repo> --telefono K7QM=<respaldo.json> …
+   ```
+   `K7QM=` es el id del aparato (Ajustes lo muestra); si no se pone, se deduce y el reporte lo dice.
+5. **Leer `reporte.md`** y arreglar lo que haga falta. Si se arregla algo en la hoja, se vuelve a sacar el volcado.
+6. **`ensayo.sql`** en el Editor SQL de Supabase: termina con un error a propósito que empieza con «ENSAYO TERMINADO SIN
+   ERRORES» y dice cuántas filas entrarían a cada tabla. No escribe nada.
+7. **`importar.sql`**, y después **`cuadre.sql`**: la primera consulta del cuadre tiene que salir vacía.
+
+## Cuándo se puede volver a correr
+
+Las veces que haga falta **mientras la hoja sea la fuente** (hasta la fase 4): cada corrida deja la base como dice la hoja, así
+que lo que alguien haya cambiado en la base desde la plataforma se pisa. Lo que la base no deja cambiar (una venta que pasó
+de viva a histórica, un abono que ya se importó y en la hoja se corrigió) no se toca: sale como «conflicto» al final de la
+corrida, para decidirlo a mano.
+
+## Qué no lleva todavía
+
+- «Solicitudes de autorización» y «Bitácora del puente»: se cuentan en el reporte, no se importan.
+- La subida del historial del cotizador desde cada teléfono con sus imágenes es `subida_unica`, dentro de la app (otra pieza).
+
+## Cómo está hecho
+
+- `celdas.mjs` lee las celdas del volcado por letra de columna; `plan.mjs` aplica las reglas de `supabase/DISENO.md`
+  §3 y §3.5; `sql.mjs` escribe el SQL. Las reglas de la app (teléfono, ubicación, etapas, plazos, entrega) no se copian:
+  se importan de `js/datos/`, y las firmas se comprueban con `supabase/functions/_shared/sello.js`.
+- Pruebas: `supabase/tests/sync-e-importacion/importador.mjs` (IM-01 a IM-12 de `DISENO.md` §10.15, con hojas de mentiras).
