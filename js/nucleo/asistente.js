@@ -102,9 +102,11 @@ export function montar(ctx) {
   const b = $('pf-ia-btn');
   if (b) {
     b.addEventListener('click', abrir);
-    /* En el teléfono el botón se aparta mientras se baja por la página y vuelve al subir: con el
+    /* El botón se aparta mientras se baja por la página y vuelve al subir: en el teléfono, con el
        dock y la barra de acción eran tres capas flotantes encima de la lista que se está
-       leyendo. Al llegar al final vuelve, que es donde ya tiene su hueco reservado. */
+       leyendo; en la computadora se paraba encima de «Poner fecha» o del importe de una tarjeta
+       y el clic se iba al asistente (auditoría completa 2026-10, marco-10 y proyectos-7). Al
+       llegar al final vuelve, que es donde ya tiene su hueco reservado. */
     let y0 = window.scrollY, pend = false;
     window.addEventListener('scroll', () => {
       if (pend) return; pend = true;
@@ -113,11 +115,21 @@ export function montar(ctx) {
         const y = window.scrollY, dy = y - y0;
         const alFondo = y + innerHeight >= document.documentElement.scrollHeight - 8;
         if (Math.abs(dy) < 12 && !alFondo) return;
-        const telefono = matchMedia('(max-width:759px)').matches;
-        b.classList.toggle('apartado', telefono && dy > 0 && y > 80 && !alFondo);
+        b.classList.toggle('apartado', dy > 0 && y > 80 && !alFondo);
         y0 = y;
       });
     }, { passive: true });
+    /* Lo que se enfoca con Tab y ya estaba a la vista no hace que el navegador desplace nada, así
+       que `scroll-padding-bottom` no alcanza: si cae debajo del botón, la página sube lo justo
+       (mar-1, WCAG 2.4.11). El aire del final de .pf-wrap garantiza que se pueda. */
+    document.addEventListener('focusin', ev => {
+      const el = ev.target;
+      if (!el || el === b || b.classList.contains('apartado') || !el.getBoundingClientRect) return;
+      const r = el.getBoundingClientRect(), f = b.getBoundingClientRect();
+      if (!f.height || r.bottom <= f.top || r.top >= f.bottom || r.right <= f.left || r.left >= f.right) return;
+      if (el.closest('.pf-ia,#pf-ia,[role="dialog"]')) return;
+      window.scrollBy(0, Math.ceil(r.bottom - f.top) + 16);
+    });
   }
   const capa = $(CAPA);
   if (capa) {
