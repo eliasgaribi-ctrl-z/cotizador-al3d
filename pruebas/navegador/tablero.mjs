@@ -465,36 +465,20 @@ else {
     : mal('el pase se quedó pegado: entrar por la pestaña reabrió una ficha vieja');
 }
 
-/* Del taller a la mesa de corte, con el proyecto puesto. */
+/* Del taller a la mesa de corte, con el proyecto puesto. Ese botón vivía en la lente Taller
+   del Calendario, y desde 7dabd21 el Calendario solo enseña las instalaciones: la lente está
+   apagada (el código sigue en js/mod/fabricacion.js) y con ella el botón. Lo que se mide ahora
+   es que el apagado esté entero —sin segmento de lentes ni renglones del taller—; si la lente
+   vuelve, esta prueba falla y hay que regresar a medir el aterrizaje en la mesa de corte. */
 await irA('#/agenda');
 await p.waitForTimeout(600);
-const hayAnidar = await p.evaluate(() => {
-  const b = document.querySelector('[data-anidar]');
-  return b ? { existe: true, txt: b.textContent.trim() } : { existe: false };
-});
-if (!hayAnidar.existe) {
-  /* Puede no estar si la lente abierta no es Taller o si nada está en ganado/en_diseño. */
-  await p.evaluate(() => { const b = document.querySelector('[data-lente="taller"]'); if (b) b.click(); });
-  await p.waitForTimeout(900);
-}
-const anidarAhora = await p.evaluate(() => !!document.querySelector('[data-anidar]'));
-if (!anidarAhora) mal('la lente Taller no ofrece «Acomodar en la lámina» en ningún renglón');
-else {
-  bien('la lente Taller ofrece «Acomodar en la lámina»');
-  await p.click('[data-anidar]');
-  await p.waitForTimeout(2600);
-  const llegada = await p.evaluate(() => ({
-    montada: (() => { const s = [...document.querySelectorAll('.pf-mod')].find(x => !x.hidden); return s ? s.id : null; })(),
-    marco: !!document.getElementById('pf-anid-marco'),
-    dice: (() => { const h = document.querySelector('#mod-tablero .hintnote'); return h ? h.textContent.trim().slice(0, 60) : null; })(),
-  }));
-  llegada.montada === 'mod-tablero' && llegada.marco
-    ? bien('aterriza en la mesa de corte, sin pestaña nueva del navegador')
-    : mal('no llegó a la mesa de corte: ' + JSON.stringify(llegada));
-  llegada.dice && llegada.dice.includes('Vienes de')
-    ? bien('y dice de dónde vienes: «' + llegada.dice + '…»')
-    : mal('llegó sin decir de qué proyecto viene: ' + JSON.stringify(llegada.dice));
-}
+const calendario = await p.evaluate(() => ({
+  lentes: document.querySelectorAll('#mod-fabricacion [data-lente]').length,
+  anidar: document.querySelectorAll('#mod-fabricacion [data-anidar]').length,
+}));
+calendario.lentes === 0 && calendario.anidar === 0
+  ? bien('el Calendario solo tiene la lente de Instalaciones: sin lentes que elegir ni «Acomodar en la lámina»')
+  : mal('el Calendario volvió a tener la lente Taller: ' + JSON.stringify(calendario) + ' — regresar a medir la mesa de corte');
 
 // ── 7. El teléfono ─────────────────────────────────────────────────────────
 console.log('\nEN EL TELÉFONO');

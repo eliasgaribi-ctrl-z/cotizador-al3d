@@ -142,25 +142,29 @@ descartado === 1 ? bien('«No se dio» se puede contestar: el proyecto quedó de
                  : mal('«No se dio» no descartó nada (' + descartado + ' cancelados)');
 
 // ── 4. Escape sobre dos capas cierra una, y no deja entradas de sobra ──────
+/* Antes se medía sobre el catálogo de Material y «Editar material», pero Material está apagado
+   por mantenimiento (7dabd21, EN_MANTENIMIENTO en js/mod/material.js). El defecto era del
+   Escape sobre dos capas apiladas, no de Material: la ficha y su orden de trabajo lo muestran
+   igual. */
 console.log('\nESCAPE Y LA ENTRADA QUE SOBRABA');
-await irA('#/material', 1600);
-await tocar('[data-hoja="catalogo"]');
-await p.waitForTimeout(600);
-await tocar('#pf-hoja [data-editmat]');
-await p.waitForTimeout(600);
-igual(await abiertas(), ['pf-hoja', 'pf-pide'])
-  ? bien('catálogo y, encima, «Editar material»')
-  : mal('al editar quedaron ' + JSON.stringify(await abiertas()));
+await irA('#/proyectos', 1500);
+await tocar('[data-abrir]');
+await p.waitForTimeout(700);
+await tocar('#pf-ficha [data-hoja]');
+await p.waitForTimeout(700);
+igual(await abiertas(), ['pf-ficha', 'pf-hoja'])
+  ? bien('ficha y, encima, la orden de trabajo')
+  : mal('al abrir la orden quedaron ' + JSON.stringify(await abiertas()));
 await p.keyboard.press('Escape');
 await p.waitForTimeout(800);
-igual(await abiertas(), ['pf-hoja'])
-  ? bien('un Escape cierra la edición y deja el catálogo')
+igual(await abiertas(), ['pf-ficha'])
+  ? bien('un Escape cierra la orden y deja la ficha')
   : mal('un Escape dejó ' + JSON.stringify(await abiertas()));
 await atras();
-const trasCat = { capas: await abiertas(), hash: await p.evaluate(() => location.hash) };
-trasCat.capas.length === 0 && trasCat.hash === '#/material'
-  ? bien('y el atrás siguiente cierra el catálogo: no hay una entrada muerta en medio')
-  : mal('el atrás tras el Escape dejó ' + JSON.stringify(trasCat));
+const trasEsc = { capas: await abiertas(), hash: await p.evaluate(() => location.hash) };
+trasEsc.capas.length === 0 && trasEsc.hash === '#/proyectos'
+  ? bien('y el atrás siguiente cierra la ficha: no hay una entrada muerta en medio')
+  : mal('el atrás tras el Escape dejó ' + JSON.stringify(trasEsc));
 
 // ── 5. El asistente encima de una ficha ────────────────────────────────────
 console.log('\nEL ASISTENTE ENCIMA DE UNA FICHA');
