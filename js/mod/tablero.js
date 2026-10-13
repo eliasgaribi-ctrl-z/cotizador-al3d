@@ -445,6 +445,12 @@ function pintar() {
    que es la única que dice qué ve cada rol; la segunda línea es para cuando no hay contexto,
    con la misma regla que tiene hoy esa lista. Sin la mesa, el segmento no se pinta: un
    interruptor con una sola posición es un letrero. */
+/* Si este rol pone fechas. Es la misma regla que `puedeAgendar` de js/mod/fabricacion.js: pagos
+   no agenda. Sin ella, a pagos le salían «Mover la fecha» y «Ganados sin fecha ›», tocaba, perdía
+   su lugar en el Tablero y el Calendario le contestaba con un error o con nada (auditoría completa
+   2026-10, tablero-4 y tab-4). */
+const puedeAgendar = () => Prefs.rol() !== 'pagos';
+
 function conMesa() {
   if (_ctx && typeof _ctx.tieneRuta === 'function') return _ctx.tieneRuta('anidador');
   return Prefs.rol() !== 'pagos';
@@ -635,7 +641,7 @@ function cuentas(d, rol, veDinero) {
      sin fecha» es un pase al Calendario con la hoja «Agendar» abierta, que es la lista de esos
      proyectos y donde se les pone día. (Iba a la lente de Taller, apagada desde octubre de 2026:
      el Calendario solo enseña entregas.) Sin la ruta (el rol no la tiene) no hay botón. */
-  const aCal = puedeIr('agenda') ? { tipo: 'pasar', ruta: 'agenda', dato: { hoja: 'agendar' },
+  const aCal = puedeIr('agenda') && puedeAgendar() ? { tipo: 'pasar', ruta: 'agenda', dato: { hoja: 'agendar' },
     que: 'abrir el Calendario' } : null;
 
   const c = [];
@@ -728,7 +734,7 @@ function noLlegan(d) {
     plazoEditable: false,
     extraHTML: conMarcaCarpeta(d.porId.get(v.proyecto_id)),
     accionesHTML:
-      btn('Mover la fecha', 'btn btn-gho pf-btn-corto', { tipo: 'agendar', id: v.proyecto_id }) +
+      (puedeAgendar() ? btn('Mover la fecha', 'btn btn-gho pf-btn-corto', { tipo: 'agendar', id: v.proyecto_id }) : '') +
       btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'abrir', id: v.proyecto_id }),
   })).join('');
   /* `data-destino` en el encabezado y no en la tarjeta: con seis llamadas la tarjeta mide más
@@ -1069,14 +1075,13 @@ function renglon(v, d) {
   const attrs = 'data-renglon="' + esc(v.proyecto_id) + '"' + (v.atraso_dias > 0 ? ' data-tarde' : '');
   const P = piezas();
   if (!P || !P.filaDeslizableHTML) return '<div class="tb-renglon" ' + attrs + '>' + cara + '</div>';
-  const iAgendar = _acciones.push({ tipo: 'agendar', id: v.proyecto_id }) - 1;
+  const iAgendar = puedeAgendar() ? _acciones.push({ tipo: 'agendar', id: v.proyecto_id }) - 1 : -1;
   return P.filaDeslizableHTML({
     cara, clase: 'tb-renglon', attrs,
     principal: ac.iAvanza >= 0 ? { texto: ac.verbo, attrs: 'data-acc="' + ac.iAvanza + '"' } : null,
     acciones: [
       { texto: 'Abrir', attrs: 'data-acc="' + ac.iAbrir + '"' },
-      { texto: 'Mover la fecha', attrs: 'data-acc="' + iAgendar + '"' },
-    ],
+    ].concat(iAgendar >= 0 ? [{ texto: 'Mover la fecha', attrs: 'data-acc="' + iAgendar + '"' }] : []),
   });
 }
 
@@ -1596,6 +1601,7 @@ async function hacer(a, boton) {
     return;
   }
   if (a.tipo === 'agendar') {
+    if (!puedeAgendar()) return;
     if (_ctx.pasar) _ctx.pasar('agenda', { proy: a.id, hoja: 'agendar' });
     else _ctx.ir('agenda');
     return;
