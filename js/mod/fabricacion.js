@@ -177,6 +177,10 @@ export async function montar(contenedor, ctx) {
      `pintarPaso2` necesita la lista de los que no tienen fecha, que sale de esa lectura.
      Es el segundo salto que se quita: antes había que entrar a agendar y buscar el proyecto
      en una lista donde ya sabías cuál era. */
+  /* «Ganados sin fecha» (Hoy y Tablero) pide la hoja de agendar SIN proyecto: es la lista de los
+     que no tienen día, que el Calendario de solo entregas no enseña en ningún otro lado. Quien no
+     puede agendar se queda en el Calendario, que los cuenta arriba. */
+  if (pase && pase.hoja === 'agendar' && !pase.proy && puedeAgendar()) abrirAgendar(pase.dia || null);
   if (pase && pase.hoja === 'agendar' && pase.proy) {
     if (!puedeAgendar()) {
       toast('Agendar es de dirección. Si te toca a ti, cambia de rol en Ajustes.', 'err', 4600);
@@ -765,7 +769,9 @@ function pintarTaller(d) {
   return html + '</div></div>';
 }
 
-/* De aquí a la mesa de corte, con el proyecto puesto. Es el paso que el taller da de verdad
+/* (Apagado con la lente Taller: desde octubre de 2026 este botón vive en cada renglón del Tablero,
+   `accionAnidar` en js/mod/tablero.js. Se queda aquí por si la lente vuelve.)
+   De aquí a la mesa de corte, con el proyecto puesto. Es el paso que el taller da de verdad
    —lo que hay que cortar se acomoda en la lámina antes de cortarlo— y hasta ahora era una
    pestaña nueva del navegador. Solo en las etapas en que tiene sentido: acomodar piezas de
    algo que ya se armó no es un paso, es una distracción. */

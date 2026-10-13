@@ -465,11 +465,11 @@ else {
     : mal('el pase se quedó pegado: entrar por la pestaña reabrió una ficha vieja');
 }
 
-/* Del taller a la mesa de corte, con el proyecto puesto. Ese botón vivía en la lente Taller
-   del Calendario, y desde 7dabd21 el Calendario solo enseña las instalaciones: la lente está
-   apagada (el código sigue en js/mod/fabricacion.js) y con ella el botón. Lo que se mide ahora
-   es que el apagado esté entero —sin segmento de lentes ni renglones del taller—; si la lente
-   vuelve, esta prueba falla y hay que regresar a medir el aterrizaje en la mesa de corte. */
+/* Del taller a la mesa de corte, con el proyecto puesto. El botón vivía en la lente Taller del
+   Calendario; desde 7dabd21 el Calendario solo enseña las entregas (sin lentes) y el botón se
+   mudó a cada renglón del Tablero (`accionAnidar` en js/mod/tablero.js). Abre la mesa de corte
+   del Tablero en la misma pantalla, con el aviso de dónde vienes. */
+console.log('\nDEL RENGLÓN A LA MESA DE CORTE');
 await irA('#/agenda');
 await p.waitForTimeout(600);
 const calendario = await p.evaluate(() => ({
@@ -477,8 +477,144 @@ const calendario = await p.evaluate(() => ({
   anidar: document.querySelectorAll('#mod-fabricacion [data-anidar]').length,
 }));
 calendario.lentes === 0 && calendario.anidar === 0
-  ? bien('el Calendario solo tiene la lente de Instalaciones: sin lentes que elegir ni «Acomodar en la lámina»')
-  : mal('el Calendario volvió a tener la lente Taller: ' + JSON.stringify(calendario) + ' — regresar a medir la mesa de corte');
+  ? bien('el Calendario solo enseña entregas: sin lentes ni «Acomodar en la lámina»')
+  : mal('el Calendario volvió a tener la lente Taller: ' + JSON.stringify(calendario));
+
+/* Uno ya armado, para que «en ninguno ya cortado» mida algo: los tres de la siembra están antes
+   del corte. Se crea aquí y se deja: las secciones de abajo no cuentan renglones. */
+const armado = await p.evaluate(async () => {
+  const Proy = await import('./js/datos/proyectos.js');
+  const letras = { id: 1, tipo: 'letras', material: 'acero', comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 8 };
+  const r = await Proy.ganar({ folio: 'COT-9004', cliente: 'Gym Titanio', proy: 'Gym Titanio — anuncio', ts: Date.now(),
+    estado: 'autorizada', items: [letras], neto: 40000, itemsAuth: { 1: 40000 } }, {});
+  if (!r.ok) return 'ganar: ' + r.mensaje;
+  for (const e of ['en_diseno', 'cortado', 'armado']) {
+    const a = await Proy.avanzarEtapa(r.valor.id, e);
+    if (!a.ok) return e + ': ' + a.mensaje;
+  }
+  return 'ok';
+});
+armado === 'ok' ? bien('un cuarto proyecto, ya armado') : mal('no se pudo armar el cuarto proyecto: ' + armado);
+
+await irA('#/hoy');
+const ofrecen = await p.evaluate(() => [...document.querySelectorAll('#mod-tablero [data-renglon]')].map(r => ({
+  etapa: (r.querySelector('.pf-etapa') || {}).textContent || '',
+  anidar: !!r.querySelector('[data-anidar]'),
+  t: (r.querySelector('.pf-fila-t') || {}).textContent || '',
+})));
+const conBoton = ofrecen.filter(x => x.anidar);
+conBoton.length > 0 && conBoton.every(x => /Vendido|Ganado|diseño/i.test(x.etapa))
+  ? bien('«Acomodar en la lámina» está en los renglones vendidos y en diseño (' + conBoton.length + ')')
+  : mal('los renglones con «Acomodar en la lámina» no son los de antes de cortar: ' + JSON.stringify(ofrecen));
+ofrecen.some(x => /Armado/i.test(x.etapa)) && ofrecen.filter(x => !/Vendido|Ganado|diseño/i.test(x.etapa)).every(x => !x.anidar)
+  ? bien('y en ninguno ya cortado, armado o listo')
+  : mal('se ofrece en una etapa donde ya no tiene sentido: ' + JSON.stringify(ofrecen));
+
+const idParen = sembrado.creados[1];
+await p.click('#mod-tablero [data-anidar="' + idParen + '"]');
+await p.waitForTimeout(2600);
+const llegada = await p.evaluate(() => ({
+  hash: location.hash,
+  montada: (() => { const s = [...document.querySelectorAll('.pf-mod')].find(x => !x.hidden); return s ? s.id : null; })(),
+  marco: !!document.getElementById('pf-anid-marco'),
+  seg: (document.querySelector('#mod-tablero [data-vista="anidador"]') || {}).getAttribute?.('aria-pressed')
+    || (document.querySelector('#mod-tablero [data-vista="anidador"]') || {}).getAttribute?.('aria-checked') || null,
+  dice: [...document.querySelectorAll('#mod-tablero .hintnote')].map(h => h.textContent.replace(/\s+/g, ' ').trim()).join(' | '),
+  arriba: Math.round(window.scrollY),
+}));
+llegada.montada === 'mod-tablero' && llegada.marco && llegada.hash === '#/hoy'
+  ? bien('aterriza en la mesa de corte del Tablero, en la misma pantalla')
+  : mal('no llegó a la mesa de corte: ' + JSON.stringify(llegada));
+/Vienes de Parentesis/.test(llegada.dice) && /folio COT-9002/.test(llegada.dice)
+  ? bien('y dice de qué proyecto viene, con su folio: «' + llegada.dice.slice(0, 70) + '…»')
+  : mal('llegó sin decir de qué proyecto viene: ' + JSON.stringify(llegada.dice));
+llegada.arriba === 0
+  ? bien('con la mesa a la vista, desde arriba')
+  : mal('la mesa quedó fuera de la vista (scrollY ' + llegada.arriba + ')');
+
+/* Volver a «Carga del taller» olvida el origen: tres pantallas después no debe seguir diciendo
+   de dónde se venía. */
+await p.click('#mod-tablero [data-vista="tablero"]');
+await p.waitForTimeout(500);
+await p.click('#mod-tablero [data-vista="anidador"]');
+await p.waitForTimeout(800);
+(await p.evaluate(() => !/Vienes de/.test(document.getElementById('mod-tablero').textContent)))
+  ? bien('volver a la carga y entrar a la mesa otra vez ya no dice «Vienes de»')
+  : mal('el aviso de origen se quedó pegado');
+await p.click('#mod-tablero [data-vista="tablero"]');
+await p.waitForTimeout(500);
+
+/* Con teclado, el foco no se cae al <body>: pasa a «Mesa de corte» del segmento. */
+await irA('#/hoy');
+await p.focus('#mod-tablero [data-anidar="' + idParen + '"]');
+await p.keyboard.press('Enter');
+await p.waitForTimeout(900);
+const focoMesa = await p.evaluate(() => { const a = document.activeElement; return a ? (a.dataset.vista || a.tagName) : null; });
+focoMesa === 'anidador'
+  ? bien('con teclado el foco cae en «Mesa de corte», no en el <body>')
+  : mal('con teclado el foco quedó en ' + focoMesa);
+await p.click('#mod-tablero [data-vista="tablero"]');
+await p.waitForTimeout(500);
+
+/* La otra puerta: la ficha de Proyectos, que no depende de que el proyecto tenga renglón en el
+   Tablero (sin ninguna fecha en el taller, el Tablero no pinta renglones). */
+await irA('#/proyectos'); await p.waitForTimeout(400);
+await p.evaluate(id => { const b = document.querySelector('[data-abrir="' + id + '"]'); if (b) b.click(); }, idParen);
+await p.waitForTimeout(800);
+const enFicha = await p.evaluate(() => {
+  const b = document.querySelector('#pf-ficha.show [data-anidar]');
+  return b ? b.textContent.replace(/\s+/g, ' ').trim() : null;
+});
+/Acomodar en la lámina/.test(enFicha || '')
+  ? bien('la ficha del proyecto en diseño ofrece «Acomodar en la lámina»')
+  : mal('la ficha no ofrece «Acomodar en la lámina»: ' + enFicha);
+await p.click('#pf-ficha [data-anidar]');
+await p.waitForTimeout(2600);
+const deFicha = await p.evaluate(() => ({
+  hash: location.hash,
+  ficha: !!document.querySelector('#pf-ficha.show'),
+  marco: !!document.getElementById('pf-anid-marco'),
+  dice: [...document.querySelectorAll('#mod-tablero .hintnote')].map(h => h.textContent.replace(/\s+/g, ' ').trim()).join(' | '),
+}));
+deFicha.hash === '#/hoy' && !deFicha.ficha && deFicha.marco && /Vienes de Parentesis/.test(deFicha.dice) && /folio COT-9002/.test(deFicha.dice)
+  ? bien('y lleva a la mesa de corte del Tablero, con la ficha cerrada y el aviso de dónde vienes')
+  : mal('desde la ficha no llegó bien a la mesa: ' + JSON.stringify(deFicha).slice(0, 200));
+await p.goBack();
+await p.waitForTimeout(1200);
+(await p.evaluate(() => location.hash === '#/proyectos' && !document.querySelector('#pf-ficha.show')))
+  ? bien('el atrás regresa a Proyectos, sin reabrir la ficha')
+  : mal('el atrás tras ir a la mesa dejó ' + await p.evaluate(() => location.hash + (document.querySelector('#pf-ficha.show') ? ' con la ficha abierta' : '')));
+/* La del proyecto armado no la ofrece. */
+const idArmado = await p.evaluate(async () => {
+  const Proy = await import('./js/datos/proyectos.js');
+  const l = await Proy.listar({});
+  const x = l.find(q => q.folio_local === 'COT-9004');
+  return x ? x.id : null;
+});
+await irA('#/proyectos'); await p.waitForTimeout(400);
+await p.evaluate(id => { const b = document.querySelector('[data-abrir="' + id + '"]'); if (b) b.click(); }, idArmado);
+await p.waitForTimeout(800);
+(await p.evaluate(() => !!document.querySelector('#pf-ficha.show') && !document.querySelector('#pf-ficha [data-anidar]')))
+  ? bien('y la ficha de uno ya armado no la ofrece')
+  : mal('la ficha de un proyecto armado ofrece «Acomodar en la lámina» (o no abrió)');
+await p.evaluate(() => { const c = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (c) c.click(); });
+await p.waitForTimeout(500);
+
+/* Pagos no tiene la mesa de corte: no se le ofrece. */
+await p.evaluate(() => localStorage.setItem('al3d_pf_rol', 'pagos'));
+await irA('#/hoy');
+(await p.evaluate(() => document.querySelectorAll('[data-anidar]').length === 0))
+  ? bien('con rol pagos no aparece «Acomodar en la lámina» en el Tablero: su barra no tiene la mesa')
+  : mal('a pagos se le ofrece una mesa de corte que no tiene');
+await irA('#/proyectos'); await p.waitForTimeout(400);
+await p.evaluate(id => { const b = document.querySelector('[data-abrir="' + id + '"]'); if (b) b.click(); }, idParen);
+await p.waitForTimeout(800);
+(await p.evaluate(() => !!document.querySelector('#pf-ficha.show') && !document.querySelector('#pf-ficha [data-anidar]')))
+  ? bien('ni en la ficha de Proyectos')
+  : mal('a pagos la ficha le ofrece la mesa de corte (o no abrió)');
+await p.evaluate(() => { const c = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (c) c.click(); });
+await p.waitForTimeout(500);
+await p.evaluate(() => localStorage.setItem('al3d_pf_rol', 'direccion'));
 
 // ── 7. El teléfono ─────────────────────────────────────────────────────────
 console.log('\nEN EL TELÉFONO');
