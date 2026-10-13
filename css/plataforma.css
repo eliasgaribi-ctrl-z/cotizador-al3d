@@ -185,7 +185,9 @@ body.pf::before{display:none}
   .pf-abajo button{
     flex:1;min-width:0;height:52px;border:0;background:transparent;cursor:pointer;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    font-family:inherit;font-size:10.5px;font-weight:600;letter-spacing:.2px;
+    /* 11 px y no 10,5 (mar-6). No sube a --t1 (12 en el teléfono): «Calendario» ya no cabría en
+       los 64 px de la celda. */
+    font-family:inherit;font-size:11px;font-weight:600;letter-spacing:0;
     color:rgba(255,255,255,.55);
   }
   .pf-abajo button .pil{
@@ -200,7 +202,7 @@ body.pf::before{display:none}
     position:absolute;transform:translate(14px,-9px);
     min-width:16px;height:16px;padding:0 4px;border-radius:8px;
     background:var(--av);color:var(--nav);
-    font-size:10px;font-weight:700;line-height:16px;text-align:center;
+    font-size:11px;font-weight:700;line-height:16px;text-align:center;
   }
   /* El hueco para la barra: lo que mide más el área segura. Sin esto, el último renglón de
      cualquier lista se queda debajo de ella y no hay forma de llegar a él. */
@@ -538,6 +540,9 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
    entrega. Es otro color que el azul del día abierto, así que no se confunden. */
 .cal-dia.hoy{background:var(--av-bg);box-shadow:inset 0 0 0 2px var(--av)}
 .cal-dia.hoy .cal-n{background:var(--av);color:#fff}
+/* En oscuro --av es el ámbar claro (#f5c26b) y el blanco encima daba 1,6:1: el número de HOY era
+   el que menos se leía del mes (fabmat-4). Marino encima, como la cuenta de la barra de abajo. */
+html[data-tema="oscuro"] .cal-dia.hoy .cal-n{color:var(--nav)}
 /* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
    sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
 .cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
@@ -1178,6 +1183,9 @@ button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 /* La verdad del final, en letra chica y sin adornos. Con la caja gris de .hintnote se
    leería como un consejo, y esto no es un consejo: es cómo funciona el sistema. */
 .pf-nota{margin-top:var(--e4);font-weight:400;font-size:var(--t1);line-height:1.55;color:var(--muted)}
+/* En Ajustes la ayuda es lo que decide —«Restaurar fusiona, no reemplaza…»—: al tamaño del texto
+   de la pantalla, no al de una etiqueta (ope-4). */
+#mod-ajustes .pf-nota,#mod-ajustes .hintnote{font-size:var(--t2)}
 
 /* El segmentado y la línea de frescura que lo sigue en el Tablero se tocaban: la píldora
    terminaba en el mismo píxel en que empezaba el texto y los dos se leían como un bloque
