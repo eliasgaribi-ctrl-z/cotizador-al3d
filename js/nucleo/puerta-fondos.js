@@ -116,7 +116,9 @@ export const LIENZOS = {
       const cerca = P.on > .01;
       ctx.fillStyle = '#f3f5ff'; ctx.fillRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .8;
-      const g = w < 600 ? 14 : 18, D = Math.hypot(w, h) / 2 + g, cx = w / 2, cy = h / 2;
+      /* Rejilla más abierta en pantallas grandes: con 18 px a 1366 eran ~15 000 círculos con ruido por
+         cuadro y la entrada bajaba a 21–40 cuadros por segundo (auditoría completa 2026-10, pub-8). */
+      const g = w < 600 ? 14 : w < 1000 ? 18 : 24, D = Math.hypot(w, h) / 2 + g, cx = w / 2, cy = h / 2;
       for (const [an, col, ph] of [[.26, '#6290ff', 0], [1.31, '#341efd', 2.1]]) {
         const co = Math.cos(an), si = Math.sin(an); ctx.fillStyle = col; ctx.beginPath();
         for (let u = -D; u <= D; u += g) for (let v = -D; v <= D; v += g) {

@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 107;
+const APP_VERSION = 108;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -447,9 +447,15 @@ function paginaSinSenal() {
   return '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
 '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
 '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src \'self\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">' +
-'<title>Sin señal · AL3D</title><style>' +
+'<title>Sin señal · AL3D</title>' +
+'<script>try{var t=localStorage.getItem("al3d_tema");if(t==="oscuro"||t==="claro")document.documentElement.setAttribute("data-tema",t)}catch(e){}<\/script><style>' +
 ':root{color-scheme:light dark;--fondo:#f3f4fb;--sup:#fbfcff;--tinta:#1a1d33;--tinta2:#5c6184;--linea:#dcdff2;--a:#4060f8;--a-fill:#4060f8;--a-tx:#3018f8}' +
-'@media(prefers-color-scheme:dark){:root{--fondo:#0f1124;--sup:#232750;--tinta:#eceefb;--tinta2:#a7acd6;--linea:#2f3562;--a:#6d86ff;--a-fill:#3b57e6;--a-tx:#a9b8ff}}' +
+/* El tema que la persona eligió en la app (`al3d_tema`, mismo origen) manda sobre el del sistema:
+   con la app en oscuro y el teléfono en claro, quedarse sin señal pintaba de pronto una pantalla
+   blanca (auditoría completa 2026-10, pub-13). El guion de abajo pone `data-tema` antes de pintar;
+   sin él, o con 'auto', sigue el sistema como antes. */
+'@media(prefers-color-scheme:dark){:root:not([data-tema="claro"]){--fondo:#0f1124;--sup:#232750;--tinta:#eceefb;--tinta2:#a7acd6;--linea:#2f3562;--a:#6d86ff;--a-fill:#3b57e6;--a-tx:#a9b8ff}}' +
+':root[data-tema="oscuro"]{color-scheme:dark;--fondo:#0f1124;--sup:#232750;--tinta:#eceefb;--tinta2:#a7acd6;--linea:#2f3562;--a:#6d86ff;--a-fill:#3b57e6;--a-tx:#a9b8ff}:root[data-tema="claro"]{color-scheme:light}' +
 '*{box-sizing:border-box}' +
 'body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--fondo);color:var(--tinta);' +
 'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}' +
@@ -469,14 +475,17 @@ function paginaSinSenal() {
 '@media(prefers-reduced-motion:reduce){.logo.viva{animation:none}button:active{transform:none}}' +
 '</style></head><body><main>' +
 '<span class="logo" id="logo"><picture>' +
-'<source srcset="' + logoOscuro + '" media="(prefers-color-scheme: dark)">' +
+'<source id="logo-osc" srcset="' + logoOscuro + '" media="(prefers-color-scheme: dark)">' +
 '<img src="' + logo + '" alt="AL3D" width="108" height="54"></picture></span>' +
 '<h1>Sin señal</h1>' +
-'<p>Sin señal y sin copia guardada todavía: ábrela una vez con señal y de ahí en adelante funciona sin ella.</p>' +
+'<p>Sin señal y sin copia guardada todavía: abre la app una vez con señal y de ahí en adelante funciona sin ella.</p>' +
 '<button type="button" id="otra">Reintentar</button>' +
 '<p class="aviso" id="aviso" role="status"></p>' +
 '</main><script>' +
 '(function(){var l=document.getElementById("logo"),a=document.getElementById("aviso");' +
+/* El logo sigue al mismo tema: la <source> del oscuro se fuerza o se apaga según `data-tema`. */
+'var dt=document.documentElement.getAttribute("data-tema"),so=document.getElementById("logo-osc");' +
+'if(so&&dt)so.media=dt==="oscuro"?"all":"not all";' +
 'document.getElementById("otra").addEventListener("click",function(){location.reload()});' +
 'var q=false;function vuelve(){if(q)return;q=true;l.className="logo viva";a.textContent="Volvió la señal. Cargando…";' +
 'var lento=false;try{lento=matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){}' +

@@ -3188,7 +3188,11 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-bar.r{left:94%;top:6%;width:var(--pf-g);height:88%;transform-origin:top;animation-name:pf-bar-r}
 .pfo-bar.b{left:6%;top:94%;width:88%;height:var(--pf-g);transform-origin:right;animation-name:pf-bar-b}
 .pfo-bar.l{left:6%;top:6%;width:var(--pf-g);height:88%;transform-origin:bottom;animation-name:pf-bar-l}
-.pfo-cabeza{width:0;height:0;animation:pf-cabeza var(--pf-d) linear var(--pf-r) infinite}
+/* El cabezal viaja con `translate` en unidades del contenedor (cqw/cqh) y no con left/top: con
+   left/top el navegador recalculaba el diseño en cada cuadro y Chrome lo contaba como página que
+   se reacomoda (auditoría completa 2026-10, pub-2). Mismo recorrido, mismo 6 % de margen. */
+.pfo-corte{container-type:size}
+.pfo-cabeza{left:0;top:0;translate:6cqw 6cqh;width:0;height:0;animation:pf-cabeza var(--pf-d) linear var(--pf-r) infinite}
 .pfo-cabeza>b{width:12px;height:12px;left:-6px;top:-6px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--pf-c),0 0 16px 5px #6290ff}
 .pfo-cabeza>s{width:3px;height:3px;border-radius:50%;background:#fff;animation:pf-chispa .5s ease-out infinite}
 .pfo-cabeza>s.s1{--cx:14px;--cy:-12px}
@@ -3199,7 +3203,7 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-mira::before{content:"";position:absolute;width:48px;height:48px;left:-24px;top:-24px;box-sizing:border-box;border-radius:50%;border:1.5px solid #4267fe;box-shadow:0 0 0 6px rgba(66,103,254,.08)}
 .pfo-mira::after{content:"";position:absolute;width:72px;height:72px;left:-36px;top:-36px;
   background:linear-gradient(#4267fe,#4267fe) center/72px 1px no-repeat,linear-gradient(#4267fe,#4267fe) center/1px 72px no-repeat}
-@keyframes pf-cabeza{0%,100%{left:6%;top:6%}22%{left:94%;top:6%}44%{left:94%;top:94%}66%{left:6%;top:94%}88%{left:6%;top:6%}}
+@keyframes pf-cabeza{0%,100%{translate:6cqw 6cqh}22%{translate:94cqw 6cqh}44%{translate:94cqw 94cqh}66%{translate:6cqw 94cqh}88%{translate:6cqw 6cqh}}
 @keyframes pf-bar-t{0%{transform:scaleX(0);opacity:1}22%,94%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
 @keyframes pf-bar-r{0%,22%{transform:scaleY(0);opacity:1}44%,94%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
 @keyframes pf-bar-b{0%,44%{transform:scaleX(0);opacity:1}66%,94%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
@@ -3249,7 +3253,10 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-laminas>.l4>b{animation-duration:14s;animation-direction:alternate-reverse}
 .pfo-brillo{top:-50%;height:200%;width:28%;left:-50%;transform:rotate(18deg);background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));animation:pf-barrido 7s ease-in-out infinite}
 @keyframes pf-vaiven{to{transform:translateX(60px)}}
-@keyframes pf-barrido{0%{left:-50%}60%,100%{left:150%}}
+/* `transform` y no `left` (pub-2): el CLS de la puerta con este fondo subía ~0,47 cada 5 s en
+   reposo. El brillo mide 28 % de la pantalla, así que recorrer el 200 % de ella son 714 % de él;
+   la traslación va ANTES del giro para que corra en horizontal, como antes. */
+@keyframes pf-barrido{0%{transform:translateX(0) rotate(18deg)}60%,100%{transform:translateX(714%) rotate(18deg)}}
 
 /* ----- Lo que contesta cada fondo al toque -----
    Las piezas las suelta js/nucleo/puerta.js (TOQUES) y las anima con `animate()`: aquí solo va
