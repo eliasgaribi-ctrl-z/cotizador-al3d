@@ -1713,12 +1713,17 @@ function zoomFluido(m) {
     const ll = m.containerPointToLatLng(punto);
     return m.unproject(m.project(ll, z).subtract(punto.subtract(mitad)), z);
   };
+  /* Al terminar, se asienta SIN otra animación: lo que hace Leaflet al acabar la suya
+     (`_onZoomTransitionEnd`), un `_move` normal —ahora sí los cuadros del mapa se piden al
+     nivel nuevo— y el `zoomend`/`moveend` que escuchan la ruta y los pines. Se asentaba con
+     `_animateZoom`, que volvía a animar 233 ms hacia el mismo zoom y, mientras, la rueda se
+     ignoraba: se perdían giros (auditoría de movimiento 2026-10, mapa-1). */
   const asentar = () => {
     fin = 0;
     if (raf || !movido) return;
     movido = false; objetivo = null;
-    const z = m._limitZoom(m.getZoom());
-    m._animateZoom(m.getCenter(), z, true, m.options.zoomSnap);
+    m._move(m.getCenter(), m.getZoom());
+    m._moveEnd(true);
   };
   const paso = () => {
     raf = 0;
