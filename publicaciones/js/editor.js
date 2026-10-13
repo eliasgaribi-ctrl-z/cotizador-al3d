@@ -186,7 +186,10 @@ function tarjeta(p, orden = 0) {
     b.type = 'button';
     b.className = 'pb-tarj' + (p.tipo === 'video' ? ' es-video' : '') + (cur && cur.id === p.id ? ' on' : '');
     b.dataset.id = p.id;
-    b.setAttribute('aria-label', p.id.replace('@', ' ') + (p.nombre ? ', ' + p.nombre : ''));
+    /* Sin nombre, el lector decía «P01 1x1» y nada más: se dice qué es y de qué formato (pub-10). */
+    const formato = (p.id.split('@')[1] || '').trim();
+    b.setAttribute('aria-label', p.id.replace('@', ' ') + ', ' + (p.nombre ||
+      ((p.tipo === 'video' ? 'plantilla de video' : 'plantilla de imagen') + (formato ? ' ' + formato : ''))));
     if (cur && cur.id === p.id) b.setAttribute('aria-current', 'true');
     const m = document.createElement('div');
     m.className = 'pb-marco';

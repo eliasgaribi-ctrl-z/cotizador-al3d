@@ -1101,6 +1101,8 @@ function palabraMaterial(sem) {
    `iAvanza` en -1 cuando el gesto no se ofrece. El botón de avanzar lleva `data-avanza` con el
    id del proyecto: es por donde `rearmarMechas()` lo encuentra después de un repintado, y el
    botón donde se cuelga el Deshacer cuando el avance viene de deslizar. */
+const punteroFino = () => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (_) { return true; } };
+
 function accionesRenglon(v, d) {
   const sig = SIGUIENTE[v.etapa_real];
   const iAbrir = _acciones.push({ tipo: 'abrir', id: v.proyecto_id }) - 1;
@@ -1136,6 +1138,10 @@ function accionesRenglon(v, d) {
    quien tiene la mesa (`conMesa`): a pagos no se le ofrece una herramienta que su barra no tiene. */
 function accionAnidar(v, d) {
   if (!conMesa() || (v.etapa_real !== 'ganado' && v.etapa_real !== 'en_diseno')) return null;
+  /* Con el dedo no: la mesa misma dice «en el teléfono conviene solo consultar», y el tercer botón
+     estiraba cada renglón a ~326 px —dos por pantalla— (auditoría completa 2026-10, tab-3). En el
+     teléfono la mesa sigue en «Más». */
+  if (!punteroFino()) return null;
   const p = d && d.porId ? d.porId.get(v.proyecto_id) : null;
   return { i: _acciones.push({ tipo: 'anidar', id: v.proyecto_id,
     nombre: (p && p.nombre) || v.titulo || '', folio: (p && p.folio_local) || '' }) - 1 };

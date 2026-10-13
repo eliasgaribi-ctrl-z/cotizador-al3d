@@ -2985,6 +2985,9 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   color:var(--tinta2);font-weight:500;
   transition:background var(--mv-s),color var(--mv-s);
 }
+/* Los 34 px de aquí le ganaban por orden a la regla táctil de más arriba: con el dedo las pestañas
+   de etapa de Proyectos medían 34 (auditoría completa 2026-10, tab-2). Se repite después. */
+@media(pointer:coarse){.tipo-seg button,.seg button{min-height:44px}}
 .tipo-seg button.on,.seg button.on{
   background:var(--nav);color:#fff;font-weight:600;
   box-shadow:none;animation:none;
@@ -7541,6 +7544,9 @@ html.antepuerta[data-tema="oscuro"] body::after{background-image:url(../logo-al3
 
 .puerta-pie{margin:var(--e6) 0 0;font-size:var(--t2);color:var(--tinta3)}
 .puerta-pie a{color:var(--tinta3)}
+/* Con el dedo, los tres enlaces del pie eran blancos de 16 px de alto pegados (pub-4): el mismo
+   alto que ya tiene el pie de las páginas públicas (.pub-pie a). */
+@media(pointer:coarse){.puerta-pie a{display:inline-flex;align-items:center;min-height:44px;padding:0 4px}}
 
 @media(max-width:420px){
   .puerta-caja h1{font-size:var(--t6)}

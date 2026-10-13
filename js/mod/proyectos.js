@@ -1452,7 +1452,10 @@ function htmlFicha(p) {
      —vendido y en diseño—, y solo para quien tiene la mesa en su barra. Es la misma puerta que el
      renglón del Tablero (`accionAnidar` en js/mod/tablero.js), pero esta no depende de que el
      proyecto ya tenga fecha: sin ninguna fecha en el taller, el Tablero no pinta renglones. */
-  if ((p.etapa === 'ganado' || p.etapa === 'en_diseno') && CTX && typeof CTX.tieneRuta === 'function' &&
+  /* Solo con ratón, como el renglón del Tablero (tab-3): con el dedo era el cuarto botón del pie y
+     llevaba a una herramienta de computadora. */
+  const fino = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (_) { return true; } })();
+  if (fino && (p.etapa === 'ganado' || p.etapa === 'en_diseno') && CTX && typeof CTX.tieneRuta === 'function' &&
       CTX.tieneRuta('anidador') && typeof CTX.pasar === 'function') {
     pie.push('<button type="button" class="btn btn-gho" data-anidar="' + esc(p.id) + '">' +
       ico('i-anidar') + ' Acomodar en la lámina</button>');
