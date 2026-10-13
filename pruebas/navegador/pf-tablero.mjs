@@ -928,8 +928,9 @@ if (activa('p29')) {
   que(vis.b && vis.ocultas && vis.fuera, 'los botones del renglón siguen a la vista y lo que descubre el gesto no se duplica para el Tab ni el lector');
   await t.ctx.close();
 
-  /* Con el ratón, en la computadora: arrastrar el renglón hacia la derecha también avanza (y deja el
-     mismo Deshacer), y un clic normal sobre el renglón NO lo arrastra. */
+  /* Con el ratón, en la computadora, arrastrar el renglón NO lo avanza: es lo que hace quien
+     selecciona el nombre para copiarlo, y avanzaba la etapa sin querer (auditoría de la plataforma
+     2026-10, tablero-1). Con ratón se avanza con su botón, que sigue a la vista. */
   const d = await entrar({ ancho: 1280, alto: 900 });
   const idm = d.h.armar.id;
   await d.p.evaluate(id => document.querySelector('.tb-renglon:has([data-avanza="' + id + '"])').scrollIntoView({ block: 'center' }), idm);
@@ -940,9 +941,10 @@ if (activa('p29')) {
   for (let i = 1; i <= 14; i++) { await d.p.mouse.move(rm2.x + 40 + (rm2.w * 0.7 * i / 14), rm2.y + rm2.h / 2); await esp(d.p, 14); }
   await d.p.mouse.up();
   await esp(d.p, 700);
-  que(await d.p.locator('[data-avanza="' + idm + '"]').evaluate(e => e.hasAttribute('data-deshacer')), 'con el ratón: arrastrar el renglón a la derecha lo avanza, con su Deshacer');
-  que((await etapaDe(d.p, idm)) === 'cortado', 'y sin escribir todavía');
-  que((await d.p.evaluate(() => location.hash)) !== '#/proyectos', 'el clic que sigue al arrastre no abre nada');
+  que(!(await d.p.locator('[data-avanza="' + idm + '"]').evaluate(e => e.hasAttribute('data-deshacer'))), 'con el ratón: arrastrar el renglón a la derecha NO lo avanza ni ofrece Deshacer');
+  await esp(d.p, 5200);
+  que((await etapaDe(d.p, idm)) === 'cortado', 'y la etapa sigue igual pasados 5 s');
+  que((await d.p.evaluate(() => location.hash)) !== '#/proyectos', 'el arrastre tampoco abre nada');
   await d.ctx.close();
 
   /* Sin permiso no hay gesto de avanzar: pagos no mueve la obra. */

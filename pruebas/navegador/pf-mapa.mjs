@@ -52,11 +52,11 @@ const dormir = ms => new Promise(r => setTimeout(r, ms));
    coordenadas son reales de Guadalajara y están separadas lo bastante para que la línea de la ruta
    mida cientos de píxeles a cualquier zoom. */
 const OBRAS = [
-  { clave: 'hea', cliente: 'Healthylicious', etapa: 'ganado',    lat: 20.6736, lng: -103.3440, dia: 0, hora: '09:00' },
-  { clave: 'per', cliente: 'La Perla',       etapa: 'en_diseno', lat: 20.6597, lng: -103.3496, dia: 0, hora: '10:30' },
-  { clave: 'gym', cliente: 'Gym Titanio',    etapa: 'listo',     lat: 20.6890, lng: -103.3300, dia: 0, hora: '12:00' },
-  { clave: 'den', cliente: 'Dental Sonrisa', etapa: 'instalado', lat: 20.6500, lng: -103.4000, dia: 0, hora: null },
-  { clave: 'far', cliente: 'Farmacia Guadalupe', etapa: 'listo', lat: 20.7000, lng: -103.3800, dia: 5, hora: '11:00' },
+  { clave: 'hea', cliente: 'Healthylicious', etapa: 'ganado',    lat: 20.6736, lng: -103.3440, dia: 0, hora: '09:00', estatus: 'FABRICACION' },
+  { clave: 'per', cliente: 'La Perla',       etapa: 'en_diseno', lat: 20.6597, lng: -103.3496, dia: 0, hora: '10:30', estatus: 'FABRICACION' },
+  { clave: 'gym', cliente: 'Gym Titanio',    etapa: 'listo',     lat: 20.6890, lng: -103.3300, dia: 0, hora: '12:00', estatus: 'COBRANDO' },
+  { clave: 'den', cliente: 'Dental Sonrisa', etapa: 'instalado', lat: 20.6500, lng: -103.4000, dia: 0, hora: null, estatus: 'LIQUIDADO' },
+  { clave: 'far', cliente: 'Farmacia Guadalupe', etapa: 'listo', lat: 20.7000, lng: -103.3800, dia: 5, hora: '11:00', estatus: 'COBRANDO' },
   { clave: 'sp1', cliente: 'Sin pin uno',    etapa: 'ganado',    lat: null, lng: null, dia: 0, hora: '16:00' },
   { clave: 'sp2', cliente: 'Sin pin dos',    etapa: 'ganado',    lat: null, lng: null, dia: null, hora: null },
   { clave: 'sp3', cliente: 'Sin pin tres',   etapa: 'ganado',    lat: null, lng: null, dia: null, hora: null },
@@ -130,6 +130,9 @@ const sembrar = p => p.evaluate(async obras => {
     if (o.etapa !== 'ganado') await Proy.avanzarEtapa(id, o.etapa);
     const par = { dir_texto: 'Av. Prueba 123\ncolonia Centro' };
     if (o.lat !== null) { par.lat = o.lat; par.lng = o.lng; par.geo_fuente = 'manual'; }
+    /* Los pines se pintan por el estatus de cobro de la hoja: «cobrando» son los dos que antes
+       eran «listo», así que los filtros de abajo quitan y ponen los mismos dos pines. */
+    if (o.estatus) par.estatus_notion = o.estatus;
     const a = await Proy.actualizar(id, par);
     if (!a.ok) fallas.push(o.clave + ' actualizar: ' + a.mensaje);
     if (o.dia !== null) {
@@ -370,7 +373,7 @@ async function ronda(cfg) {
     cierto(await p.evaluate(() => !document.querySelector('#mapa-cuentas .rueda-rodando')), 'el primer pintado no rueda');
     /* Un filtro que quita dos pines: «en el mapa» pasa de 5 a 3; las otras dos no cambian. */
     const r = await p.evaluate(() => {
-      document.querySelector('#mapa-etapas [data-g="listo"]').click();
+      document.querySelector('#mapa-etapas [data-g="cobrando"]').click();
       const rueda = c => !!document.querySelector('#mapa-cuentas b[data-cuenta="' + c + '"].rueda-rodando');
       return { texto: document.querySelector('#mapa-cuentas b[data-cuenta="pines"]').textContent.trim(),
         pines: rueda('pines'), hoy: rueda('hoy'), sin: rueda('sinubicar') };
@@ -381,7 +384,7 @@ async function ronda(cfg) {
     cierto(!r.hoy && !r.sin, 'las que no cambiaron no se tocan', r);
     await dormir(900);
     cierto(await p.evaluate(() => !document.querySelector('#mapa-cuentas .rueda-rodando')), 'y deja de rodar al terminar');
-    await clic('#mapa-etapas [data-g="listo"]');   // se devuelve
+    await clic('#mapa-etapas [data-g="cobrando"]');   // se devuelve
     await dormir(700);
   });
 
@@ -390,7 +393,7 @@ async function ronda(cfg) {
     /* Se marca el nodo de un pin que se queda: si el filtro vaciara la capa, la marca se perdería. */
     await p.evaluate(() => { for (const e of document.querySelectorAll('#mapa-lienzo .leaflet-marker-icon.mapa-pin')) e.__estaba = true; });
     const r = await p.evaluate(() => {
-      const chip = document.querySelector('#mapa-etapas [data-g="listo"]');
+      const chip = document.querySelector('#mapa-etapas [data-g="cobrando"]');
       chip.click();
       const pinAnims = document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.classList && a.effect.target.classList.contains('mapa-pin'));
       return { anims: pinAnims.length, duracion: pinAnims[0] ? pinAnims[0].effect.getComputedTiming().duration : 0,
@@ -411,7 +414,7 @@ async function ronda(cfg) {
     cierto(tras.iguales, 'los que se quedan son los MISMOS nodos (la capa no se vació)', tras);
     /* Vuelven. */
     const v = await p.evaluate(() => {
-      document.querySelector('#mapa-etapas [data-g="listo"]').click();
+      document.querySelector('#mapa-etapas [data-g="cobrando"]').click();
       const a = document.getAnimations().filter(x => x.effect && x.effect.target && x.effect.target.classList && x.effect.target.classList.contains('mapa-pin'));
       return { anims: a.length, n: document.querySelectorAll('#mapa-lienzo .leaflet-marker-icon.mapa-pin').length,
         cuales: a.map(x => (x.transitionProperty || x.animationName || x.constructor.name) + ' ' + x.effect.getComputedTiming().duration) };
@@ -627,10 +630,10 @@ async function ronda(cfg) {
     await toca('#mapa-lienzo .leaflet-control-zoom-in');
     await dormir(500);
     cierto(await p.evaluate(() => document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length === 0), 'acercar el mapa no vuelve a trazar la línea');
-    const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="taller"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
+    const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="fabricacion"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
     cierto(f === 0, 'un filtro tampoco');
     await dormir(500);
-    await clic('#mapa-etapas [data-g="taller"]');
+    await clic('#mapa-etapas [data-g="fabricacion"]');
     await dormir(500);
 
     /* Quitar el orden a media línea: el trazo se cancela entero, sin línea, sin números y sin errores. */

@@ -2299,8 +2299,13 @@
        260 ms de después de un latigazo— debajo del dedo ya no está la cara sino el hueco que
        deja, y anclándolo a la cara el segundo latigazo seguido se perdía sin decir nada. Sobre
        una acción descubierta no se empieza: ahí se toca, no se arrastra. */
+    /* Con RATÓN no se arma. El gesto es de dedo, y con ratón el renglón ya tiene a la vista sus
+       botones («Ya se armó», «Abrir»…). Armado con ratón, arrastrar sobre el nombre para copiarlo
+       avanzaba el proyecto de etapa —salía «Deshacer» y a los 5 s quedaba escrito—, y un clic
+       que se resbalaba 9 px sobre «Abrir» se perdía. Auditoría de la plataforma 2026-10,
+       tablero-1 y tablero-5. */
     const alBajar = e => {
-      if (e.button > 0 || e.isPrimary === false) return;
+      if (e.button > 0 || e.isPrimary === false || e.pointerType === 'mouse') return;
       const t = e.target.closest ? e.target : e.target.parentElement;
       if (!t || t.closest('.desliza-acc')) return;
       const f = t.closest('.desliza');
