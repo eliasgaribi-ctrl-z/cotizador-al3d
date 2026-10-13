@@ -1769,13 +1769,16 @@ async function pintarPaso2(pid, o = {}) {
 
   /* La fecha propuesta, por orden: la del día que se tocó en la rejilla; si no, la de la
      última instalación que tuvo este proyecto —una cancelada guarda la fecha que alguien ya
-     había prometido—; y si no, hoy. Lo que NO se hace nunca es parsear `compromiso_texto`:
+     había prometido—; y si no, NADA. Antes era hoy, y un toque distraído en «Agendar» dejaba la
+     instalación para hoy y movía la cita del Calendar del equipo sin que nadie eligiera ese día
+     (auditoría completa 2026-10, fabmat-3): sin día propuesto, el aviso de «Falta el día» hace su
+     trabajo. Lo que NO se hace nunca es parsear `compromiso_texto`:
      es el texto crudo del cotizador («Viernes 15 de Agosto») y adivinar de qué año y de qué
      agosto habla es exactamente el error que §4.4 prohíbe. Se pinta al lado del campo para
      que lo lea una persona, que sí sabe. */
   const previas = await Agenda.listar({ proyecto_id: pid });
   const propuesta = (_hoja && _hoja.fecha) ||
-    (previas.length ? previas[previas.length - 1].fecha : null) || hoyISO();
+    (previas.length ? previas[previas.length - 1].fecha : null) || '';
   const dur = Agenda.duracionSugerida(p.tipo_trabajo);
   const tipos = (p.tipo_trabajo || []).join(', ');
   /* Un envío o una recolección: la misma fecha —el día que sale del taller, que es la que cuenta
@@ -1850,7 +1853,11 @@ const valor = id => { const e = $(id); return e ? e.value : ''; };
 async function guardarAgenda() {
   if (!_hoja || _hoja.paso !== 'fecha') return;
   const fecha = valor('pf-ag-fecha');
-  if (!fecha) { toast('Falta el día. Es el único dato que la plataforma te pide.', 'err', 4200); return; }
+  if (!fecha) {
+    toast('Falta el día. Es el único dato que la plataforma te pide.', 'err', 4200);
+    const f = $('pf-ag-fecha'); if (f) { f.setAttribute('aria-invalid', 'true'); try { f.focus(); } catch (_) {} }
+    return;
+  }
 
   const r = await Agenda.agendar(_hoja.pid, {
     fecha,
@@ -2345,7 +2352,7 @@ function abrirGanar(folio, estado, focoK) {
       /* Teléfono, cómo se entrega y a dónde (js/mod/datos-entrega.js). Se piden aquí porque es
          el único momento en que alguien tiene al cliente enfrente o el chat abierto: después hay
          que irlos a buscar a WhatsApp el día de instalar. */
-      DE.html(_pide.de, { modo: 'ganar' }) +
+      DE.html(_pide.de, { modo: 'ganar', clave: 'ganar:' + _pide.folio }) +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +

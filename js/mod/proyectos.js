@@ -1038,7 +1038,7 @@ function ganar(folio) {
         '<button type="button" class="pf-cerrar" data-cerrar-pide aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
       '<div class="pf-panel-b">' +
         '<p class="pf-cuenta">' + esc(quien) + '</p>' +
-        DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar' }) +
+        DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar', clave: 'ganar:' + folio }) +
       '</div>' +
       '<div class="pf-panel-f">' +
         '<button type="button" class="btn btn-gho" data-cerrar-pide>Cancelar</button>' +
@@ -1302,7 +1302,13 @@ function htmlFicha(p) {
        y «IVA: Sí, incluido» son tres datos que no cuadran a la vista. Cuando la cotización no
        trajo subtotal se dice eso, con la misma marca que el resto de los ausentes de la
        ficha, o se calcula quitando el IVA y se rotula como calculado. */
-    datos.push(dato('Subtotal', p.sub != null
+    /* Y un CERO con total vendido tampoco es un subtotal: la capa de datos guarda `num(undefined)`
+       como 0 cuando la venta llega sin subtotal (de la hoja con la celda vacía, o una cotización
+       vieja), así que la guarda de arriba nunca se cumplía y la ficha decía «Subtotal $0.00» junto a
+       «Total vendido $106,492.00» (auditoría completa 2026-10, proyectos-3). Se decide aquí y no
+       en los datos para que también los proyectos ya guardados salgan bien. */
+    const subReal = p.sub != null && !(Number(p.sub) === 0 && Number(p.precio_auth || p.neto) > 0);
+    datos.push(dato('Subtotal', subReal
       ? money(p.sub)
       : (p.iva !== false && (p.precio_auth || p.neto)
           ? money((p.precio_auth || p.neto) / 1.16) + ' <span class="pf-sem nada">calculado</span>'
