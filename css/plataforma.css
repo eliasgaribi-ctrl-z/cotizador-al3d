@@ -1531,6 +1531,12 @@ button.cal-plazo:active{transform:scale(.97)}
    (index.html) y trae `.leaflet-marker-icon{display:block}`, que pesa lo mismo que `.mapa-pin`
    y por ir después le ganaba. */
 .leaflet-marker-icon.mapa-pin{display:block}
+/* El pin crece y late desde su PUNTA, que es la dirección: `.leaflet-zoom-animated` le ponía el
+   origen en la esquina de arriba a la izquierda y la punta resbalaba ~26 px al crecer (mapa-3).
+   Son las medidas de `iconoDe` (js/mod/mapa.js). Leaflet solo traslada los marcadores: el origen
+   no le afecta. */
+.leaflet-marker-icon.mapa-pin{transform-origin:16px 32px}
+.leaflet-marker-icon.mapa-pin.sel{transform-origin:20px 40px}
 .mapa-pin::before{content:"";position:absolute;box-sizing:border-box;left:4px;top:3px;width:24px;height:24px;
   border:2.5px solid var(--pin-borde);background:var(--pin-fondo);
   border-radius:var(--pin-radio) var(--pin-radio) 0 var(--pin-radio);transform:rotate(45deg);box-shadow:var(--clay)}

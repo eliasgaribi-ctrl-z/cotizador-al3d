@@ -1154,17 +1154,22 @@ function refrescarPines(op) {
 }
 
 /** Anima el pin y le devuelve su animación. Ver el porqué del traslado en `refrescarPines`. */
+/* Se anima la propiedad `scale` y NO `transform`: el `transform` de un pin es su posición, que
+   Leaflet escribe con translate3d. Animarlo congelaba la posición de antes de filtrar, así que
+   mientras el mapa se reencuadraba el pin se quedaba en su lugar viejo y a los 200 ms brincaba
+   ~180 px (auditoría de movimiento 2026-10, mapa-2). `scale` se compone con ese translate y el
+   pin acompaña al encuadre; crece desde su punta por el `transform-origin` de plataforma.css
+   (mapa-3). La salida, más corta que la entrada (mapa-9). */
 function animarPin(el, tipo) {
   if (!el || typeof el.animate !== 'function') return null;
-  const base = el.style.transform ? el.style.transform + ' ' : '';
   const entra = tipo === 'entra';
   const de = entra ? { esc: .3, op: 0 } : { esc: 1, op: 1 };
   const a = entra ? { esc: 1, op: 1 } : { esc: .3, op: 0 };
   try {
     return el.animate([
-      { transform: base + 'scale(' + de.esc + ')', opacity: de.op },
-      { transform: base + 'scale(' + a.esc + ')', opacity: a.op },
-    ], { duration: 160, easing: 'cubic-bezier(.2,.8,.2,1)', fill: entra ? 'none' : 'forwards' });
+      { scale: String(de.esc), opacity: de.op },
+      { scale: String(a.esc), opacity: a.op },
+    ], { duration: entra ? 160 : 120, easing: 'cubic-bezier(.23,1,.32,1)', fill: entra ? 'none' : 'forwards' });
   } catch (_) { return null; }
 }
 
@@ -1638,10 +1643,9 @@ function numerarParada(t, id) {
   FIRMAS.set(id, gr.g + '|' + n + '|' + (sel ? 1 : 0) + '|' + tituloDe(p, gr));
   const el = m.getElement();
   if (el && typeof el.animate === 'function') {
-    const base = el.style.transform ? el.style.transform + ' ' : '';
     try {
       el.animate([
-        { transform: base + 'scale(1)' }, { transform: base + 'scale(1.3)', offset: .4 }, { transform: base + 'scale(1)' },
+        { scale: '1' }, { scale: '1.3', offset: .4 }, { scale: '1' },
       ], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
     } catch (_) {}
   }

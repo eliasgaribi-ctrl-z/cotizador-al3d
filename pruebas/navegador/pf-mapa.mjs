@@ -386,7 +386,7 @@ async function ronda(cfg) {
     if (cfg.reducido) {
       cierto(r.anims === 0 && r.aun === 3, 'con menos movimiento los pines se quitan en el acto, sin animación', r);
     } else {
-      cierto(r.anims === 2 && r.duracion === 160, 'los dos pines que se van se encogen en 160 ms', r);
+      cierto(r.anims === 2 && r.duracion === 120, 'los dos pines que se van se encogen en 120 ms (la salida, más corta que la entrada)', r);
       cierto(r.aun === 5, 'y siguen en el mapa mientras se encogen', r);
       await dormir(450);
     }
