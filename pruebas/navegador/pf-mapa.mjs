@@ -14,16 +14,18 @@
  *     cada pin cambia su letra por su número cuando la línea llega a él; al terminar vuelve el
  *     punteado. Ni el zoom ni un filtro la repiten. Sin movimiento aparece entera.
  *   · LAS PARADAS, EN TARJETAS (F12). En el teléfono, la ruta ordenada trae una tira sobre el mapa:
- *     deslizar a la siguiente lleva el mapa a esa parada y abre su globo; tocar un pin lleva la
- *     tira a su tarjeta; el tabulador también. No tapa el crédito de OpenStreetMap, sus botones
- *     miden 44 px, la nota de la salida supuesta sigue a la vista y la lista se queda para la
- *     computadora.
+ *     deslizar a la siguiente lleva el mapa a esa parada y marca su pin; tocar un pin lleva la
+ *     tira a su tarjeta; tocar una tarjeta abre la ficha de la obra. No tapa el crédito de
+ *     OpenStreetMap, sus botones miden 44 px, la nota de la salida supuesta sigue en la hoja y la
+ *     lista se queda para la computadora. (Desde d93c71b no hay globos de Leaflet: lo que abría un
+ *     globo ahora marca el pin o abre la ficha de abajo.)
  *   · EL PIN A MANO CON RETÍCULA (F9). Una cruz fija al centro del lienzo, sin recibir toques y sin
  *     tapar los controles; el mapa se mueve debajo; «Guardar aquí» guarda EL CENTRO (se mide contra
  *     las posiciones en pantalla de pines de coordenada conocida); tocar salta cerca; nada se guarda
  *     sin ese botón; con teclado las flechas mueven el mapa.
- *   · LA BARRA DEL TELÉFONO (F29). Sube al aparecer, cambia de rótulo SIN reescribirse el botón y su
- *     alto publicado (`--mbar-h`) es el de la barra puesta, no el de media animación.
+ *   · LA RUTA EN LA HOJA (antes F29, la barra del teléfono). Desde d93c71b el mapa no usa la barra
+ *     fija: «Ordenar la ruta de hoy (n)» vive en lo que asoma de la hoja de abajo, a la vista y de
+ *     44 px, y su cuenta sube cuando una obra de hoy recibe su pin.
  *   · «COPIAR DIRECCIÓN» (F31). El botón se vuelve palomita y dice «Copiada» y regresa; el aviso de
  *     abajo se queda.
  *
@@ -213,6 +215,16 @@ const seCruzan = (a, b) => !!a && !!b && a.x < b.r && b.x < a.r && a.y < b.b && 
 
 /* El centro de un pin en pantalla, por el nombre de su obra (el `title` del marcador la lleva). */
 const pinDe = (p, cliente) => caja(p, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
+/* El punto del mapa que marca el pin. Desde d93c71b el pin es una gota anclada en su PUNTA, no en
+   su centro: Leaflet corre el icono con márgenes negativos (`iconAnchor`), y la esquina de la caja
+   menos esos márgenes es la coordenada exacta. Con el centro de la caja el ajuste salía corrido
+   15 px hacia arriba. */
+const puntaDe = (p, cliente) => p.evaluate(s => {
+  const e = document.querySelector(s);
+  if (!e) return null;
+  const r = e.getBoundingClientRect(), st = getComputedStyle(e);
+  return { cx: r.left - parseFloat(st.marginLeft), cy: r.top - parseFloat(st.marginTop) };
+}, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
 
 /* Del par (longitud, latitud) a píxeles de pantalla, y de vuelta, ajustado con los pines de
    coordenada conocida. Dentro de una ciudad la proyección es una escala y un corrimiento por eje
@@ -221,7 +233,7 @@ const pinDe = (p, cliente) => caja(p, '.leaflet-marker-icon.mapa-pin[title*="' +
 async function ajusteDePantalla(p) {
   const pts = [];
   for (const o of CON_PIN) {
-    const c = await pinDe(p, o.cliente);
+    const c = await puntaDe(p, o.cliente);
     if (c) pts.push({ lat: o.lat, lng: o.lng, x: c.cx, y: c.cy });
   }
   const merc = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
@@ -294,8 +306,10 @@ async function ronda(cfg) {
     cierto(v.esq && v.busy, 'el router enseñó la silueta del mapa con aria-busy', v);
     cierto(/Cargando Mapa/.test(v.esqTexto), 'con su texto de estado', v.esqTexto);
     cierto(!v.vacio, 'el módulo no puso un segundo «cargando» encima', v.vacio);
-    const alto = await r2.p.evaluate(() => Math.round(document.getElementById('mapa-lienzo').getBoundingClientRect().height));
-    cierto(Math.abs(alto - v.esqAlto) <= 1, 'la silueta mide lo mismo que el lienzo (' + v.esqAlto + ' = ' + alto + ')', { alto, esq: v.esqAlto });
+    /* Contra la caja del mapa (`.mapa-app`) y no contra el lienzo: desde d93c71b el lienzo va dentro
+       del borde de 1 px de la caja, y la silueta lleva ese mismo borde. */
+    const alto = await r2.p.evaluate(() => Math.round(document.getElementById('mapa-app').getBoundingClientRect().height));
+    cierto(Math.abs(alto - v.esqAlto) <= 1, 'la silueta mide lo mismo que la caja del mapa (' + v.esqAlto + ' = ' + alto + ')', { alto, esq: v.esqAlto });
     cierto(r2.errores.length === 0, 'sin errores de página', r2.errores);
     await r2.ctx.close();
   });
@@ -310,57 +324,25 @@ async function ronda(cfg) {
     cierto((await p.evaluate(() => document.getElementById('mapa-tira').hidden)), 'sin tira mientras la ruta no está ordenada');
   });
 
-  /* ---------- F29 · la barra de acción del teléfono ---------- */
-  await seccion('F29 · la barra de acción sube al aparecer y no se reescribe', async () => {
-    if (!movil) { cierto(true, '(la barra fija es del teléfono: en la computadora no aplica)'); return; }
-    const leer = () => p.evaluate(() => {
-      const m = document.getElementById('pf-mbar');
-      const s = getComputedStyle(m);
-      return { visible: !m.hidden && m.getClientRects().length > 0, hayBoton: !!m.querySelector('[data-ruta]'),
-        texto: m.textContent.replace(/\s+/g, ' ').trim(), clase: m.classList.contains('mapa-mbar'),
-        transicion: s.transitionProperty, alto: Math.round(m.getBoundingClientRect().height),
-        publicado: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--mbar-h'), 10) || 0 };
-    });
-    const b = await leer();
-    cierto(b.visible && b.hayBoton && /Ordenar la ruta de hoy \(4\)/.test(b.texto), 'la barra dice «Ordenar la ruta de hoy (4)»', b);
-    cierto(b.clase, 'lleva la clase de esta pantalla (la entrada no toca las barras de las demás)', b);
-    cierto(/opacity/.test(b.transicion) && /transform/.test(b.transicion), 'transiciona opacidad y traslado', b.transicion);
-    cierto(Math.abs(b.alto - b.publicado) <= 1, '--mbar-h publica el alto de la barra puesta (' + b.publicado + ' = ' + b.alto + ')', b);
-
-    /* Salir y volver, con un muestreo por cuadro: al aparecer, la barra no está ya entera. */
-    await p.evaluate(() => { location.hash = '#/tablero'; });
-    await hasta(p, () => !document.querySelector('#pf-mbar [data-ruta]'), null, 8000);
-    await p.evaluate(() => {
-      window.__barra = { cuadros: [], vivo: true };
-      const R = window.__barra;
-      const paso = () => {
-        if (!R.vivo) return;
-        const m = document.getElementById('pf-mbar');
-        if (m && !m.hidden && m.querySelector('[data-ruta]')) { const s = getComputedStyle(m); R.cuadros.push({ op: +s.opacity, tr: s.transform }); }
-        requestAnimationFrame(paso);
-      };
-      requestAnimationFrame(paso);
-    });
-    await p.evaluate(() => { location.hash = '#/mapa'; });
-    await mapaListo(p);
-    await dormir(500);
-    const q = await p.evaluate(() => { window.__barra.vivo = false; return window.__barra.cuadros; });
-    const desp = q.map(c => { const m = /matrix\(1, 0, 0, 1, 0, (-?[\d.]+)\)/.exec(c.tr); return m ? +m[1] : 0; });
-    cierto(q.length > 3 && q[0].op < .7, 'la barra empieza casi transparente (' + (q[0] && q[0].op.toFixed(2)) + ')', q.slice(0, 3));
-    cierto(q[q.length - 1].op === 1 && q[q.length - 1].tr === 'none', 'y termina entera y en su sitio', q[q.length - 1]);
-    if (cfg.reducido) cierto(desp.every(d => d === 0), 'con menos movimiento solo hace fundido: no sube', desp.slice(0, 6));
-    else cierto(Math.max(...desp) > 4 && Math.max(...desp) <= 12.5, 'sube desde abajo (hasta ' + Math.max(...desp).toFixed(1) + ' px de los 12)', desp.slice(0, 8));
-    const fin = await leer();
-    cierto(Math.abs(fin.alto - fin.publicado) <= 1, 'el alto publicado sigue siendo el de la barra puesta, no el de media animación', fin);
-
-    /* Con el mismo rótulo, el botón no se toca. */
-    await p.evaluate(() => { document.querySelector('#pf-mbar [data-ruta]').__mio = true; window.__mp.rotuloSale = 0; });
-    await clic('#mapa-rango [data-rango="15"]');
-    await dormir(300);
-    await clic('#mapa-rango [data-rango="todo"]');
-    await dormir(300);
-    const igual = await p.evaluate(() => ({ mismo: !!document.querySelector('#pf-mbar [data-ruta]').__mio, cruces: window.__mp.rotuloSale }));
-    cierto(igual.mismo && igual.cruces === 0, 'repintar la barra con el mismo rótulo no reescribe el botón ni cruza nada', igual);
+  /* ---------- La ruta del día, en la hoja (antes F29, la barra del teléfono) ----------
+     d93c71b quitó la barra fija del mapa: «Ordenar la ruta de hoy» vive en lo que asoma de la hoja
+     de abajo. Lo que se defiende es que siga a la vista sin subir la hoja y que mida 44 px. */
+  const botonRuta = () => p.evaluate(() => {
+    const b = document.querySelector('#mapa-acc [data-ruta]');
+    const m = document.getElementById('pf-mbar');
+    const mbar = !!(m && !m.hidden && m.getClientRects().length && m.querySelector('[data-ruta]'));
+    if (!b) return { hay: false, mbar };
+    const r = b.getBoundingClientRect();
+    const encima = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { hay: true, texto: b.textContent.replace(/\s+/g, ' ').trim(), alto: Math.round(r.height),
+      aLaVista: r.top >= 0 && r.bottom <= innerHeight && !!encima && !!encima.closest('[data-ruta]'), mbar };
+  });
+  await seccion('la ruta de hoy se ordena desde la hoja, no desde una barra fija', async () => {
+    const b = await botonRuta();
+    cierto(b.hay && /Ordenar la ruta de hoy \(4\)/.test(b.texto), 'la hoja dice «Ordenar la ruta de hoy (4)»', b);
+    cierto(b.aLaVista, 'y el botón se ve con la hoja abajo, sin nada encima', b);
+    if (movil) cierto(b.alto >= 44, 'mide 44 px o más con el dedo (' + b.alto + ')', b);
+    cierto(!b.mbar, 'el mapa no pone la barra fija del teléfono', b);
   });
 
   /* ---------- F23 · las cuentas ruedan ---------- */
@@ -427,9 +409,17 @@ async function ronda(cfg) {
   const dbObra = id => p.evaluate(async i => { const o = await (await import('/js/datos/db.js')).obtener('proyectos', i); return o ? { lat: o.lat, lng: o.lng, fuente: o.geo_fuente } : null; }, id);
   /* Leaflet ignora el dedo mientras acerca (250 ms de animación): se espera a que termine, o el arrastre
      que sigue no mueve nada y la prueba parece fallar por un motivo que no es del mapa. */
+  /* Sin el zoom de Leaflet desde d93c71b: en la computadora hay botones redondos (`data-zoom`) y en
+     el teléfono se esconden (ahí se acerca con dos dedos). Se acerca con el botón donde lo hay y,
+     con el dedo, con la tecla «+» sobre el lienzo, que Leaflet atiende igual. */
+  const unZoom = async () => {
+    if (!cfg.tactil) { await toca('#mapa-fabs [data-zoom="1"]'); return; }
+    await p.focus('#mapa-lienzo');
+    await p.keyboard.press('Equal');
+  };
   const acercar = async n => {
     for (let i = 0; i < n; i++) {
-      await toca('#mapa-lienzo .leaflet-control-zoom-in');
+      await unZoom();
       await dormir(150);
       await hasta(p, () => !document.querySelector('#mapa-lienzo.leaflet-zoom-anim'), null, 3000);
       await dormir(250);
@@ -442,11 +432,15 @@ async function ronda(cfg) {
     else { await p.mouse.move(de.x, de.y); await p.mouse.down(); await p.mouse.move(a.x, a.y, { steps: 8 }); await p.mouse.up(); }
     await dormir(cfg.reducido ? 600 : 1000);
   };
+  /* La ficha de la obra elegida (lo que antes era el globo) tapa la lista de la hoja: se cierra
+     para volver a los «Pin a mano» de las que siguen sin ubicar. */
+  const fichaAbierta = () => p.evaluate(() => { const f = document.getElementById('mapa-ficha'); return f && !f.hidden ? f.textContent.replace(/\s+/g, ' ') : ''; });
+  const cerrarFicha = async () => { await clic('[data-cerrar-ficha]'); await dormir(400); };
+  const pinMarcado = cliente => p.evaluate(c => !!document.querySelector('.leaflet-marker-icon.mapa-pin.sel[title*="' + c + '"]'), cliente);
   const guardaHabilitado = () => p.evaluate(() => { const b = document.querySelector('[data-mano-ok]'); return !!b && !b.disabled; });
   const hastaGuardado = async id => { for (let i = 0; i < 40; i++) { const o = await dbObra(id); if (o && o.lat != null) return o; await dormir(100); } return dbObra(id); };
 
   await seccion('F9 · el pin a mano: la cruz queda fija y se mueve el mapa', async () => {
-    await p.evaluate(() => { document.querySelector('#pf-mbar [data-ruta]') && (document.querySelector('#pf-mbar [data-ruta]').__mio = true); if (window.__mp) window.__mp.rotuloSale = 0; });
     await toca('[data-mano="' + ids.sp1 + '"]');
     await dormir(800);
     const ret = await caja(p, '#mapa-lienzo .mapa-reticula'), lz = await caja(p, '#mapa-lienzo');
@@ -493,23 +487,15 @@ async function ronda(cfg) {
     await dormir(cfg.reducido ? 700 : 1500);
     cierto(!(await p.evaluate(() => document.querySelector('.mapa-reticula'))), 'al guardar la retícula se va');
     cierto(await p.evaluate(() => !!document.querySelector('.leaflet-marker-icon.mapa-pin[title*="Sin pin uno"]')), 'y la obra ya tiene su pin');
-    const globo = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
-    cierto(/Sin pin uno/.test(globo), 'el mapa llegó a él y abrió su globo', globo.slice(0, 40));
+    cierto(/Sin pin uno/.test(await fichaAbierta()), 'el mapa llegó a él y abrió su ficha', (await fichaAbierta()).slice(0, 40));
+    cierto(await p.evaluate(() => !!document.querySelector('.leaflet-marker-icon.mapa-pin.sel[title*="Sin pin uno"]')), 'con su pin marcado');
+    await cerrarFicha();
     cierto((await cuenta('sinubicar')) === '2', 'y «sin ubicar» baja a 2', await cuenta('sinubicar'));
   });
 
-  await seccion('F29 · al ponerle pin a una obra de hoy el rótulo de la barra se cruza, no se reescribe', async () => {
-    if (!movil) { cierto(true, '(solo teléfono)'); return; }
-    const r = await p.evaluate(() => {
-      const b = document.querySelector('#pf-mbar [data-ruta]');
-      return { texto: b ? b.textContent.replace(/\s+/g, ' ').trim() : null, mismo: !!(b && b.__mio), envuelto: !!(b && b.querySelector('.rotulo')), cruces: window.__mp.rotuloSale };
-    });
-    cierto(/Ordenar la ruta de hoy \(5\)/.test(r.texto || ''), 'la barra pasó de (4) a (5)', r);
-    cierto(r.mismo, 'es el MISMO botón: no se reescribió', r);
-    if (cfg.reducido) cierto(r.cruces === 0, 'con menos movimiento el cambio es inmediato, sin cruce', r);
-    else cierto(r.cruces >= 1 && r.envuelto, 'el rótulo nuevo se cruzó con el viejo', r);
-    await dormir(400);
-    cierto(await p.evaluate(() => !document.querySelector('#pf-mbar .rotulo-sale')), 'el viejo se retira al terminar');
+  await seccion('al ponerle pin a una obra de hoy la ruta de la hoja cuenta una parada más', async () => {
+    const b = await botonRuta();
+    cierto(/Ordenar la ruta de hoy \(5\)/.test(b.texto || ''), 'el botón pasó de (4) a (5)', b);
   });
 
   await seccion('F9 · tocar el mapa salta cerca: ese punto queda bajo la cruz', async () => {
@@ -530,6 +516,7 @@ async function ronda(cfg) {
     const g = await hastaGuardado(ids.sp2);
     cierto(g.lat != null && Math.abs(g.lat - esperado.lat) < 1e-4 && Math.abs(g.lng - esperado.lng) < 1e-4, 'guardó ese punto', { g, esperado });
     await dormir(cfg.reducido ? 600 : 1300);
+    await cerrarFicha();
   });
 
   await seccion('F9 · con teclado las flechas mueven el mapa y cancelar no guarda nada', async () => {
@@ -599,8 +586,7 @@ async function ronda(cfg) {
       requestAnimationFrame(paso);
     });
     await p.evaluate(() => { window.__ruta.t0 = performance.now(); });
-    const sel = movil ? '#pf-mbar [data-ruta]' : '#mapa-acc [data-ruta="calcular"]';
-    await toca(sel);
+    await toca('#mapa-acc [data-ruta="calcular"]');
     await dormir(2200);
     const R = await p.evaluate(() => { window.__ruta.vivo = false; return window.__ruta.cuadros.filter(c => c.t >= 0); });
     const final = R[R.length - 1];
@@ -624,7 +610,7 @@ async function ronda(cfg) {
     const punteado = await p.evaluate(() => { const c = document.querySelector('#mapa-lienzo path.mapa-ruta-linea'); const s = getComputedStyle(c); return { d: s.strokeDasharray, anim: c.getAnimations().length }; });
     cierto(/^7px,? 7px$/.test(punteado.d.replace(/\s+/g, ' ')) && punteado.anim === 0, 'al terminar vuelve el punteado de 7 y 7, sin animación', punteado);
     /* Ni el zoom ni un filtro la repiten. */
-    await toca('#mapa-lienzo .leaflet-control-zoom-in');
+    await unZoom();
     await dormir(500);
     cierto(await p.evaluate(() => document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length === 0), 'acercar el mapa no vuelve a trazar la línea');
     const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="taller"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
@@ -676,11 +662,13 @@ async function ronda(cfg) {
     if (!movil) {
       cierto(!info.visible, 'en la computadora la tira no se ve', info);
       cierto(info.filasVisibles === 5, 'y la lista de la ruta se queda (5 renglones)', info);
-      /* «Ver en el mapa» sigue llevando al pin y abriendo su globo. */
+      /* «Ver en el mapa» sigue llevando al pin; desde d93c71b abre la ficha de la obra en el panel. */
       await toca('#mapa-ruta [data-ver="' + ids.gym + '"]');
       await dormir(1400);
-      const g = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
-      cierto(/Gym Titanio/.test(g), '«Ver en el mapa» abre el globo de esa parada', g.slice(0, 60));
+      const g = await fichaAbierta();
+      cierto(/Gym Titanio/.test(g), '«Ver en el mapa» abre la ficha de esa parada', g.slice(0, 60));
+      cierto(await pinMarcado('Gym Titanio'), 'con su pin marcado');
+      await cerrarFicha();
       return;
     }
     cierto(info.visible, 'en el teléfono la tira se ve', info);
@@ -724,24 +712,20 @@ async function ronda(cfg) {
     cierto(pin && pin.cy < tira2.y - 4 && pin.cy > lienzo2.y && pin.cx > lienzo2.x && pin.cx < lienzo2.r, 'el mapa llevó la parada a la vista, encima de la tira', { pin, tira2 });
     const libre = (tira2.y - lienzo2.y);
     cierto(pin && Math.abs(pin.cy - (lienzo2.y + libre / 2)) < libre * .35 && Math.abs(pin.cx - lienzo2.cx) < 50, 'y la dejó hacia el centro de lo que se ve', { pin, centro: [lienzo2.cx, lienzo2.y + libre / 2] });
-    const globo = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
-    cierto(globo.includes(cliente), 'y abrió el globo de esa parada', globo.slice(0, 50));
-    const gcaja = await caja(p, '.leaflet-popup');
-    cierto(gcaja && gcaja.b <= tira2.y + 2 && gcaja.y >= lienzo2.y - 2, 'el globo cabe entre la cima del mapa y la tira', { gcaja, tira2 });
+    cierto(await pinMarcado(cliente), 'y marcó el pin de esa parada', cliente);
+    cierto(!(await fichaAbierta()), 'sin abrir su ficha: deslizar es recorrer la ruta, no elegir una obra');
 
-    /* Tocar un pin lleva la tira a su tarjeta. Se encuadra primero para tener todos los pines a la vista. */
-    await toca('#mapa-acc [data-encuadrar]');
+    /* Tocar un pin lleva la tira a su tarjeta. Se encuadra primero («Ver todas», en los botones
+       redondos) para tener todos los pines a la vista. */
+    await toca('#mapa-fabs [data-encuadrar]');
     await dormir(cfg.reducido ? 500 : 1100);
-    await p.evaluate(() => { const g = document.querySelector('.leaflet-popup-close-button'); if (g) g.click(); });
-    await dormir(300);
     const pin4 = await pinDe(p, 'Dental Sonrisa');
     await p.touchscreen.tap(pin4.cx, pin4.cy);
     await dormir(cfg.reducido ? 600 : 1300);
     const cardAct = await p.evaluate(() => { const a = document.querySelector('#mapa-tira .pagina-actual'); const t = document.getElementById('mapa-tira').getBoundingClientRect(); const c = a.getBoundingClientRect(); return { id: a.dataset.parada, dx: Math.abs((c.left + c.width / 2) - (t.left + t.width / 2)) }; });
     cierto(cardAct.id === ids.den && cardAct.dx < 24, 'tocar un pin lleva la tira a su tarjeta, centrada', cardAct);
     await dormir(400);
-    const sigue = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
-    cierto(/Dental Sonrisa/.test(sigue), 'y el mapa se queda con ese globo (la tira no lo manda a otro lado de camino)', sigue.slice(0, 50));
+    cierto(await pinMarcado('Dental Sonrisa') && !(await fichaAbierta()), 'y el mapa se queda con ese pin marcado (la tira no lo manda a otro lado de camino)');
 
     /* Tocar la tarjeta que asoma por un lado: la vecina de la de ahora. */
     const vecina = await p.evaluate(() => {
@@ -755,13 +739,23 @@ async function ronda(cfg) {
     const visX = (Math.max(tv.x, lz.x) + Math.min(tv.r, lz.r)) / 2;
     await p.touchscreen.tap(visX, tv.y + 22);
     await dormir(cfg.reducido ? 700 : 1500);
-    const tras = await p.evaluate(() => document.querySelector('#mapa-tira .pagina-actual').dataset.parada);
-    cierto(tras === vecina, 'tocar la tarjeta que asoma la pone de ahora', { tras, vecina });
-    const globoVecina = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
+    const fichaVecina = await fichaAbierta();
     const clienteVecina = (OBRAS.find(o => ids[o.clave] === vecina) || {}).cliente;
-    cierto(clienteVecina && globoVecina.includes(clienteVecina), 'y lleva el mapa a su pin', { clienteVecina, globo: globoVecina.slice(0, 40) });
+    cierto(clienteVecina && fichaVecina.includes(clienteVecina) && await pinMarcado(clienteVecina), 'tocar la tarjeta que asoma abre su ficha, con el mapa en su pin', { clienteVecina, ficha: fichaVecina.slice(0, 40) });
+    /* La ficha esconde la tira (la ficha dice lo mismo y más). Al cerrarla, la tira vuelve en la
+       tarjeta que se tocó: es lo que promete `alTocarTarjeta` («para que al cerrar la ficha se
+       vuelva a la misma parada»). FALLA desde d93c71b, y es de la app: `alTocarTarjeta` pide a la
+       tira que se corra y en el mismo toque abre la ficha, que esconde la tira antes de que se mueva;
+       al cerrar, la tira sigue en la tarjeta de antes. */
+    await cerrarFicha();
+    await dormir(cfg.reducido ? 400 : 900);
+    const tras = await p.evaluate(() => ({ visible: !!document.getElementById('mapa-tira').offsetParent,
+      actual: (document.querySelector('#mapa-tira .pagina-actual') || {}).dataset?.parada }));
+    cierto(tras.visible && tras.actual === vecina, 'al cerrar la ficha la tira vuelve, en la tarjeta que se tocó', { tras, vecina });
 
-    /* Teclado: el tabulador pasa de tarjeta en tarjeta y el mapa las sigue. */
+    /* Teclado: el tabulador pasa de tarjeta en tarjeta y el mapa las sigue. FALLA desde d93c71b, y
+       es de la app: `alEnfocar` llama a `alTocarTarjeta`, que ahora abre la ficha; la ficha esconde
+       la tira y el foco, que estaba en una tarjeta, se cae al <body>. */
     await p.evaluate(() => document.activeElement && document.activeElement.blur());
     await p.focus('#mapa-tira .mapa-parada:nth-child(1) a');
     for (let i = 0; i < 4; i++) {
@@ -772,9 +766,8 @@ async function ronda(cfg) {
     await dormir(cfg.reducido ? 700 : 1500);
     const porTab = await p.evaluate(() => { const c = document.activeElement.closest('[data-parada]'); const a = document.querySelector('#mapa-tira .pagina-actual'); return { enfocada: c && c.dataset.parada, actual: a && a.dataset.parada }; });
     cierto(porTab.enfocada && porTab.enfocada === porTab.actual, 'con el tabulador la tarjeta enfocada pasa a ser la de ahora', porTab);
-    const globoTab = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
     const clienteTab = (OBRAS.find(o => ids[o.clave] === porTab.actual) || {}).cliente;
-    cierto(clienteTab && globoTab.includes(clienteTab), 'y el mapa va a esa parada', { clienteTab, globoTab: globoTab.slice(0, 40) });
+    cierto(clienteTab && await pinMarcado(clienteTab), 'y el mapa va a esa parada', { clienteTab });
 
     cierto(await p.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('#mapa-tira') && a.effect.getComputedTiming().iterations === Infinity).length === 0), 'la tira no se mueve sola en reposo');
   });
