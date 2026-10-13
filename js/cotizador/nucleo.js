@@ -309,8 +309,8 @@ window.addEventListener('keydown',e=>{
      y el <canvas> del escalador no se enreda: dibujar es con el dedo, no con Tab. */
   if(e.key!=='Tab')return;
   const m=_capaDeArriba(); if(!m)return;
-  const f=_focablesDe(m); if(!f.length)return;
-  const pri=f[0], ult=f[f.length-1], act=document.activeElement;
+  const pri=_focableEn(m,false); if(!pri)return;
+  const ult=_focableEn(m,true), act=document.activeElement;
   if(e.shiftKey){ if(act===pri||!m.contains(act)){ e.preventDefault(); ult.focus(); } }
   else          { if(act===ult||!m.contains(act)){ e.preventDefault(); pri.focus(); } }
 });
@@ -332,16 +332,23 @@ const _FOCABLES='a[href],button:not([disabled]),input:not([disabled]):not([type=
    en display:none y cada modal esconde su <input type=file>. Sin este filtro el foco
    aterrizaba en un campo invisible. Se mide con getClientRects y no con offsetParent
    porque los modales son position:fixed y ahí offsetParent es null. */
-function _focablesDe(m){
-  return [...m.querySelectorAll(_FOCABLES)].filter(e=>{
-    if(!e.getClientRects().length) return false;
-    /* Lo que vive dentro de un <details> plegado tiene caja pero NO acepta el foco.
-       checkVisibility lo distingue donde exista; el filtro del <details> cubre el resto
-       y no depende de esa API, porque ahí dentro lo único enfocable es su <summary>. */
-    if(e.checkVisibility && !e.checkVisibility({visibilityProperty:true})) return false;
-    const d=e.closest('details:not([open])');
-    return !d || (e.tagName==='SUMMARY' && e.parentElement===d);
-  });
+function _enfocable(e){
+  if(!e.getClientRects().length) return false;
+  /* Lo que vive dentro de un <details> plegado tiene caja pero NO acepta el foco.
+     checkVisibility lo distingue donde exista; el filtro del <details> cubre el resto
+     y no depende de esa API, porque ahí dentro lo único enfocable es su <summary>. */
+  if(e.checkVisibility && !e.checkVisibility({visibilityProperty:true})) return false;
+  const d=e.closest('details:not([open])');
+  return !d || (e.tagName==='SUMMARY' && e.parentElement===d);
+}
+/* Solo se pide el primero o el último, y se para en cuanto aparece: medir TODOS los
+   controles del Historial —varios por cotización guardada— congelaba el teléfono
+   segundos al abrirlo (y en cada Tab) cuando ya había meses de cotizaciones. */
+function _focableEn(m,desdeElFinal){
+  const l=m.querySelectorAll(_FOCABLES);
+  if(desdeElFinal){ for(let i=l.length-1;i>=0;i--) if(_enfocable(l[i])) return l[i]; }
+  else            { for(let i=0;i<l.length;i++)     if(_enfocable(l[i])) return l[i]; }
+  return null;
 }
 /* La capa de arriba, leída de _CAPAS, que ya está ordenada por z-index. */
 function _capaDeArriba(){
@@ -518,9 +525,9 @@ function _modalAbierto(m){
   _focoAntes.set(m.id,dentroDeUnaCapa?null:prev);
   _histAlAbrir(m);
   _fondoInerte(true);
-  const f=_focablesDe(m);
-  const d=f[0]||m;
-  if(!f.length) m.tabIndex=-1;
+  const pri=_focableEn(m,false);
+  const d=pri||m;
+  if(!pri) m.tabIndex=-1;
   /* En el fotograma siguiente: en iOS enfocar en el mismo golpe que hace visible el
      modal se pierde a veces, y así tampoco se le quita el foco a nada que el propio
      abrir haya enfocado. Se vuelve a comprobar que siga abierto. */
@@ -551,7 +558,7 @@ function _modalCerrado(m){
      Si queda una capa debajo, el foco se va a su primer control; si no, al menos no se
      deja dentro de algo que ya está inerte. */
   if(arriba&&(document.activeElement===document.body||!arriba.contains(document.activeElement))){
-    const alt=_focablesDe(arriba)[0];
+    const alt=_focableEn(arriba,false);
     if(alt){ try{ alt.focus({preventScroll:true}); }catch(_){} }
   }
   /* Sin capas debajo y sin foco válido que devolver, el cursor se quedaba en el <body> y

@@ -778,7 +778,13 @@ function _movTecla(e){
 function _ratonArma(e){
   if(e.pointerType!=='mouse'||e.button!==0||capturaBloqueada()) return;
   const d=e.target.closest&&e.target.closest('#items>.partida'); if(!d) return;
-  const libre=!!e.target.closest('input,textarea,select,.arrastrable,[data-arrastrar]');
+  /* Sobre algo que se TOCA —una ficha de opción, un botón, un interruptor— tampoco: con la
+     partida arrastrable, un clic en el que la mano se movía 4 px ya era un arrastre para el
+     navegador y el clic no llegaba. «Sencillo», «Rotulación de vinil», el material… se quedaban
+     sin elegir a la mitad de los intentos, sobre todo con touchpad. Para mover la partida está
+     el asa, y cualquier hueco de la partida que no sea un control. */
+  const libre=!!e.target.closest('input,textarea,select,.arrastrable,[data-arrastrar],'+
+    'button,a[href],label,summary,.chip,[role=button],[role=switch],[role=tab],[role=checkbox],[role=radio]');
   if(libre){ d.removeAttribute('draggable'); return; }
   d.setAttribute('draggable','true');
   const quitar=()=>{ d.removeAttribute('draggable'); };

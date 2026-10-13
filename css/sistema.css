@@ -1300,7 +1300,12 @@ textarea{resize:vertical;min-height:46px}
    cotizador empotrado se soltaba y se iba con el scroll en la postura donde sí tiene que
    quedarse. La consulta de orientación mira el VISOR, y dentro de un <iframe> el visor es el
    marco, que es exactamente lo que hay que preguntar aquí. */
-@media(max-height:600px) and (orientation:landscape) and (pointer:coarse){
+/* Y la segunda condición es para cualquier puntero: una computadora con el zoom al 200 % o una
+   ventana muy baja también es una pantalla acostada de 400 px de alto, y ahí la barra pegada
+   (170 px con el zoom) más el resumen de la partida dejaban el formulario SIN NINGÚN píxel
+   libre. Medido en la revisión UI/UX de octubre de 2026 (layout-1). */
+@media(max-height:600px) and (orientation:landscape) and (pointer:coarse),
+      (max-height:520px) and (orientation:landscape){
   .side{position:static}
   .topbar{position:static}
 }
@@ -2440,6 +2445,15 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
    encabezado que lo tapaba. En la computadora el encabezado mide un renglón y pegarlo es lo
    que explica el comentario de arriba; aquí lo que explica es lo contrario. */
 @media(max-width:560px){ .partida:not(.folded) .pcab{position:static} }
+/* TAMPOCO SE PEGA CUANDO LA PANTALLA ES BAJA. Con el teléfono acostado, en la tableta o con el
+   zoom al 200 %, la barra de arriba, este resumen y la barra de abajo se comían la pantalla:
+   a 667×375 quedaban 15 px libres y ninguno de los 18 campos de la partida se podía tocar; en
+   la tableta de 1024×768, la mitad tapada. Hasta 1259 px de ancho el encabezado se parte en
+   dos renglones (194 px pegados); de ahí para arriba mide uno (150) y en laptops y monitores
+   sigue pegado salvo en ventanas de menos de 441 px de alto. Revisión UI/UX 2026-10, layout-1. */
+@media(max-width:1259px) and (max-height:820px), (max-height:440px){
+  .partida:not(.folded) .pcab{position:static}
+}
 /* El total, en el encabezado. Se subió desde `.pline` —el porqué está en partidas.js— y aquí
    se le da el peso que tiene en la maqueta: la letra de las cifras, 16 px, tabular. */
 .partida-top>.lt{margin-left:auto;font-family:var(--f-cifra);font-size:16px;font-weight:600;
