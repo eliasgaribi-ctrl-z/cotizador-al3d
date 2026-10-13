@@ -2873,11 +2873,18 @@ html[data-tema="oscuro"] .pf-mas-op .cta{color:var(--nav)}
    cascada de .42 s con retrasos hasta .28 s y el título de .32 s tardaban 540–700 ms en dejar la
    pantalla quieta, y es lo que más se repite en el día. Mismo flujo, la mitad del tiempo: todo
    quieto en ≤ 330 ms. */
-html.va-adelante .pf-mod{animation:pf-entra-der .22s var(--ease-out) both}
-html.va-atras .pf-mod{animation:pf-entra-izq .22s var(--ease-out) both}
+/* `pf-aparece` va PRIMERO en la lista y con los mismos valores que la regla base: al quitarse la
+   clase, el navegador reconoce la animación por su nombre y no la vuelve a arrancar. Antes la
+   lista solo traía `pf-entra-*`; al quitar la clase (a los 220 ms, o a los 800 del respaldo)
+   `pf-aparece` nacía de nuevo desde .001 y la pantalla entera parpadeaba (auditoría completa
+   2026-10, cot-1). */
+html.va-adelante .pf-mod{animation:pf-aparece .12s var(--ease-out) both,pf-entra-der .22s var(--ease-out) both}
+html.va-atras .pf-mod{animation:pf-aparece .12s var(--ease-out) both,pf-entra-izq .22s var(--ease-out) both}
 /* El Cotizador no se desliza (marco-4): mover un <iframe> pesado que todavía carga no dice nada y
-   se sumaba al fundido del marco y al esqueleto, tres entradas encimadas. Le basta el fundido. */
-html.va-adelante #mod-cotizador,html.va-atras #mod-cotizador{animation:none}
+   se sumaba al fundido del marco y al esqueleto, tres entradas encimadas. Le basta el fundido, y
+   es el MISMO de la regla base: con `animation:none` aquí, el respaldo de 800 ms devolvía el
+   fundido y el Cotizador se apagaba entero bajo el dedo (cot-1). */
+html.va-adelante #mod-cotizador,html.va-atras #mod-cotizador{animation:pf-aparece .12s var(--ease-out) both}
 html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .pf-mod{animation:none}
 @keyframes pf-entra-der{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 @keyframes pf-entra-izq{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
@@ -2956,9 +2963,15 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
    termina, el botón se ve apagado, pero NO es `disabled`: un toque a tiempo dice qué se espera en
    vez de no hacer nada, y el foco no se mueve. */
 .puerta-captcha{display:flex;justify-content:center}
-.puerta-captcha[data-interactivo="1"]{margin-bottom:var(--e4)}
-.puerta-captcha-nota{font-size:var(--t3);line-height:1.55;text-align:left;color:var(--tinta2);margin:0 0 var(--e3)}
-.puerta-btn[data-captcha="espera"]{opacity:.72;cursor:default}
+/* Recuadro y nota van DEBAJO del botón (pub-1): el aire va arriba de ellos. */
+.puerta-captcha[data-interactivo="1"]{margin-top:var(--e4)}
+.puerta-captcha-nota{font-size:var(--t3);line-height:1.55;text-align:left;color:var(--tinta2);margin:var(--e3) 0 0;
+  min-height:calc(3 * 1.55em)}
+/* Su lugar se aparta desde el principio, también escondida: la caja va centrada en la pantalla, y
+   una nota que naciera al tocar la subía media nota —el botón se movía 11 px bajo el dedo—. */
+.puerta-captcha-nota[hidden]{display:block;visibility:hidden}
+/* .85 y no .72: a .72 el blanco del texto quedaba en ~3,1:1 sobre el azul deslavado (pub-6). */
+.puerta-btn[data-captcha="espera"]{opacity:.85;cursor:default}
 
 /* ── fin de pf-esqueleto ── */
 

@@ -149,7 +149,10 @@ const vigilarAviso = (p, ms) => p.evaluate(m => new Promise(res => {
    frágil: la ficha nace en el cuadro siguiente al cambio de pestaña, y con la máquina ocupada
    ese cuadro llega tarde. */
 const vigilarViaje = p => p.evaluate(() => new Promise(res => {
-  const v = { ficha: false, clases: '', anims: [] };
+  /* `minTarde`: la opacidad más baja de la pantalla visible pasados 300 ms. Al quitarse la clase
+     de dirección, `pf-aparece` volvía a nacer desde .001 y la pantalla entera parpadeaba (auditoría
+     completa 2026-10, cot-1). */
+  const v = { ficha: false, clases: '', anims: [], minTarde: 1 };
   const t0 = performance.now();
   const paso = () => {
     if (document.querySelector('.ficha-viaja')) v.ficha = true;
@@ -157,8 +160,13 @@ const vigilarViaje = p => p.evaluate(() => new Promise(res => {
     if (/va-(adelante|atras)/.test(c)) {
       v.clases = v.clases || c;
       for (const s of document.querySelectorAll('.pf-mod:not([hidden])')) {
-        const a = getComputedStyle(s).animationName;
-        if (!v.anims.includes(a)) v.anims.push(a);
+        /* Viene como lista («pf-aparece, pf-entra-der»): el fundido va primero para no renacer. */
+        for (const a of getComputedStyle(s).animationName.split(/,\s*/)) if (!v.anims.includes(a)) v.anims.push(a);
+      }
+    }
+    if (performance.now() - t0 > 300) {
+      for (const s of document.querySelectorAll('.pf-mod:not([hidden])')) {
+        v.minTarde = Math.min(v.minTarde, Number(getComputedStyle(s).opacity));
       }
     }
     if (performance.now() - t0 < 1000) requestAnimationFrame(paso); else res(v);
@@ -264,6 +272,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     } else {
       cierto(v.ficha, 'la píldora del icono VIAJA de Tablero a Calendario', v);
       cierto(/va-adelante/.test(v.clases) && v.anims.includes('pf-entra-der'), 'Calendario está después: entra desde la derecha (' + v.anims.join() + ')', v);
+      cierto(v.minTarde >= 0.98, 'y al terminar de entrar no vuelve a fundirse (opacidad mínima pasados 300 ms: ' + v.minTarde + ')', v);
     }
     await p.waitForTimeout(300);
     const d = await ev(() => ({
