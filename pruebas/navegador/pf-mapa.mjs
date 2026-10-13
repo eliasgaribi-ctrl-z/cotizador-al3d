@@ -54,11 +54,11 @@ const dormir = ms => new Promise(r => setTimeout(r, ms));
    coordenadas son reales de Guadalajara y están separadas lo bastante para que la línea de la ruta
    mida cientos de píxeles a cualquier zoom. */
 const OBRAS = [
-  { clave: 'hea', cliente: 'Healthylicious', etapa: 'ganado',    lat: 20.6736, lng: -103.3440, dia: 0, hora: '09:00' },
-  { clave: 'per', cliente: 'La Perla',       etapa: 'en_diseno', lat: 20.6597, lng: -103.3496, dia: 0, hora: '10:30' },
-  { clave: 'gym', cliente: 'Gym Titanio',    etapa: 'listo',     lat: 20.6890, lng: -103.3300, dia: 0, hora: '12:00' },
-  { clave: 'den', cliente: 'Dental Sonrisa', etapa: 'instalado', lat: 20.6500, lng: -103.4000, dia: 0, hora: null },
-  { clave: 'far', cliente: 'Farmacia Guadalupe', etapa: 'listo', lat: 20.7000, lng: -103.3800, dia: 5, hora: '11:00' },
+  { clave: 'hea', cliente: 'Healthylicious', etapa: 'ganado',    lat: 20.6736, lng: -103.3440, dia: 0, hora: '09:00', estatus: 'FABRICACION' },
+  { clave: 'per', cliente: 'La Perla',       etapa: 'en_diseno', lat: 20.6597, lng: -103.3496, dia: 0, hora: '10:30', estatus: 'FABRICACION' },
+  { clave: 'gym', cliente: 'Gym Titanio',    etapa: 'listo',     lat: 20.6890, lng: -103.3300, dia: 0, hora: '12:00', estatus: 'COBRANDO' },
+  { clave: 'den', cliente: 'Dental Sonrisa', etapa: 'instalado', lat: 20.6500, lng: -103.4000, dia: 0, hora: null, estatus: 'LIQUIDADO' },
+  { clave: 'far', cliente: 'Farmacia Guadalupe', etapa: 'listo', lat: 20.7000, lng: -103.3800, dia: 5, hora: '11:00', estatus: 'COBRANDO' },
   { clave: 'sp1', cliente: 'Sin pin uno',    etapa: 'ganado',    lat: null, lng: null, dia: 0, hora: '16:00' },
   { clave: 'sp2', cliente: 'Sin pin dos',    etapa: 'ganado',    lat: null, lng: null, dia: null, hora: null },
   { clave: 'sp3', cliente: 'Sin pin tres',   etapa: 'ganado',    lat: null, lng: null, dia: null, hora: null },
@@ -132,6 +132,9 @@ const sembrar = p => p.evaluate(async obras => {
     if (o.etapa !== 'ganado') await Proy.avanzarEtapa(id, o.etapa);
     const par = { dir_texto: 'Av. Prueba 123\ncolonia Centro' };
     if (o.lat !== null) { par.lat = o.lat; par.lng = o.lng; par.geo_fuente = 'manual'; }
+    /* Los pines se pintan por el estatus de cobro de la hoja: «cobrando» son los dos que antes
+       eran «listo», así que los filtros de abajo quitan y ponen los mismos dos pines. */
+    if (o.estatus) par.estatus_notion = o.estatus;
     const a = await Proy.actualizar(id, par);
     if (!a.ok) fallas.push(o.clave + ' actualizar: ' + a.mensaje);
     if (o.dia !== null) {
@@ -215,15 +218,17 @@ const seCruzan = (a, b) => !!a && !!b && a.x < b.r && b.x < a.r && a.y < b.b && 
 
 /* El centro de un pin en pantalla, por el nombre de su obra (el `title` del marcador la lleva). */
 const pinDe = (p, cliente) => caja(p, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
-/* El punto del mapa que marca el pin. Desde d93c71b el pin es una gota anclada en su PUNTA, no en
-   su centro: Leaflet corre el icono con márgenes negativos (`iconAnchor`), y la esquina de la caja
-   menos esos márgenes es la coordenada exacta. Con el centro de la caja el ajuste salía corrido
-   15 px hacia arriba. */
+
+/* El punto de pantalla que ES la coordenada de un pin: su ancla, no el centro de su caja. La gota
+   tiene el ancla en la punta (32 px de 34; 40 de 43 el elegido), y Leaflet la pone con un margen
+   negativo igual al ancla, así que la punta está en la esquina de la caja menos ese margen. Con el
+   centro de la caja el ajuste quedaba 15 px corrido hacia arriba —0.005° de latitud a zoom 12—, y
+   «lo que se guardó» parecía otro lugar que «lo que está bajo la cruz» aunque fueran el mismo. */
 const puntaDe = (p, cliente) => p.evaluate(s => {
   const e = document.querySelector(s);
   if (!e) return null;
   const r = e.getBoundingClientRect(), st = getComputedStyle(e);
-  return { cx: r.left - parseFloat(st.marginLeft), cy: r.top - parseFloat(st.marginTop) };
+  return { cx: r.left - (parseFloat(st.marginLeft) || 0), cy: r.top - (parseFloat(st.marginTop) || 0) };
 }, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
 
 /* Del par (longitud, latitud) a píxeles de pantalla, y de vuelta, ajustado con los pines de
@@ -352,7 +357,7 @@ async function ronda(cfg) {
     cierto(await p.evaluate(() => !document.querySelector('#mapa-cuentas .rueda-rodando')), 'el primer pintado no rueda');
     /* Un filtro que quita dos pines: «en el mapa» pasa de 5 a 3; las otras dos no cambian. */
     const r = await p.evaluate(() => {
-      document.querySelector('#mapa-etapas [data-g="listo"]').click();
+      document.querySelector('#mapa-etapas [data-g="cobrando"]').click();
       const rueda = c => !!document.querySelector('#mapa-cuentas b[data-cuenta="' + c + '"].rueda-rodando');
       return { texto: document.querySelector('#mapa-cuentas b[data-cuenta="pines"]').textContent.trim(),
         pines: rueda('pines'), hoy: rueda('hoy'), sin: rueda('sinubicar') };
@@ -363,7 +368,7 @@ async function ronda(cfg) {
     cierto(!r.hoy && !r.sin, 'las que no cambiaron no se tocan', r);
     await dormir(900);
     cierto(await p.evaluate(() => !document.querySelector('#mapa-cuentas .rueda-rodando')), 'y deja de rodar al terminar');
-    await clic('#mapa-etapas [data-g="listo"]');   // se devuelve
+    await clic('#mapa-etapas [data-g="cobrando"]');   // se devuelve
     await dormir(700);
   });
 
@@ -372,7 +377,7 @@ async function ronda(cfg) {
     /* Se marca el nodo de un pin que se queda: si el filtro vaciara la capa, la marca se perdería. */
     await p.evaluate(() => { for (const e of document.querySelectorAll('#mapa-lienzo .leaflet-marker-icon.mapa-pin')) e.__estaba = true; });
     const r = await p.evaluate(() => {
-      const chip = document.querySelector('#mapa-etapas [data-g="listo"]');
+      const chip = document.querySelector('#mapa-etapas [data-g="cobrando"]');
       chip.click();
       const pinAnims = document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.classList && a.effect.target.classList.contains('mapa-pin'));
       return { anims: pinAnims.length, duracion: pinAnims[0] ? pinAnims[0].effect.getComputedTiming().duration : 0,
@@ -393,7 +398,7 @@ async function ronda(cfg) {
     cierto(tras.iguales, 'los que se quedan son los MISMOS nodos (la capa no se vació)', tras);
     /* Vuelven. */
     const v = await p.evaluate(() => {
-      document.querySelector('#mapa-etapas [data-g="listo"]').click();
+      document.querySelector('#mapa-etapas [data-g="cobrando"]').click();
       const a = document.getAnimations().filter(x => x.effect && x.effect.target && x.effect.target.classList && x.effect.target.classList.contains('mapa-pin'));
       return { anims: a.length, n: document.querySelectorAll('#mapa-lienzo .leaflet-marker-icon.mapa-pin').length,
         cuales: a.map(x => (x.transitionProperty || x.animationName || x.constructor.name) + ' ' + x.effect.getComputedTiming().duration) };
@@ -408,18 +413,13 @@ async function ronda(cfg) {
   /* ---------- F9 · el pin a mano con retícula fija ---------- */
   const dbObra = id => p.evaluate(async i => { const o = await (await import('/js/datos/db.js')).obtener('proyectos', i); return o ? { lat: o.lat, lng: o.lng, fuente: o.geo_fuente } : null; }, id);
   /* Leaflet ignora el dedo mientras acerca (250 ms de animación): se espera a que termine, o el arrastre
-     que sigue no mueve nada y la prueba parece fallar por un motivo que no es del mapa. */
-  /* Sin el zoom de Leaflet desde d93c71b: en la computadora hay botones redondos (`data-zoom`) y en
-     el teléfono se esconden (ahí se acerca con dos dedos). Se acerca con el botón donde lo hay y,
-     con el dedo, con la tecla «+» sobre el lienzo, que Leaflet atiende igual. */
-  const unZoom = async () => {
-    if (!cfg.tactil) { await toca('#mapa-fabs [data-zoom="1"]'); return; }
-    await p.focus('#mapa-lienzo');
-    await p.keyboard.press('Equal');
-  };
+     que sigue no mueve nada y la prueba parece fallar por un motivo que no es del mapa. Desde que el
+     mapa va a pantalla completa no lleva botones +/−: se acerca con la tecla, con el lienzo enfocado,
+     que es lo mismo que hace quien no puede pellizcar. */
   const acercar = async n => {
     for (let i = 0; i < n; i++) {
-      await unZoom();
+      await p.focus('#mapa-lienzo');
+      await p.keyboard.press('NumpadAdd');
       await dormir(150);
       await hasta(p, () => !document.querySelector('#mapa-lienzo.leaflet-zoom-anim'), null, 3000);
       await dormir(250);
@@ -489,8 +489,9 @@ async function ronda(cfg) {
     cierto(await p.evaluate(() => !!document.querySelector('.leaflet-marker-icon.mapa-pin[title*="Sin pin uno"]')), 'y la obra ya tiene su pin');
     cierto(/Sin pin uno/.test(await fichaAbierta()), 'el mapa llegó a él y abrió su ficha', (await fichaAbierta()).slice(0, 40));
     cierto(await p.evaluate(() => !!document.querySelector('.leaflet-marker-icon.mapa-pin.sel[title*="Sin pin uno"]')), 'con su pin marcado');
-    await cerrarFicha();
     cierto((await cuenta('sinubicar')) === '2', 'y «sin ubicar» baja a 2', await cuenta('sinubicar'));
+    /* La ficha tapa la lista: se cierra para que la siguiente sección encuentre su «Pin a mano». */
+    if (await p.evaluate(() => !!document.querySelector('[data-cerrar-ficha]'))) { await toca('[data-cerrar-ficha]'); await dormir(600); }
   });
 
   await seccion('al ponerle pin a una obra de hoy la ruta de la hoja cuenta una parada más', async () => {
@@ -510,11 +511,16 @@ async function ronda(cfg) {
     const aj2 = await ajusteDePantalla(p);
     const ret = await caja(p, '#mapa-lienzo .mapa-reticula');
     const bajoLaCruz = aj2.coordDe(ret.cx, ret.cy);
-    cierto(Math.abs(bajoLaCruz.lat - esperado.lat) < 1e-4 && Math.abs(bajoLaCruz.lng - esperado.lng) < 1e-4, 'el punto tocado quedó bajo la cruz', { bajoLaCruz, esperado });
+    const tolT = Math.max(1e-4, 2 / aj2.pxPorGrado);
+    cierto(Math.abs(bajoLaCruz.lat - esperado.lat) < tolT && Math.abs(bajoLaCruz.lng - esperado.lng) < tolT, 'el punto tocado quedó bajo la cruz', { bajoLaCruz, esperado });
     cierto(await guardaHabilitado(), 'y «Guardar aquí» se encendió');
     await toca('[data-mano-ok]');
     const g = await hastaGuardado(ids.sp2);
-    cierto(g.lat != null && Math.abs(g.lat - esperado.lat) < 1e-4 && Math.abs(g.lng - esperado.lng) < 1e-4, 'guardó ese punto', { g, esperado });
+    /* Dos píxeles de holgura y no una cifra fija de grados: Leaflet redondea a píxel entero, y a
+       zoom 12 un píxel ya es 0.0003°. */
+    const tol = Math.max(1e-4, 2 / aj2.pxPorGrado);
+    cierto(g.lat != null && Math.abs(g.lat - bajoLaCruz.lat) < tol && Math.abs(g.lng - bajoLaCruz.lng) < tol && g.fuente === 'manual',
+      'guardó el punto que se veía bajo la cruz (a menos de 2 px)', { g, bajoLaCruz, tol });
     await dormir(cfg.reducido ? 600 : 1300);
     await cerrarFicha();
   });
@@ -610,13 +616,13 @@ async function ronda(cfg) {
     const punteado = await p.evaluate(() => { const c = document.querySelector('#mapa-lienzo path.mapa-ruta-linea'); const s = getComputedStyle(c); return { d: s.strokeDasharray, anim: c.getAnimations().length }; });
     cierto(/^7px,? 7px$/.test(punteado.d.replace(/\s+/g, ' ')) && punteado.anim === 0, 'al terminar vuelve el punteado de 7 y 7, sin animación', punteado);
     /* Ni el zoom ni un filtro la repiten. */
-    await unZoom();
+    await acercar(1);
     await dormir(500);
     cierto(await p.evaluate(() => document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length === 0), 'acercar el mapa no vuelve a trazar la línea');
-    const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="taller"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
+    const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="fabricacion"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
     cierto(f === 0, 'un filtro tampoco');
     await dormir(500);
-    await clic('#mapa-etapas [data-g="taller"]');
+    await clic('#mapa-etapas [data-g="fabricacion"]');
     await dormir(500);
 
     /* Quitar el orden a media línea: el trazo se cancela entero, sin línea, sin números y sin errores. */

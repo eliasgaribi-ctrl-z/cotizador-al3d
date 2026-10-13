@@ -1176,14 +1176,17 @@ function filaCorta(q, icono) {
    Arriba, en tono malo, las que YA PASARON Y NADIE MARCÓ: dejan el almacén sin descontar y
    la cobranza sin arrancar, y son invisibles en cualquier otra pantalla. */
 function seInstalaEstaSemana(d) {
-  const h = ['<div class="ag-grupo">' + ico('i-camion') + 'Se instala esta semana' +
-    '<span class="n">' + d.semana.length + '</span></div>'];
-
+  /* Las vencidas van ANTES del encabezado de la semana, con el suyo. Iban entre el encabezado de
+     la semana y sus renglones, así que las de esta semana quedaban debajo de «Ya pasaron y nadie
+     las marcó» y se leían como vencidas (auditoría de la plataforma 2026-10, tablero-2). */
+  const h = [];
   if (d.vencidas.length) {
     h.push('<div class="ag-grupo">' + ico('i-aviso') + 'Ya pasaron y nadie las marcó' +
       '<span class="n">' + d.vencidas.length + '</span></div>');
     h.push(d.vencidas.map(i => filaInst(i, d, true)).join(''));
   }
+  h.push('<div class="ag-grupo">' + ico('i-camion') + 'Se instala esta semana' +
+    '<span class="n">' + d.semana.length + '</span></div>');
 
   if (!d.semana.length) {
     h.push(vacio('Nada agendado esta semana', d.proxInst

@@ -85,7 +85,7 @@ let PROYS = [];             // proyectos vivos
 let INST = new Map();       // proyecto_id -> {fecha, hora, estado, viva}
 let HOY = hoyISO();
 
-let GRUPOS_ON = new Set(['ganado', 'taller', 'listo', 'instalado']);
+let GRUPOS_ON = new Set(['fabricacion', 'cobrando', 'liquidado', 'sin']);
 let RANGO = null;           // lo fija el primer montar() según el rol, y luego manda el usuario
 let RUTA = null;            // {orden:[proyecto], km:number}
 let MANO = null;            // {id, nombre, lat, lng, tocado, centro} — el modo «pin a mano»
@@ -133,22 +133,36 @@ const quieto = () => {
    `vivos:true` y un proyecto que no se dio no es un lugar a donde ir.
    ============================================================================ */
 
-/* `corta` es el nombre del chip. Los cuatro filtros con su palabra larga —«G · Vendido, sin
-   empezar (1)»— ocupaban CUATRO renglones de chips encima del mapa en una pantalla de 390 px:
-   doscientos treinta píxeles de filtros antes de ver un solo pin. Ahora van en una sola fila
-   que se desliza de lado, con el nombre corto, y la palabra larga sigue viva en el `title`, en
-   el nombre accesible y en la leyenda de la hoja, que es donde se consulta qué significa una
-   marca. */
+/* LOS PINES SE PINTAN POR EL COBRO, NO POR LA ETAPA (Elías, octubre de 2026). Antes eran cuatro
+   grupos de etapa de obra —Vendido, Taller, Listo, Instalado— con una letra adentro (G, T, L, I)
+   que había que aprenderse. Lo que se quiere ver en el mapa de un vistazo es otra cosa: qué está
+   en fabricación, qué se está cobrando y qué ya se liquidó. Sale del `Estatus` de la hoja
+   (`estatus_notion`, espejo de solo lectura; ver datos/proyectos.js): AZUL fabricación (con
+   REPARANDO, que también es trabajo del taller), AMARILLO cobrando, ROJO liquidado. Lo que todavía
+   no tiene estatus en la hoja —nació en el cotizador y nadie lo ha pasado— va en gris, y lo dice:
+   pintarlo de un color sería inventarle un estatus. La etapa de obra no se pierde: sigue en la
+   ficha, la lista y la búsqueda.
+
+   Adentro del pin va un dibujo y no una letra: una llave de taller, el signo de pesos y la
+   palomita se entienden sin leyenda; el color solo no basta (uno de cada doce hombres no
+   distingue el rojo del verde) y por eso cada uno lleva su dibujo.
+
+   `corta` es el nombre del chip; la palabra larga vive en el `title`, en el nombre accesible y
+   en la leyenda de la hoja. */
+/* Los dos dibujos van en línea y no del sprite: a 14 px el banco de `i-taller` no se lee, y
+   `i-check` trae su grosor fijo en el <symbol>, que le gana al del pin. */
+const DIBUJO_LLAVE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.3-.6-.6-2.3z"/></svg>';
+const DIBUJO_PALOMITA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.8l5 5L19.8 6.6"/></svg>';
 const GRUPOS = [
-  { g: 'ganado',    marca: 'G', palabra: 'Vendido, sin empezar', corta: 'Vendido',  etapas: ['ganado'] },
-  { g: 'taller',    marca: 'T', palabra: 'En el taller',         corta: 'Taller',   etapas: ['en_diseno', 'cortado', 'armado'] },
-  { g: 'listo',     marca: 'L', palabra: 'Listo para instalar',  corta: 'Listo',    etapas: ['listo'] },
-  { g: 'instalado', marca: 'I', palabra: 'Instalado',            corta: 'Instalado',etapas: ['instalado', 'garantia'] },
+  { g: 'fabricacion', palabra: 'En fabricación',          corta: 'Fabricación', estatus: ['FABRICACION', 'REPARANDO'], glifo: () => DIBUJO_LLAVE },
+  { g: 'cobrando',    palabra: 'Cobrando',                corta: 'Cobrando',    estatus: ['COBRANDO'],                 glifo: () => '$' },
+  { g: 'liquidado',   palabra: 'Liquidado',               corta: 'Liquidado',   estatus: ['LIQUIDADO'],                glifo: () => DIBUJO_PALOMITA },
+  { g: 'sin',         palabra: 'Sin estatus en la hoja',  corta: 'Sin estatus', estatus: [],                           glifo: () => '?' },
 ];
 
 const GRUPO_DE = new Map();
-for (const gr of GRUPOS) for (const e of gr.etapas) GRUPO_DE.set(e, gr);
-const grupoDe = etapa => GRUPO_DE.get(etapa) || GRUPOS[0];
+for (const gr of GRUPOS) for (const e of gr.estatus) GRUPO_DE.set(e, gr);
+const grupoDe = p => GRUPO_DE.get(String((p && p.estatus_notion) || '').trim().toUpperCase()) || GRUPOS[GRUPOS.length - 1];
 
 /* `garantia` y `cancelado` no llevan tono propio en `.pf-etapa`, y es a propósito: no son
    pasos del camino sino salidas de él, y para eso está el gris de `.cerrado`. Sin esta
@@ -352,7 +366,7 @@ const tienePin = Proyectos.tienePin || (p => {
 });
 
 function pasaEtapa(p) {
-  return GRUPOS_ON.has(grupoDe(p.etapa).g);
+  return GRUPOS_ON.has(grupoDe(p).g);
 }
 
 function pasaRango(p) {
@@ -494,7 +508,7 @@ function armazon() {
         '</div>' +
         '<ul class="mapa-sug" id="mapa-sug" role="listbox" aria-label="Obras que coinciden" hidden></ul>' +
         '<div class="mapa-chips" id="mapa-chips">' +
-          '<div class="mapa-chips-g" id="mapa-etapas" role="group" aria-label="Etapas que se pintan"></div>' +
+          '<div class="mapa-chips-g" id="mapa-etapas" role="group" aria-label="Estatus de cobro que se pintan"></div>' +
           '<span class="mapa-chips-sep" aria-hidden="true"></span>' +
           '<div class="mapa-chips-g" id="mapa-rango" role="group" aria-label="Hasta cuándo se pinta"></div>' +
         '</div>' +
@@ -536,7 +550,7 @@ function armazon() {
                no se sabe qué es. El dibujo es el pin en chico, con su forma y su letra, y al lado
                la palabra. */
             '<p class="mapa-leyenda">' +
-              GRUPOS.map(g => '<span>' + pinMini(g) + esc(g.marca + ' — ' + g.palabra.toLowerCase()) + '</span>').join('') +
+              GRUPOS.map(g => '<span>' + pinMini(g) + esc(g.palabra) + '</span>').join('') +
             '</p>' +
             /* La verdad de este módulo, en letra chica y sin adornos. No es un consejo: es cómo
                funciona, y saberlo es la diferencia entre «se rompió» y «no hay señal». */
@@ -555,7 +569,7 @@ function armazon() {
 /** El pin en chico, para los chips, la leyenda, la lista y la ficha: la misma forma, el mismo
  *  relleno y la misma letra que el del mapa, para que se reconozcan como la misma cosa. */
 function pinMini(gr, txt) {
-  return '<span class="mapa-pin-mini ' + gr.g + '" aria-hidden="true"><b>' + esc(txt || gr.marca) + '</b></span>';
+  return '<span class="mapa-pin-mini ' + gr.g + '" aria-hidden="true"><b>' + (txt ? esc(txt) : gr.glifo()) + '</b></span>';
 }
 
 function refrescarPiezas() {
@@ -584,7 +598,7 @@ function refrescarPiezas() {
        total: un chip que dice «(7)» y prende dos pines hace dudar del número o del mapa. */
     const porGrupo = new Map(GRUPOS.map(g => [g.g, 0]));
     for (const p of conPin().filter(pasaRango)) {
-      const g = grupoDe(p.etapa).g;
+      const g = grupoDe(p).g;
       porGrupo.set(g, (porGrupo.get(g) || 0) + 1);
     }
     /* El chip lleva el pin en chico y el nombre CORTO en los dos tamaños: la fila se desliza de
@@ -594,7 +608,7 @@ function refrescarPiezas() {
        clase, el estado y el `aria-pressed` son los mismos. */
     et.innerHTML = GRUPOS.map(g => {
       const n = porGrupo.get(g.g) || 0;
-      const etiq = g.marca + ' · ' + g.palabra + ' (' + n + ')';
+      const etiq = g.palabra + ' (' + n + ')';
       const on = GRUPOS_ON.has(g.g);
       return '<button type="button" class="chip mapa-chip' + (on ? ' on' : '') + (n ? '' : ' cero') + '"' +
         ' aria-pressed="' + (on ? 'true' : 'false') + '" data-g="' + g.g + '"' +
@@ -679,7 +693,7 @@ function textoOculto(pintados) {
       ? 'Con tu rol el mapa llega hasta los próximos 15 días.'
       : 'Con «Todo» se ven todas.');
   } else if (GRUPOS_ON.size < GRUPOS.length) {
-    partes.push('Prende las etapas que apagaste para verlas.');
+    partes.push('Prende los estatus que apagaste para verlos.');
   }
   return partes.join(' ');
 }
@@ -760,7 +774,26 @@ function crearMapa() {
        botón del asistente. Acercar y alejar son dos botones redondos más en la columna de la
        derecha (`data-zoom`), que la hoja de estilos esconde en las pantallas táctiles —ahí se
        acerca con dos dedos—. Con el lienzo enfocado, + y − siguen acercando con el teclado. */
-    mapa = L.map(div, { zoomControl: false, attributionControl: true });
+    /* Un clic con la mano movida 3 px ya era «arrastrar el mapa» para Leaflet y se comía el clic
+       del pin: la ficha no abría (auditoría de la plataforma 2026-10, control-2). Con 8 px el
+       mapa empieza a moverse un pelo después y el clic de un ratón o touchpad flojo sí llega. Va
+       en el prototipo porque `L.map` no deja pasarle esta opción a su arrastre. */
+    L.Draggable.prototype.options.clickTolerance = 8;
+    /* EL ZOOM, COMO EN CUALQUIER MAPA DE HOY (Elías, octubre de 2026: «o se acerca muchísimo o se
+       aleja demasiado»; y luego: «déjalo igual que los demás»). Leaflet, de fábrica, junta los
+       giros de la rueda, espera y BRINCA a un nivel entero —cada nivel dobla la escala—; con un
+       touchpad, un gesto normal cruzaba media ciudad de un salto. Google Maps y compañía hacen
+       otra cosa: el mapa sigue al gesto cuadro por cuadro, hacia donde está el cursor, y se
+       queda donde lo sueltas. Eso hace `zoomFluido()` (abajo), con el mismo camino interno que
+       usa Leaflet para el pellizco de dos dedos.
+       · zoomSnap 0: el zoom se queda exactamente donde lo dejas.
+       · zoomDelta 1: los botones + y −, el doble clic y las teclas, un nivel con animación, como
+         en todos lados.
+       · minZoom 7: alejar se detiene en la región (Jalisco y vecinos); más afuera solo había mar
+         y continente sin un solo pin. */
+    mapa = L.map(div, { zoomControl: false, attributionControl: true,
+      zoomSnap: 0, zoomDelta: 1, scrollWheelZoom: false, minZoom: 7 });
+    zoomFluido(mapa);
     /* El crédito de los cuadros SÍ se queda, en su esquina: es requisito de la licencia. Lo que
        se quita es la banderita de Leaflet que va antes, que no lo es. */
     if (mapa.attributionControl) {
@@ -1028,7 +1061,7 @@ function iconoDe(gr, n, sel) {
   const w = sel ? 40 : 32, h = sel ? 43 : 34, punta = sel ? 40 : 32;
   return L.divIcon({
     className: 'mapa-pin ' + gr.g + (n ? ' ruta' : '') + (sel ? ' sel' : ''),
-    html: '<b>' + esc(n ? String(n) : gr.marca) + '</b>',
+    html: '<b>' + (n ? esc(String(n)) : gr.glifo()) + '</b>',
     iconSize: [w, h], iconAnchor: [w / 2, punta],
   });
 }
@@ -1080,7 +1113,7 @@ function refrescarPines(op) {
   }
 
   for (const p of lista) {
-    const gr = grupoDe(p.etapa);
+    const gr = grupoDe(p);
     const real = orden.get(p.id) || 0;
     /* Mientras la línea se traza, el pin conserva su letra hasta que ella lo alcanza (F25). */
     const n = (real && _traza && !_traza.hechos.has(p.id)) ? 0 : real;
@@ -1173,7 +1206,7 @@ function pintarFicha() {
 }
 
 function fichaHTML(p) {
-  const gr = grupoDe(p.etapa);
+  const gr = grupoDe(p);
   const f = INST.get(p.id);
   const conPinOk = tienePin(p);
   const n = RUTA ? RUTA.orden.findIndex(x => x.id === p.id) + 1 : 0;
@@ -1256,7 +1289,8 @@ function fichaHTML(p) {
         ico('i-cerrar') + '</button>' +
     '</div>' +
     '<p class="mapa-ficha-etq">' +
-      '<span class="pf-etapa ' + esc(claseEtapa(p.etapa)) + '">' + esc(gr.marca + ' · ' + nombreEtapa(p.etapa)) + '</span>' +
+      '<span class="mapa-estatus ' + gr.g + '">' + pinMini(gr) + esc(gr.palabra) + '</span> ' +
+      '<span class="pf-etapa ' + esc(claseEtapa(p.etapa)) + '">' + esc(nombreEtapa(p.etapa)) + '</span>' +
       (n ? ' <span class="pf-cuando">parada ' + n + '</span>' : '') +
       (seInstala(p)
         ? (conPinOk ? '' : ' <span class="pf-cuando hoy">sin ubicar</span>')
@@ -1349,7 +1383,7 @@ function pintarObras(pines) {
   });
   caja.innerHTML = '<h2 class="mapa-hoja-h">En el mapa (' + pines.length + ')</h2>' +
     '<ul class="mapa-obras">' + orden.map(p => {
-      const gr = grupoDe(p.etapa);
+      const gr = grupoDe(p);
       const f = INST.get(p.id);
       const d = f && f.viva ? 'Instala ' + cuando(f.fecha) + (f.hora ? ' · ' + fmtHora(f.hora) : '')
         : f ? 'Instalada el ' + fmtFecha(f.fecha) : 'Sin fecha de instalación';
@@ -1393,7 +1427,7 @@ function pintarSug() {
   if (_sugActiva >= hall.length) _sugActiva = hall.length - 1;
   ul.innerHTML = hall.length
     ? hall.map((p, i) => {
-        const gr = grupoDe(p.etapa);
+        const gr = grupoDe(p);
         const d = (tienePin(p) ? '' : seInstala(p) ? 'Sin ubicar · ' : ENTREGA_ROTULO[entregaDe(p)] + ' · ') +
           (p.contacto || nombreEtapa(p.etapa));
         return '<li role="option" id="mapa-sug-' + i + '" class="mapa-sug-i' + (i === _sugActiva ? ' activa' : '') + '"' +
@@ -1590,7 +1624,7 @@ function numerarParada(t, id) {
   const p = PROYS.find(x => x.id === id);
   const n = RUTA ? RUTA.orden.findIndex(x => x.id === id) + 1 : 0;
   if (!m || !p || !n) return;
-  const gr = grupoDe(p.etapa);
+  const gr = grupoDe(p);
   const sel = marcado(id);
   m.setIcon(iconoDe(gr, n, sel));
   FIRMAS.set(id, gr.g + '|' + n + '|' + (sel ? 1 : 0) + '|' + tituloDe(p, gr));
@@ -1655,6 +1689,64 @@ function tapas() {
      solo lo de arriba: centrar en una rendija de veinte píxeles no sirve de nada. */
   if (L0.height - t.arriba - t.abajo < 120) t.abajo = 0;
   return t;
+}
+
+/* ----- La rueda y el touchpad, sin brincos -----
+   Cada giro mueve un OBJETIVO de zoom, y el mapa lo alcanza en unos cuadros, girando alrededor
+   del punto que está bajo el cursor (lo que señalas no se te escapa). Los cambios por cuadro van
+   por `_move`, que es lo que usa el pellizco de Leaflet: los cuadros del mapa se escalan sin
+   pedirse de nuevo hasta que el gesto termina, y ahí `_animateZoom` los asienta, igual que al
+   soltar los dos dedos.
+
+   Cuánto mueve cada cosa, en niveles (un nivel = el doble de cerca):
+   · un golpe de rueda de ratón (100–120 px): ~0.6, alcanzado en ~¼ s;
+   · el pellizco del touchpad (Chrome lo manda como rueda con Ctrl): proporcional al gesto, 1 nivel
+     por cada 100 px de pellizco —un pellizco corto es un acercamiento corto—;
+   · deslizar dos dedos en el touchpad: lo mismo que la rueda, en pasitos.
+   Con «menos movimiento» se alcanza el objetivo de inmediato, sin la transición. */
+function zoomFluido(m) {
+  const caja = m.getContainer();
+  let objetivo = null, punto = null, raf = 0, fin = 0, movido = false;
+  const alrededor = (z) => {
+    /* El centro que deja quieto el punto bajo el cursor al pasar a `z`. */
+    const mitad = m.getSize().divideBy(2);
+    const ll = m.containerPointToLatLng(punto);
+    return m.unproject(m.project(ll, z).subtract(punto.subtract(mitad)), z);
+  };
+  /* Al terminar, se asienta SIN otra animación: lo que hace Leaflet al acabar la suya
+     (`_onZoomTransitionEnd`), un `_move` normal —ahora sí los cuadros del mapa se piden al
+     nivel nuevo— y el `zoomend`/`moveend` que escuchan la ruta y los pines. Se asentaba con
+     `_animateZoom`, que volvía a animar 233 ms hacia el mismo zoom y, mientras, la rueda se
+     ignoraba: se perdían giros (auditoría de movimiento 2026-10, mapa-1). */
+  const asentar = () => {
+    fin = 0;
+    if (raf || !movido) return;
+    movido = false; objetivo = null;
+    m._move(m.getCenter(), m.getZoom());
+    m._moveEnd(true);
+  };
+  const paso = () => {
+    raf = 0;
+    if (objetivo === null) return;
+    const z = m.getZoom(), d = objetivo - z;
+    const nz = (quieto() || Math.abs(d) < 0.005) ? objetivo : z + d * 0.3;
+    if (!movido) { m._moveStart(true, false); movido = true; }
+    m._move(alrededor(nz), nz, { pinch: true, round: false });
+    if (nz !== objetivo) raf = requestAnimationFrame(paso);
+    else { clearTimeout(fin); fin = setTimeout(asentar, 120); }
+  };
+  L.DomEvent.on(caja, 'wheel', e => {
+    L.DomEvent.preventDefault(e);
+    if (m._animatingZoom) return;
+    const dy = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1);
+    if (!dy) return;
+    const dz = -dy / (e.ctrlKey ? 100 : 180);
+    punto = m.mouseEventToContainerPoint(e);
+    const base = objetivo === null ? m.getZoom() : objetivo;
+    objetivo = Math.max(m.getMinZoom(), Math.min(m.getMaxZoom(), base + dz));
+    clearTimeout(fin);
+    if (!raf) raf = requestAnimationFrame(paso);
+  });
 }
 
 /** Mueve el mapa para que (lat, lng) quede en el centro de lo que SÍ se ve: no detrás de la
@@ -2353,7 +2445,7 @@ function clicCuerpo(ev) {
   if (g) {
     const k = g.dataset.g;
     if (GRUPOS_ON.has(k)) GRUPOS_ON.delete(k); else GRUPOS_ON.add(k);
-    /* Apagar la última etapa deja el mapa en blanco sin decir por qué: se vuelve a prender
+    /* Apagar el último estatus deja el mapa en blanco sin decir por qué: se vuelve a prender
        todo, que es lo que el usuario quería decir con «no quiero ninguna». */
     if (!GRUPOS_ON.size) GRUPOS.forEach(x => GRUPOS_ON.add(x.g));
     refrescarPiezas(); refrescarPines({ animar: true }); encuadrar();
@@ -2382,7 +2474,8 @@ function clicCuerpo(ev) {
   if (t.closest('[data-encuadrar]')) { encuadrar(); return; }
 
   const zm = t.closest('[data-zoom]');
-  if (zm && mapa) { mapa.setZoom(mapa.getZoom() + Number(zm.dataset.zoom), { animate: !quieto() }); return; }
+  /* Un nivel por toque (zoomDelta), con animación: ver la nota del zoom en L.map. */
+  if (zm && mapa) { mapa.setZoom(mapa.getZoom() + Number(zm.dataset.zoom) * mapa.options.zoomDelta, { animate: !quieto() }); return; }
 
   const yo = t.closest('[data-yo]');
   if (yo) { irAMiUbicacion(yo); return; }

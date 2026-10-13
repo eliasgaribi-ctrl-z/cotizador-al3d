@@ -814,8 +814,17 @@ if (activa('p9')) {
   const aColumna = async col => p.evaluate(k => { const r = document.querySelector('.pj-col[data-col="' + k + '"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height - 30, 160) }; }, col);
   cj = await centro(p, `[data-abrir="${h.ganado.id}"]`);
   let dst = await aColumna('en_diseno');
+  /* Con ratón, un clic lento o con la mano movida unos píxeles es un CLIC (auditoría 2026-10,
+     proyectos-1): ni mantener 420 ms ni temblar 5 px levantan la tarjeta, y la ficha se abre. */
   await p.mouse.move(cj.x, cj.y); await p.mouse.down(); await esp(p, 420);
-  que(!!(await p.$('.pj-fantasma')) && await p.$eval(`[data-abrir="${h.ganado.id}"]`, e => e.classList.contains('pj-levantada')), 'mantener 250 ms levanta la tarjeta: queda marcada en su hueco y su fantasma sigue al puntero');
+  await p.mouse.move(cj.x + 5, cj.y + 2, { steps: 3 });
+  que(!(await p.$('.pj-fantasma')), 'con ratón, mantener 420 ms y temblar 5 px no levanta la tarjeta');
+  await p.mouse.up(); await esp(p, 900);
+  que(await fichaAbierta(p), 'y ese clic lento y movido abre la ficha');
+  await cerrarFicha(p);
+  cj = await centro(p, `[data-abrir="${h.ganado.id}"]`);
+  await p.mouse.move(cj.x, cj.y); await p.mouse.down(); await p.mouse.move(cj.x + 14, cj.y + 6, { steps: 4 }); await esp(p, 120);
+  que(!!(await p.$('.pj-fantasma')) && await p.$eval(`[data-abrir="${h.ganado.id}"]`, e => e.classList.contains('pj-levantada')), 'moverla de verdad (más de 8 px) la levanta: queda marcada en su hueco y su fantasma sigue al puntero');
   await p.mouse.move(dst.x, dst.y, { steps: 12 });
   await esp(p, 200);
   que(await p.$eval('.pj-col[data-col="en_diseno"]', e => e.classList.contains('sobre')), 'la columna de debajo se ilumina');
@@ -872,7 +881,7 @@ if (activa('p9')) {
   await p.evaluate(() => document.querySelector('[data-cliente]').click());
   await esp(p, 300);
   cj = await centro(p, `[data-abrir="${h.ganado2.id}"]`);
-  await p.mouse.move(cj.x, cj.y); await p.mouse.down(); await esp(p, 500);
+  await p.mouse.move(cj.x, cj.y); await p.mouse.down(); await p.mouse.move(cj.x + 14, cj.y + 6, { steps: 4 }); await esp(p, 300);
   que(!(await p.$('.pj-fantasma')), 'con el modo cliente encendido la tarjeta no se levanta');
   await p.mouse.up(); await esp(p, 600);
   await cerrarFicha(p).catch(() => {});
@@ -935,7 +944,7 @@ if (activa('p9dedo')) {
   /* Pagos no mueve obra. */
   const pg = await entrar({ ancho: 1280, alto: 900, rol: 'pagos' });
   const cp = await centro(pg.p, `[data-abrir="${pg.h.ganado.id}"]`);
-  await pg.p.mouse.move(cp.x, cp.y); await pg.p.mouse.down(); await esp(pg.p, 500);
+  await pg.p.mouse.move(cp.x, cp.y); await pg.p.mouse.down(); await pg.p.mouse.move(cp.x + 14, cp.y + 6, { steps: 4 }); await esp(pg.p, 300);
   que(!(await pg.p.$('.pj-fantasma')), 'con el rol de pagos la tarjeta no se levanta: no mueve obra');
   await pg.p.mouse.up(); await esp(pg.p, 500);
   await pg.p.evaluate(i => document.querySelector('[data-abrir="' + i + '"]').focus(), pg.h.ganado.id);

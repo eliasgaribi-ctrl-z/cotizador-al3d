@@ -814,6 +814,15 @@ html[data-tema="oscuro"] #mapa-lienzo .leaflet-tile-pane{filter:invert(1) hue-ro
 .chip.mapa-chip .mapa-pin-mini{margin-left:-4px}
 .mapa-chip-n{font-variant-numeric:tabular-nums;font-weight:600;opacity:.75}
 @media(pointer:coarse){.chip.mapa-chip{min-height:44px}}
+/* Con ratón la fila NO se desliza: la rueda mueve el zoom del mapa y no la fila, y no hay dedo
+   para arrastrarla, así que lo que no cabía —«Liquidado», «Sin estatus», el rango de fechas— se
+   quedaba escondido sin forma de llegar a él (auditoría de la plataforma 2026-10, control-1). Ahí
+   los chips bajan a un segundo renglón. */
+@media(pointer:fine){
+  .mapa-chips{flex-wrap:wrap;overflow-x:visible;row-gap:6px}
+  .mapa-chips-g{flex-wrap:wrap}
+  .mapa-chips-sep{display:none}
+}
 /* La barra del modo «pin a mano», flotando debajo de los chips. */
 #mapa-modo .mapa-modo{margin:0;box-shadow:var(--clay)}
 
@@ -1502,17 +1511,20 @@ button.cal-plazo:active{transform:scale(.97)}
    el color: uno de cada doce hombres no distingue el verde del ámbar, y este mapa se lee para
    decidir a dónde manejar. Las mismas cuatro variables pintan el pin en chico (`.mapa-pin-mini`)
    de los chips, la leyenda, las listas y la ficha: es la misma marca en todos lados. */
-.mapa-pin,.mapa-pin-mini{--pin-borde:var(--n4);--pin-fondo:var(--sup);--pin-tinta:var(--n7);--pin-radio:22%}
-/* Vendido y sin empezar: gris, que en `.pf-etapa` es exactamente lo que significa. No se
-   pinta ámbar porque ámbar es «está en el taller» y esto todavía no entró. */
-.mapa-pin.taller,.mapa-pin-mini.taller{--pin-borde:var(--amber-ico);--pin-tinta:var(--av)}
-.mapa-pin.listo,.mapa-pin-mini.listo{--pin-borde:var(--a);--pin-tinta:var(--a-fuerte);--pin-radio:50%}
-/* El relleno es el indicio de «ya está puesto»: se ve incluso reducido a cuatro píxeles,
-   que es como se ve un pin cuando el mapa está en toda la ciudad. El aro conserva el verde
-   de la leyenda, pero el relleno va con --ok y no con --green-ico: con --green-ico la letra
-   no llega al contraste mínimo para texto chico, con --ok sí. La letra va con el color de la
-   superficie, que es blanca de día y oscura de noche, cuando --ok se aclara. */
-.mapa-pin.instalado,.mapa-pin-mini.instalado{--pin-borde:var(--green-ico);--pin-fondo:var(--ok);--pin-tinta:var(--sup);--pin-radio:50%}
+/* LOS COLORES SON LOS DEL COBRO (ver GRUPOS en js/mod/mapa.js): azul fabricación, amarillo
+   cobrando, rojo liquidado y gris lo que todavía no tiene estatus en la hoja. Gota llena, como
+   los pines de cualquier mapa, con el dibujo en blanco (en el amarillo va oscuro: blanco sobre
+   amarillo no se lee). Los rellenos son fijos y no cambian de noche: los cuadros del mapa son
+   claros en los dos temas y el pin tiene que verse igual sobre ellos. */
+.mapa-pin,.mapa-pin-mini{--pin-borde:#5b6275;--pin-fondo:#8a91a3;--pin-tinta:#fff;--pin-radio:50%}
+.mapa-pin.fabricacion,.mapa-pin-mini.fabricacion{--pin-borde:#1c3fc4;--pin-fondo:#2f5bea;--pin-tinta:#fff}
+.mapa-pin.cobrando,.mapa-pin-mini.cobrando{--pin-borde:#a87b00;--pin-fondo:#f5c400;--pin-tinta:#2b2100}
+.mapa-pin.liquidado,.mapa-pin-mini.liquidado{--pin-borde:#9c1c1c;--pin-fondo:#d63232;--pin-tinta:#fff}
+.mapa-pin>b>svg,.mapa-pin-mini>b>svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.mapa-pin.sel>b>svg{width:17px;height:17px}
+.mapa-pin-mini>b>svg{width:9px;height:9px;stroke-width:3.2}
+/* El estatus en la ficha: el pin en chico y la palabra. */
+.mapa-estatus{display:inline-flex;align-items:center;gap:4px;font-weight:600}
 
 .mapa-pin{position:relative;box-sizing:border-box;background:none;border:0}
 /* Con las dos clases, y no por gusto: vendor/leaflet.css se lee DESPUÉS de esta hoja
