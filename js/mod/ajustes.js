@@ -329,6 +329,7 @@ function pintar() {
     cardMapa() +
     cardGcal() +
     cardPuente() +
+    cardSupabase() +
     cardVerdades() +
     cardDocumento() +
     cardCordon(e.ok);
@@ -343,6 +344,7 @@ function pintar() {
     ajustarAltoBarra();
   }
   armarPantalla();
+  pintarSupabase();
 }
 
 /* ----- El índice que sigue al scroll (F22) -----
@@ -1019,6 +1021,7 @@ async function clic(ev) {
   if ((b = acc('puente-esquema'))) { revisarEsquema(b); return; }
   if ((b = acc('puente-jalar'))) { jalar(b); return; }
   if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
+  if ((b = t.closest('[data-act^="supa-"]'))) { accionSupabase(b); return; }
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
 
@@ -1256,6 +1259,117 @@ function guardarGcal() {
   if (!Prefs.setGcal(cfg)) { toast('Este navegador no dejó guardar la configuración', 'err', 4200); return; }
   toast(id ? 'Client ID guardado. Ahora dale a Conectar.' : 'Se quitó la configuración de Calendar', 'ok', 3800);
   if (CTX.refrescar) CTX.refrescar();
+}
+
+/* ----- Supabase (pruebas): la pieza 3 de la migración, APAGADA -----
+   Solo la ve Dirección y solo hace algo en el aparato donde se enciende. Encendida: entrar con
+   Google a Supabase, ver qué dice la base de ti, y —siendo Dirección activa— dar de alta, cambiar
+   de área o dar de baja a las personas. Nada de esto cambia la puerta de hoy ni lo que ven los
+   demás: la hoja sigue mandando. Ver js/nucleo/supa.js. */
+const AREA_NOMBRE = { direccion: 'Dirección', fabricacion: 'Fabricación', pagos: 'Pagos' };
+const ESTADO_NOMBRE = { activo: 'activo', invitado: 'invitado (todavía no entra)', baja: 'dado de baja' };
+
+function cardSupabase() {
+  if (Prefs.rol() !== 'direccion') return '';
+  return tarjeta('i-nube', 'Supabase (pruebas)', '<div id="aj-supa" aria-live="polite">' +
+    nota('Leyendo…') + '</div>', 'aj-s-supa');
+}
+
+let _supaTurno = 0;
+async function pintarSupabase() {
+  const caja = $('aj-supa');
+  if (!caja) return;
+  const turno = ++_supaTurno;                        // un repintado viejo no pisa uno nuevo
+  const Supa = await import('../nucleo/supa.js');
+  const listo = html => { if (turno === _supaTurno && $('aj-supa')) $('aj-supa').innerHTML = html; };
+  const apagar = '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
+  if (!Supa.encendido()) {
+    listo('<p class="aj-p">Esto es <b>solo para probar</b> la base nueva en <b>este</b> aparato, contra el proyecto de pruebas. ' +
+      'Apagado (como está) no hace nada: la app sigue entrando y guardando como siempre, con la hoja.</p>' +
+      '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-encender">Encender en este aparato</button></div>');
+    return;
+  }
+  listo(nota('Conectando con Supabase…'));
+  if (!await Supa.haySesion()) {
+    listo('<p class="aj-p">Encendido en este aparato. Entra con tu cuenta de Google para que la base te reconozca.</p>' +
+      '<div id="aj-supa-google" class="aj-supa-google"></div><div class="pf-acciones">' + apagar + '</div>');
+    const g = $('aj-supa-google');
+    if (g && turno === _supaTurno) {
+      Supa.botonDeGoogle(g, r => {
+        if (r.ok) toast('Dentro de Supabase', 'ok', 2500); else toast(r.mensaje, 'err', 6000);
+        pintarSupabase();
+      }).catch(e => toast(Supa.mensajeDe(e), 'err', 6000));
+    }
+    return;
+  }
+  const a = await Supa.acceso();
+  const quien = a.correo ? '<b>' + esc(a.correo) + '</b>' : 'esta cuenta';
+  let html;
+  if (a.estado === 'activo') html = nota(ico('i-check') + ' La base te reconoce: ' + quien + ', ' + esc(AREA_NOMBRE[a.area] || a.area) + '.', 'ok');
+  else if (a.estado === 'sin_acceso') html = nota(quien + ' no está dada de alta. Que Dirección la agregue abajo, con ese mismo correo.', 'av');
+  else if (a.estado === 'acceso_revocado') html = nota('A ' + quien + ' se le retiró el acceso.', 'mal');
+  else if (a.estado === 'correo_no_verificado') html = nota('Google no confirma el correo de ' + quien + ': con una cuenta así la base no da acceso.', 'av');
+  else if (a.estado === 'invitacion_pendiente') html = nota(quien + ' tiene una invitación, pero no se pudo reclamar. Sal y vuelve a entrar.', 'av');
+  else html = nota(esc(a.mensaje || 'No se pudo preguntar a la base. Revisa la señal y vuelve a abrir Ajustes.'), 'av');
+  if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
+  html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
+  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa);
+  listo(html);
+}
+
+async function bloquePersonas(Supa) {
+  let lista;
+  try { lista = await Supa.personas(); }
+  catch (e) { return nota('No se pudo leer la lista de personas: ' + esc(Supa.mensajeDe(e)), 'av'); }
+  const opciones = sel => Object.entries(AREA_NOMBRE).map(([v, t]) => '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + t + '</option>').join('');
+  const filas = lista.map(m => '<li class="aj-supa-persona"><div><b>' + esc(m.correo) + '</b><br><span class="pf-nota">' +
+      esc(AREA_NOMBRE[m.area] || m.area) + ' · ' + esc(ESTADO_NOMBRE[m.estado] || m.estado) + '</span></div>' +
+      (m.estado === 'baja'
+        ? '<button type="button" class="btn btn-gho" data-act="supa-reactivar" data-correo="' + esc(m.correo) + '" data-area="' + esc(m.area) + '" data-nota="' + esc(m.nota || '') + '">Reactivar</button>'
+        : '<label class="sr-only" for="aj-supa-a-' + esc(m.correo) + '">Área de ' + esc(m.correo) + '</label>' +
+          '<select id="aj-supa-a-' + esc(m.correo) + '" data-supa-area="' + esc(m.correo) + '">' + opciones(m.area) + '</select>' +
+          '<button type="button" class="btn btn-gho" data-act="supa-area" data-correo="' + esc(m.correo) + '">Cambiar área</button>' +
+          '<button type="button" class="btn btn-gho" data-act="supa-baja" data-correo="' + esc(m.correo) + '">Dar de baja</button>') +
+      '</li>').join('');
+  return '<h3 class="aj-sub">Personas</h3>' +
+    '<p class="pf-nota">Quién puede entrar a la base y con qué área. Quien todavía no entra aparece como invitado: queda activo ' +
+    'la primera vez que entra con Google con ese correo. Dar de baja le cierra la base en su siguiente consulta.</p>' +
+    '<ul class="aj-supa-personas">' + (filas || '<li>Nadie todavía.</li>') + '</ul>' +
+    '<div class="fld"><label for="aj-supa-correo">Correo de Google de la persona</label>' +
+    '<input type="email" id="aj-supa-correo" autocomplete="off" spellcheck="false" placeholder="nombre@gmail.com"></div>' +
+    '<div class="fld"><label for="aj-supa-area">Área</label><select id="aj-supa-area">' + opciones('fabricacion') + '</select></div>' +
+    '<div class="pf-acciones"><button type="button" class="btn btn-pri" data-act="supa-alta">Dar de alta</button></div>';
+}
+
+async function accionSupabase(b) {
+  const Supa = await import('../nucleo/supa.js');
+  const a = b.dataset.act, correo = b.dataset.correo || '';
+  try {
+    if (a === 'supa-encender') { Supa.encender(true); toast('Encendido solo en este aparato', 'ok', 2500); }
+    else if (a === 'supa-apagar') { await Supa.salir(); Supa.encender(false); toast('Apagado en este aparato', 'ok', 2500); }
+    else if (a === 'supa-salir') { await Supa.salir(); toast('Saliste de Supabase', 'ok', 2500); }
+    else if (a === 'supa-alta') {
+      const c = String(($('aj-supa-correo') || {}).value || '').trim().toLowerCase();
+      const area = ($('aj-supa-area') || {}).value || 'fabricacion';
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c)) { toast('Escribe un correo válido', 'err', 4000); return; }
+      await Supa.darDeAlta(c, area);
+      toast('Alta de ' + c + ' como ' + AREA_NOMBRE[area], 'ok', 3000);
+    } else if (a === 'supa-area') {
+      const sel = cont && cont.querySelector('[data-supa-area="' + CSS.escape(correo) + '"]');
+      await Supa.cambiarArea(correo, sel ? sel.value : '');
+      toast('Área cambiada', 'ok', 2500);
+    } else if (a === 'supa-reactivar') {
+      await Supa.darDeAlta(correo, b.dataset.area || 'fabricacion', b.dataset.nota || '');
+      toast('Reactivado ' + correo, 'ok', 2500);
+    } else if (a === 'supa-baja') {
+      const si = await confirmarPf({ titulo: '¿Dar de baja a ' + correo + '?', peligro: true, si: 'Dar de baja', no: 'Cancelar',
+        texto: 'Deja de poder entrar a la base en su siguiente consulta. Su registro se queda como evidencia y se puede reactivar.' });
+      if (!si) return;
+      await Supa.darDeBaja(correo);
+      toast('Baja de ' + correo, 'ok', 2500);
+    }
+  } catch (e) { toast(Supa.mensajeDe(e), 'err', 6000); }
+  pintarSupabase();
 }
 
 /* ----- Entrar con Google -----

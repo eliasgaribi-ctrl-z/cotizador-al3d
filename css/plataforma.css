@@ -1408,6 +1408,13 @@ button.cal-plazo:active{transform:scale(.97)}
    pantalla de consentimiento de Google. `.vacio-d` no sirve —centra el texto, porque nace
    de un estado vacío— y cuatro renglones centrados no se leen. */
 .aj-p{margin:var(--e3) 0 0;font-weight:400;font-size:var(--t2);line-height:1.6;color:var(--n7);max-width:62ch}
+/* Supabase (pruebas), solo Dirección: la lista de personas con su área y sus botones (js/mod/ajustes.js). */
+.aj-sub{margin:var(--e5) 0 0;font-size:var(--t4);font-weight:600;color:var(--n8)}
+.aj-supa-personas{list-style:none;margin:var(--e3) 0;padding:0;display:grid;gap:var(--e2)}
+.aj-supa-persona{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);padding:var(--e2) 0;border-bottom:1px solid var(--n2)}
+.aj-supa-persona>div{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}
+.aj-supa-google{margin:var(--e3) 0;min-height:44px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* Un bloque de campos que abre un tema nuevo dentro de la misma tarjeta. Sin la
    separación, el campo del Client ID se leía como parte del último paso. */
