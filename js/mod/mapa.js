@@ -1356,6 +1356,7 @@ function cerrarFicha(op) {
   pintarFicha();
   refrescarPines();
   ponerHoja('baja');
+  tiraAParada();
   if (op && op.foco) {
     const q = $('mapa-q');
     if (q) { try { q.focus({ preventScroll: true }); } catch (_) {} }
@@ -2022,6 +2023,32 @@ function alTocarTarjeta(id) {
   seleccionar(id, { volar: true });
 }
 
+/** La tira vuelve a la parada de ahora. Con una ficha abierta la tira está con `display:none` y no
+ *  tiene medidas, así que el `ir()` que pidió el toque de una tarjeta no la movió: al cerrar la
+ *  ficha volvía en la tarjeta de antes y no en la que se tocó. Se mide otra vez y se lleva. */
+function tiraAParada() {
+  if (!_tira || !RUTA || !_parada || !tiraVisible()) return;
+  const i = RUTA.orden.findIndex(x => x.id === _parada);
+  if (i < 0) return;
+  _ignorarTiraHasta = Date.now() + (quieto() ? 250 : 900);
+  if (typeof _tira.medir === 'function') _tira.medir();
+  _tira.ir(i);
+}
+
+/** Una tarjeta enfocada con el tabulador: la tira y el mapa van a esa parada y su pin se marca,
+ *  igual que al deslizar. No abre la ficha: la ficha esconde la tira, y el foco que estaba en la
+ *  tarjeta se caía al <body> —con teclado no se podía recorrer la ruta—. Enter en «Cómo llegar»
+ *  sigue siendo el enlace. */
+function enfocarParada(id) {
+  const i = RUTA ? RUTA.orden.findIndex(x => x.id === id) : -1;
+  if (i < 0) return;
+  _parada = id;
+  clearTimeout(_tParada);
+  _ignorarTiraHasta = Date.now() + (quieto() ? 250 : 900);
+  if (_tira) _tira.ir(i);
+  irAParada(id);
+}
+
 /** Tocar un pin. Con la ruta ordenada y la tira a la vista, la tira se corre a su tarjeta y el pin
  *  se marca: la tarjeta ya nombra la obra y tiene «Cómo llegar», y tocarla abre la ficha entera.
  *  Mientras se corre no manda al mapa de vuelta (de lo contrario, la tarjeta por la que pasa de
@@ -2565,7 +2592,7 @@ function alEnfocar(ev) {
   if (!tarj || tarj.dataset.parada === _parada) return;
   let porTeclado = false;
   try { porTeclado = t.matches(':focus-visible'); } catch (_) {}
-  if (porTeclado) alTocarTarjeta(tarj.dataset.parada);
+  if (porTeclado) enfocarParada(tarj.dataset.parada);
 }
 
 function clicPide(ev) {

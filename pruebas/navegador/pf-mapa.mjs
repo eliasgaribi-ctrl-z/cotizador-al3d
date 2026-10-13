@@ -585,7 +585,7 @@ async function ronda(cfg) {
         const anim = camino ? camino.getAnimations() : [];
         R.cuadros.push({ t: R.t0 ? Math.round(t - R.t0) : -1,
           numerados: [...document.querySelectorAll('#mapa-lienzo .mapa-pin.ruta')].filter(e => /^\d+$/.test(e.textContent.trim())).length,
-          letras: [...document.querySelectorAll('#mapa-lienzo .mapa-pin')].filter(e => /^[A-Z]$/.test(e.textContent.trim())).length,
+          sinNumero: [...document.querySelectorAll('#mapa-lienzo .mapa-pin')].filter(e => !/^\d+$/.test(e.textContent.trim())).length,
           linea: !!camino, anim: anim.length, offset: camino ? getComputedStyle(camino).strokeDashoffset : null });
         requestAnimationFrame(paso);
       };
@@ -596,7 +596,7 @@ async function ronda(cfg) {
     await dormir(2200);
     const R = await p.evaluate(() => { window.__ruta.vivo = false; return window.__ruta.cuadros.filter(c => c.t >= 0); });
     const final = R[R.length - 1];
-    cierto(final.numerados === 5 && final.letras === 0, 'al final los cinco pines de la ruta llevan su número', final);
+    cierto(final.numerados === 5 && final.sinNumero === 0, 'al final los cinco pines de la ruta llevan su número', final);
     const conAnim = R.filter(c => c.anim > 0);
     if (cfg.reducido) {
       cierto(conAnim.length === 0, 'con menos movimiento la línea aparece entera, sin trazo', conAnim.length);
@@ -629,13 +629,14 @@ async function ronda(cfg) {
     const estado = () => p.evaluate(() => ({
       linea: !!document.querySelector('#mapa-lienzo path.mapa-ruta-linea'),
       numerados: [...document.querySelectorAll('#mapa-lienzo .mapa-pin')].filter(e => /^\d+$/.test(e.textContent.trim())).length,
-      letras: [...document.querySelectorAll('#mapa-lienzo .mapa-pin')].filter(e => /^[A-Z]$/.test(e.textContent.trim())).length,
+      /* Sin número, el pin lleva el dibujo de su estatus (desde #107 ya no una letra). */
+      sinNumero: [...document.querySelectorAll('#mapa-lienzo .mapa-pin')].filter(e => !/^\d+$/.test(e.textContent.trim())).length,
       tira: !document.getElementById('mapa-tira').hidden,
     }));
     await clic('#mapa-acc [data-ruta="quitar"]');
     await dormir(500);
     const sinRuta = await estado();
-    cierto(!sinRuta.linea && sinRuta.numerados === 0 && sinRuta.letras >= 5 && !sinRuta.tira, 'quitar el orden quita la línea, los números y la tira', sinRuta);
+    cierto(!sinRuta.linea && sinRuta.numerados === 0 && sinRuta.sinNumero >= 5 && !sinRuta.tira, 'quitar el orden quita la línea, los números y la tira', sinRuta);
     await clic('#mapa-acc [data-ruta="calcular"]');
     await dormir(cfg.reducido ? 100 : 300);
     await clic('#mapa-acc [data-ruta="quitar"]');
@@ -750,18 +751,16 @@ async function ronda(cfg) {
     cierto(clienteVecina && fichaVecina.includes(clienteVecina) && await pinMarcado(clienteVecina), 'tocar la tarjeta que asoma abre su ficha, con el mapa en su pin', { clienteVecina, ficha: fichaVecina.slice(0, 40) });
     /* La ficha esconde la tira (la ficha dice lo mismo y más). Al cerrarla, la tira vuelve en la
        tarjeta que se tocó: es lo que promete `alTocarTarjeta` («para que al cerrar la ficha se
-       vuelva a la misma parada»). FALLA desde d93c71b, y es de la app: `alTocarTarjeta` pide a la
-       tira que se corra y en el mismo toque abre la ficha, que esconde la tira antes de que se mueva;
-       al cerrar, la tira sigue en la tarjeta de antes. */
+       vuelva a la misma parada»). Desde d93c71b hasta este arreglo volvía en la de antes: la ficha
+       escondía la tira antes de que se corriera (ahora lo hace `tiraAParada` al cerrar la ficha). */
     await cerrarFicha();
     await dormir(cfg.reducido ? 400 : 900);
     const tras = await p.evaluate(() => ({ visible: !!document.getElementById('mapa-tira').offsetParent,
       actual: (document.querySelector('#mapa-tira .pagina-actual') || {}).dataset?.parada }));
     cierto(tras.visible && tras.actual === vecina, 'al cerrar la ficha la tira vuelve, en la tarjeta que se tocó', { tras, vecina });
 
-    /* Teclado: el tabulador pasa de tarjeta en tarjeta y el mapa las sigue. FALLA desde d93c71b, y
-       es de la app: `alEnfocar` llama a `alTocarTarjeta`, que ahora abre la ficha; la ficha esconde
-       la tira y el foco, que estaba en una tarjeta, se cae al <body>. */
+    /* Teclado: el tabulador pasa de tarjeta en tarjeta y el mapa las sigue, sin abrir la ficha (que
+       escondería la tira y le tiraría el foco al <body>, como pasó desde d93c71b hasta este arreglo). */
     await p.evaluate(() => document.activeElement && document.activeElement.blur());
     await p.focus('#mapa-tira .mapa-parada:nth-child(1) a');
     for (let i = 0; i < 4; i++) {
@@ -774,6 +773,7 @@ async function ronda(cfg) {
     cierto(porTab.enfocada && porTab.enfocada === porTab.actual, 'con el tabulador la tarjeta enfocada pasa a ser la de ahora', porTab);
     const clienteTab = (OBRAS.find(o => ids[o.clave] === porTab.actual) || {}).cliente;
     cierto(clienteTab && await pinMarcado(clienteTab), 'y el mapa va a esa parada', { clienteTab });
+    cierto(!(await fichaAbierta()), 'sin abrir la ficha: el foco se queda en la tira');
 
     cierto(await p.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('#mapa-tira') && a.effect.getComputedTiming().iterations === Infinity).length === 0), 'la tira no se mueve sola en reposo');
   });
