@@ -1792,6 +1792,13 @@ async function arrancar() {
   quitarArranque();
   avisarActualizada();
 
+  /* Supabase (pruebas, pieza 3): solo en el aparato donde Dirección lo encendió en Ajustes. Apagado
+     ni siquiera se carga el módulo. Vigila si la base dice que a esta cuenta se le retiró el acceso
+     (con sus tres candados: js/nucleo/supa.js); la puerta de arriba no cambia. */
+  try {
+    if (/"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '')) import('./nucleo/supa.js').then(S => S.vigilar()).catch(() => {});
+  } catch (_) { /* sin almacenamiento: apagado */ }
+
   /* El cotizador acaba de guardar en otra pestaña. Aquí no se avisa de conflicto como hace
      el cotizador —la plataforma solo LEE su almacenamiento, así que no hay nada que pisar—:
      se recoge lo nuevo y se repinta. */

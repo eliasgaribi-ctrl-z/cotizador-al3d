@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 43 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 45 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 95;
+const APP_VERSION = 96;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -102,6 +102,7 @@ const APP_FILES = [
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',
   './js/nucleo/ingreso.js',
+  './js/nucleo/supa.js',             // Supabase (pruebas), apagado; vendor/supabase.js NO se precarga: se cachea al usarse
   /* La puerta. Va con app.js y no aparte: desde la versión 51 el arranque NO monta nada sin
      que ésta conteste, así que una copia sin este archivo es una copia que entra por el
      camino de emergencia y lo dice en la banda de arriba. */
@@ -116,6 +117,7 @@ const APP_FILES = [
   './js/nucleo/asistente.js',
   './js/datos/db.js',
   './js/datos/prefs.js',
+  './js/datos/supabase-config.js',
   './js/datos/cotizador.js',
   './js/datos/catalogo-precios.js',
   './js/datos/proyectos.js',
@@ -512,7 +514,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 43 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 45 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

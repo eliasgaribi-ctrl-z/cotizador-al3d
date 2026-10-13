@@ -1,0 +1,161 @@
+/* ENTRAR A SUPABASE, QUIÉN ERES Y EL ACCESO RETIRADO — js/nucleo/supa.js (pieza 3, apagada).
+ *
+ * Lo que se vigila:
+ *   · que APAGADO no haga nada: el interruptor nace apagado, app.js ni siquiera carga el módulo y la
+ *     puerta de hoy (puerta.js) no lo conoce;
+ *   · los TRES CANDADOS del acceso retirado (DISENO.md §7.5): solo dos respuestas explícitas
+ *     separadas cuentan; un error, una sesión vencida o «sin acceso» no; y el borrado está
+ *     DESHABILITADO hasta que exista la subida única, aunque todo lo demás diga que sí;
+ *   · que lo que se borraría conserve el id del aparato y su contador de folios;
+ *   · el nonce (a Google su huella SHA-256, a Supabase el original);
+ *   · y la configuración: la llave pública y la dirección de pruebas, sin ninguna secreta, en la CSP
+ *     de index.html, y la librería de vendor/ con la huella que dice su licencia.
+ *
+ * No toca Supabase ni Google. Se corre con pruebas/correr.sh, como todas. */
+
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+let bien = 0, mal = 0;
+const eq = (que, dio, esperado) => {
+  const a = JSON.stringify(dio), b = JSON.stringify(esperado);
+  if (a === b) { bien++; console.log('  ok   ' + que); }
+  else { mal++; console.log('  FALLA ' + que + '\n         dio: ' + a + '\n         esp: ' + b); }
+};
+const cierto = (que, x) => eq(que, !!x, true);
+
+const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
+const leer = r => readFileSync(join(RAIZ, r), 'utf8').replace(/\r\n/g, '\n');
+const sinComentarios = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+/* localStorage de mentiras (como pruebas/puerta.mjs) */
+const almacen = new Map();
+globalThis.localStorage = {
+  getItem: k => (almacen.has(k) ? almacen.get(k) : null), setItem: (k, v) => almacen.set(k, String(v)),
+  removeItem: k => almacen.delete(k), clear: () => almacen.clear(),
+};
+const S = await import('../js/nucleo/supa.js');
+const { SUPABASE } = await import('../js/datos/supabase-config.js');
+
+console.log('\nAPAGADO NO HACE NADA');
+{
+  eq('el interruptor nace apagado', S.encendido(), false);
+  localStorage.setItem(S.CLAVE_INTERRUPTOR, 'basura{');
+  eq('una clave dañada se lee como apagado', S.encendido(), false);
+  S.encender(true);
+  eq('se enciende en este aparato', S.encendido(), true);
+  S.encender(false);
+  eq('y se apaga quitando la clave', [S.encendido(), localStorage.getItem(S.CLAVE_INTERRUPTOR)], [false, null]);
+
+  const app = leer('js/app.js');
+  cierto('app.js solo carga supa.js con el interruptor encendido, con import() y no estático',
+    /if \(\/"encendido":true\/\.test\(localStorage\.getItem\('al3d_pf_supa'\)/.test(app) && !/^import .*supa\.js/m.test(app));
+  eq('y la clave que mira app.js es la del módulo', S.CLAVE_INTERRUPTOR, 'al3d_pf_supa');
+  cierto('la puerta de hoy no lo conoce', !/supa/i.test(sinComentarios(leer('js/nucleo/puerta.js'))));
+  const aj = leer('js/mod/ajustes.js');
+  cierto('Ajustes lo carga con import() y solo pinta la tarjeta a Dirección',
+    /import\('\.\.\/nucleo\/supa\.js'\)/.test(aj) && /function cardSupabase\(\) \{\n  if \(Prefs\.rol\(\) !== 'direccion'\) return '';/.test(aj));
+  cierto('ningún módulo lo importa de forma estática',
+    !/^import[^;]*supa\.js/m.test(aj) && !/^import[^;]*supa\.js/m.test(app));
+  cierto('su interruptor y su sesión no viajan en los respaldos (no están en Prefs.CLAVES)',
+    !/al3d_pf_supa/.test(leer('js/datos/prefs.js')) && !/al3d_pf_supa/.test(leer('js/datos/cotizador.js')));
+}
+
+console.log('\nCANDADO 1: SOLO DOS RESPUESTAS EXPLÍCITAS, SEPARADAS');
+{
+  const R = { estado: 'acceso_revocado' };
+  eq('dos «acceso retirado» con 5 s entre ellas: sí', S.accesoRetirado(R, R, 5000), true);
+  eq('con menos de 5 s: no', S.accesoRetirado(R, R, 4999), false);
+  eq('una sola: no', S.accesoRetirado(R, { estado: 'activo' }, 9000), false);
+  eq('la segunda con error de red: no', S.accesoRetirado(R, { estado: 'desconocido' }, 9000), false);
+  eq('sesión vencida: no', S.accesoRetirado({ estado: 'sin_sesion' }, { estado: 'sin_sesion' }, 9000), false);
+  eq('«sin acceso» (nunca lo tuvo) no es retirado', S.accesoRetirado({ estado: 'sin_acceso' }, { estado: 'sin_acceso' }, 9000), false);
+  eq('nada: no', S.accesoRetirado(null, undefined, 9000), false);
+  eq('mi_acceso con error de la base es «no sé»', S.leerAcceso({ ok: false, codigo: 'INTERNO', mensaje: 'x' }).estado, 'desconocido');
+  eq('mi_acceso sin sesión es sin_sesion', S.leerAcceso({ ok: false, codigo: 'SIN_SESION' }).estado, 'sin_sesion');
+  eq('un estado que no existe es «no sé»', S.leerAcceso({ ok: true, estado: 'fuera' }).estado, 'desconocido');
+  eq('una respuesta vacía es «no sé»', S.leerAcceso(null).estado, 'desconocido');
+  eq('activo con su área y su correo', S.leerAcceso({ ok: true, estado: 'activo', usuario: { correo: 'a@b.mx' },
+    empresas: [{ empresa_id: 'al3d', area: 'pagos', estado: 'activo' }], contrato: { actual: 1, minimo: 1 } }),
+    { estado: 'activo', correo: 'a@b.mx', area: 'pagos', empresa: 'al3d', contratoViejo: false });
+  eq('un contrato mínimo mayor que el de la app se avisa', S.leerAcceso({ ok: true, estado: 'activo', contrato: { minimo: 2 } }).contratoViejo, true);
+}
+
+console.log('\nSOLO SE TAPA LA APP DE LA MISMA PERSONA, Y SIEMPRE CON SALIDA');
+{
+  eq('la misma cuenta (sin importar mayúsculas): sí', S.esLaMismaPersona('Ana@Gmail.com ', 'ana@gmail.com'), true);
+  eq('otra cuenta (Dirección probando con una dada de baja): no', S.esLaMismaPersona('baja@gmail.com', 'ana@gmail.com'), false);
+  eq('sin correo de la puerta (copia local): no', S.esLaMismaPersona('ana@gmail.com', ''), false);
+  eq('sin correo de la base: no', S.esLaMismaPersona('', 'ana@gmail.com'), false);
+  const v = sinComentarios(leer('js/nucleo/supa.js'));
+  cierto('después de la segunda opinión vuelve a mirar el interruptor y la persona',
+    /if \(!encendido\(\) \|\| !esLaMismaPersona\(b\.correo \|\| a\.correo, correoDeLaPuerta\(\)\)\) return;/.test(v));
+  cierto('una revisión a la vez', /if \(_enCurso\) return;/.test(v));
+  cierto('la pantalla de «acceso retirado» trae su botón para apagar en este aparato', /id="pf-sin-acceso-apagar"/.test(v) && /encender\(false\); location\.reload\(\);/.test(v));
+  cierto('al entrar empieza a vigilar sin esperar a la siguiente vez que se abra la app', /if \(error\) throw error;\n\s*vigilar\(\);/.test(v));
+}
+
+console.log('\nCANDADO 2: EL BORRADO ESTÁ DESHABILITADO HASTA LA SUBIDA ÚNICA');
+{
+  eq('el borrado está deshabilitado en este código', S.BORRADO_HABILITADO, false);
+  eq('aunque la bandeja esté vacía y todo tenga acuse, no se borra', S.sePuedeBorrar({ bandejaVacia: true, todoConAcuse: true }), false);
+  eq('habilitado y con bandeja pendiente: no', S.sePuedeBorrar({ habilitado: true, bandejaVacia: false, todoConAcuse: true }), false);
+  eq('habilitado y sin acuse: no', S.sePuedeBorrar({ habilitado: true, bandejaVacia: true, todoConAcuse: false }), false);
+  eq('habilitado, bandeja vacía y todo con acuse: sí', S.sePuedeBorrar({ habilitado: true, bandejaVacia: true, todoConAcuse: true }), true);
+  eq('«true» como texto no cuenta', S.sePuedeBorrar({ habilitado: 'true', bandejaVacia: true, todoConAcuse: true }), false);
+  localStorage.setItem('al3d_pf_nombre', 'Ana'); localStorage.setItem('al3d_historial', '[]');
+  eq('borrarLocal() con el borrado deshabilitado no toca nada', [await S.borrarLocal(), localStorage.getItem('al3d_pf_nombre')], [false, 'Ana']);
+  const v = sinComentarios(leer('js/nucleo/supa.js'));
+  cierto('vigilar() solo borra si sePuedeBorrar() lo dice', /if \(puede\) await borrarLocal\(\);/.test(v) && /const puede = sePuedeBorrar\(/.test(v));
+}
+
+console.log('\nCANDADO 3: LO QUE SE CONSERVA');
+{
+  eq('se conservan el id del aparato y su contador de folios', S.SE_CONSERVAN, ['al3d_pf_disp', 'al3d_folio']);
+  cierto('ninguno de los dos está en la lista de lo que se borra', S.SE_CONSERVAN.every(k => !S.SE_BORRAN.includes(k)));
+  cierto('las preferencias del aparato (tema, mapa, último respaldo) tampoco', ['al3d_tema', 'al3d_pf_tiles', 'al3d_pf_ult_export', 'al3d_pf_fondo'].every(k => !S.SE_BORRAN.includes(k)));
+  cierto('y sí se borran el pase, la sesión de Supabase, el historial y las credenciales', ['al3d_pf_pase', S.CLAVE_SESION, 'al3d_historial', 'al3d_pf_gtok', 'al3d_pf_puente'].every(k => S.SE_BORRAN.includes(k)));
+  eq('y las dos bases locales', S.BASES_LOCALES, ['al3d_pf', 'al3d_cot_imgs']);
+}
+
+console.log('\nEL NONCE');
+{
+  const n = S.nonceNuevo();
+  cierto('el nonce son 64 hexadecimales y cambia cada vez', /^[0-9a-f]{64}$/.test(n) && n !== S.nonceNuevo());
+  eq('a Google va su huella SHA-256', await S.huella('abc'), createHash('sha256').update('abc').digest('hex'));
+  const v = sinComentarios(leer('js/nucleo/supa.js'));
+  cierto('a Google la huella y a Supabase el original', /const nonce = await huella\(crudo\);/.test(v) && /client_id: CLIENT_ID, nonce,/.test(v) && /signInWithIdToken\(\{ provider: 'google', token: resp && resp\.credential, nonce: crudo \}\)/.test(v));
+  cierto('con el Client ID de siempre', /client_id: CLIENT_ID/.test(v));
+  cierto('y cada llamada de escritura lleva la cabecera del contrato', /'x-al3d-contrato': CONTRATO/.test(v));
+}
+
+console.log('\nLOS MENSAJES');
+{
+  eq('sin red', S.mensajeDe({ message: 'TypeError: Failed to fetch' }), 'Sin conexión con Supabase. Revisa la señal.');
+  eq('sin permiso', S.mensajeDe({ codigo: 'ROL_SIN_PERMISO' }), 'Eso solo lo puede hacer Dirección.');
+  eq('el mensaje de la base pasa tal cual', S.mensajeDe({ codigo: 'DATO_INVALIDO', mensaje: 'Debe quedar al menos un Dirección activo.' }), 'Debe quedar al menos un Dirección activo.');
+}
+
+console.log('\nLA CONFIGURACIÓN');
+{
+  cierto('la dirección es la de un proyecto de Supabase', /^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(SUPABASE.url));
+  cierto('la llave es la PÚBLICA (sb_publishable_)', /^sb_publishable_[A-Za-z0-9_-]{20,}$/.test(SUPABASE.llave));
+  const cfg = leer('js/datos/supabase-config.js');
+  cierto('y ninguna secreta ni JWT en la configuración ni en el módulo', !/sb_secret_[A-Za-z0-9_-]{10,}|eyJ[A-Za-z0-9_-]{10,}/.test(cfg + leer('js/nucleo/supa.js')));
+  const host = SUPABASE.url.replace('https://', '');
+  const idx = leer('index.html');
+  cierto('index.html deja hablar con ese proyecto por https y wss, y con nada más de supabase.co',
+    new RegExp('connect-src[^;]*https://' + host.replace(/\./g, '\\.') + ' wss://' + host.replace(/\./g, '\\.')).test(idx) &&
+    (idx.match(/supabase\.co/g) || []).length === 3);
+  cierto('el service worker lista el módulo y la configuración, y no cachea la librería por adelantado',
+    /'\.\/js\/nucleo\/supa\.js'/.test(leer('sw.js')) && /'\.\/js\/datos\/supabase-config\.js'/.test(leer('sw.js')) && !/^\s*'\.\/vendor\/supabase\.js'/m.test(leer('sw.js')));
+  const lic = leer('vendor/SUPABASE-LICENSE.txt');
+  const h = createHash('sha256').update(readFileSync(join(RAIZ, 'vendor/supabase.js'))).digest('hex');
+  cierto('vendor/supabase.js es el de npm sin cambios: su huella es la que dice su licencia', lic.includes('SHA-256: ' + h) && /MIT License/.test(lic));
+  cierto('y no evalúa código ni trae mapas de fuente', !/\beval\(|new Function\(|sourceMappingURL/.test(readFileSync(join(RAIZ, 'vendor/supabase.js'), 'utf8')));
+}
+
+console.log('\n' + bien + ' bien, ' + mal + ' mal');
+process.exit(mal ? 1 : 0);
