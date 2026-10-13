@@ -977,6 +977,9 @@ button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 .pf-panel-f{display:flex;gap:var(--e2);padding:var(--e4);border-top:1px solid var(--line);
   flex-shrink:0;padding-bottom:calc(var(--e4) + env(safe-area-inset-bottom,0px))}
 .pf-panel-f .btn{flex:1}
+/* En el teléfono los botones del pie iban en una sola fila: con tres o cuatro, cada uno medía
+   100 px de alto con el texto partido y «No se dio» 55 de ancho (proyectos-6). De dos en dos. */
+@media(max-width:759px){.pf-panel-f{flex-wrap:wrap}.pf-panel-f .btn{flex:1 1 calc(50% - var(--e2))}}
 .pf-cerrar{width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:var(--rr1);
   background:var(--n1);color:var(--n7);cursor:pointer;flex-shrink:0}
 @media(max-width:560px){
@@ -1428,6 +1431,17 @@ button.cal-plazo:active{transform:scale(.97)}
 /* Un bloque de campos que abre un tema nuevo dentro de la misma tarjeta. Sin la
    separación, el campo del Client ID se leía como parte del último paso. */
 .aj-bloque{margin-top:var(--e5)}
+/* Los plegables de Ajustes eran el <summary> del navegador: 20 px de alto, el triángulo de
+   fábrica y sin cursor de mano. Es la puerta a Google Calendar y al puente (ope-3 = mar-4). */
+details.aj-bloque>summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;cursor:pointer;
+  list-style:none;font-weight:600;color:var(--tinta);border-radius:var(--r-sm)}
+details.aj-bloque>summary::-webkit-details-marker{display:none}
+details.aj-bloque>summary::before{content:'';flex:0 0 auto;width:7px;height:7px;margin:0 4px 0 2px;
+  border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);
+  transition:transform .16s var(--ease-out)}
+details.aj-bloque[open]>summary::before{transform:rotate(45deg)}
+details.aj-bloque>summary:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){details.aj-bloque>summary::before{transition:none}}
 /* Una sola letra: el campo mide lo que ella, y se escribe en mayúscula como sale en el folio. */
 .aj-letra{max-width:5em;text-transform:uppercase}
 

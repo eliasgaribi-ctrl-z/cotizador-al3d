@@ -52,9 +52,9 @@ html:not(.empotrado) .pb-app{min-height:calc(100dvh - 64px)}
   scrollbar-width:none;-webkit-mask:linear-gradient(90deg,#000 calc(100% - 32px),transparent)}
 .pb-formatos::-webkit-scrollbar{display:none}
 .pb-formatos::after{content:'';flex:0 0 24px}
-.pb-formatos .chip{flex:0 0 auto;white-space:nowrap;min-height:38px;padding:7px 14px;cursor:pointer;font-family:inherit;font-size:var(--t2);
+.pb-formatos .chip{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:7px 14px;cursor:pointer;font-family:inherit;font-size:var(--t2);
   transition:background-color var(--mv-s),border-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
-.pb-formatos .chip em{font-style:normal;font-size:var(--t1);font-variant-numeric:tabular-nums;color:var(--n6);margin-left:2px}
+.pb-formatos .chip em{font-style:normal;font-size:max(12px,var(--t1));font-variant-numeric:tabular-nums;color:var(--n6);margin-left:2px}
 .pb-formatos .chip.on em{color:inherit;opacity:.75}
 .pb-cuenta{margin:var(--e3) 0 var(--e3);font-size:var(--t2);color:var(--tinta3);min-height:1.45em}
 
@@ -239,7 +239,7 @@ html:not(.empotrado) .pb-editor{top:64px;height:calc(100dvh - 64px)}
 .pb-dialogo-cab p{color:var(--tinta2);font-size:var(--t3);max-width:60ch}
 .pb-dialogo textarea{min-height:88px;font-size:16px}
 .pb-ejemplos{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--e3)}
-.pb-ejemplos .chip{cursor:pointer;font-family:inherit;font-size:var(--t2);min-height:34px;padding:6px 12px;transition:background-color var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+.pb-ejemplos .chip{cursor:pointer;font-family:inherit;font-size:var(--t2);min-height:44px;padding:6px 12px;transition:background-color var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
 .pb-idea-fila{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e4);align-items:center}
 .pb-idea-fila select{width:auto;flex:1 1 180px}
 .pb-idea-fila .btn{width:auto;flex:0 0 auto;padding:11px 22px;transition:transform .16s var(--ease-out),filter .12s}
