@@ -173,6 +173,10 @@ a { color: var(--a-tx); }
    se transforma con letras que giran, sobre una página que dice si un documento es bueno, se
    lee como un truco. Lo que se mueve es la opacidad, no el texto. */
 .ver-titulo-cambia { animation: ver-titulo .28s var(--ease-out) 1; }
+/* En el teléfono la pregunta ocupa dos renglones y la respuesta («Auténtica.») uno: al llegar el
+   veredicto todo el texto subía de golpe mientras el cliente leía (CLS 0,70; pub-3). El título
+   guarda el alto de dos renglones. */
+@media (max-width: 599px) { #ver-titulo { min-height: calc(2 * 1.2em); } }
 @keyframes ver-titulo { from { opacity: .25; } to { opacity: 1; } }
 
 /* ── A3 · El sello ──
@@ -441,6 +445,8 @@ body.pub h2:target { animation: scFlash 1.5s ease-out 1; }
 }
 .pub-creditos li:last-child { border-bottom: 0; }
 .pub-lic { display: block; margin-top: var(--e1); font-size: var(--t2); color: var(--tinta3); }
+/* Las rutas de las licencias salían en 11,5 px (pub-12): nunca abajo de 12. */
+.pub-lic code { font-size: max(.85em, 12px); }
 .pub-creditos code { font-size: .92em; overflow-wrap: anywhere; }
 /* El subrayado que crece desde la izquierda, con `background-size` y no con `border-bottom`:
    así se puede animar sin mover una sola caja. Solo con puntero fino y con el foco: en el

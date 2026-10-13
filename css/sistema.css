@@ -2724,8 +2724,10 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
    :focus-visible como el resto de los controles (línea del :where de arriba): un
    enlace que no se ve al llegar a él no sirve de nada. Se mueve con transform y no
    con left:-9999px para no ensanchar el área desplazable a lo ancho, que es justo lo
-   que el min-width:0 de .wrap está evitando. */
-.salto{position:fixed;top:8px;left:8px;z-index:200;min-height:44px;display:inline-flex;align-items:center;background:#fff;color:var(--brand-strong);
+   que el min-width:0 de .wrap está evitando.
+   Superficie y tinta del acento de cada tema, no blanco fijo: en oscuro `--brand-strong` es un azul
+   pálido y sobre blanco daba 2,4:1 (auditoría completa 2026-10, pub-5). */
+.salto{position:fixed;top:8px;left:8px;z-index:200;min-height:44px;display:inline-flex;align-items:center;background:var(--sup);color:var(--a-tx);
   padding:10px 16px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;
   transform:translateY(calc(-100% - 16px));transition:transform .15s}
 /* La sombra solo al aparecer. Escondido, el enlace queda a 8 px del borde de arriba y su
@@ -7499,7 +7501,10 @@ html.con-puerta,html.con-puerta body{overflow:hidden}
    regla, así que salen encima en cuanto existen. Ver la antepuerta en js/tema.js. */
 html.antepuerta,html.antepuerta body{overflow:hidden}
 html.antepuerta body>:not(#pf-puerta):not([role="alert"]){visibility:hidden}
-html.antepuerta body::after{content:'';position:fixed;inset:0;z-index:299;pointer-events:none;
+/* `inset:-12%`, la MISMA caja que la aurora que ocupa este `::after` después: con `inset:0`, al
+   quitarse la antepuerta el pseudoelemento cambiaba de tamaño y Chrome lo contaba como un salto de
+   0,12 en escritorio (auditoría completa 2026-10, pub-7). El logo va centrado, así que no se mueve. */
+html.antepuerta body::after{content:'';position:fixed;inset:-12%;z-index:299;pointer-events:none;
   background:var(--fondo) url(../logo-al3d.svg) center/120px auto no-repeat;
   animation:antepuerta 1.6s ease-in-out infinite alternate}
 html.antepuerta[data-tema="oscuro"] body::after{background-image:url(../logo-al3d-oscuro.svg)}

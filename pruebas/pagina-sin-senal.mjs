@@ -108,7 +108,7 @@ console.log('\nEL LOGO — el de la caché, por su dirección absoluta');
 console.log('\nLO QUE DICE Y LO QUE OFRECE');
 {
   cierto('dice qué pasó, con las dos condiciones: sin señal Y sin copia', /Sin señal y sin copia guardada/.test(html));
-  cierto('y qué hacer para que no vuelva a pasar', /ábrela una vez con señal/.test(html));
+  cierto('y qué hacer para que no vuelva a pasar', /abre la app una vez con señal/.test(html));
   cierto('trae un botón de reintentar', /Reintentar/.test(html));
   cierto('con 48 px de alto: se toca con el dedo', /min-height:48px/.test(html));
   falso('sin emojis', /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(html));

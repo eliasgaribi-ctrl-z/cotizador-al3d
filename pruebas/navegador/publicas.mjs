@@ -558,7 +558,7 @@ async function sinSenal(cfg, etiqueta) {
   cierto(r && r.status() === 503, d + ': sigue siendo un 503, no un 200 que se pase por la app', r && r.status());
   cierto(/text\/html/.test(r.headers()['content-type'] || ''), d + ': y es una página HTML de AL3D, no la línea de texto plano');
   cierto(/no-store/.test(r.headers()['cache-control'] || ''), d + ': que no se guarda en ninguna caché');
-  cierto(await p.$eval('h1', e => e.textContent) === 'Sin señal' && /ábrela una vez con señal/.test(await p.textContent('main')), d + ': dice qué pasó y qué hacer');
+  cierto(await p.$eval('h1', e => e.textContent) === 'Sin señal' && /abre la app una vez con señal/.test(await p.textContent('main')), d + ': dice qué pasó y qué hacer');
   const boton = await p.$eval('#otra', e => { const r = e.getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width) }; });
   cierto(boton.h >= 44 && boton.w >= 44, d + ': el botón «Reintentar» se toca con el dedo', boton);
   const logo = await p.$eval('#logo img', e => ({ ok: e.complete && e.naturalWidth > 0, oscuro: /oscuro/.test(e.currentSrc) }));
