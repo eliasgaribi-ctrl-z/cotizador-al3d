@@ -419,6 +419,7 @@ function viajar(o) {
   /* Con View Transitions `fn` corre en el cuadro SIGUIENTE, así que lo que depende del DOM nuevo
      —el foco al mismo número de día— va adentro. */
   const hacer = () => {
+    if (_alRepintar) { const f = _alRepintar; _alRepintar = null; f(); }
     if (!_cont) return;
     if (!repintarPeriodo()) pintar();
     if (o.focoDia) {
@@ -472,7 +473,7 @@ function repintarPeriodo() {
        contenedor y tocar un día dejaba de abrirlo; con 8 px de holgura un toque es un toque. El
        clic que llega después de un arrastre se detiene en captura: soltar el dedo sobre un día
        no lo abre.
-     · EL UMBRAL ES 48 PX. Menos regresa el lienzo a su sitio en 180 ms y no pasa nada.
+     · EL UMBRAL ES 48 PX, o un golpe rápido de 20. Menos regresa el lienzo a su sitio en 180 ms y no pasa nada.
 
    Solo dedo y lápiz. Con el ratón están las flechas, el teclado y el selector de arriba, y un
    arrastre con el botón apretado se parece demasiado a seleccionar texto en la lista del día.
@@ -480,8 +481,16 @@ function repintarPeriodo() {
    lienzo lo sigue —eso es la mano, no un adorno—, así que con menos movimiento también lo sigue;
    lo que se apaga es el regreso animado y el viaje del mes nuevo. */
 const GESTO_PX = 8, GESTO_UMBRAL = 48;
+/* Un golpe corto y rápido también cambia de mes (datos-3): con 20 px y más de 0.3 px/ms en el
+   último tramo, aunque no llegue a 48. Si el dedo se detuvo más de 80 ms antes de soltar, no
+   cuenta como golpe (el mismo criterio que el renglón deslizable, obra-1). 0.3 px/ms es un golpe
+   decidido de lado; arrastrar despacio no llega. */
+const GOLPE_PX = 20, GOLPE_V = .3;
+/* Lo que hay que hacer en el mismo cuadro en que se pinta el mes nuevo. Lo usa el gesto: el mes
+   viejo se va con su propia animación y esa animación se cancela justo cuando llega el nuevo. */
+let _alRepintar = null;
 function gestoDeLaRejilla(cont) {
-  let id = null, x0 = 0, y0 = 0, dx = 0, arrastra = false, lienzo = null, suprimir = false, reloj = 0;
+  let id = null, x0 = 0, y0 = 0, dx = 0, arrastra = false, lienzo = null, suprimir = false, reloj = 0, ult = null, pen = null;
   const limpiar = l => { if (l) { l.style.transform = ''; l.style.opacity = ''; } };
   function alBajar(ev) {
     if (ev.pointerType === 'mouse' || ev.isPrimary === false || ev.button > 0) return;
@@ -489,7 +498,7 @@ function gestoDeLaRejilla(cont) {
     const en = ev.target.closest && ev.target.closest(_vista === 'mes' ? '.cal-rej' : '.cal-lienzo');
     const l = en && en.closest('.cal-lienzo');
     if (!l) return;
-    lienzo = l; id = ev.pointerId; x0 = ev.clientX; y0 = ev.clientY; dx = 0; arrastra = false;
+    lienzo = l; id = ev.pointerId; x0 = ev.clientX; y0 = ev.clientY; dx = 0; arrastra = false; ult = pen = null;
   }
   function alMover(ev) {
     if (ev.pointerId !== id) return;
@@ -504,6 +513,7 @@ function gestoDeLaRejilla(cont) {
       }
     }
     dx = mx;
+    pen = ult; ult = [ev.timeStamp, ev.clientX];
     lienzo.style.transform = 'translateX(' + dx + 'px)';
     lienzo.style.opacity = String(1 - Math.min(.5, Math.abs(dx) / 400));
   }
@@ -517,9 +527,30 @@ function gestoDeLaRejilla(cont) {
     reloj = setTimeout(() => { suprimir = false; }, 60);
     const l = lienzo, de = dx;
     lienzo = null;
-    if (ev.type !== 'pointercancel' && Math.abs(de) >= GESTO_UMBRAL) {
+    const v = (ult && pen && ev.timeStamp - ult[0] <= 80 && ult[0] > pen[0]) ? (ult[1] - pen[1]) / (ult[0] - pen[0]) : 0;
+    const golpe = Math.abs(de) >= GOLPE_PX && Math.abs(v) > GOLPE_V && Math.sign(v) === Math.sign(de);
+    if (ev.type !== 'pointercancel' && (Math.abs(de) >= GESTO_UMBRAL || golpe)) {
+      const P = piezas();
+      const nuevo = anclaTrasPasos(de < 0 ? 1 : -1);
+      if (!l.isConnected || (P.sinMovimiento && P.sinMovimiento()) || typeof l.animate !== 'function') {
+        limpiar(l); irAlPeriodo(nuevo); return;
+      }
+      /* El mes viejo sigue DESDE DONDE LO DEJÓ EL DEDO hasta salirse (datos-2). Antes se limpiaba
+         el transform y la rejilla volvía de golpe al centro, a opacidad plena, antes de irse: un
+         parpadeo justo bajo el dedo. Su animación se queda en el último cuadro (invisible) y se
+         cancela en el mismo cuadro en que se pinta el mes nuevo, que entra desde el otro lado. */
+      const op = parseFloat(l.style.opacity) || 1;
+      const fuera = (de < 0 ? -1 : 1) * Math.max(Math.abs(de) + 40, l.offsetWidth * .35);
+      const a = l.animate([{ transform: 'translateX(' + de + 'px)', opacity: op }, { transform: 'translateX(' + fuera + 'px)', opacity: 0 }],
+        { duration: 140, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' });
       limpiar(l);
-      irAlPeriodo(anclaTrasPasos(de < 0 ? 1 : -1));
+      /* El mes nuevo se pide YA, no al terminar la salida: leer el mes tarda, y esperar dejaba la
+         rejilla en blanco ~150 ms. El viaje fotografía el mes viejo donde va en ese momento y lo
+         sigue llevando; su animación se cancela en el cuadro en que se pinta el nuevo. */
+      const quitar = () => { try { a.cancel(); } catch (_) {} };
+      _alRepintar = quitar;
+      irAlPeriodo(nuevo);
+      setTimeout(quitar, 1000);   // red por si el pintado no llega
       return;
     }
     limpiar(l);
