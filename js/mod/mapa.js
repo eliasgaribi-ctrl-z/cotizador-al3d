@@ -1356,6 +1356,17 @@ function cerrarFicha(op) {
   pintarFicha();
   refrescarPines();
   ponerHoja('baja');
+  /* La tira vuelve con la ficha cerrada, y vuelve en la parada de la ficha: la que se tocó para
+     abrirla. Mientras la ficha estuvo abierta la tira estaba escondida, y el desplazamiento que
+     la llevaba a esa tarjeta se cortó a medias; sin esto reaparecía en la parada de antes. */
+  const i = RUTA && _tira && _parada ? RUTA.orden.findIndex(x => x.id === _parada) : -1;
+  if (i >= 0 && tiraVisible()) {
+    _ignorarTiraHasta = Date.now() + 250;
+    _tira.ir(i, true);
+    /* Si la tira ya estaba en su lugar el salto no desplaza nada y no llega el aviso de scroll
+       que recalcula la tarjeta de ahora (la que se calculó con la tira escondida no sirve). */
+    if (typeof _tira.medir === 'function') _tira.medir();
+  }
   if (op && op.foco) {
     const q = $('mapa-q');
     if (q) { try { q.focus({ preventScroll: true }); } catch (_) {} }
@@ -2565,7 +2576,20 @@ function alEnfocar(ev) {
   if (!tarj || tarj.dataset.parada === _parada) return;
   let porTeclado = false;
   try { porTeclado = t.matches(':focus-visible'); } catch (_) {}
-  if (porTeclado) alTocarTarjeta(tarj.dataset.parada);
+  if (porTeclado) alRecorrerTarjeta(tarj.dataset.parada);
+}
+
+/** El tabulador llegó a otra tarjeta: es el mismo gesto que deslizar a ella —el mapa va a esa
+ *  parada y marca su pin—, no el de tocarla. Abrir la ficha aquí escondía la tira con el foco
+ *  adentro, y el siguiente Tab ya no tenía de dónde seguir. */
+function alRecorrerTarjeta(id) {
+  const i = RUTA ? RUTA.orden.findIndex(x => x.id === id) : -1;
+  if (i < 0) return;
+  _parada = id;
+  clearTimeout(_tParada);
+  _ignorarTiraHasta = Date.now() + (quieto() ? 250 : 900);
+  if (_tira) _tira.ir(i);
+  irAParada(id);
 }
 
 function clicPide(ev) {

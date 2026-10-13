@@ -2694,7 +2694,7 @@
    * @param {string|Element} x  la tira; sus hijos son las páginas
    * @param {{nombre?:string, etiqueta?:string, puntos?:boolean|Element, flechas?:boolean,
    *          alCambiar?:(i:number, pagina:Element)=>void, anunciar?:boolean}} o
-   * @returns {{ir(i:number):void, actual():number, medir():void, destruir():void}|null}
+   * @returns {{ir(i:number, salto?:boolean):void, actual():number, medir():void, destruir():void}|null}
    */
   P.paginas = function (x, o = {}) {
     const tira = _el(x); if (!tira) return null;
@@ -2821,7 +2821,7 @@
     try { mo = new g.MutationObserver(leer); mo.observe(tira, { childList: true }); } catch (_) {}
     leer();
     const control = {
-      ir: i => ir(i), actual: () => actual, medir: () => { leer(); if (pintarBarra()) marcar(); },
+      ir: (i, salto) => ir(i, salto), actual: () => actual, medir: () => { leer(); if (pintarBarra()) marcar(); },
       destruir() {
         vivo = false;
         clearTimeout(tAnuncio);
