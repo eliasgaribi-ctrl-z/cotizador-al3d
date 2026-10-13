@@ -296,12 +296,14 @@ if (activa('p3')) {
     'y al tocarla va derecho a Proyectos, donde se decide');
   await irA(p, '#/hoy', 1500);
 
-  /* «Ganados sin fecha» abre el Calendario en la lente de Taller. */
+  /* «Ganados sin fecha» abre el Calendario. Desde 7dabd21 el Calendario solo tiene la lente de
+     Instalaciones (la de Taller, con su grupo «con el reloj corriendo», está apagada): ahí
+     esos proyectos se ven en su cuenta de arriba. */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
   await p.locator('[data-cuenta-va="sinfecha"]').tap();
   await esp(p, 1800);
   const cal = await p.evaluate(() => ({ hash: location.hash, txt: (document.getElementById('mod-fabricacion') || {}).textContent || '' }));
-  que(cal.hash === '#/agenda' && /con el reloj corriendo/.test(cal.txt), '«Ganados sin fecha» abre el Calendario en su lente de Taller, donde esos proyectos tienen su grupo');
+  que(cal.hash === '#/agenda' && /Ganados? sin fecha/.test(cal.txt), '«Ganados sin fecha» abre el Calendario, que los cuenta arriba');
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 
@@ -613,6 +615,11 @@ if (activa('p14')) {
   await esp(p, 200);
   que((await p.inputValue('#pf-ganar-fecha')) === man, 'con teclado: la flecha derecha pasa de «Hoy» a «Mañana» y escribe el campo');
   que(await p.evaluate(() => { const r = document.querySelector('#pf-pide .pf-rapida:has(input:focus-visible)'); return !!r; }), 'y la ficha enfocada se ve (aro de foco)');
+  /* Desde 3569dda ganar pide «Datos para la entrega»: el teléfono, y con instalación la
+     dirección o «Todavía no la tengo». Sin ellos no se guarda nada. */
+  await p.fill('#pf-de-tel', '3312345678');
+  await p.locator('#pf-pide [data-de-pendiente]').tap();
+  await esp(p, 200);
   await p.locator('#pf-pide [data-pide="ganar"]').tap();
   await esp(p, 1200);
   const inst = await p.evaluate(async () => {
