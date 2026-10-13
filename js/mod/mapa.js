@@ -760,6 +760,11 @@ function crearMapa() {
        botón del asistente. Acercar y alejar son dos botones redondos más en la columna de la
        derecha (`data-zoom`), que la hoja de estilos esconde en las pantallas táctiles —ahí se
        acerca con dos dedos—. Con el lienzo enfocado, + y − siguen acercando con el teclado. */
+    /* Un clic con la mano movida 3 px ya era «arrastrar el mapa» para Leaflet y se comía el clic
+       del pin: la ficha no abría (auditoría de la plataforma 2026-10, control-2). Con 8 px el
+       mapa empieza a moverse un pelo después y el clic de un ratón o touchpad flojo sí llega. Va
+       en el prototipo porque `L.map` no deja pasarle esta opción a su arrastre. */
+    L.Draggable.prototype.options.clickTolerance = 8;
     mapa = L.map(div, { zoomControl: false, attributionControl: true });
     /* El crédito de los cuadros SÍ se queda, en su esquina: es requisito de la licencia. Lo que
        se quita es la banderita de Leaflet que va antes, que no lo es. */

@@ -1816,7 +1816,7 @@ function cablearModoCliente() {
    hay que preguntar —regresar la etapa, y ahora también cruzar «Cortado»— y escribe por
    `Proy.avanzarEtapa`, que vuelve a comprobar el rol. */
 const MS_LEVANTAR = 250;
-const MOVER_RATON = 4;        // px: con ratón, lo que hay que mover para que ya sea arrastrar
+const MOVER_RATON = 8;        // px: con ratón, lo que hay que mover para que ya sea arrastrar
 const MOVER_CANCELA = 8;      // px: si el dedo se movió antes de los 250 ms, era deslizar
 const BORDE_CORRE = 56;       // px del borde del tablero donde empieza a correr solo
 const CORRE_MAX = 18;         // px por cuadro, como mucho
@@ -1862,8 +1862,11 @@ function cablearArrastre() {
     /* Con RATÓN no hay nada que desambiguar: la rueda desliza el tablero y presionar-y-mover es
        arrastrar, como en cualquier tablero de escritorio. Esperar 250 ms quietos ahí era la razón
        de que «no se dejara arrastrar» (Elías, octubre de 2026): el ratón se mueve en cuanto se
-       presiona y el gesto se cancelaba como si fuera deslizar. Se levanta al pasar 4 px; un clic
-       sin moverse sigue abriendo la ficha. */
+       presiona y el gesto se cancelaba como si fuera deslizar. Se levanta al pasar 8 px; un clic
+       sin moverse sigue abriendo la ficha. Eran 4 px y además se levantaba a los 250 ms quieto:
+       un clic con la mano movida 5 px o sostenido un tercio de segundo levantaba la tarjeta y la
+       ficha no se abría (auditoría de la plataforma 2026-10, proyectos-1). Con 8 px el arrastre
+       sigue saliendo en cuanto la mano de verdad se mueve. */
     if (ev.pointerType === 'mouse') {
       ev.preventDefault();      // sin esto el arrastre selecciona texto de la tarjeta
       oir(tarjeta, 'pointermove', e => {
@@ -1874,9 +1877,8 @@ function cablearArrastre() {
       oir(tarjeta, 'pointerup', cancelar);
       oir(tarjeta, 'pointercancel', cancelar);
       try { tarjeta.setPointerCapture(pid); } catch (_) {}
-      /* Mantener presionado también la levanta, como con el dedo: quien ya lo aprendió así no
-         pierde el gesto. */
-      reloj = setTimeout(() => { cancelar(); levantar(tarjeta, pid, x0, y0); }, MS_LEVANTAR);
+      /* Mantener presionado ya NO la levanta con ratón: es el gesto del dedo, y con ratón solo
+         servía para comerse los clics lentos. */
       return;
     }
 
