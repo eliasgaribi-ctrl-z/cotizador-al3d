@@ -81,6 +81,11 @@ let _etapa = null;        // el filtro de la línea de estaciones. null = todo
    estaba en la mesa de corte y fue a ver un proyecto, al volver sigue en la mesa. */
 let _vista = 'tablero';
 let _origen = null;       // de qué proyecto se viene, cuando se entró con un pase
+/* Adónde regresar cuando la mesa se abrió con «Acomodar en la lámina» de un renglón: la posición
+   y el proyecto. Con esto puesto hay una entrada de historial propia (`{tbMesa:1}`), así que el
+   atrás del teléfono cierra la mesa y devuelve al renglón, en vez de sacar del Tablero; y la
+   mesa NO se recuerda al salir (auditoría completa 2026-10, tab-1). */
+let _regreso = null;
 let _pide = null;         // qué está preguntando el modal, si está abierto
 let _oyendo = false;
 let _alClic = null;   // alClic envuelto con conservandoFoco()
@@ -195,6 +200,7 @@ export async function montar(contenedor, ctx) {
   _origen = (pase && pase.proyecto_id) ? pase : null;
 
   _cont.addEventListener('click', _alClic = conservandoFoco(alClic));
+  window.addEventListener('popstate', alAtras);
   const capa = $('pf-pide');
   if (capa) capa.addEventListener('click', alClicPide);
   _oyendo = true;
@@ -247,6 +253,9 @@ export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
   if (_cont && _oyendo) _cont.removeEventListener('click', _alClic);
+  window.removeEventListener('popstate', alAtras);
+  /* La mesa abierta desde un renglón era de esa visita: al volver se ve la carga. */
+  if (_regreso) { _regreso = null; _vista = 'tablero'; _origen = null; }
   const capa = $('pf-pide');
   if (capa) capa.removeEventListener('click', alClicPide);
   /* Si el modal quedó abierto —se cambió de rol con la pregunta enfrente— se cierra: la capa
@@ -1497,6 +1506,25 @@ function botonIdx(label, clase, i, attrs) {
     esc(label) + '</button>';
 }
 
+/* El atrás que cierra la mesa abierta desde un renglón. Si lo que se consumió fue la entrada de
+   una capa abierta ENCIMA de la mesa, el estado que queda es todavía `{tbMesa:1}` y no se hace
+   nada: esa capa la cierra js/nucleo/ui.js. */
+function alAtras() {
+  if (!_regreso || !_cont) return;
+  if (history.state && history.state.tbMesa) return;
+  const r = _regreso;
+  _regreso = null;
+  _vista = 'tablero';
+  _origen = null;
+  pintar();
+  try { window.scrollTo({ top: r.y, behavior: 'auto' }); } catch (_) { window.scrollTo(0, r.y); }
+  /* El foco vuelve al «Acomodar» de ese renglón, que es donde estaba la persona. */
+  const i = _acciones.findIndex(x => x && x.tipo === 'anidar' && x.id === r.id);
+  const b = i >= 0 && _cont.querySelector('[data-acc="' + i + '"]');
+  if (b) { try { b.focus({ preventScroll: true }); } catch (_) {} }
+  voz('Carga del taller');
+}
+
 async function alClic(ev) {
   const rec = ev.target.closest('[data-recargar]');
   if (rec) { location.reload(); return; }
@@ -1505,6 +1533,9 @@ async function alClic(ev) {
   if (lente) {
     const v = (lente.dataset.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';
     if (v === _vista) return;
+    /* Si la mesa se abrió desde un renglón, «Carga del taller» es lo mismo que atrás: consume
+       la entrada propia y `alAtras` devuelve al renglón. */
+    if (v === 'tablero' && _regreso && history.state && history.state.tbMesa) { history.back(); return; }
     _vista = v;
     /* Al salir de la mesa de corte se olvida de dónde se venía: el aviso de origen es de esa
        visita, y dejarlo puesto haría que tres pantallas después siguiera diciendo que vienes
@@ -1574,6 +1605,8 @@ async function hacer(a, boton) {
     if (!conMesa()) return;
     _vista = 'anidador';
     _origen = { proyecto_id: a.id, nombre: a.nombre, folio: a.folio };
+    _regreso = { y: window.scrollY, id: a.id };
+    try { history.pushState({ tbMesa: 1 }, ''); } catch (_) {}
     pintar();
     /* La mesa se pinta arriba de la pantalla; el botón estaba en un renglón de más abajo. Y el
        botón ya no existe: el foco pasa a «Mesa de corte» del segmento, que dice dónde se está,

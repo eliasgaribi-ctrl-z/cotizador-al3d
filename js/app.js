@@ -996,7 +996,9 @@ function ponerDireccion(desde, hacia, seccion) {
     seccion.removeEventListener('animationend', alFin);
     h.classList.remove(clase);
   };
-  function alFin(ev) { if (ev.target === seccion) limpiar(); }
+  /* Solo el deslizamiento cierra: el fundido `pf-aparece` va en la misma lista y termina antes
+     (120 ms), y si cerrara él, el deslizamiento se cortaría a medio camino. */
+  function alFin(ev) { if (ev.target === seccion && /^pf-entra-/.test(ev.animationName)) limpiar(); }
   seccion.addEventListener('animationend', alFin);
   /* Con movimiento reducido no hay animación y `animationend` no llega nunca: el respaldo lo
      quita igual. */

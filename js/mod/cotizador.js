@@ -413,9 +413,14 @@ function medir() {
        pantalla grande— se resta el área segura a secas, como antes.
 
        El piso de 360 px es para que un teclado abierto no deje el marco en veinte píxeles
-       justo mientras alguien escribe dentro de él. */
+       justo mientras alguien escribe dentro de él. SOLO con el teclado abierto: sin él, ese piso
+       era más alto que todo el teléfono acostado (844×390: cabecera de 88 + 360 = 448) y el dock
+       con «Continuar» / «Autorizar» quedaba 58 px fuera de la pantalla (auditoría completa
+       2026-10, cot-2 = marco-1). Sin teclado basta un piso que nunca gane al alto real. */
     const abajo = altoBarraAbajo();
-    const h = Math.max(360, Math.round(alto - arriba - (abajo || (insetInferior() + 8))));
+    const tecladoAbierto = !!vv && vv.height < window.innerHeight - 120;
+    const piso = tecladoAbierto ? 360 : 200;
+    const h = Math.max(piso, Math.round(alto - arriba - (abajo || (insetInferior() + 8))));
     document.documentElement.style.setProperty('--pf-marco-h', h + 'px');
     avisarPliegue(m, caja);
   });

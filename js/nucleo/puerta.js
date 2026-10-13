@@ -163,8 +163,10 @@ const MSG = {
      botón no abre la ventana de Google, porque el visto bueno suele llegar en uno o dos segundos
      y una ventana que se abre antes de tiempo se abre sin él. `ABIERTO` es el fallo abierto de
      captcha.js: se dice, y se deja entrar. */
+  CAPTCHA_COMPROBANDO: 'Comprobando que eres una persona… En un momento puedes entrar.',
   CAPTCHA_ESPERA: 'Un momento: se está comprobando que eres una persona. Cuando termine, toca «Entrar con Google» otra vez.',
-  CAPTCHA_ABIERTO: 'No se pudo cargar la comprobación de «no soy un robot» —puede ser falta de señal o un bloqueador de anuncios—. Puedes entrar igual.',
+  /* Cabe en los tres renglones que la nota tiene apartados a 360 px (pub-1). */
+  CAPTCHA_ABIERTO: 'No cargó la comprobación de «no soy un robot» (falta de señal o un bloqueador de anuncios). Puedes entrar igual.',
   CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
                            esc(correo) + '</b>. Conéctate a internet y vuelve a entrar.'),
 };
@@ -838,13 +840,16 @@ function pintar(caja, av) {
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +
       (cuerpo ? '<p class="puerta-aviso' + (fuera ? ' es-no' : '') + '" role="alert">' + cuerpo + '</p>' : '') +
-      /* El recuadro del captcha, si hay clave. Nace vacío: Turnstile lo llena, y casi siempre
-         se queda invisible (`interaction-only`). La nota es para lo único que hay que decir. */
-      (pideCaptcha ? '<div class="puerta-captcha" data-captcha="' + (_captchaListo ? 'listo' : 'espera') + '"></div>' +
-        '<p class="puerta-captcha-nota" role="status" hidden></p>' : '') +
       '<button type="button" class="puerta-btn" data-puerta="entrar"' +
         (pideCaptcha ? ' data-captcha="' + (_captchaListo ? 'listo' : 'espera') + '"' : '') + '>' + G_GOOGLE + ' Entrar con Google</button>' +
       (fuera ? '<button type="button" class="puerta-otra" data-puerta="otra">Entrar con otra cuenta</button>' : '') +
+      /* El recuadro del captcha, si hay clave. Nace vacío: Turnstile lo llena, y casi siempre
+         se queda invisible (`interaction-only`). La nota es para lo único que hay que decir.
+         DEBAJO del botón y no encima: arriba, la nota y el recuadro aparecían justo cuando el
+         pulgar ya iba al botón y lo empujaban 38–49 px; el toque caía en el texto (auditoría
+         completa 2026-10, pub-1). Lo que crezca aquí ya no mueve lo que se toca. */
+      (pideCaptcha ? '<div class="puerta-captcha" data-captcha="' + (_captchaListo ? 'listo' : 'espera') + '"></div>' +
+        '<p class="puerta-captcha-nota" role="status" hidden></p>' : '') +
       /* Los dos pasos nacen escondidos: antes de tocar no hay nada que esperar, y enseñar una
          lista de pendientes a quien todavía no ha apretado sería pintarle trabajo que no pidió. */
       '<div class="puerta-pasos" hidden>' +
@@ -887,12 +892,20 @@ function iniciarCaptcha(caja, pide) {
   const nota = caja.querySelector('.puerta-captcha-nota');
   const tema = document.documentElement.getAttribute('data-tema') === 'oscuro' ? 'dark' : 'light';
   const decir = txt => { if (nota) { nota.textContent = txt; nota.hidden = !txt; } };
+  /* El botón apagado no decía por qué (pub-6): si la comprobación pasa de un segundo, la nota de
+     abajo lo dice ANTES de que alguien toque y se tope con «toca otra vez». Antes de ese segundo
+     no: casi siempre termina antes, y una frase que sale y se va enseguida es ruido. */
+  let espera = setTimeout(() => {
+    if (btn && btn.dataset.captcha === 'espera' && nota && nota.hidden) decir(MSG.CAPTCHA_COMPROBANDO);
+  }, 1000);
   _cap = Captcha.vigilar(el, {
     tema,
     alCambiar: (estado) => {
       if (estado === 'listo') _captchaListo = true;
+      if (estado !== 'espera') { clearTimeout(espera); espera = 0; }
       el.dataset.captcha = estado;
       if (btn) btn.dataset.captcha = estado;
+      if (estado === 'espera') return;
       decir(estado === 'abierto' ? MSG.CAPTCHA_ABIERTO : '');
     },
     /* El recuadro solo ocupa sitio cuando Cloudflare pide un clic. */
