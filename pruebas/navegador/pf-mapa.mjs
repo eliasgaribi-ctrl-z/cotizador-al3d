@@ -217,6 +217,18 @@ const seCruzan = (a, b) => !!a && !!b && a.x < b.r && b.x < a.r && a.y < b.b && 
 /* El centro de un pin en pantalla, por el nombre de su obra (el `title` del marcador la lleva). */
 const pinDe = (p, cliente) => caja(p, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
 
+/* El punto de pantalla que ES la coordenada de un pin: su ancla, no el centro de su caja. La gota
+   tiene el ancla en la punta (32 px de 34; 40 de 43 el elegido), y Leaflet la pone con un margen
+   negativo igual al ancla, así que la punta está en la esquina de la caja menos ese margen. Con el
+   centro de la caja el ajuste quedaba 15 px corrido hacia arriba —0.005° de latitud a zoom 12—, y
+   «lo que se guardó» parecía otro lugar que «lo que está bajo la cruz» aunque fueran el mismo. */
+const puntaDe = (p, cliente) => p.evaluate(s => {
+  const e = document.querySelector(s);
+  if (!e) return null;
+  const r = e.getBoundingClientRect(), st = getComputedStyle(e);
+  return { cx: r.left - (parseFloat(st.marginLeft) || 0), cy: r.top - (parseFloat(st.marginTop) || 0) };
+}, '.leaflet-marker-icon.mapa-pin[title*="' + cliente + '"]');
+
 /* Del par (longitud, latitud) a píxeles de pantalla, y de vuelta, ajustado con los pines de
    coordenada conocida. Dentro de una ciudad la proyección es una escala y un corrimiento por eje
    (la latitud en Mercator), y se resuelve por mínimos cuadrados con TODOS los pines con pin: es la
@@ -224,7 +236,7 @@ const pinDe = (p, cliente) => caja(p, '.leaflet-marker-icon.mapa-pin[title*="' +
 async function ajusteDePantalla(p) {
   const pts = [];
   for (const o of CON_PIN) {
-    const c = await pinDe(p, o.cliente);
+    const c = await puntaDe(p, o.cliente);
     if (c) pts.push({ lat: o.lat, lng: o.lng, x: c.cx, y: c.cy });
   }
   const merc = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
@@ -429,10 +441,13 @@ async function ronda(cfg) {
   /* ---------- F9 · el pin a mano con retícula fija ---------- */
   const dbObra = id => p.evaluate(async i => { const o = await (await import('/js/datos/db.js')).obtener('proyectos', i); return o ? { lat: o.lat, lng: o.lng, fuente: o.geo_fuente } : null; }, id);
   /* Leaflet ignora el dedo mientras acerca (250 ms de animación): se espera a que termine, o el arrastre
-     que sigue no mueve nada y la prueba parece fallar por un motivo que no es del mapa. */
+     que sigue no mueve nada y la prueba parece fallar por un motivo que no es del mapa. Desde que el
+     mapa va a pantalla completa no lleva botones +/−: se acerca con la tecla, con el lienzo enfocado,
+     que es lo mismo que hace quien no puede pellizcar. */
   const acercar = async n => {
     for (let i = 0; i < n; i++) {
-      await toca('#mapa-lienzo .leaflet-control-zoom-in');
+      await p.focus('#mapa-lienzo');
+      await p.keyboard.press('NumpadAdd');
       await dormir(150);
       await hasta(p, () => !document.querySelector('#mapa-lienzo.leaflet-zoom-anim'), null, 3000);
       await dormir(250);
@@ -496,9 +511,12 @@ async function ronda(cfg) {
     await dormir(cfg.reducido ? 700 : 1500);
     cierto(!(await p.evaluate(() => document.querySelector('.mapa-reticula'))), 'al guardar la retícula se va');
     cierto(await p.evaluate(() => !!document.querySelector('.leaflet-marker-icon.mapa-pin[title*="Sin pin uno"]')), 'y la obra ya tiene su pin');
-    const globo = await p.evaluate(() => (document.querySelector('.leaflet-popup-content') || {}).textContent || '');
-    cierto(/Sin pin uno/.test(globo), 'el mapa llegó a él y abrió su globo', globo.slice(0, 40));
+    /* Desde que el mapa es tipo Google Maps, llegar a una obra abre su ficha en la hoja, no un globo. */
+    const ficha = await p.evaluate(() => (document.querySelector('.mapa-ficha-t') || {}).textContent || '');
+    cierto(/Sin pin uno/.test(ficha), 'el mapa llegó a él y abrió su ficha', ficha.slice(0, 40));
     cierto((await cuenta('sinubicar')) === '2', 'y «sin ubicar» baja a 2', await cuenta('sinubicar'));
+    /* La ficha tapa la lista: se cierra para que la siguiente sección encuentre su «Pin a mano». */
+    if (await p.evaluate(() => !!document.querySelector('[data-cerrar-ficha]'))) { await toca('[data-cerrar-ficha]'); await dormir(600); }
   });
 
   await seccion('F29 · al ponerle pin a una obra de hoy el rótulo de la barra se cruza, no se reescribe', async () => {
@@ -527,11 +545,16 @@ async function ronda(cfg) {
     const aj2 = await ajusteDePantalla(p);
     const ret = await caja(p, '#mapa-lienzo .mapa-reticula');
     const bajoLaCruz = aj2.coordDe(ret.cx, ret.cy);
-    cierto(Math.abs(bajoLaCruz.lat - esperado.lat) < 1e-4 && Math.abs(bajoLaCruz.lng - esperado.lng) < 1e-4, 'el punto tocado quedó bajo la cruz', { bajoLaCruz, esperado });
+    const tolT = Math.max(1e-4, 2 / aj2.pxPorGrado);
+    cierto(Math.abs(bajoLaCruz.lat - esperado.lat) < tolT && Math.abs(bajoLaCruz.lng - esperado.lng) < tolT, 'el punto tocado quedó bajo la cruz', { bajoLaCruz, esperado });
     cierto(await guardaHabilitado(), 'y «Guardar aquí» se encendió');
     await toca('[data-mano-ok]');
     const g = await hastaGuardado(ids.sp2);
-    cierto(g.lat != null && Math.abs(g.lat - esperado.lat) < 1e-4 && Math.abs(g.lng - esperado.lng) < 1e-4, 'guardó ese punto', { g, esperado });
+    /* Dos píxeles de holgura y no una cifra fija de grados: Leaflet redondea a píxel entero, y a
+       zoom 12 un píxel ya es 0.0003°. */
+    const tol = Math.max(1e-4, 2 / aj2.pxPorGrado);
+    cierto(g.lat != null && Math.abs(g.lat - bajoLaCruz.lat) < tol && Math.abs(g.lng - bajoLaCruz.lng) < tol && g.fuente === 'manual',
+      'guardó el punto que se veía bajo la cruz (a menos de 2 px)', { g, bajoLaCruz, tol });
     await dormir(cfg.reducido ? 600 : 1300);
   });
 
@@ -627,7 +650,7 @@ async function ronda(cfg) {
     const punteado = await p.evaluate(() => { const c = document.querySelector('#mapa-lienzo path.mapa-ruta-linea'); const s = getComputedStyle(c); return { d: s.strokeDasharray, anim: c.getAnimations().length }; });
     cierto(/^7px,? 7px$/.test(punteado.d.replace(/\s+/g, ' ')) && punteado.anim === 0, 'al terminar vuelve el punteado de 7 y 7, sin animación', punteado);
     /* Ni el zoom ni un filtro la repiten. */
-    await toca('#mapa-lienzo .leaflet-control-zoom-in');
+    await acercar(1);
     await dormir(500);
     cierto(await p.evaluate(() => document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length === 0), 'acercar el mapa no vuelve a trazar la línea');
     const f = await p.evaluate(() => { document.querySelector('#mapa-etapas [data-g="fabricacion"]').click(); return document.querySelector('#mapa-lienzo path.mapa-ruta-linea').getAnimations().length; });
