@@ -134,7 +134,12 @@ export async function montar(contenedor, ctx) {
   if (_mqTelefono && _mqTelefono.addEventListener) _mqTelefono.addEventListener('change', alCambiarAncho);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
-  if (pase && ['ventas', 'cobrar', 'comisiones', 'bitacora'].includes(pase.tab)) TAB = pase.tab;
+  if (pase && TABS.includes(pase.tab)) TAB = pase.tab;
+  /* La pestaña también vive en la dirección (`#/control?tab=cobrar`): un enlace directo a
+     «Comisiones» y una recarga caen donde se estaba (auditoría completa 2026-10, control-11). El
+     pase manda sobre la dirección: es quien acaba de pedir venir aquí. */
+  else { const deLaDir = tabDeLaDireccion(); if (deLaDir) TAB = deLaDir; }
+  escribirTabEnDireccion();
   /* Entrar a la pantalla es una visita nueva: las barras vuelven a crecer una vez y lo que se
      tecleó en comisiones se olvida. Un remonte en silencio —la sincronización trajo algo, otra
      pestaña guardó— no es una visita: ni vuelve a crecer lo que ya creció ni se borra lo
@@ -1277,7 +1282,25 @@ function alClic(ev) {
 function cambiarTab(tab) {
   olvidarCuentas(tab);
   TAB = tab;
+  escribirTabEnDireccion();
   pintar();
+}
+
+const TABS = ['ventas', 'cobrar', 'comisiones', 'bitacora'];
+function tabDeLaDireccion() {
+  try {
+    const t = new URLSearchParams(String(location.hash || '').split('?')[1] || '').get('tab');
+    return TABS.includes(t) ? t : null;
+  } catch (_) { return null; }
+}
+/* `replaceState` y no una entrada nueva: cambiar de pestaña no es cambiar de pantalla, y llenar
+   el historial con cuatro pestañas haría que Atrás tardara cuatro toques en salir de Control. El
+   router lee la ruta sin lo que va después del «?» (`rutaDelHash` en app.js). */
+function escribirTabEnDireccion() {
+  if (!/^#\/control(\?|$)/.test(String(location.hash || ''))) return;
+  const destino = '#/control' + (TAB === 'ventas' ? '' : '?tab=' + TAB);
+  if (location.hash === destino) return;
+  try { history.replaceState(history.state, '', destino); } catch (_) {}
 }
 
 let _espera = 0;

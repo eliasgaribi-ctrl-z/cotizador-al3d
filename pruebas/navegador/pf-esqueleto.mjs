@@ -611,28 +611,26 @@ for (const tema of ['claro', 'oscuro']) {
   const lat = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, teclas: [...document.querySelectorAll('#pf-nav .pf-tab')].map(t => t.dataset.tecla).join('') }));
   cierto(lat.n === 10 && lat.teclas === '123456789', 'la barra lateral lleva las diez pestañas, las nueve primeras con su tecla (Publicaciones, la décima, no tiene)', lat);
   cierto(await sinDesborde(p), 'sin desborde de lado');
-  /* P31: el nombre con su tecla. */
+  /* P31, revisado en la auditoría completa 2026-10 (marco-7): con el nombre a la vista, la tecla va
+     DENTRO de la fila (`::after`) y no en un globo que tapaba la pestaña de arriba. El globo queda
+     para la barra encogida, donde no se lee el nombre. */
+  const tecla = sel => ev(s => { const e = document.querySelector(s); const a = getComputedStyle(e, '::after');
+    const t = document.querySelector('.nombre-tip'); return { contenido: a.content, display: a.display, globo: !!(t && t.matches(':popover-open')) }; }, sel);
   await p.hover('#pf-nav .pf-tab[data-ruta="agenda"]');
   await p.waitForTimeout(700);
-  const tip = await ev(() => { const t = document.querySelector('.nombre-tip'); return t ? { abierto: t.matches(':popover-open'), txt: t.textContent, kbd: (t.querySelector('kbd') || {}).textContent, oculto: t.getAttribute('aria-hidden') } : null; });
-  cierto(tip && tip.abierto && tip.kbd === '2' && /Calendario/.test(tip.txt), 'el ratón sobre «Calendario» enseña su nombre con la tecla 2 en <kbd>', tip);
-  cierto(tip && tip.oculto === 'true', 'y el globo es adorno para el lector: el nombre ya está en el botón', tip);
-  const titulo = await ev(() => document.querySelector('#pf-nav .pf-tab[data-ruta="agenda"]').hasAttribute('title'));
-  cierto(!titulo, 'mientras el globo está, el `title` nativo se aparta para que no se encimen', titulo);
-  await p.hover('#pf-nav .pf-tab[data-ruta="proyectos"]');
-  await p.waitForTimeout(60);
-  const caliente = await ev(() => { const t = document.querySelector('.nombre-tip'); return { abierto: t.matches(':popover-open'), txt: t.textContent }; });
-  cierto(caliente.abierto && /Proyectos/.test(caliente.txt), 'el siguiente sale al instante mientras el grupo sigue caliente (a los 60 ms)', caliente);
+  const tip = await tecla('#pf-nav .pf-tab[data-ruta="agenda"]');
+  cierto(tip.contenido === '"2"' && tip.display !== 'none', 'el ratón sobre «Calendario» enseña su tecla, 2, dentro de la misma fila', tip);
+  cierto(!tip.globo, 'y no sale el globo encima de la pestaña vecina', tip);
   await p.mouse.move(700, 500);
   await p.waitForTimeout(300);
-  const devuelto = await ev(() => document.querySelector('#pf-nav .pf-tab[data-ruta="agenda"]').getAttribute('title'));
-  cierto(/tecla 2/.test(devuelto || ''), 'y al irse el ratón el `title` vuelve a su sitio', devuelto);
+  const fuera = await tecla('#pf-nav .pf-tab[data-ruta="agenda"]');
+  cierto(fuera.display === 'none', 'al irse el ratón la tecla se esconde', fuera);
   /* Teclado: Tab hasta una pestaña enseña la tecla. */
   await ev(() => document.querySelector('#pf-nav .pf-tab[data-ruta="hoy"]').focus());
   await p.keyboard.press('Tab');
   await p.waitForTimeout(500);
-  const tab = await ev(() => { const t = document.querySelector('.nombre-tip'); return { abierto: t && t.matches(':popover-open'), txt: t && t.textContent, foco: document.activeElement.dataset.ruta }; });
-  cierto(tab.abierto && tab.foco === 'agenda' && /Calendario/.test(tab.txt), 'con el teclado, llegar a una pestaña enseña su nombre y su tecla', tab);
+  const tab = { ...(await tecla('#pf-nav .pf-tab[data-ruta="agenda"]')), foco: await ev(() => document.activeElement.dataset.ruta) };
+  cierto(tab.foco === 'agenda' && tab.display !== 'none' && tab.contenido === '"2"', 'con el teclado, llegar a una pestaña enseña su tecla', tab);
   await p.keyboard.press('Escape');
   /* Los números siguen cambiando de pantalla, y no dan lado. */
   await p.mouse.move(700, 500);

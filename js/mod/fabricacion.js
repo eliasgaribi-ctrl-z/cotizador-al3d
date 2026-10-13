@@ -428,7 +428,7 @@ function viajar(o) {
     if (!repintarPeriodo()) pintar();
     if (o.focoDia) {
       const c = _cont.querySelector('.cal-dia[data-dia$="-' + p2(o.focoDia) + '"]');
-      if (c) { try { c.focus({ preventScroll: true }); } catch (_) {} }
+      if (c) moverParada(c);
     }
   };
   if (!P.transicion || _vista === 'lista') { hacer(); return Promise.resolve(); }
@@ -895,7 +895,12 @@ function pintarMes(d) {
 
   const celdas = [];
   for (let i = hueco; i > 0; i--) celdas.push(celdaFuera(largoAnterior - i + 1));
-  for (const dia of dias) celdas.push(celdaDia(dia, d));
+  /* Tabulador itinerante: un solo día de la rejilla entra en el orden de Tab —el abierto, si no
+     hoy, si no el primero— y dentro de ella las flechas se mueven de día en día. Antes había que
+     pasar por los 31 días uno por uno para llegar a la lista o a «Bajar» (auditoría completa
+     2026-10, fabmat-5). */
+  const parada = (dias.find(x => x.fecha === _dia) || dias.find(x => x.hoy) || dias[0] || {}).fecha;
+  for (const dia of dias) celdas.push(celdaDia(dia, d, dia.fecha === parada));
   /* Se rellena hasta completar la última semana. Sin esto la fila final queda con celdas de
      distinto ancho —el grid las estira— y una rejilla que se ve rota es lo que hace dudar
      de si falta un día. */
@@ -938,7 +943,7 @@ const celdaFuera = n =>
   '<button type="button" class="cal-dia fuera" disabled aria-hidden="true">' +
   '<span class="cal-n">' + n + '</span></button>';
 
-function celdaDia(dia, d) {
+function celdaDia(dia, d, parada) {
   const insts = visibles(dia.instalaciones);
   const vivas = insts.filter(i => i.estado !== 'cancelada');
   const sem = veSemaforo() && vivas.length ? dia.semaforo : null;
@@ -984,7 +989,7 @@ function celdaDia(dia, d) {
 
   return '<button type="button" class="cal-dia' + (dia.hoy ? ' hoy' : '') + '"' +
       ' data-dia="' + dia.fecha + '" aria-label="' + esc(etiqueta) + '"' +
-      (abierto ? ' aria-current="date"' : '') + '>' +
+      (abierto ? ' aria-current="date"' : '') + ' tabindex="' + (parada ? '0' : '-1') + '">' +
       /* Sin `title`: la ficha de la pieza `nombres` ya enseña el texto del semáforo dentro del
          `aria-label` de la celda (F26), y con el `title` del punto salía una segunda ficha, la nativa,
          encima. En el teléfono un `title` nunca se vio. */
@@ -2463,6 +2468,19 @@ function alTeclear(ev) {
      otro lado son del scroll de la página y quitárselas sería peor que no tenerlas. En la rejilla,
      el foco se queda en el mismo número de día del mes nuevo. */
   const enRejilla = t && t.closest && t.closest('.cal-rej');
+  /* Dentro de la rejilla las flechas son de DÍA: ← → uno, ↑ ↓ una semana. Al salirse del mes se
+     cambia de mes con el foco en el día que toca. Fuera de la rejilla ← → siguen siendo el atajo
+     de mes que anuncia el encabezado. */
+  const celdaFoco = enRejilla && t.closest('.cal-dia[data-dia]');
+  const pasoDia = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[ev.key];
+  if (celdaFoco && pasoDia) {
+    ev.preventDefault();
+    const destino = masDiasISO(celdaFoco.dataset.dia, pasoDia);
+    const c = _cont.querySelector('.cal-dia[data-dia="' + destino + '"]');
+    if (c) { moverParada(c); return; }
+    const n = pasoDia > 0 ? 1 : -1;
+    return irAlPeriodo(anclaTrasPasos(n), { focoDia: Number(destino.slice(8)) });
+  }
   const pagina = enRejilla && (ev.key === 'PageUp' || ev.key === 'PageDown');
   if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || pagina) {
     const n = (ev.key === 'ArrowLeft' || ev.key === 'PageUp') ? -1 : 1;
@@ -2474,6 +2492,20 @@ function alTeclear(ev) {
     ev.preventDefault();
     return irAlPeriodo(hoyISO());
   }
+}
+
+/* Mueve la parada del tabulador itinerante a `c` y le pasa el foco. */
+function moverParada(c) {
+  for (const x of _cont.querySelectorAll('.cal-dia[data-dia][tabindex="0"]')) x.setAttribute('tabindex', '-1');
+  c.setAttribute('tabindex', '0');
+  try { c.focus({ preventScroll: false }); } catch (_) {}
+}
+
+/* La fecha ISO `n` días después (o antes) de `iso`, en hora local. */
+function masDiasISO(iso, n) {
+  const f = fechaLocal(iso);
+  f.setDate(f.getDate() + n);
+  return f.getFullYear() + '-' + p2(f.getMonth() + 1) + '-' + p2(f.getDate());
 }
 
 function abrirCancelar(i) {

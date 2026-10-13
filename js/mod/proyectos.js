@@ -1946,7 +1946,27 @@ function cablearArrastre() {
     ev.preventDefault();
     if (!destino) { voz(ev.key === 'ArrowRight' ? 'Es la última columna' : 'Es la primera columna'); return; }
     if (!puedeMoverA(destino)) { voz('Con tu rol no se marca ' + (Proy.ETAPA_NOMBRE[destino] || destino)); return; }
-    moverEtapa(tarjeta.dataset.abrir, destino);
+    const id = tarjeta.dataset.abrir;
+    /* El repintado destruye la tarjeta enfocada y el foco caía al <body>: la segunda Alt+→ ya no
+       hacía nada y había que volver a buscarla entre todas con Tab (auditoría completa 2026-10,
+       proyectos-2). Se le devuelve el foco a la MISMA tarjeta, ya en su columna nueva, en cuanto
+       existe —unos cuadros como mucho—, y solo si nadie lo movió a otra parte (una pregunta). */
+    /* Durante 1,5 s: el tablero se repinta más de una vez tras mover (la escritura, la cuenta, la
+       sincronización), y cada repintado vuelve a tirar el foco. Solo se recoge del <body>: si la
+       persona ya lo llevó a otro lado, o salió una pregunta, se respeta. */
+    moverEtapa(id, destino).then(() => {
+      const sel = '.pj-tarj[data-abrir="' + CSS.escape(id) + '"]';
+      const hasta = performance.now() + 1500;
+      const volver = () => {
+        const a = document.activeElement;
+        if (!a || a === document.body) {
+          const t = cont.querySelector(sel);
+          if (t) { try { t.focus({ preventScroll: false }); } catch (_) {} }
+        } else if (!cont.contains(a) || !a.closest(sel)) return;
+        if (performance.now() < hasta) setTimeout(volver, 60);
+      };
+      volver();
+    });
   });
 }
 
