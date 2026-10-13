@@ -611,30 +611,14 @@ function cardRespaldo(baseOk) {
 
 function cardMapa() {
   const t = Prefs.tiles();
-  const opciones = Object.keys(Geo.TILES).map(k => ({
-    v: k, t: Geo.TILES[k].nombre, off: !Geo.TILES[k].url,
-  }));
+  /* Solo los proveedores que funcionan: Google Maps sigue en la estructura (js/datos/geo.js) pero
+     sin llave no hace nada, y un botón apagado aquí solo era ruido. */
+  const opciones = Object.keys(Geo.TILES).filter(k => Geo.TILES[k].url).map(k => ({ v: k, t: Geo.TILES[k].nombre }));
 
   return tarjeta('i-mapa', 'El mapa',
-    '<div class="fld"><div class="fld-lab" id="aj-tiles-lab">Proveedor de los cuadros del mapa</div>' +
+    '<div class="fld"><div class="fld-lab" id="aj-tiles-lab">Cómo se ve el mapa</div>' +
     seg(opciones, t, 'data-tile', 'aj-tiles-lab') + '</div>' +
-
-    /* Cuál está en uso se dice con la palabra «En uso», no con un tono más oscuro: el
-       color solo nunca dice nada en este sistema, y aquí además hay una opción apagada. */
-    Object.keys(Geo.TILES).map(k =>
-      '<p class="pf-nota">' + (k === t ? '<b>En uso · ' : '<b>') +
-      esc(Geo.TILES[k].nombre) + '</b> — ' + esc(Geo.TILES[k].nota) + '</p>').join('') +
-
-    nota('<b>Google Maps está en la estructura y solo le falta la llave.</b> Es una llave de ' +
-      'Google Maps Platform con la Map Tiles API prendida, y eso pide tarjeta registrada y ' +
-      'restricción por dominio para que nadie más la use desde otro sitio. El día que exista, ' +
-      'se pega aquí y el mapa no cambia de código: los tres proveedores tienen la misma ' +
-      'interfaz. Mientras, el botón está apagado y el mapa pinta ' +
-      esc(Geo.proveedorActivo(t).nombre) + '.') +
-
-    '<p class="pf-nota">Los cuadros del mapa nunca se guardan para verlos sin señal: la ' +
-    'licencia de OpenStreetMap lo prohíbe y es la forma más rápida de que nos corten. El ' +
-    'mapa necesita señal; los datos no.</p>', 'aj-s-mapa');
+    '<p class="pf-nota">El mapa necesita señal; los datos no.</p>', 'aj-s-mapa');
 }
 
 /* ----- 4. Fase 2, Google Calendar ----- */
@@ -664,7 +648,7 @@ function cardGcal() {
         'funcionando igual que hoy: las alarmas de instalación no dependen de esto.');
 
   if (!esDir) {
-    return tarjeta('i-agenda', 'Google Calendar · Fase 2',
+    return tarjeta('i-agenda', 'Google Calendar',
       estado +
       nota('<b>Esto se pega solo en el teléfono de Dirección.</b> Y no es un permiso: en ' +
         'Google Calendar los recordatorios son <b>por usuario, no por evento</b>, y quien ' +
@@ -680,9 +664,14 @@ function cardGcal() {
       'baja el .ics de esa instalación, que funciona sin cuentas.</p>', 'aj-s-gcal');
   }
 
-  return tarjeta('i-agenda', ins.titulo + ' · Fase 2',
+  /* Lo del día a día —cómo está y «Conectar»— a la vista; la configuración de una sola vez,
+     plegada. Abierta mientras no haya Client ID: ahí todavía ES lo del día. */
+  return tarjeta('i-agenda', 'Google Calendar',
     estado +
+    '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="gcal-conectar"' +
+    (Gcal.disponible() ? '' : ' disabled') + '>' + ico('i-nube') + ' Conectar con Google</button></div>' +
 
+    '<details class="aj-bloque"' + (Gcal.disponible() ? '' : ' open') + '><summary>Configuración (una sola vez)</summary>' +
     '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez, con la cuenta de Google ' +
     'de Dirección. Los pasos completos van aquí para que nadie tenga que buscar un tutorial:</p>' +
     pasos +
@@ -717,11 +706,9 @@ function cardGcal() {
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="gcal-guardar">' + ico('i-guardar') +
     ' Guardar</button>' +
-    '<button type="button" class="btn btn-gho" data-act="gcal-conectar"' +
-    (Gcal.disponible() ? '' : ' disabled') + '>' + ico('i-nube') + ' Conectar con Google</button>' +
     '</div>' +
 
-    notas, 'aj-s-gcal');
+    notas + '</details>', 'aj-s-gcal');
 }
 
 /* ----- 5. Fase 3, el puente a la hoja de finanzas ----- */
@@ -832,8 +819,24 @@ function cardPuente() {
     }
   }
 
-  return tarjeta('i-nube-off', ins.titulo + ' · Fase 3',
+  /* Lo del día a día a la vista: cómo está, con quién entraste, mandar lo pendiente y traer el
+     dinero. Lo de instalar, el token de emergencia y las revisiones técnicas, plegado en
+     «Avanzado» —abierto mientras este aparato no tenga puente, o cuando acaba de probarse algo
+     de ahí y hay que ver el resultado—. */
+  const abierto = !s.configurado || !!SALUD || !!ESQ;
+  return tarjeta('i-nube-off', 'La hoja de finanzas',
     estado +
+    bloqueIngreso() +
+    (s.configurado
+      ? '<div class="pf-acciones">' +
+        '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') +
+        ' Mandar lo que está pendiente</button>' +
+        '<button type="button" class="btn btn-gho" data-act="puente-jalar">' + ico('i-bajar') +
+        ' Traer el dinero de la hoja</button></div>'
+      : '') +
+    prueba + esquema +
+
+    '<details class="aj-bloque"' + (abierto ? ' open' : '') + '><summary>Avanzado: instalación, token y revisiones</summary>' +
 
     '<p class="aj-p"><b>Dónde vive el puente ahora.</b> Dentro de la propia hoja de Google, ' +
     'como Apps Script, con los permisos de su dueño. Antes hacía falta un Worker de ' +
@@ -845,8 +848,6 @@ function cardPuente() {
     '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez. Los pasos completos van ' +
     'aquí para que nadie tenga que buscarlos en otro lado:</p>' +
     pasos +
-
-    bloqueIngreso() +
 
     /* La LIGA baja a plegable, con el token. Desde que la dirección viene de fábrica en el
        código —ver URL_PUENTE en js/datos/prefs.js— este campo dejó de ser un paso del alta y
@@ -891,19 +892,11 @@ function cardPuente() {
         '<button type="button" class="btn btn-gho" data-act="puente-esquema">' + ico('i-doc') +
         ' Revisar el esquema</button>'
       : '') +
-    (s.configurado
-      ? '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') +
-        ' Mandar lo que está pendiente</button>' +
-        '<button type="button" class="btn btn-gho" data-act="puente-jalar">' + ico('i-bajar') +
-        ' Traer el dinero de la hoja</button>'
-      : '') +
     (p.url || p.token
       ? '<button type="button" class="btn btn-dgr" data-act="puente-quitar">Quitar el puente de ' +
         'este dispositivo</button>'
       : '') +
     '</div>' +
-
-    prueba + esquema +
 
     '<p class="pf-nota">Lo que este puente escribe en la hoja son celdas que nadie teclea a mano ' +
     'del otro lado —la etapa, la dirección, el punto en el mapa, el tipo de trabajo—, celda por ' +
@@ -914,7 +907,7 @@ function cardPuente() {
     'la garantía sí es total: el id lo pone este dispositivo y un reintento no resta el material ' +
     'dos veces.</p>' +
 
-    notas, 'aj-s-puente');
+    notas + '</details>', 'aj-s-puente');
 }
 
 /* ----- 6. Lo que esta pantalla tiene que decir ----- */
