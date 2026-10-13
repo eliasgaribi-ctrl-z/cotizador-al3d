@@ -765,7 +765,18 @@ function crearMapa() {
        mapa empieza a moverse un pelo después y el clic de un ratón o touchpad flojo sí llega. Va
        en el prototipo porque `L.map` no deja pasarle esta opción a su arrastre. */
     L.Draggable.prototype.options.clickTolerance = 8;
-    mapa = L.map(div, { zoomControl: false, attributionControl: true });
+    /* EL ZOOM, CON MÁS CONTROL (Elías, octubre de 2026: «o se acerca muchísimo o se aleja
+       demasiado»). Leaflet, de fábrica, solo se detiene en niveles enteros —y cada nivel dobla o
+       parte a la mitad la escala—, la rueda brinca un nivel por cada 60 px de giro y los botones
+       también un nivel entero. Con un touchpad, un gesto normal era cruzar media ciudad.
+       · zoomSnap .25: el zoom se queda donde lo dejas, en cuartos de nivel.
+       · zoomDelta .5: los botones + y − y las teclas mueven medio nivel.
+       · wheelPxPerZoomLevel 110: la rueda y el pellizco del touchpad van a la mitad de la
+         velocidad de antes.
+       · minZoom 7: alejar se detiene en la región (Jalisco y vecinos); más afuera solo había mar
+         y continente sin un solo pin. */
+    mapa = L.map(div, { zoomControl: false, attributionControl: true,
+      zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 110, wheelDebounceTime: 60, minZoom: 7 });
     /* El crédito de los cuadros SÍ se queda, en su esquina: es requisito de la licencia. Lo que
        se quita es la banderita de Leaflet que va antes, que no lo es. */
     if (mapa.attributionControl) {
@@ -2387,7 +2398,8 @@ function clicCuerpo(ev) {
   if (t.closest('[data-encuadrar]')) { encuadrar(); return; }
 
   const zm = t.closest('[data-zoom]');
-  if (zm && mapa) { mapa.setZoom(mapa.getZoom() + Number(zm.dataset.zoom), { animate: !quieto() }); return; }
+  /* Medio nivel por toque (zoomDelta), no uno entero: ver la nota del zoom en L.map. */
+  if (zm && mapa) { mapa.setZoom(mapa.getZoom() + Number(zm.dataset.zoom) * mapa.options.zoomDelta, { animate: !quieto() }); return; }
 
   const yo = t.closest('[data-yo]');
   if (yo) { irAMiUbicacion(yo); return; }
