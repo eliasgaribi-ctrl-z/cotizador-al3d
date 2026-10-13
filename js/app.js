@@ -745,6 +745,11 @@ async function montarDeVerdad(ruta, opts = {}) {
 /* Lo que se hace igual tanto si la pantalla se acaba de montar como si solo se volvió a
    enseñar. Está aparte para que no haya dos copias que se separen: el día que una de estas
    cinco líneas cambie, cambia para los dos caminos. */
+/* Si ya hubo un montaje. El primero —al abrir la app— no se lleva el foco al contenido: el
+   recorrido con Tab tiene que empezar por «Ir al contenido», la búsqueda y el menú, y enfocar
+   `main` de entrada los mandaba al final (auditoría completa 2026-10, mar-5). */
+let _yaMonto = false;
+
 function rematar(r, ruta, opts) {
   _remontando = false;
   terminarLlegada();
@@ -755,7 +760,8 @@ function rematar(r, ruta, opts) {
   /* El foco al contenido y no al principio del documento: cambiar de módulo con teclado
      dejaba al usuario recorriendo otra vez las seis pestañas. */
   const main = $('pf-contenido');
-  if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
+  if (main && opts.foco !== false && _yaMonto) { try { main.focus({ preventScroll: true }); } catch (_) {} }
+  _yaMonto = true;
   window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
   /* El encabezado ya dice dónde estás desde antes de cargar (arriba). Es lo único que lo dice
      cuando la pestaña de la barra no puede —las rutas ocultas—; las acciones las escribe el
@@ -837,8 +843,11 @@ function escribirNav(visibles, barra, mas) {
   const nav = $('pf-nav');
   /* La tecla de cada pestaña es su lugar: solo hay atajo del 1 al 9, así que una décima ruta
      —hoy no hay— saldría con un «tecla 10» que no existe. */
+  /* ENLACES y no botones (marco-8): en la computadora, Ctrl+clic, clic central y «copiar enlace»
+     abren Proyectos en otra pestaña o mandan el link del Mapa. El clic normal lo sigue llevando
+     `ir()` (oyente de abajo); con una tecla de modificación se deja al navegador. */
   if (nav) nav.innerHTML = visibles.map((r, i) =>
-    '<button type="button" class="pf-tab"' +
+    '<a class="pf-tab" href="#/' + r.ruta + '"' +
     ' data-ruta="' + r.ruta + '" aria-current="false"' +
     /* El nombre y el atajo los enseña la pieza 4 con su propio globo (P31); el `title` se
        queda como respaldo para quien navegue sin las piezas. La pieza lo aparta mientras el
@@ -847,7 +856,7 @@ function escribirNav(visibles, barra, mas) {
              ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">'
            : ' title="' + esc(r.nombre) + '">') +
     ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
-    '<span class="cta" data-cta="' + r.ruta + '" hidden></span></button>'
+    '<span class="cta" data-cta="' + r.ruta + '" hidden></span></a>'
   ).join('');
 
   /* La barra de abajo. Es la MISMA lista y el mismo `data-ruta`, así que un módulo nuevo
@@ -894,7 +903,10 @@ function escribirNav(visibles, barra, mas) {
      `toque:false`: en un teléfono no hay teclado que enseñar. */
   if (P && P.nombres && nav && !_nombresLat) {
     _nombresLat = P.nombres(nav, {
-      selector: '.pf-tab[data-tecla]', siempre: true, toque: false,
+      /* `siempre:false`: el globo solo cuando la pestaña NO enseña su nombre (barra encogida). Con
+         el nombre a la vista repetía «Proyectos 3» encima de Calendario justo mientras se apuntaba
+         (auditoría completa 2026-10, marco-7); la tecla la dice ahora la propia fila (CSS). */
+      selector: '.pf-tab[data-tecla]', siempre: false, toque: false,
       texto: el => ({ nombre: el.dataset.nombre, tecla: el.dataset.tecla }),
     });
   }
@@ -1673,7 +1685,11 @@ async function arrancar() {
       /* «Más» va primero: no lleva `data-ruta` porque no ES una ruta, es la puerta a las que no
          cupieron. */
       if (ev.target.closest('[data-mas]')) { abrirMas(); return; }
-      const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
+      const b = ev.target.closest('[data-ruta]'); if (!b) return;
+      /* Un enlace de la barra lateral con Ctrl/⌘/Mayús: otra pestaña o ventana, como cualquier
+         enlace. Sin tecla, la navegación es la de siempre y no la del navegador. */
+      if (b.tagName === 'A') { if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) return; ev.preventDefault(); }
+      ir(b.dataset.ruta);
     });
   }
   /* La hoja de «Más»: elegir una pantalla la cierra y navega. El cierre va ANTES de navegar
@@ -1739,6 +1755,11 @@ async function arrancar() {
        literalmente la misma y no una copia que un día se separe. */
     if (ev.key === '/') { ev.preventDefault(); abrirBuscador(); return; }
     if (!/^[1-9]$/.test(ev.key)) return;
+    /* Los números solo con el foco en la página, en el contenido recién montado o en el menú: con
+       el foco en un botón —el selector de rol de Ajustes, una tarjeta— un «2» de teclado o de
+       dictado mandaba al Calendario sin querer (marco-4, WCAG 2.1.4). */
+    if (t && t !== document.body && t !== document.documentElement && t.id !== 'pf-contenido' &&
+        !(t.closest && t.closest('#pf-nav,#pf-abajo'))) return;
     const visibles = rutasDeRol().filter(r => !r.oculto);
     const r = visibles[Number(ev.key) - 1];
     if (!r) return;

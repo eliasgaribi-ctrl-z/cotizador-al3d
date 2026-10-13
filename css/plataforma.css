@@ -348,7 +348,7 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
    seleccionado» sin gastar el color. */
 .pf-nav{display:flex;flex-direction:column;gap:2px}
 .pf-tab{
-  display:flex;align-items:center;gap:12px;width:100%;
+  display:flex;align-items:center;gap:12px;width:100%;text-decoration:none;box-sizing:border-box;
   height:42px;padding:0 12px;border:0;border-radius:var(--rr3);
   background:transparent;color:rgba(255,255,255,.72);
   font-family:inherit;font-weight:500;font-size:var(--t3);line-height:1;text-align:left;cursor:pointer;
@@ -357,6 +357,13 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 @media(hover:hover){.pf-tab:hover{background:rgba(255,255,255,.06);color:#fff}}
 .pf-tab.on{background:var(--nav2);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--a)}
 .pf-tab .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* La tecla de cada pestaña, DENTRO de su fila y solo al apuntarla o llegar con Tab: antes era un
+   globo que tapaba la pestaña de arriba (marco-7). Va al final, después de la cuenta. */
+.pf-tab[data-tecla]::after{content:attr(data-tecla);order:9;flex:0 0 auto;display:none;min-width:18px;height:18px;padding:0 5px;
+  border-radius:5px;border:1px solid rgba(255,255,255,.28);color:rgba(255,255,255,.8);
+  font:600 var(--t1)/16px var(--f-cifra);text-align:center}
+@media(hover:hover) and (pointer:fine){.pf-tab[data-tecla]:hover::after{display:inline-block}}
+.pf-tab[data-tecla]:focus-visible::after{display:inline-block}
 .pf-tab .svgi{flex-shrink:0;width:var(--ico2);height:var(--ico2)}
 /* La cuenta de lo que reclama atención. Va en ámbar y no en rojo: son cosas que hay que
    ver hoy, no cosas que ya se rompieron. */
