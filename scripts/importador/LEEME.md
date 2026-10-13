@@ -33,6 +33,13 @@ mismo sello, una venta del teléfono que no está en la hoja) va al reporte y se
    ERRORES» y dice cuántas filas entrarían a cada tabla. No escribe nada.
 7. **`importar.sql`**, y después **`cuadre.sql`**: la primera consulta del cuadre tiene que salir vacía.
 
+## Cuándo se puede volver a correr
+
+Las veces que haga falta **mientras la hoja sea la fuente** (hasta la fase 4): cada corrida deja la base como dice la hoja, así
+que lo que alguien haya cambiado en la base desde la plataforma se pisa. Lo que la base no deja cambiar (una venta que pasó
+de viva a histórica, un abono que ya se importó y en la hoja se corrigió) no se toca: sale como «conflicto» al final de la
+corrida, para decidirlo a mano.
+
 ## Qué no lleva todavía
 
 - «Solicitudes de autorización» y «Bitácora del puente»: se cuentan en el reporte, no se importan.

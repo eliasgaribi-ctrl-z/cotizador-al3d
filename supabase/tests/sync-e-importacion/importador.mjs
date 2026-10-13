@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describir, prueba, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sql, una, CLAVE_SELLO_FALSA } from '../comun/semilla.js';
-import { volcado, filaVentas, dia } from '../comun/hoja-de-mentiras.js';
+import { volcado, filaVentas, dia, respaldoTelefono, proyectoTel } from '../comun/hoja-de-mentiras.js';
 import { cincuentaFilas, escenarioRico } from '../comun/escenarios-importador.js';
 import { planear } from '../../../scripts/importador/plan.mjs';
 import { sqlDeImportacion, sqlDeCuadre } from '../../../scripts/importador/sql.mjs';
@@ -329,6 +329,81 @@ describir('IM-10 Accesos', () => {
       ]);
       cierto(plan.reporte.avisos.some(a => a.donde === 'Accesos' && a.que === 'pagos@al3d.test'), 'el repetido se reporta');
     } finally { await cerrar(db); }
+  });
+});
+
+/* ============================================================================
+   Lo que encontró la revisión del importador (2026-10-12): cada caso, su prueba
+   ============================================================================ */
+const filaSimple = (folio, extra = {}) => filaVentas({ celdas: { A: folio, B: 'Cliente ' + folio + ' - Negocio', C: 'COBRANDO', F: 'Sí', G: 100, L: dia('2026-09-01'), ...extra } });
+
+describir('Revisión: cosas que tumbaban un lote o perdían datos', () => {
+  prueba('la cotización se guarda COMPLETA (solo sin imágenes incrustadas), no la versión reducida de precios', async () => {
+    const tel = respaldoTelefono({ historial: [{ folio: 'COT-0009', disp: 'K7QM', cliente: 'Ana', proy: 'Tacos', tel: '33 1', fecha: '2026-09-01', notaCliente: 'urgente',
+      aiFile: { name: 'a.jpg', url: 'data:image/jpeg;base64,AAAA' }, items: [{ id: 1, tipo: 'Letras', n: 8, pu: 1500, plano: 'img-1' }] }] });
+    const plan = await planear({ volcado: volcado({ ventas: [] }), telefonos: [{ etiqueta: 't', respaldo: tel }] });
+    const { db } = await importar(plan);
+    try {
+      const d = (await una(db, `select datos from public.cotizaciones where folio_global = 'COT-0009@K7QM'`)).datos;
+      igual([d.notaCliente, d.tel, d.items[0].plano, d.aiFile], ['urgente', '33 1', 'img-1', { name: 'a.jpg' }]);
+    } finally { await cerrar(db); }
+  });
+  prueba('dos filas con el mismo folio de cotización: nunca el mismo proyecto (el dinero de una no pisa el de la otra)', async () => {
+    const tel = respaldoTelefono({ proyectos: [proyectoTel({ id: 'proy-a', folio_global: 'COT-0001@K7QM', folio_hoja: 'V-020' })] });
+    const v = volcado({ ventas: [filaSimple('V-020', { Y: 'COT-0001@K7QM', G: 100 }), filaSimple('V-021', { Y: 'COT-0001@K7QM', G: 999 })] });
+    const plan = await planear({ volcado: v, telefonos: [{ etiqueta: 't', respaldo: tel }] });
+    igual(new Set(plan.tablas.proyectos.map(p => p.id)).size, 2);
+    const { db } = await importar(plan);
+    try {
+      igual(await sql(db, `select p.folio_hoja, p.id, d.subtotal::text as g from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id order by 1`),
+        [{ folio_hoja: 'V-020', id: 'proy-a', g: '100' }, { folio_hoja: 'V-021', id: 'proy-hoja-V-021', g: '999' }]);
+      cierto(plan.reporte.conflictos.some(c => c.tema === 'folio de cotización en dos filas'), 'se reporta');
+    } finally { await cerrar(db); }
+  });
+  prueba('una fila que pasó de viva a histórica entre dos corridas se reporta y no tumba la carga', async () => {
+    const { db } = await importar(await planear({ volcado: volcado({ ventas: [filaSimple('V-030', { C: 'FABRICACION' }), filaSimple('V-031')] }) }));
+    try {
+      const cambios = await sql(db, sqlDeImportacion(await planear({ volcado: volcado({ ventas: [filaSimple('V-030', { C: 'COBRANDO', G: 150 }), filaSimple('V-031', { G: 200 })] }) })));
+      cierto(cambios.some(x => x.tabla === 'proyectos' && /^conflicto: en la base es viva/.test(x.accion)), JSON.stringify(cambios));
+      igual(await sql(db, `select p.folio_hoja, p.historica, d.subtotal::text as g from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id order by 1`),
+        [{ folio_hoja: 'V-030', historica: false, g: '150' }, { folio_hoja: 'V-031', historica: true, g: '200' }], 'el dinero sí se actualiza; la clasificación espera');
+    } finally { await cerrar(db); }
+  });
+  prueba('la cita «hoja-V-…» de una corrida sin teléfonos se cancela cuando llega la del teléfono', async () => {
+    const v = volcado({ ventas: [filaSimple('V-040', { C: 'FABRICACION', M: dia('2026-10-20') })] });
+    const { db } = await importar(await planear({ volcado: v }));
+    try {
+      const tel = respaldoTelefono({ proyectos: [proyectoTel({ id: 'proy-hoja-V-040', de_hoja: true, dispositivo: 'hoja', folio_hoja: 'V-040', sellos: { instalacion: 10 } })],
+        instalaciones: [{ id: 'ins-t', proyecto_id: 'proy-hoja-V-040', fecha: '2026-10-21', estado: 'confirmada', movida: 0 }] });
+      await sql(db, sqlDeImportacion(await planear({ volcado: v, telefonos: [{ etiqueta: 't', respaldo: tel }] })));
+      igual(await sql(db, `select id, estado from public.instalaciones order by id`), [{ id: 'hoja-V-040', estado: 'cancelada' }, { id: 'ins-t', estado: 'confirmada' }]);
+    } finally { await cerrar(db); }
+  });
+  prueba('un «Reparto» de cero, un pin 0,0 o fuera de rango del teléfono, textos larguísimos y un NUL o medio emoji anidados no tumban el lote', async () => {
+    const tel = respaldoTelefono({ proyectos: [proyectoTel({ id: 'proy-z', folio_global: 'COT-0002@K7QM', folio_hoja: '', etapa: 'cancelado', lat: 0, lng: 0, notas: 'x'.repeat(40001),
+      origen: { folio: 'COT-0002', proy: 'Ta\u0000cos \ud83c', items: [{ id: 1, desc: 'medio \udc00 emoji' }] } }),
+      proyectoTel({ id: 'proy-y', folio_global: 'COT-0003@K7QM', folio_hoja: '', etapa: 'cancelado', lat: 95, lng: 10 })] });
+    const v = volcado({ ventas: [filaSimple('V-050', { AB: 'https://www.google.com/maps/@20.6597,-103.3496,15z?x=' + 'a'.repeat(2100) })], abonos: [['V-050', '', 0, dia('2026-09-01'), 'Reparto de depósito', 'P-001']] });
+    const plan = await planear({ volcado: v, telefonos: [{ etiqueta: 't', respaldo: tel }] });
+    const { db } = await importar(plan);
+    try {
+      igual((await una(db, `select tipo from public.abonos`)).tipo, 'historico');
+      igual(await sql(db, `select id, lat, length(notas)::int as n, origen_obra->>'proy' as proy from public.proyectos where id in ('proy-y','proy-z') order by id`),
+        [{ id: 'proy-y', lat: null, n: 0, proy: null }, { id: 'proy-z', lat: null, n: 40000, proy: 'Tacos �' }]);
+      igual((await una(db, `select length(maps_url)::int as n from public.proyectos where folio_hoja = 'V-050'`)).n, 2000);
+    } finally { await cerrar(db); }
+  });
+  prueba('un abono importado que ya no está en la hoja se avisa (no se borra: es un libro)', async () => {
+    const con = a => volcado({ ventas: [filaSimple('V-060')], abonos: [['V-060', '', a, dia('2026-09-01'), 'abono', '']] });
+    const { db } = await importar(await planear({ volcado: con(10) }));
+    try {
+      const cambios = await sql(db, sqlDeImportacion(await planear({ volcado: con(12) })));
+      cierto(cambios.some(x => x.tabla === 'abonos' && /^conflicto: ya no está en la hoja/.test(x.accion)), JSON.stringify(cambios));
+    } finally { await cerrar(db); }
+  });
+  prueba('una carpeta de adentro que empieza con dos puntos («..reportes») sigue siendo de adentro', () => {
+    cierto(dentroDelRepo(join(RAIZ_DEL_REPO, '..reportes')), '«..reportes» está dentro');
+    cierto(!dentroDelRepo(join(RAIZ_DEL_REPO, '..', 'fuera-del-repo')), 'la carpeta de al lado está fuera');
   });
 });
 

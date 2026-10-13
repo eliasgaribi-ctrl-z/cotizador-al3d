@@ -24,10 +24,22 @@ export const LOTE = 200;
 const TIPO_SQL = { t: 'text', n: 'numeric', f: 'double precision', i: 'integer', b: 'boolean', d: 'date', j: 'jsonb', a: 'text[]', ts: 'timestamptz', bi: 'bigint' };
 const cadena = s => "'" + String(s).replace(/'/g, "''") + "'";
 
+/* Lo que Postgres no guarda en text ni en jsonb: el NUL y la mitad suelta de un emoji (un sustituto UTF-16 sin pareja, que
+   JSON.stringify escribe como \udXXX y jsonb rechaza). Se quita el NUL y el sustituto suelto se vuelve «�», a cualquier
+   profundidad: una sola celda así tumbaría su lote entero. */
+const RE_NO_GUARDABLE = /\u0000|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+const guardable = s => String(s).replace(RE_NO_GUARDABLE, m => (m === '\u0000' ? '' : '�'));
+function profundo(v) {
+  if (typeof v === 'string') return guardable(v);
+  if (Array.isArray(v)) return v.map(profundo);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [guardable(k), profundo(x)]));
+  return v;
+}
+
 export function lit(v, tipo) {
   if (v === null || v === undefined) return 'NULL::' + TIPO_SQL[tipo];
   switch (tipo) {
-    case 't': return cadena(v) + '::text';
+    case 't': return cadena(guardable(v)) + '::text';
     case 'n': case 'f': case 'i': case 'bi': {
       const n = Number(v);
       if (!Number.isFinite(n)) throw new Error('número no finito: ' + v);
@@ -35,8 +47,8 @@ export function lit(v, tipo) {
     }
     case 'b': return v ? 'true' : 'false';
     case 'd': if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) throw new Error('fecha no válida: ' + v); return cadena(v) + '::date';
-    case 'j': return cadena(JSON.stringify(v)) + '::jsonb';
-    case 'a': return 'ARRAY[' + v.map(x => cadena(x)).join(',') + ']::text[]';
+    case 'j': return cadena(JSON.stringify(profundo(v))) + '::jsonb';
+    case 'a': return 'ARRAY[' + v.map(x => cadena(guardable(x))).join(',') + ']::text[]';
     case 'ts': { const n = Number(v); return n > 0 ? `to_timestamp(${Math.trunc(n)} / 1000.0)` : 'NULL::timestamptz'; }
     default: throw new Error('tipo desconocido: ' + tipo);
   }
@@ -79,6 +91,12 @@ const ESCRIBIR = {
       select 'proyectos', l.id, 'conflicto: su folio ya es de ' || p.id
         from _lote l join public.proyectos p on p.empresa_id = l.empresa_id and p.id <> l.id
                                               and (p.folio_hoja = l.folio_hoja or p.folio_global = l.folio_global);
+    -- lo que la base no deja cambiar de un proyecto (histórica/viva, de dónde viene): se reporta y la fila no se toca
+    insert into _imp_cambios (tabla, llave, accion)
+      select 'proyectos', l.id, 'conflicto: en la base es ' || case when p.historica then 'histórica' else 'viva' end || ' de ' || p.fuente
+                                || ' y ahora sería ' || case when l.historica then 'histórica' else 'viva' end || ' de ' || l.fuente
+        from _lote l join public.proyectos p on p.empresa_id = l.empresa_id and p.id = l.id
+       where (p.historica, p.fuente) is distinct from (l.historica, l.fuente);
     with w as (
       insert into public.proyectos as t (id, empresa_id, folio_hoja, folio_global, folio_local, dispositivo, fuente, historica, nombre, contacto, negocio, tel,
              etapa, tipo_trabajo, fecha_anticipo, compromiso_texto, dir_texto, entrecalles, maps_url, lat, lng, geo_fuente, ubicacion_pendiente, entrega, plazo_k,
@@ -91,6 +109,8 @@ const ESCRIBIR = {
         from _lote l
        where not exists (select 1 from public.proyectos p where p.empresa_id = l.empresa_id and p.id <> l.id
                                                           and (p.folio_hoja = l.folio_hoja or p.folio_global = l.folio_global))
+         and not exists (select 1 from public.proyectos p where p.empresa_id = l.empresa_id and p.id = l.id
+                                                          and (p.historica, p.fuente) is distinct from (l.historica, l.fuente))
       on conflict (id) do update set
              folio_hoja = coalesce(t.folio_hoja, excluded.folio_hoja), folio_global = coalesce(t.folio_global, excluded.folio_global),
              nombre = excluded.nombre, contacto = excluded.contacto, negocio = excluded.negocio, tel = excluded.tel, etapa = excluded.etapa,
@@ -148,6 +168,15 @@ const ESCRIBIR = {
     insert into _imp_cambios (tabla, llave, accion) select 'miembros', llave, 'alta' from w;`,
 
   instalaciones: `
+    -- una cita viva por proyecto: la que la base ya tenga y el plan no traiga (p. ej. la «hoja-V-…» de una corrida anterior sin teléfonos)
+    -- se cancela antes de escribir la viva del plan, sin tocar el calendario
+    with w as (
+      update public.instalaciones t set estado = 'cancelada', procedencia = t.procedencia || jsonb_build_object('fusionada_en', l.id)
+        from _lote l
+       where l.estado <> 'cancelada' and t.empresa_id = l.empresa_id and t.proyecto_id = l.proyecto_id and t.id <> l.id
+         and t.estado <> 'cancelada' and t.deleted_at is null
+      returning t.id as llave)
+    insert into _imp_cambios (tabla, llave, accion) select 'instalaciones', llave, 'cambio: cancelada (otra cita es la viva)' from w;
     with w as (
       insert into public.instalaciones as t (id, empresa_id, proyecto_id, fecha, hora, ventana, duracion_min, estado, movida, uid_ics, notas, procedencia, created_at)
       select l.id, l.empresa_id, l.proyecto_id, l.fecha, l.hora, l.ventana, l.duracion_min, l.estado, l.movida, 'inst-' || l.id || '@al3d.mx', l.notas,
@@ -273,7 +302,7 @@ const ESCRIBIR = {
   cotizaciones: `
     with w as (
       insert into public.cotizaciones as t (empresa_id, folio_global, folio, disp, estado, datos, hitos, procedencia)
-      select l.empresa_id, l.folio_global, l.folio, l.disp, l.estado, interno.limpiar_cotizacion(l.datos), l.hitos, l.procedencia from _lote l
+      select l.empresa_id, l.folio_global, l.folio, l.disp, l.estado, interno.datos_cotizacion(l.datos), l.hitos, l.procedencia from _lote l
       on conflict (empresa_id, folio_global) do update set datos = excluded.datos, hitos = excluded.hitos, procedencia = excluded.procedencia
        where (t.datos, t.hitos, t.procedencia) is distinct from (excluded.datos, excluded.hitos, excluded.procedencia)
       returning t.folio_global as llave, (t.xmax = 0) as nuevo)
@@ -306,6 +335,7 @@ export function sqlDeImportacion(plan, { hecho = '', ensayo = false } = {}) {
   const partes = [
     `-- Importación de la hoja y los teléfonos a Supabase (scripts/importar-hoja.mjs). ${hecho}`,
     '-- IDEMPOTENTE: correrlo dos veces con las mismas entradas no cambia nada la segunda vez.',
+    '-- Es para correrse MIENTRAS LA HOJA ES LA FUENTE (hasta la fase 4): lo que alguien haya cambiado en la base desde la plataforma, lo pisa con la hoja.',
     '-- CONTIENE DATOS DE CLIENTES: no lo subas al repositorio ni lo mandes por chat.',
     ...(ensayo ? ['-- ENSAYO: todo va en UNA transacción que al final se DESHACE (rollback). No queda nada escrito.', 'begin;'] : []),
     '',
@@ -315,9 +345,19 @@ export function sqlDeImportacion(plan, { hecho = '', ensayo = false } = {}) {
   ];
   for (const t of ORDEN) {
     let filas = plan.tablas[t] || [];
-    if (t === 'almacen_costos') filas = filas.slice();
+    // las canceladas, todas antes que cualquier viva: el índice de «una viva por proyecto» no distingue lotes
+    if (t === 'instalaciones') filas = [...filas.filter(f => f.estado === 'cancelada'), ...filas.filter(f => f.estado !== 'cancelada')];
     partes.push(...lotes(t, filas, !ensayo));
   }
+  // un abono importado antes que ya no está en la hoja (alguien corrigió su importe o su fecha): no se borra —es un libro—, se avisa
+  const ops = (plan.tablas.abonos || []).map(a => a.op_id);
+  partes.push(`-- abonos de una corrida anterior que ya no están en la hoja
+insert into _imp_cambios (tabla, llave, accion)
+  select 'abonos', a.folio_hoja || ' ' || a.importe || ' (fila ' || coalesce(a.procedencia->>'fila_hoja', '?') || ')',
+         'conflicto: ya no está en la hoja; si se corrigió, va una corrección a mano'
+    from public.abonos a
+   where a.empresa_id = ${e} and a.op_id like 'hoja:abono:%' and a.op_id <> all (${lit(ops, 'a')});
+`);
   // el vínculo cotización → autorización (DISENO.md §3.4): la vigente o, si no hay, la de mayor id; la revocación con fecha de hoy
   partes.push(`-- cotizaciones ↔ autorizaciones
 ${ensayo ? '' : 'begin;'}

@@ -22,7 +22,7 @@
    ============================================================================ */
 
 import { readFileSync, writeFileSync, mkdirSync, realpathSync, existsSync } from 'node:fs';
-import { resolve, dirname, relative, isAbsolute, basename } from 'node:path';
+import { resolve, dirname, relative, isAbsolute, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { planear } from './importador/plan.mjs';
 import { sqlDeImportacion, sqlDeCuadre } from './importador/sql.mjs';
@@ -41,7 +41,8 @@ function real(ruta) {
 export function dentroDelRepo(carpeta, raiz = RAIZ_DEL_REPO) {
   const caja = p => (process.platform === 'win32' ? p.toLowerCase() : p);   // en Windows las rutas no distinguen mayúsculas
   const r = relative(caja(real(raiz)), caja(real(carpeta)));
-  return r === '' || (!r.startsWith('..') && !isAbsolute(r));
+  const sube = r === '..' || r.startsWith('..' + sep);   // «..reportes» es una carpeta de adentro que empieza con dos puntos, no un «subir»
+  return r === '' || (!sube && !isAbsolute(r));
 }
 
 function argumentos(argv) {

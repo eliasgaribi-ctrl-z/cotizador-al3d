@@ -147,6 +147,8 @@ export async function planear(entrada) {
     if (!g.ok) malos.push('G «Precio Subtotal» trae texto');
     if (!i.ok || i.n < 0) malos.push('I «Anticipo» ' + (i.ok ? 'es negativo' : 'trae texto'));
     if (!j.ok || j.n < 0) malos.push('J «Liquidacion» ' + (j.ok ? 'es negativo' : 'trae texto'));
+    if (g.ok && Math.abs(g.n) >= 1e9) malos.push('G «Precio Subtotal» pasa del tope de la base');
+    if ((i.ok && i.n >= 1e9) || (j.ok && j.n >= 1e9)) malos.push('I o J pasan del tope de la base');
     if (malos.length) { rep.rechazar('Ventas', fila, folio, malos.join('; ') + ': la fila espera a que se arregle la hoja'); continue; }
     const v = { fila, folio, nombre, celdas, g: g.n, i: i.n, j: j.n, celdasRaras: {} };
     if (vistos.has(folio)) vistos.get(folio).push(v); else vistos.set(folio, [v]);
@@ -187,6 +189,7 @@ export async function planear(entrada) {
   /* ----- 3. Cada fila de Ventas → proyecto + ventas_dinero (§3.0, §3.1) ----- */
   const proyectoDeFolio = new Map();
   const ygUsados = new Map();
+  const idsDeFilas = new Set();
   for (const v of ventas) {
     if (v.descartada) continue;
     const c = l => v.celdas[V[l]];
@@ -199,21 +202,34 @@ export async function planear(entrada) {
     let y = RE_FOLIO_GLOBAL.test(yTxt) && yTxt.toUpperCase() !== folio ? yTxt : null;
     if (yTxt && !y) raro('Y', yTxt);
 
-    // Copias de teléfono: por Y y por folio de la hoja
-    const grupo = [...new Set([...(y ? porGlobal.get(y) || [] : []), ...(porHoja.get(folio) || [])])];
+    if (y && ygUsados.has(y)) {
+      rep.conflicto('folio de cotización en dos filas', y, `filas ${ygUsados.get(y)} y ${fila}: la segunda entra sin folio de cotización`);
+      raro('Y', yTxt); y = null;
+    }
+    // Copias de teléfono: por Y y por folio de la hoja. Una copia que ya se unió a otra fila no se une a dos.
+    const grupoTodo = [...new Set([...(y ? porGlobal.get(y) || [] : []), ...(porHoja.get(folio) || [])])];
+    const grupo = grupoTodo.filter(x => !usadas.has(x));
+    if (grupo.length < grupoTodo.length) {
+      rep.conflicto('copia de teléfono que apunta a dos filas', folio, grupoTodo.filter(x => usadas.has(x)).map(x => `${x.tel.etiqueta}:${x.p.id}`).join(', ') +
+        ' ya se unió a otra fila: esta entra sin ella');
+    }
     const globalesDelGrupo = [...new Set(grupo.map(x => String(x.p.folio_global || '').trim()).filter(f => RE_FOLIO_GLOBAL.test(f)))];
     if (globalesDelGrupo.length > 1) {
       rep.conflicto('copias con folios de cotización distintos', folio, globalesDelGrupo.join(' vs ') + ': se importa la fila de la hoja sin unirla a ningún teléfono');
     }
-    const unibles = globalesDelGrupo.length > 1 ? [] : grupo;
-    const conCotizacion = unibles.some(x => !x.p.de_hoja && RE_FOLIO_GLOBAL.test(String(x.p.folio_global || '')));
+    let unibles = globalesDelGrupo.length > 1 ? [] : grupo;
+    let conCotizacion = unibles.some(x => !x.p.de_hoja && RE_FOLIO_GLOBAL.test(String(x.p.folio_global || '')));
     if (!y && conCotizacion) {
       y = globalesDelGrupo[0];
-      if (yTxt) rep.avisar('Ventas', fila, folio, `Y «${yTxt}» no es el folio de la cotización del teléfono (${y}): se usa el del teléfono`);
+      if (ygUsados.has(y)) {
+        rep.conflicto('folio de cotización en dos filas', y, `filas ${ygUsados.get(y)} y ${fila}: la segunda entra sin unirse al teléfono`);
+        y = null; unibles = []; conCotizacion = false;
+      } else if (yTxt) rep.avisar('Ventas', fila, folio, `Y «${yTxt}» no es el folio de la cotización del teléfono (${y}): se usa el del teléfono`);
     }
-    if (y && ygUsados.has(y)) {
-      rep.conflicto('folio de cotización en dos filas', y, `filas ${ygUsados.get(y)} y ${fila}: la segunda entra sin folio de cotización`);
-      raro('Y', yTxt); y = null;
+    // el id: nunca dos filas con el mismo (el dinero va por proyecto: la segunda pisaría el de la primera)
+    if (unibles.length && idsDeFilas.has(canonico(unibles, conCotizacion ? y : null, folio))) {
+      rep.conflicto('dos filas para el mismo proyecto de teléfono', folio, `${canonico(unibles, conCotizacion ? y : null, folio)} ya es de otra fila: esta entra sola`);
+      unibles = []; conCotizacion = false;
     }
     if (y) ygUsados.set(y, fila);
 
@@ -227,8 +243,9 @@ export async function planear(entrada) {
     else historica = !y;
 
     const id = unibles.length ? canonico(unibles, fuente === 'cotizacion' ? y : null, folio) : 'proy-hoja-' + folio;
-    for (const x of unibles) { usadas.add(x); if (x.p.id !== id) remapeo[x.p.id] = id; }
     if (!RE_ID.test(id)) { rep.rechazar('Ventas', fila, folio, `el id «${id}» no es válido para la base`); continue; }
+    for (const x of unibles) { usadas.add(x); if (x.p.id !== id) remapeo[x.p.id] = id; }
+    idsDeFilas.add(id);
 
     // Campos de la fila
     const cuentaTxt = texto(c('D')).trim();
@@ -344,7 +361,7 @@ export async function planear(entrada) {
       sellos, origen: fuente === 'cotizacion' && pt && objeto(pt.origen) ? pt.origen : null,
       procedencia, creado_ms: pt ? ms(pt.creado_en) : 0,
     };
-    if ((proyecto.lat === null) !== (proyecto.lng === null)) Object.assign(proyecto, { lat: null, lng: null });
+    acotarProyecto(proyecto, rep, 'Ventas!' + fila);
     T.proyectos.push(proyecto);
     proyectoDeFolio.set(folio, proyecto);
 
@@ -400,7 +417,7 @@ export async function planear(entrada) {
         fecha_instalacion_hist: null, sellos: sellosValidos(p.sellos), origen: objeto(p.origen), procedencia: { telefonos: [...new Set(grupo.map(x => x.tel.etiqueta))], lapida: true },
         creado_ms: ms(p.creado_en),
       });
-      if ((T.proyectos.at(-1).lat === null) !== (T.proyectos.at(-1).lng === null)) Object.assign(T.proyectos.at(-1), { lat: null, lng: null });
+      acotarProyecto(T.proyectos.at(-1), rep, 'teléfonos');
     } else {
       for (const x of grupo) {
         rep.fuera.push({ telefono: x.tel.etiqueta, id: x.p.id, marca: 'fuera de la hoja (sin folio V-###)', valor: x.p.folio_global || '', nombre: x.p.nombre || '' });
@@ -436,7 +453,7 @@ export async function planear(entrada) {
       ventana: ['dia', 'noche', 'madrugada'].includes(ins.ventana) ? ins.ventana : 'dia',
       duracion_min: Number.isInteger(ins.duracion_min) && ins.duracion_min >= 1 && ins.duracion_min <= 600 ? ins.duracion_min : 180,
       estado: ESTADOS_INST.includes(ins.estado) ? ins.estado : 'confirmada', movida: Math.max(0, Number(ins.movida) || 0),
-      notas: String(ins.notas || ''), procedencia: { telefono: tel.etiqueta }, creado_ms: ms(ins.creado_en), _act: ms(ins.actualizado_en),
+      notas: String(ins.notas || '').slice(0, 20000), procedencia: { telefono: tel.etiqueta }, creado_ms: ms(ins.creado_en), _act: ms(ins.actualizado_en),
     };
     (instPorProyecto.get(pid) || instPorProyecto.set(pid, []).get(pid)).push(fila);
   }
@@ -554,6 +571,7 @@ export async function planear(entrada) {
       procedencia: { de: donde, ...(r.id && r.id !== pid + ':' + mat ? { id_local: r.id } : {}), ...(r.proyecto_id && r.proyecto_id !== pid ? { proyecto_id_local: r.proyecto_id } : {}) },
       creado_ms: ms(r.creado_en),
     };
+    if (fila.cantidad_compra >= 1e7 || (fila.cantidad_ajustada ?? 0) >= 1e7) { rep.rechazar('requerimientos', fila.id, donde, 'cantidad fuera del tope de la base'); return; }
     if (fila.formula.length === 2000) rep.avisar('requerimientos', fila.id, donde, '«Cómo se calculó» mide exactamente 2000: pudo truncarse en la hoja');
     const prev = reqs.get(fila.id);
     if (!prev) { reqs.set(fila.id, fila); return; }
@@ -665,7 +683,7 @@ export async function planear(entrada) {
     const pago_id = /^P-\d{3,}$/.test(pagoTxt) ? pagoTxt : null;
     if (pagoTxt && !pago_id) rep.avisar('Abonos comisión', fila, folio, `F «Pago» «${pagoTxt}» no es un P-### y queda vacío`);
     if (pago_id) maxP = Math.max(maxP, Number(pago_id.slice(2)));
-    const tipo = imp.n < 0 ? 'correccion' : (pago_id && /^reparto/i.test(nota.trim()) ? 'reparto' : 'historico');
+    const tipo = imp.n < 0 ? 'correccion' : (imp.n > 0 && pago_id && /^reparto/i.test(nota.trim()) ? 'reparto' : 'historico');
     const procedencia = { fila_hoja: fila };
     if (f && typeof f === 'object') { procedencia.fecha_texto = f.texto; rep.avisar('Abonos comisión', fila, folio, 'D «Fecha» es texto: el abono queda sin fecha'); }
     else if (esFecha(celdas[3]) && celdas[3].$hora && celdas[3].$hora !== '00:00') procedencia.hora_original = celdas[3].$hora;
@@ -816,11 +834,28 @@ export async function planear(entrada) {
 function valorDeTelefono(p, k) {
   const v = p[k];
   if (k === 'tel') return telefonoLimpio(v);
-  if (k === 'lat' || k === 'lng') return Number.isFinite(v) ? v : null;
+  if (k === 'lat' || k === 'lng') return pinValido(p.lat, p.lng) ? v : null;
   if (k === 'plazo_k') return [1, 2, 3, 4, 5].includes(v) ? v : null;
   if (k === 'entrega') return ['instalacion', 'paqueteria', 'recoleccion'].includes(v) ? v : null;
   if (k === 'etapa') return ETAPAS.includes(v) ? v : null;
   return v === undefined || v === null ? '' : String(v);
+}
+
+const pinValido = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+
+/** Lo que la base no acepta (CHECK de 0003 y 0012) se recorta o se vacía ANTES del SQL, y se dice: una sola fila así tumbaría todo su lote. */
+function acotarProyecto(p, rep, donde) {
+  if (!pinValido(p.lat, p.lng)) {
+    if (p.lat !== null || p.lng !== null) rep.avisar('proyectos', p.folio_hoja || p.id, donde, `el pin «${p.lat},${p.lng}» no es válido: queda sin pin`);
+    p.lat = null; p.lng = null;
+  }
+  for (const [k, tope] of [['nombre', 2000], ['contacto', 2000], ['negocio', 2000], ['dir_texto', 2000], ['notas', 40000], ['maps_url', 2000], ['geo_fuente', 200]]) {
+    if (typeof p[k] === 'string' && p[k].length > tope) {
+      (p.procedencia.recortado ||= {})[k] = p[k];
+      p[k] = p[k].slice(0, tope);
+      rep.avisar('proyectos', p.folio_hoja || p.id, donde, `${k} pasa de ${tope} caracteres: se recorta y el texto completo queda en procedencia`);
+    }
+  }
 }
 
 function sellosValidos(s) {
