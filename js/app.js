@@ -1014,13 +1014,19 @@ function ponerDireccion(desde, hacia, seccion) {
    entra la nueva mientras se desvanece. El clon no lleva ids ni recibe toques, y se quita solo.
    Las pantallas con <iframe> (Cotizador, herramientas) no se clonan: clonar un marco lo vuelve a
    cargar entero. Con movimiento reducido o con las teclas 1-9, nada. */
-const MS_SALE = 170;
+/* 120 ms con la curva de salida de la casa (ease-out) y solo 16 px: con 170 ms y ease-in lo viejo
+   seguía casi opaco cuando entraba lo nuevo, y a los 125 ms se leían las dos pantallas encimadas
+   (auditoría de movimiento 2026-10, marco-2). */
+const MS_SALE = 120;
 function despedir(rAntes, dir) {
   const h = document.documentElement;
   if (!rAntes || h.dataset.nav === 'teclado') return;
   try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (_) {}
   const s = $(rAntes.seccion);
   if (!s || s.hidden || !s.childNodes.length || s.querySelector('iframe')) return;
+  /* Una pantalla grande no se clona: copiarla entera en el cuadro del toque daba tirones de 130 a
+     260 ms en un teléfono lento (marco-3). La nueva entra igual, con su fundido. */
+  if (s.getElementsByTagName('*').length > 400) return;
   const caja = s.getBoundingClientRect();
   if (!caja.width || caja.bottom < 0) return;
   const c = s.cloneNode(true);
@@ -1034,12 +1040,12 @@ function despedir(rAntes, dir) {
   /* Junto a la original y no al final del <body>: las reglas que dependen de dónde vive la
      sección (#pf-contenido, .pf-wrap) siguen alcanzando al clon, y no se corre de sitio. */
   s.after(c);
-  const dx = dir === 'adelante' ? -36 : dir === 'atras' ? 36 : 0;
+  const dx = dir === 'adelante' ? -16 : dir === 'atras' ? 16 : 0;
   const fin = 'translate(' + dx + 'px,' + (dx ? 0 : -8) + 'px)';
   let a = null;
   try {
     a = c.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: fin }],
-      { duration: MS_SALE, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+      { duration: MS_SALE, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' });
   } catch (_) {}
   const quitar = () => c.remove();
   if (a && a.finished) a.finished.then(quitar, quitar); else setTimeout(quitar, MS_SALE);
@@ -1056,7 +1062,7 @@ function marcarLlegada() {
 }
 function terminarLlegada() {
   clearTimeout(_llegaReloj);
-  _llegaReloj = setTimeout(() => document.documentElement.classList.remove('pf-llega'), 900);
+  _llegaReloj = setTimeout(() => document.documentElement.classList.remove('pf-llega'), 450);
 }
 
 /** Las cuentas de atención de la barra. Las publica cada módulo en este mapa. */

@@ -1026,10 +1026,14 @@ function alSoltarArrastre(ev) {
   if (!P) return;
   const orden = ['alta', 'media', 'baja'];
   let destino;
-  if (Math.abs(a.v) > .5) {
+  /* La velocidad es la del ÚLTIMO movimiento: si el dedo lleva más de 80 ms quieto antes de
+     soltar, ya no es un tirón, es acomodar la hoja. Sin esto, subirla un poco, detenerse y soltar
+     la mandaba disparada hasta arriba (auditoría de movimiento 2026-10, mapa-4). */
+  const v = (Date.now() - a.t) > 80 ? 0 : a.v;
+  if (Math.abs(v) > .5) {
     /* Un tirón: a la parada siguiente en la dirección del dedo. */
-    const sig = orden.filter(k => a.v > 0 ? P[k] > a.ultimo : P[k] < a.ultimo);
-    destino = sig.length ? sig.sort((x, z) => Math.abs(P[x] - a.ultimo) - Math.abs(P[z] - a.ultimo))[0] : (a.v > 0 ? 'baja' : 'alta');
+    const sig = orden.filter(k => v > 0 ? P[k] > a.ultimo : P[k] < a.ultimo);
+    destino = sig.length ? sig.sort((x, z) => Math.abs(P[x] - a.ultimo) - Math.abs(P[z] - a.ultimo))[0] : (v > 0 ? 'baja' : 'alta');
   } else {
     destino = orden.sort((x, z) => Math.abs(P[x] - a.ultimo) - Math.abs(P[z] - a.ultimo))[0];
   }
@@ -1150,17 +1154,22 @@ function refrescarPines(op) {
 }
 
 /** Anima el pin y le devuelve su animación. Ver el porqué del traslado en `refrescarPines`. */
+/* Se anima la propiedad `scale` y NO `transform`: el `transform` de un pin es su posición, que
+   Leaflet escribe con translate3d. Animarlo congelaba la posición de antes de filtrar, así que
+   mientras el mapa se reencuadraba el pin se quedaba en su lugar viejo y a los 200 ms brincaba
+   ~180 px (auditoría de movimiento 2026-10, mapa-2). `scale` se compone con ese translate y el
+   pin acompaña al encuadre; crece desde su punta por el `transform-origin` de plataforma.css
+   (mapa-3). La salida, más corta que la entrada (mapa-9). */
 function animarPin(el, tipo) {
   if (!el || typeof el.animate !== 'function') return null;
-  const base = el.style.transform ? el.style.transform + ' ' : '';
   const entra = tipo === 'entra';
   const de = entra ? { esc: .3, op: 0 } : { esc: 1, op: 1 };
   const a = entra ? { esc: 1, op: 1 } : { esc: .3, op: 0 };
   try {
     return el.animate([
-      { transform: base + 'scale(' + de.esc + ')', opacity: de.op },
-      { transform: base + 'scale(' + a.esc + ')', opacity: a.op },
-    ], { duration: 160, easing: 'cubic-bezier(.2,.8,.2,1)', fill: entra ? 'none' : 'forwards' });
+      { scale: String(de.esc), opacity: de.op },
+      { scale: String(a.esc), opacity: a.op },
+    ], { duration: entra ? 160 : 120, easing: 'cubic-bezier(.23,1,.32,1)', fill: entra ? 'none' : 'forwards' });
   } catch (_) { return null; }
 }
 
@@ -1357,9 +1366,12 @@ function cerrarFicha(op) {
   refrescarPines();
   ponerHoja('baja');
   tiraAParada();
+  /* El foco va al buscador SOLO desde el teclado (Escape, o Enter/espacio sobre la ×). Con el dedo
+     o el ratón va al asa de la hoja: en el teléfono, enfocar un campo de texto abre el teclado, y
+     cerrar la ficha dejaba medio mapa tapado por él (auditoría de movimiento 2026-10, mapa-5). */
   if (op && op.foco) {
-    const q = $('mapa-q');
-    if (q) { try { q.focus({ preventScroll: true }); } catch (_) {} }
+    const destino = op.teclado ? $('mapa-q') : (cont && cont.querySelector('.mapa-hoja-asa'));
+    if (destino) { try { destino.focus({ preventScroll: true }); } catch (_) {} }
   }
 }
 
@@ -1459,7 +1471,7 @@ function alEscribir(ev) {
 
 function alTeclear(ev) {
   const t = ev.target;
-  if (ev.key === 'Escape' && SEL && !(t && t.id === 'mapa-q')) { cerrarFicha({ foco: true }); return; }
+  if (ev.key === 'Escape' && SEL && !(t && t.id === 'mapa-q')) { cerrarFicha({ foco: true, teclado: true }); return; }
   if (!t || t.id !== 'mapa-q') return;
   const ul = $('mapa-sug');
   const n = ul && !ul.hidden ? ul.querySelectorAll('[data-sel]').length : 0;
@@ -1631,10 +1643,9 @@ function numerarParada(t, id) {
   FIRMAS.set(id, gr.g + '|' + n + '|' + (sel ? 1 : 0) + '|' + tituloDe(p, gr));
   const el = m.getElement();
   if (el && typeof el.animate === 'function') {
-    const base = el.style.transform ? el.style.transform + ' ' : '';
     try {
       el.animate([
-        { transform: base + 'scale(1)' }, { transform: base + 'scale(1.3)', offset: .4 }, { transform: base + 'scale(1)' },
+        { scale: '1' }, { scale: '1.3', offset: .4 }, { scale: '1' },
       ], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
     } catch (_) {}
   }
@@ -2520,7 +2531,8 @@ function clicCuerpo(ev) {
   const sel = t.closest('[data-sel]');
   if (sel) { seleccionar(sel.dataset.sel, { volar: true }); return; }
 
-  if (t.closest('[data-cerrar-ficha]')) { cerrarFicha({ foco: true }); return; }
+  /* `detail` es 0 cuando el clic lo hizo el teclado (Enter o espacio sobre el botón). */
+  if (t.closest('[data-cerrar-ficha]')) { cerrarFicha({ foco: true, teclado: ev.detail === 0 }); return; }
 
   const vf = t.closest('[data-ver-faltan]');
   if (vf) {

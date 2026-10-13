@@ -606,8 +606,10 @@
       activo = false;
       el.classList.remove('arrastrando');
       _pausaPila(n.pila, 'arrastre', false);
+      /* Detenido más de 80 ms antes de levantar el dedo no es un latigazo (obra-1, igual que el
+         renglón). */
       const a = pts[0], b = pts[pts.length - 1];
-      const v = (a && b && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
+      const v = (!b || e.timeStamp - b[0] > 80) ? 0 : (a && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
       if (dy > 40 || (dy > 12 && v > 0.11)) { _cerrar(n, dy); return; }
       el.style.transform = ''; el.style.opacity = '';
     };
@@ -1462,6 +1464,14 @@
     const a = pts && pts[0], b = pts && pts[pts.length - 1];
     return a && b && b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
   };
+  /* La velocidad AL SOLTAR. `_vel` solo ve los movimientos, así que quien deslizaba, se detenía a
+     dudar un segundo y levantaba el dedo soltaba con la velocidad de antes de detenerse —un
+     latigazo que no hubo— (auditoría de movimiento 2026-10, obra-1). Si el último movimiento es
+     de hace más de 80 ms, el dedo estaba quieto: velocidad 0. Si no, la del último tramo. */
+  const _velAlSoltar = (pts, t) => {
+    const u = pts && pts[pts.length - 1];
+    return !u || t - u[0] > 80 ? 0 : _vel(pts);
+  };
   /* Decirlo al lector de pantalla. Si la sección de avisos ya dejó su voz, se usa esa; si no, la
      región #vozStatus que traen las tres apps; y en una página que no la trae, una propia. El
      vaciado y la escritura un cuadro después son los que hacen que «Hoja 2 de 5» dos veces
@@ -1681,7 +1691,7 @@
     }
     if (!gs || !gs.activo) return;
     if (gs.captado) { try { gs.capta.releasePointerCapture(gs.id); } catch (_) {} }
-    const cierra = !!evaluar && P.hojaSeCierra({ dy: gs.dy, v: _vel(gs.pts), alto: gs.alto,
+    const cierra = !!evaluar && P.hojaSeCierra({ dy: gs.dy, v: _velAlSoltar(gs.pts, performance.now()), alto: gs.alto,
       cierra: gs.cfg.cierra, velocidad: gs.cfg.velocidad });
     /* La salida de la hoja de estilos (translateY(100%)) parte de donde la dejó el dedo: el
        transform se quita en el mismo cuadro en que se quita .show. Si no cierra, regresa con la
@@ -2237,7 +2247,10 @@
   const _filas = new WeakMap();
   /** Qué hace soltar: 'principal' (pasó el umbral a la derecha), 'abierta' o 'cerrada'. */
   P.filaDecide = ({ dx = 0, v = 0, anchoAcc = 0, anchoFila = 0, principal = false, umbral = 0.4 } = {}) => {
-    if (principal && dx > 0 && (dx >= Math.max(72, anchoFila * umbral) || (dx > 40 && v > 0.5))) return 'principal';
+    /* La acción principal ESCRIBE (en el Tablero avanza la etapa), así que su latigazo pide más que
+       el de abrir las acciones, que no escribe nada: al menos 64 px o el 22 % del renglón, y rápido.
+       Con 40 px bastaba un roce al desplazar la lista (obra-2). */
+    if (principal && dx > 0 && (dx >= Math.max(72, anchoFila * umbral) || (dx > Math.max(64, anchoFila * 0.22) && v > 0.6))) return 'principal';
     if (anchoAcc > 0 && dx < 0 && (dx <= -anchoAcc / 2 || (dx < -24 && v < -0.5))) return 'abierta';
     return 'cerrada';
   };
@@ -2345,7 +2358,7 @@
       if (!s.decidido) return;
       s.f.classList.remove('arrastrando', 'lista');
       suprimir = Date.now();
-      const r = cancelado ? 'cerrada' : P.filaDecide({ dx: s.dx, v: _vel(s.pts), anchoAcc: s.anchoAcc,
+      const r = cancelado ? 'cerrada' : P.filaDecide({ dx: s.dx, v: _velAlSoltar(s.pts, e.timeStamp), anchoAcc: s.anchoAcc,
         anchoFila: s.anchoFila, principal: !!s.principal, umbral });
       if (r === 'abierta') { abrir(s.f); return; }
       cerrar(s.f);

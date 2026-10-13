@@ -1531,6 +1531,12 @@ button.cal-plazo:active{transform:scale(.97)}
    (index.html) y trae `.leaflet-marker-icon{display:block}`, que pesa lo mismo que `.mapa-pin`
    y por ir después le ganaba. */
 .leaflet-marker-icon.mapa-pin{display:block}
+/* El pin crece y late desde su PUNTA, que es la dirección: `.leaflet-zoom-animated` le ponía el
+   origen en la esquina de arriba a la izquierda y la punta resbalaba ~26 px al crecer (mapa-3).
+   Son las medidas de `iconoDe` (js/mod/mapa.js). Leaflet solo traslada los marcadores: el origen
+   no le afecta. */
+.leaflet-marker-icon.mapa-pin{transform-origin:16px 32px}
+.leaflet-marker-icon.mapa-pin.sel{transform-origin:20px 40px}
 .mapa-pin::before{content:"";position:absolute;box-sizing:border-box;left:4px;top:3px;width:24px;height:24px;
   border:2.5px solid var(--pin-borde);background:var(--pin-fondo);
   border-radius:var(--pin-radio) var(--pin-radio) 0 var(--pin-radio);transform:rotate(45deg);box-shadow:var(--clay)}
@@ -2597,7 +2603,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 /* El cruce del esqueleto al documento: el marco entra un poco después y en 220 ms, y el
    esqueleto sale en 160 con 2 px de desenfoque, que funde las dos imágenes en una en vez de
    enseñarlas encimadas. */
-.pf-marco{transition:opacity .22s var(--ease-out) .06s}
+.pf-marco{transition:opacity .18s var(--ease-out)}
 .pf-marco-cargando .pf-marco{opacity:0}
 .pf-marco-esq{position:absolute;left:0;right:0;top:0;bottom:env(safe-area-inset-bottom,0px);
   padding:var(--e4);overflow:hidden;border-radius:inherit;background:var(--fondo);transition:opacity .16s var(--ease-out),filter .16s var(--ease-out)}
@@ -2863,11 +2869,18 @@ html[data-tema="oscuro"] .pf-mas-op .cta{color:var(--nav)}
    colgada de ese atributo deslizaría la pantalla entera al cambiar de mes en el calendario.
    Las teclas 1-9 no animan nada (js/app.js no pone la clase y la regla de `data-nav` de más
    arriba manda), y el movimiento reducido las apaga en el bloque «rm» de abajo. */
-html.va-adelante .pf-mod{animation:pf-entra-der .34s cubic-bezier(.2,.8,.2,1) .06s both}
-html.va-atras .pf-mod{animation:pf-entra-izq .34s cubic-bezier(.2,.8,.2,1) .06s both}
+/* Más corto desde la auditoría de movimiento de 2026-10 (marco-1): .34 s con .06 s de espera, la
+   cascada de .42 s con retrasos hasta .28 s y el título de .32 s tardaban 540–700 ms en dejar la
+   pantalla quieta, y es lo que más se repite en el día. Mismo flujo, la mitad del tiempo: todo
+   quieto en ≤ 330 ms. */
+html.va-adelante .pf-mod{animation:pf-entra-der .22s var(--ease-out) both}
+html.va-atras .pf-mod{animation:pf-entra-izq .22s var(--ease-out) both}
+/* El Cotizador no se desliza (marco-4): mover un <iframe> pesado que todavía carga no dice nada y
+   se sumaba al fundido del marco y al esqueleto, tres entradas encimadas. Le basta el fundido. */
+html.va-adelante #mod-cotizador,html.va-atras #mod-cotizador{animation:none}
 html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .pf-mod{animation:none}
-@keyframes pf-entra-der{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
-@keyframes pf-entra-izq{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+@keyframes pf-entra-der{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes pf-entra-izq{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
 
 /* ----- El flujo entre pantallas (octubre de 2026) -----
    Lo pidió Elías: «no se nota que haya un flujo». Tres cosas, y las tres viven solo mientras
@@ -2879,18 +2892,17 @@ html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .
    pieza decide de su propia opacidad —el marco del Cotizador está en 0 mientras carga— vuelve
    a mandar. Los <iframe> no entran: su opacidad es justo la de la carga. */
 .pf-sale{position:fixed;z-index:1;margin:0;overflow:hidden;pointer-events:none;will-change:transform,opacity;animation:none}
-html.pf-llega .pf-mod>:not(iframe),html.pf-llega .pf-mod>:only-child>:not(iframe){animation:pf-cascada .42s cubic-bezier(.2,.8,.2,1) backwards}
+/* La cascada escalona solo los cuatro primeros bloques, de 30 en 30 ms; del quinto en adelante
+   llegan con el cuarto. Con once bloques (Ajustes) el último esperaba 280 ms y la pantalla
+   seguía acomodándose cuando ya se quería tocar algo (marco-1, marco-3). */
+html.pf-llega .pf-mod>:not(iframe),html.pf-llega .pf-mod>:only-child>:not(iframe){animation:pf-cascada .24s var(--ease-out) backwards}
 html.pf-llega .pf-mod>:only-child{animation:none}
-html.pf-llega .pf-mod>:nth-child(2),html.pf-llega .pf-mod>:only-child>:nth-child(2){animation-delay:.04s}
-html.pf-llega .pf-mod>:nth-child(3),html.pf-llega .pf-mod>:only-child>:nth-child(3){animation-delay:.08s}
-html.pf-llega .pf-mod>:nth-child(4),html.pf-llega .pf-mod>:only-child>:nth-child(4){animation-delay:.12s}
-html.pf-llega .pf-mod>:nth-child(5),html.pf-llega .pf-mod>:only-child>:nth-child(5){animation-delay:.16s}
-html.pf-llega .pf-mod>:nth-child(6),html.pf-llega .pf-mod>:only-child>:nth-child(6){animation-delay:.2s}
-html.pf-llega .pf-mod>:nth-child(7),html.pf-llega .pf-mod>:only-child>:nth-child(7){animation-delay:.24s}
-html.pf-llega .pf-mod>:nth-child(n+8),html.pf-llega .pf-mod>:only-child>:nth-child(n+8){animation-delay:.28s}
-@keyframes pf-cascada{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.pf-cab-t.cambia{animation:pf-titulo .32s cubic-bezier(.2,.8,.2,1) backwards}
-@keyframes pf-titulo{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+html.pf-llega .pf-mod>:nth-child(2),html.pf-llega .pf-mod>:only-child>:nth-child(2){animation-delay:.03s}
+html.pf-llega .pf-mod>:nth-child(3),html.pf-llega .pf-mod>:only-child>:nth-child(3){animation-delay:.06s}
+html.pf-llega .pf-mod>:nth-child(n+4),html.pf-llega .pf-mod>:only-child>:nth-child(n+4){animation-delay:.09s}
+@keyframes pf-cascada{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pf-cab-t.cambia{animation:pf-titulo .18s var(--ease-out) backwards}
+@keyframes pf-titulo{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 html[data-nav="teclado"].pf-llega .pf-mod>:not(iframe),html[data-nav="teclado"].pf-llega .pf-mod>:only-child>:not(iframe),
 html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 

@@ -1839,12 +1839,30 @@ function puedeMoverA(etapa) {
   return etapa !== 'cancelado' && Proy.puedeMover(Prefs.rol(), etapa);
 }
 
-function soltarArrastre() {
+/* `volver`: soltar donde no vale (la misma columna, fuera del tablero, una que este rol no puede).
+   El fantasma regresa a la tarjeta en 200 ms antes de irse; se borraba en el primer cuadro y
+   parecía que la tarjeta se había perdido (auditoría de movimiento 2026-10, obra-4). Con Escape no
+   se anima: es una tecla. */
+function soltarArrastre(op = {}) {
   if (!_arr) return;
   const a = _arr; _arr = null;
   a.quitar.forEach(f => { try { f(); } catch (_) {} });
   if (a.raf) cancelAnimationFrame(a.raf);
-  if (a.fantasma) a.fantasma.remove();
+  if (a.fantasma) {
+    const f = a.fantasma;
+    let anim = null;
+    if (op.volver && a.tarjeta && !sinMov() && typeof f.animate === 'function') {
+      const t = a.tarjeta.getBoundingClientRect(), g = f.getBoundingClientRect();
+      const ahora = getComputedStyle(f).transform;
+      const x = t.left + t.width / 2 - g.width / 2, y = t.top + t.height / 2 - g.height / 2;
+      try {
+        anim = f.animate([{ transform: ahora, opacity: 1 }, { transform: 'translate(' + x + 'px,' + y + 'px)', opacity: 0 }],
+          { duration: 200, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' });
+      } catch (_) { anim = null; }
+    }
+    if (anim) { const fuera = () => f.remove(); anim.onfinish = fuera; anim.oncancel = fuera; setTimeout(fuera, 400); }
+    else f.remove();
+  }
   if (a.tablero) a.tablero.style.scrollSnapType = a.snap || '';
   if (a.tarjeta) {
     a.tarjeta.classList.remove('pj-levantada');
@@ -2013,11 +2031,29 @@ function seguir(x, y) {
 
 function soltarEnColumna() {
   if (!_arr) return;
-  const { id, col } = _arr;
+  const { id, col, tarjeta, fantasma } = _arr;
   const etapa = col ? col.dataset.col : null;
   frenarClicUnaVez();
+  if (!etapa) { soltarArrastre({ volver: true }); return; }
+  /* La tarjeta viaja DESDE DONDE SE SOLTÓ (obra-3). El fantasma se borraba y la tarjeta volaba
+     desde su hueco de origen: dos saltos. Ahora, antes de quitar el fantasma, la tarjeta se pone
+     encima de él con un translate; el viaje de `moverEtapa` toma ESA posición como la de antes y
+     la lleva de ahí a la columna nueva. Si el cambio no se hace (se dice que no a la pregunta,
+     falla la escritura), la tarjeta regresa a su lugar en 200 ms. */
+  let dx = 0, dy = 0;
+  if (fantasma && tarjeta && !sinMov()) {
+    const g = fantasma.getBoundingClientRect(), t = tarjeta.getBoundingClientRect();
+    dx = Math.round(g.left + g.width / 2 - (t.left + t.width / 2));
+    dy = Math.round(g.top + g.height / 2 - (t.top + t.height / 2));
+  }
   soltarArrastre();
-  if (etapa) moverEtapa(id, etapa);
+  if (dx || dy) { tarjeta.style.transition = 'none'; tarjeta.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }
+  Promise.resolve(moverEtapa(id, etapa)).catch(() => {}).finally(() => {
+    if (!tarjeta.isConnected || !tarjeta.style.transform) return;
+    tarjeta.style.transition = 'transform .2s cubic-bezier(.23,1,.32,1)';
+    tarjeta.style.transform = '';
+    setTimeout(() => { tarjeta.style.transition = ''; }, 260);
+  });
 }
 
 /* ----- P8 · cuándo sale el viaje de la tarjeta -----
