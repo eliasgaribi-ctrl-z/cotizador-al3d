@@ -914,7 +914,7 @@ function abrirGanar(folio) {
       '<p class="hintnote" id="pf-ganar-otro">Para otro día, usa el campo. Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
       /* Teléfono, cómo se entrega y a dónde: el mismo bloque que el «Se ganó» del Calendario
          (js/mod/datos-entrega.js). */
-      DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar' }) +
+      DE.html({ tel: e.tel || '', entrega: 'instalacion', dir: e.dirRaw || e.direccion || '', maps: e.maps || '' }, { modo: 'ganar', clave: 'ganar:' + folio }) +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +

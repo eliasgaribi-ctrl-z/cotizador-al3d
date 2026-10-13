@@ -863,7 +863,7 @@ function abrirCompletar(id) {
         '. Llena lo que ya tengas; lo demás se queda en la lista.</p>' +
       /* El link guardado que no se pudo leer va prellenado: guardar otra vez lo vuelve a intentar. */
       DE.html({ maps: String(p.maps_url || '') },
-        { modo: 'completar', pide, entregaActual: entregaDe(p), titulo: false, noPuede }) +
+        { modo: 'completar', pide, entregaActual: entregaDe(p), titulo: false, noPuede, clave: 'completar:' + id }) +
       '<p class="hintnote nota-av" id="pf-pide-msg" hidden></p>' +
     '</div>' +
     '<div class="pf-panel-f">' +

@@ -4234,6 +4234,14 @@ button.ct-tt-anio:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px
 .pf-de-t .svgi{width:18px;height:18px;color:var(--a-fuerte)}
 .pf-de .tipo-seg{flex-wrap:wrap}
 .pf-de-msg{margin-top:var(--e2)}
+/* Lo que falta en «Datos para la entrega» frena el guardado: va en rojo, con su marca, y no en
+   el ámbar de las notas (ope-2). Solo aquí: el cotizador conserva su ámbar de «falta». */
+.pf-de-err{display:flex;gap:6px;align-items:flex-start;font-size:var(--t2);font-weight:600;line-height:1.45;color:var(--mal)}
+.pf-de-err::before{content:'!';flex:0 0 auto;display:inline-grid;place-items:center;width:16px;height:16px;margin-top:2px;
+  border-radius:50%;background:var(--mal);color:var(--sup);font-size:11px;font-weight:800;line-height:1}
+.pf-de .fld.falta label,.pf-de .fld.falta .fld-lab{color:var(--mal)}
+.pf-de .fld.falta input,.pf-de .fld.falta textarea{border-color:var(--mal);background:var(--mal-bg)}
+.pf-de .fld.falta .tipo-seg{box-shadow:0 0 0 1px var(--mal)}
 .pf-de-taller,.pf-de-nopuede{display:flex;gap:var(--e2);align-items:flex-start}
 .pf-de-taller .svgi,.pf-de-nopuede .svgi{flex:0 0 auto;margin-top:2px}
 .pf-de [data-de-campo="pendiente"] .hintnote{margin-top:var(--e1)}

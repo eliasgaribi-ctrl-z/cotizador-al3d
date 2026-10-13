@@ -34,6 +34,11 @@ const ID = 'pf-de';
 
 const campoRequerido = '<span class="req" aria-hidden="true">*</span>';
 
+/* Lo escrito y no guardado, por venta (`o.clave`). Escape, tocar fuera o «Cancelar» cerraban el
+   panel y al volver a «Se ganó» todo estaba vacío otra vez (auditoría completa 2026-10,
+   control-4). Vive en memoria de esta pestaña, nada más: es un borrador de minutos, no un dato. */
+const _borradores = new Map();
+
 /**
  * El bloque, como HTML.
  * @param {{tel?:string, entrega?:string, dir?:string, maps?:string, pendiente?:boolean}} v lo que ya se sabe
@@ -44,6 +49,8 @@ const campoRequerido = '<span class="req" aria-hidden="true">*</span>';
  *   falta pero este rol no escribe, con la frase de quién lo completa.
  */
 export function html(v = {}, o = {}) {
+  const clave = o.clave ? String(o.clave) : '';
+  if (clave && _borradores.has(clave)) v = { ...v, ..._borradores.get(clave) };
   const modo = o.modo === 'completar' ? 'completar' : 'ganar';
   const pide = new Set(Array.isArray(o.pide) ? o.pide : FALTAS);
   /* En «Se ganó» la entrega nace marcada en Instalación: es lo que es casi todo, y obligar a
@@ -62,7 +69,7 @@ export function html(v = {}, o = {}) {
     partes.push('<div class="fld" data-de-campo="tel">' +
       '<label for="' + ID + '-tel">Teléfono del cliente' + req + '</label>' +
       '<input type="tel" id="' + ID + '-tel" inputmode="tel" autocomplete="off" maxlength="30"' +
-        ' placeholder="33 1234 5678" value="' + esc(v.tel || '') + '"' +
+        ' placeholder="10 dígitos" value="' + esc(v.tel || '') + '"' +
         (modo === 'ganar' ? ' aria-required="true"' : '') + ' aria-describedby="' + ID + '-tel-m">' +
       msg('tel') + '</div>');
   }
@@ -114,10 +121,14 @@ export function html(v = {}, o = {}) {
   }
 
   return '<fieldset class="pf-de" data-de data-de-modo="' + modo + '" data-de-entrega-actual="' + esc(entregaLimpia(o.entregaActual)) + '"' +
-    ' data-de-pide="' + esc([...pide].join(' ')) + '">' + partes.join('') + '</fieldset>';
+    ' data-de-pide="' + esc([...pide].join(' ')) + '"' + (clave ? ' data-de-clave="' + esc(clave) + '"' : '') + '>' +
+    partes.join('') + '</fieldset>';
 }
 
-const msg = k => '<p class="hintnote nota-av pf-de-msg" id="' + ID + '-' + k + '-m" hidden></p>';
+/* El mensaje de lo que falta es un ERROR, no una nota: antes salía en la cajita ámbar de las notas
+   y no parecía que impidiera guardar (ope-2). `role="alert"`: el lector lo dice al aparecer, también
+   el segundo, que no se lleva el foco. */
+const msg = k => '<p class="pf-de-msg pf-de-err" id="' + ID + '-' + k + '-m" role="alert" hidden></p>';
 const rotuloDir = ent => ent === 'paqueteria' ? 'Destino del envío' : 'Dirección';
 const verDir = (ent, pide) => (ent === 'instalacion' || ent === 'paqueteria') && pide.has('dir');
 const verMaps = (ent, pide) => ent === 'instalacion' && pide.has('pin');
@@ -147,6 +158,11 @@ export function cablear(raiz) {
       }
       limpiar(b, 'entrega');
       ajustar(b);
+      /* Si ya se intentó guardar, lo que se pide cambió con la entrega: se vuelve a revisar, sin
+         mover el foco, para que el mensaje hable de lo que hay en pantalla (con Paquetería ya no
+         hay link de Maps ni «Todavía no la tengo»; ope-1). */
+      if (b.dataset.deRevisado) marcarFaltas(b);
+      guardarBorrador(b);
       return;
     }
     const sw = ev.target.closest('[data-de-pendiente]');
@@ -157,18 +173,27 @@ export function cablear(raiz) {
       const tg = sw.querySelector('.tg'); if (tg) tg.classList.toggle('on', si);
       limpiar(b, 'dir'); limpiar(b, 'maps');
     }
+    guardarBorrador(b);
   });
   b.addEventListener('input', ev => {
     const c = ev.target.closest('[data-de-campo]');
     if (c) limpiar(b, c.dataset.deCampo);
+    guardarBorrador(b);
   });
+}
+
+function guardarBorrador(b) {
+  const clave = b.dataset.deClave;
+  if (clave) _borradores.set(clave, leer(b, { todo: true }));
 }
 
 /* Enseña y esconde según la entrega elegida (o la que el proyecto ya tenía). */
 function ajustar(b) {
   const pide = new Set(String(b.dataset.dePide || '').split(' ').filter(Boolean));
   const ent = entregaElegida(b) || entregaLimpia(b.dataset.deEntregaActual);
-  const pon = (k, ver) => { const el = b.querySelector('[data-de-campo="' + k + '"]'); if (el) el.hidden = !ver; };
+  /* Lo que se esconde se lleva su error: al pasar a Paquetería se quedaba «Falta la dirección y el
+     link de Maps…» pidiendo controles que ya no estaban en pantalla (ope-1). */
+  const pon = (k, ver) => { const el = b.querySelector('[data-de-campo="' + k + '"]'); if (el) el.hidden = !ver; if (!ver) limpiar(b, k); };
   pon('dir', verDir(ent, pide));
   pon('maps', verMaps(ent, pide));
   pon('pendiente', ent === 'instalacion');
@@ -187,6 +212,15 @@ function limpiar(b, k) {
   if (c) c.classList.remove('falta');
   const m = b.querySelector('#' + ID + '-' + k + '-m');
   if (m) { m.hidden = true; m.textContent = ''; }
+  const el = campoDe(b, k);
+  if (el) el.removeAttribute('aria-invalid');
+}
+
+/* El control que el lector anuncia como inválido (control-7). La entrega es un segmento: se marca
+   su grupo. */
+function campoDe(b, k) {
+  return k === 'entrega' ? b.querySelector('[data-de-campo="entrega"] [role="group"]')
+    : b.querySelector('#' + ID + '-' + k);
 }
 
 /** Lo capturado. Lo que está escondido no cuenta: el destino que se escribió con «Paquetería»
@@ -217,12 +251,9 @@ export function leer(raiz, o = {}) {
 export function revisar(raiz, o = {}) {
   const b = bloque(raiz);
   if (!b) return null;
-  const d = leer(b);
-  const pide = String(b.dataset.dePide || '').split(' ').filter(Boolean);
-  const r = validarDatos(d, { modo: b.dataset.deModo, pide, entregaActual: b.dataset.deEntregaActual });
-  for (const k of ['tel', 'entrega', 'dir', 'maps']) limpiar(b, k);
-  if (r.ok) return d;
-  for (const [k, frase] of Object.entries(r.errores)) avisar(b, k, frase);
+  b.dataset.deRevisado = '1';
+  const { d, r } = marcarFaltas(b);
+  if (r.ok) { if (b.dataset.deClave) _borradores.delete(b.dataset.deClave); return d; }
   /* `alFallar(frase, enSuCampo)`: si la frase ya quedó junto a un campo, quien llama no la
      tiene que repetir en pantalla (solo decirla en voz alta). */
   if (!r.primero) { if (typeof o.alFallar === 'function') o.alFallar(r.mensaje, false); return null; }
@@ -230,6 +261,16 @@ export function revisar(raiz, o = {}) {
   if (foco) { try { foco.focus({ preventScroll: false }); foco.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {} }
   if (typeof o.alFallar === 'function') o.alFallar(r.mensaje, true);
   return null;
+}
+
+/* Lee, valida con la regla pura y deja cada frase junto a su campo. No mueve el foco. */
+function marcarFaltas(b) {
+  const d = leer(b);
+  const pide = String(b.dataset.dePide || '').split(' ').filter(Boolean);
+  const r = validarDatos(d, { modo: b.dataset.deModo, pide, entregaActual: b.dataset.deEntregaActual });
+  for (const k of ['tel', 'entrega', 'dir', 'maps']) limpiar(b, k);
+  if (!r.ok) for (const [k, frase] of Object.entries(r.errores)) avisar(b, k, frase);
+  return { d, r };
 }
 
 /** Enseña una frase junto al campo `k` ('tel', 'entrega', 'dir', 'maps'). */
@@ -240,6 +281,8 @@ export function avisar(raiz, k, frase) {
   if (c) c.classList.add('falta');
   const m = b.querySelector('#' + ID + '-' + k + '-m');
   if (m) { m.hidden = false; m.textContent = frase; }
+  const el = campoDe(b, k);
+  if (el) el.setAttribute('aria-invalid', 'true');
 }
 
 /**
