@@ -3717,12 +3717,65 @@ button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 .ct-cobro .medidor{margin:4px 0 2px}
 .ct-cobro-t{display:block;font-size:var(--t1);line-height:1.4;color:var(--tinta2);font-variant-numeric:tabular-nums}
 
-/* ----- Finanzas de los proyectos: en fabricación y cobrando (`htmlFinanzas`) -----
-   Dos bolsas en la misma tarjeta, separadas por una raya: cada una con su fila de cuentas y sus
-   renglones, que son los de la cartera. */
-.ct-fin-bolsa + .ct-fin-bolsa{margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--linea)}
-.ct-fin-t{margin:0 0 var(--e2);font-size:var(--t3)}
-.ct-fin-bolsa > .btn{margin-top:var(--e2)}
+/* ----- Dinero de los proyectos activos: en fabricación y cobrando (`htmlFinanzas`) -----
+   Una frase arriba con la respuesta, y dos bolsas lado a lado en la computadora (una sobre otra
+   en el teléfono). Cada bolsa: su barra «ya cobrado / falta cobrar» con la leyenda en las
+   cifras de abajo, y sus proyectos. Verde lo cobrado y ámbar lo que falta, siempre con su
+   palabra al lado: el color no va solo. */
+.ct-fin-resumen{margin:0 0 var(--e4);font-size:var(--t4);line-height:1.5;color:var(--tinta)}
+.ct-fin-resumen b{font-family:var(--f-cifra);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-fin-bolsas{display:grid;gap:var(--e4)}
+@media(min-width:960px){ .ct-fin-bolsas{grid-template-columns:1fr 1fr;align-items:start} }
+.ct-fin-bolsa{min-width:0;padding:var(--e4);border:1px solid var(--linea);border-radius:14px;background:var(--sup2)}
+.ct-fin-cab{display:flex;gap:var(--e3);align-items:flex-start;margin-bottom:var(--e3)}
+.ct-fin-ico{flex:0 0 auto;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--av-bg);color:var(--av)}
+.ct-fin-bolsa.fabricacion .ct-fin-ico{background:var(--a-suave);color:var(--a-tx)}
+.ct-fin-ico svg{width:20px;height:20px}
+.ct-fin-t{margin:0;font-size:var(--t4);display:flex;align-items:center;gap:var(--e2);flex-wrap:wrap}
+.ct-fin-sub{margin:2px 0 0;font-size:var(--t2);color:var(--tinta2)}
+/* La barra: dos tramos con 2 px de aire entre ellos y las puntas redondas. */
+.ct-fin-barra{display:flex;gap:2px;height:12px;margin:var(--e2) 0;border-radius:999px;overflow:hidden;background:var(--sup)}
+.ct-fin-barra > i{display:block;min-width:4px}
+.ct-fin-barra > .cob{background:var(--ok-fill)}
+.ct-fin-barra > .falta{background:var(--amber-ico)}
+.ct-cobro .ct-fin-barra{height:6px;margin:4px 0 2px;max-width:28rem}
+.ct-fin-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:var(--e2);margin:var(--e3) 0 0}
+.ct-fin-nums > div{min-width:0}
+.ct-fin-nums dt{display:flex;align-items:center;gap:6px;font-size:var(--t1);font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--tinta2)}
+.ct-fin-nums dt i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.ct-fin-nums .cob dt i{background:var(--ok-fill)}
+.ct-fin-nums .falta dt i{background:var(--amber-ico)}
+.ct-fin-nums dd{margin:4px 0 0;font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);line-height:1.2;
+  color:var(--tinta);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ct-fin-nums .falta dd{color:var(--av)}
+.ct-fin-nums dd small{font-family:var(--f-texto);font-weight:600;font-size:var(--t2);color:var(--ok)}
+@media(max-width:420px){ .ct-fin-nums dd{font-size:var(--t4)} }
+.ct-fin-est{margin:var(--e2) 0 0;font-size:var(--t1);color:var(--tinta2)}
+.ct-fin-lt{margin:var(--e4) 0 0;padding-top:var(--e3);border-top:1px solid var(--linea);font-size:var(--t1);font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--tinta2)}
+.ct-fin-fila{background:transparent}
+.ct-fin-mas{margin-top:var(--e2)}
+/* «¿De dónde salen estos números?»: la letra chica, plegada, con un blanco de 44 px. */
+.ct-como{margin-top:var(--e4)}
+.ct-como > summary{display:inline-flex;align-items:center;gap:6px;min-height:44px;cursor:pointer;list-style:none;
+  font-size:var(--t2);font-weight:600;color:var(--a-tx)}
+.ct-como > summary::-webkit-details-marker{display:none}
+.ct-como > summary::after{content:'';width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:rotate(45deg) translateY(-2px)}
+.ct-como[open] > summary::after{transform:rotate(-135deg) translateY(-1px)}
+.ct-como > summary:focus-visible{outline:2px solid var(--a-borde);outline-offset:2px;border-radius:6px}
+.ct-como p{margin:0;font-size:var(--t2);line-height:1.55;color:var(--tinta2)}
+/* Los doce meses: las tres respuestas arriba, y los meses vacíos más bajos y en gris. */
+.ct-meses-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--e3);margin:0 0 var(--e4)}
+.ct-meses-res dt{font-size:var(--t1);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tinta2)}
+.ct-meses-res dd{margin:4px 0 0;font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);color:var(--tinta);
+  font-variant-numeric:tabular-nums;text-transform:capitalize}
+.ct-meses-res dd small{font-family:var(--f-texto);font-weight:500;font-size:var(--t2);color:var(--tinta2);text-transform:none}
+.ct-mes.vacio{padding:0}
+.ct-mes.vacio .ct-mes-t{font-weight:500;color:var(--tinta3)}
+.ct-mes-v.cero{color:var(--tinta3);font-weight:400}
+.ct-otros .pf-cuentas{margin:0}
 
 /* ----- F54 · comisiones, primero las chicas -----
    Una cuenta de lo que se puede pagar y una caja: el monto, la barra de cuánto alcanza (el
