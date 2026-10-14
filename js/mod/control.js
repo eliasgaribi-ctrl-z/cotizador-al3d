@@ -504,7 +504,7 @@ function despuesDePintar() {
 function htmlPantalla() {
   const nCom = D.comisiones.abonables.length;
   const tabs = segmento([
-    { v: 'ventas', t: 'Ventas' },
+    { v: 'ventas', t: 'Resumen' },
     { v: 'cobrar', t: 'Por cobrar' + (D.kpi.porCobrar.n ? ' · ' + D.kpi.porCobrar.n : '') },
     { v: 'comisiones', t: 'Comisiones' + (nCom ? ' · ' + nCom : '') },
     { v: 'bitacora', t: 'Bitácora' },
@@ -706,58 +706,91 @@ function ubicarMesesTipo() {
    proyectos de mayor a menor saldo con el medidor de cobro de la cartera. */
 function htmlFinanzas() {
   const F = D.finanzas;
-  const total = F.fabricacion.saldo + F.cobrando.saldo;
+  const total = red2(F.fabricacion.saldo + F.cobrando.saldo);
+  /* La respuesta en una frase, antes que cualquier cifra suelta: cuánto falta cobrar y de dónde. */
+  const resumen = total > 0
+    ? 'Falta cobrar <b>' + esc(money(total)) + '</b>: <b>' + esc(money(F.fabricacion.saldo)) + '</b> de lo que se está fabricando y <b>' +
+      esc(money(F.cobrando.saldo)) + '</b> de lo que ya se entregó.'
+    : (F.fabricacion.n + F.cobrando.n ? 'Todo lo que está en fabricación y en cobranza ya está cobrado.' : 'No hay proyectos en fabricación ni cobrándose.');
   return '<section class="card ct-fin" id="ct-fin" aria-labelledby="ct-fin-h">' +
-    '<div class="card-h"><h2 id="ct-fin-h">' + ico('i-venta') + ' Finanzas de los proyectos</h2>' +
-      '<span class="folio">' + esc(money(total)) + ' por cobrar</span></div>' +
+    '<div class="card-h"><h2 id="ct-fin-h">' + ico('i-venta') + ' Dinero de los proyectos activos</h2></div>' +
     '<div class="card-b">' +
-      bolsaFinanzas('fabricacion', 'En fabricación', F.fabricacion,
-        'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
-      bolsaFinanzas('cobrando', 'Cobrando', F.cobrando,
-        'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con su saldo.') +
-      '<p class="pf-nota">Por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller, COBRANDO ya se ' +
-        'entregó y falta cobrarlo; LIQUIDADO ya no aparece. «Cobrado» es lo vendido menos el saldo: el de la hoja ' +
-        'cuando bajó, o el total menos el anticipo pactado («estimado»).</p>' +
+      '<p class="ct-fin-resumen">' + resumen + '</p>' +
+      '<div class="ct-fin-bolsas">' +
+        bolsaFinanzas('fabricacion', 'En fabricación', 'Trabajos que se están haciendo en el taller', 'i-taller', F.fabricacion,
+          'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
+        bolsaFinanzas('cobrando', 'Cobrando', 'Trabajos ya entregados a los que les falta pagar', 'i-reloj', F.cobrando,
+          'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con su saldo.') +
+      '</div>' +
+      comoSeCuenta('Se reparte por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se ' +
+        'entregó y falta cobrarlo; LIQUIDADO ya no aparece. «Ya cobrado» es lo vendido menos lo que falta. Lo que falta es el ' +
+        'saldo de la hoja; si la hoja todavía no lo trae, el total menos el anticipo pactado, y se marca como «estimado».') +
     '</div></section>';
 }
 
-function bolsaFinanzas(g, titulo, b, vacioT, vacioD) {
+const red2 = n => Math.round((Number(n) || 0) * 100) / 100;
+
+/* Un plegable con la letra chica: la explicación sigue a un toque, pero ya no es un párrafo gris
+   entre las cifras que hay que saltarse para llegar a la siguiente tarjeta. */
+function comoSeCuenta(texto) {
+  return '<details class="ct-como"><summary>¿De dónde salen estos números?</summary><p>' + esc(texto) + '</p></details>';
+}
+
+/* La barra de una bolsa: lo cobrado en verde y lo que falta en ámbar, con su leyenda y sus cifras
+   escritas al lado: ni el color ni el largo van solos. */
+function barraCobro(cobrado, falta) {
+  const tot = cobrado + falta;
+  if (!(tot > 0)) return '';
+  const pc = Math.round(cobrado / tot * 1000) / 10;
+  return '<div class="ct-fin-barra" role="img" aria-label="' + esc(Math.floor(pc) + ' % cobrado, ' + (100 - Math.floor(pc)) + ' % falta cobrar') + '">' +
+    (cobrado > 0 ? '<i class="cob" style="flex-basis:' + pc + '%"></i>' : '') +
+    (falta > 0 ? '<i class="falta" style="flex-basis:' + (100 - pc) + '%"></i>' : '') + '</div>';
+}
+
+function bolsaFinanzas(g, titulo, sub, icono, b, vacioT, vacioD) {
   const pct = b.vendido > 0 ? Math.floor(b.cobrado / b.vendido * 100) : 0;
-  const c = [
-    [money(b.vendido), 'Vendido', { dinero: true, clave: g + '-vendido', em: b.n + (b.n === 1 ? ' proyecto' : ' proyectos') }],
-    [money(b.cobrado), 'Cobrado', { clave: g + '-cobrado', em: b.vendido > 0 ? pct + ' % de lo vendido' : '' }],
-    [money(b.saldo), 'Por cobrar', { urge: b.saldo > 0, clave: g + '-saldo',
-      em: b.estimados ? b.estimados + (b.estimados === 1 ? ' saldo estimado' : ' saldos estimados') : (b.saldo > 0 ? 'según la hoja' : '') }],
-  ];
   const todos = FIN_TODOS[g] || b.lista.length <= FIN_TOPE;
   const lista = todos ? b.lista : b.lista.slice(0, FIN_TOPE);
   const mas = b.lista.length > FIN_TOPE
-    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') + '">' +
-      (todos ? 'Ver menos' : 'Ver los ' + b.lista.length) + '</button>'
+    ? '<button type="button" class="btn btn-gho pf-btn-corto ct-fin-mas" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') + '">' +
+      (todos ? 'Ver menos' : 'Ver los ' + b.lista.length + ' proyectos') + '</button>'
     : '';
-  return '<div class="ct-fin-bolsa" id="ct-fin-' + g + '">' +
-    '<h3 class="ct-fin-t">' + esc(titulo) + ' <span class="folio">' + b.n + '</span></h3>' +
-    filaCuentas(c) +
-    (b.lista.length ? lista.map(filaFinanza).join('') + mas : vacio(vacioT, vacioD)) +
+  const nums = b.n
+    ? barraCobro(b.cobrado, b.saldo) +
+      '<dl class="ct-fin-nums">' +
+        '<div><dt>Vendido</dt><dd>' + esc(money(b.vendido)) + '</dd></div>' +
+        '<div class="cob"><dt><i aria-hidden="true"></i>Ya cobrado</dt><dd>' + esc(money(b.cobrado)) + ' <small>' + pct + ' %</small></dd></div>' +
+        '<div class="falta"><dt><i aria-hidden="true"></i>Falta cobrar</dt><dd>' + esc(money(b.saldo)) + '</dd></div>' +
+      '</dl>' +
+      (b.estimados ? '<p class="ct-fin-est">' + b.estimados + (b.estimados === 1 ? ' saldo es estimado' : ' saldos son estimados') +
+        ': la hoja todavía no ' + (b.estimados === 1 ? 'lo' : 'los') + ' trae.</p>' : '')
+    : '';
+  return '<div class="ct-fin-bolsa ' + g + '" id="ct-fin-' + g + '">' +
+    '<div class="ct-fin-cab"><span class="ct-fin-ico" aria-hidden="true">' + ico(icono) + '</span>' +
+      '<div><h3 class="ct-fin-t">' + esc(titulo) + ' <span class="folio">' + b.n + (b.n === 1 ? ' proyecto' : ' proyectos') + '</span></h3>' +
+      '<p class="ct-fin-sub">' + esc(sub) + '</p></div></div>' +
+    nums +
+    (b.lista.length
+      ? '<p class="ct-fin-lt">Proyectos, primero los que más deben</p>' + lista.map(filaFinanza).join('') + mas
+      : vacio(vacioT, vacioD)) +
   '</div>';
 }
 
 function filaFinanza(x) {
   const p = x.proyecto;
-  return '<div class="pf-fila ct-fila">' +
-    '<span class="pf-fila-ico' + (x.saldo > 0 ? ' urge' : ' bien') + '">' +
-      ico(p.etapa ? (Proy.ICO_ETAPA[p.etapa] || 'i-proyectos') : 'i-venta') + '</span>' +
+  const pct = x.vendido > 0 ? Math.floor(x.cobrado / x.vendido * 100) : 100;
+  return '<div class="pf-fila ct-fila ct-fin-fila">' +
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
       '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
         (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
-        ' · vendido ' + esc(money(x.vendido)) + ' · cobrado ' + esc(money(x.cobrado)) +
         (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
       '</p>' +
-      medidorCobro(x) +
+      '<div class="ct-cobro">' + barraCobro(x.cobrado, x.saldo) +
+        '<span class="ct-cobro-t">' + pct + ' % cobrado de ' + esc(money(x.vendido)) + (x.deNotion || !(x.saldo > 0) ? '' : ' · estimado') + '</span></div>' +
     '</div>' +
-    '<div class="ct-monto' + (x.saldo > 0 ? ' saldo' : '') + '">' + esc(money(x.saldo)) +
-      '<small>' + (x.saldo > 0 ? 'por cobrar' : 'cobrado') + '</small></div>' +
+    '<div class="ct-monto' + (x.saldo > 0 ? ' saldo' : '') + '">' +
+      esc(money(x.saldo > 0 ? x.saldo : x.vendido)) + '<small>' + (x.saldo > 0 ? 'falta cobrar' : 'cobrado') + '</small></div>' +
     (p.de_hoja ? '' :
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>') +
   '</div>';
@@ -782,34 +815,36 @@ function pintarVentas() {
   c.push([money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta, { clave: 'ant',
     va: k.mesAnterior.n > 0 && ymAnt ? { dest: 'mes:' + ymAnt, que: 'ir a ' + k.mesAnterior.etiqueta + ' en las doce barras' } : null,
     em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' venta' : ' ventas') }]);
-  c.push([money(k.pipeline.total), 'Autorizado sin decidir', { urge: k.pipeline.n > 0, clave: 'pipe',
+  c.push([money(k.pipeline.total), 'Cotizaciones por cerrar', { urge: k.pipeline.n > 0, clave: 'pipe',
     va: k.pipeline.n > 0 && aProyectos ? { dest: 'ir:proyectos', que: 'abrir Proyectos para decidirlas' } : null,
-    em: k.pipeline.n + (k.pipeline.n === 1 ? ' cotización' : ' cotizaciones') }]);
-  c.push([money(k.porCobrar.total), cob.t, { urge: k.porCobrar.n > 0, clave: 'cobrar',
+    em: k.pipeline.n + (k.pipeline.n === 1 ? ' autorizada, sin respuesta' : ' autorizadas, sin respuesta') }]);
+  c.push([money(k.porCobrar.total), 'Por cobrar en total', { urge: k.porCobrar.n > 0, clave: 'cobrar',
     va: k.porCobrar.n > 0 ? { dest: 'tab:cobrar', que: 'abrir Por cobrar' } : null,
     em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }]);
-  c.push([D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Conversión', { clave: 'conv',
+  c.push([D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Cotizaciones ganadas', { clave: 'conv',
     em: D.conv.ganadas + (D.conv.ganadas === 1 ? ' ganada de ' : ' ganadas de ') +
           (D.conv.ganadas + D.conv.perdidas) +
           (D.conv.ganadas + D.conv.perdidas === 1 ? ' decidida' : ' decididas') }]);
-  c.push([money(k.perdidoMes.total), 'No se dio en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0, clave: 'perdido',
+  c.push([money(k.perdidoMes.total), 'Perdido en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0, clave: 'perdido',
     va: k.perdidoMes.n > 0 ? { dest: 'mes:' + ymHoy, que: 'ir a ' + k.mes.etiqueta + ' en las doce barras' } : null,
     em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }]);
 
   /* Lo primero, desde octubre de 2026 y por petición de la dirección: las finanzas de lo que está
      en fabricación y de lo que se está cobrando, y los últimos doce meses. Lo demás —las cuentas
      del mes, el almacén, la lista de ventas y lo vendido por tipo de trabajo— va debajo. */
-  const partes = [lineaHoja(), htmlFinanzas(), graficaMeses(), filaCuentas(c)];
+  const partes = [lineaHoja(), htmlFinanzas(), graficaMeses(),
+    '<section class="card ct-otros" aria-labelledby="ct-otros-h"><div class="card-h"><h2 id="ct-otros-h">' + ico('i-control') +
+      ' Ventas del mes y cotizaciones</h2></div><div class="card-b">' + filaCuentas(c) + '</div></section>'];
 
   if (D.almacen) partes.push(filaAlmacen());
 
   partes.push(listaProyectos());
 
-  partes.push('<p class="pf-nota">«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la ' +
+  partes.push(comoSeCuenta('«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la ' +
     'venta está allá, y el que se firmó aquí cuando todavía no ha salido de este dispositivo. «Por cobrar» es el saldo que calcula ' +
     'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
-    'El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
-    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '.</p>');
+    'El ticket promedio de los últimos doce meses es ' + money(k.ticket) +
+    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '.'));
   partes.push(htmlPorTipo());
   return partes.join('');
 }
@@ -870,21 +905,32 @@ function graficaMeses() {
         (m.vendido > 0 ? '<i class="ct-b vendido" style="width:' + pv + '%"></i>' : '') +
         (m.perdido > 0 ? '<i class="ct-b perdido" style="width:' + pp + '%"></i>' : '') +
       '</span>' +
-      '<span class="ct-mes-v">' + esc(money(m.vendido)) +
-        '<small>' + m.ganados + (m.ganados === 1 ? ' venta' : ' ventas') +
-        (m.perdidos ? ' · ' + m.perdidos + ' no se ' + (m.perdidos === 1 ? 'dio' : 'dieron') : '') + '</small></span>' +
+      /* Un mes sin nada no repite «$0.00 · 0 ventas»: una raya tenue basta, y la gráfica se lee
+         por los meses que sí tienen algo. */
+      (abre
+        ? '<span class="ct-mes-v">' + esc(money(m.vendido)) +
+          '<small>' + m.ganados + (m.ganados === 1 ? ' venta' : ' ventas') +
+          (m.perdidos ? ' · ' + m.perdidos + ' no se ' + (m.perdidos === 1 ? 'dio' : 'dieron') : '') + '</small></span>'
+        : '<span class="ct-mes-v cero">—<span class="solo-voz">sin ventas</span></span>') +
       (abre ? '<span class="solo-voz">, ver sus ventas</span>' : '');
-    const clase = 'ct-mes' + (m.mes === D.hoy.slice(0, 7) ? ' actual' : '');
+    const clase = 'ct-mes' + (m.mes === D.hoy.slice(0, 7) ? ' actual' : '') + (abre ? '' : ' vacio');
     return abre
       ? '<button type="button" class="' + clase + ' ct-mes-ver" id="ct-mes-' + esc(m.mes) + '" data-mes="' + esc(m.mes) +
         '" aria-haspopup="dialog" aria-expanded="false">' + interior + '</button>'
       : '<div class="' + clase + '">' + interior + '</div>';
   }).join('');
   const total = M.reduce((s, m) => s + m.vendido, 0);
-  return '<div class="card" id="ct-meses"><div class="card-h"><h2>' + ico('i-control') + ' Últimos doce meses</h2>' +
-    '<span class="folio">' + esc(money(total)) + '</span></div>' +
-    '<div class="card-b"><div class="ct-grafica' + (_barras === 'espera' ? ' espera' : '') + '">' + filas + '</div>' +
-    '<p class="pf-nota ct-leyenda"><i class="ct-b vendido"></i> vendido &nbsp; <i class="ct-b perdido"></i> no se dio</p>' +
+  const conVenta = M.filter(m => m.vendido > 0);
+  const mejor = conVenta.reduce((a, m) => (!a || m.vendido > a.vendido ? m : a), null);
+  /* Las tres respuestas que se buscan en esta gráfica, dichas arriba para no tener que sumar a ojo. */
+  const resumen = '<dl class="ct-meses-res">' +
+    '<div><dt>Vendido en 12 meses</dt><dd>' + esc(money(total)) + '</dd></div>' +
+    '<div><dt>Promedio por mes</dt><dd>' + esc(money(red2(total / M.length))) + '</dd></div>' +
+    (mejor ? '<div><dt>Mejor mes</dt><dd>' + esc(mejor.etiqueta) + ' <small>' + esc(money(mejor.vendido)) + '</small></dd></div>' : '') +
+  '</dl>';
+  return '<div class="card" id="ct-meses"><div class="card-h"><h2>' + ico('i-control') + ' Últimos doce meses</h2></div>' +
+    '<div class="card-b">' + resumen + '<div class="ct-grafica' + (_barras === 'espera' ? ' espera' : '') + '">' + filas + '</div>' +
+    '<p class="pf-nota ct-leyenda"><i class="ct-b vendido"></i> vendido &nbsp; <i class="ct-b perdido"></i> no se dio &nbsp;·&nbsp; toca un mes para ver sus ventas</p>' +
     '</div></div>';
 }
 
@@ -1055,9 +1101,9 @@ function pintarCobrar() {
     '<div class="card" id="ct-cartera"><div class="card-h"><h2>' + ico('i-venta') + ' Cartera' +
       ' <span class="folio">' + D.cartera.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + '</div></div>' +
-    '<p class="pf-nota">Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
+    comoSeCuenta('Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
     'que calcula la hoja cuando la venta está allá y bajó («saldo de la hoja»); si no, el total vendido menos el anticipo ' +
-    'pactado. Marcar LIQUIDADO —en la hoja o en la ficha del proyecto— lo saca de esta lista.</p>';
+    'pactado. Marcar LIQUIDADO —en la hoja o en la ficha del proyecto— lo saca de esta lista.');
 }
 
 /* P30 · Cuánto va cobrado de lo vendido, en una barra fina debajo del texto (pieza 20, el medidor
