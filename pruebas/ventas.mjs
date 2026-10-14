@@ -8,7 +8,8 @@
  * Uso:  node pruebas/ventas.mjs
  */
 import { resumenMensual, indicadores, saldoDe, porCobrar, conversion, csvProyectos, csvCampo,
-         mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV, ventaDesdeHoja, unificar } from '../js/datos/ventas.js';
+         mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV, ventaDesdeHoja, unificar,
+         grupoFinanzas, finanzasVivas } from '../js/datos/ventas.js';
 import { desdeVentaDeHoja } from '../js/datos/proyectos.js';
 import { VIVAS_EN_TALLER } from '../js/datos/puente.js';
 
@@ -341,6 +342,33 @@ console.log('\nLA COMISIÓN DE LA HOJA VIAJA CON LA VENTA');
   eq('la fila suelta la trae', ventaDesdeHoja(f).comisiones, 2000);
   eq('y la enlazada también', unificar([proy({ id: 'p30', folio_global: 'COT-0300@AAAA' })], [f]).ventas[0].comisiones, 2000);
   eq('sin la columna (fabricación) queda en null, no en cero', ventaDesdeHoja({ ...f, comisiones: undefined }).comisiones, null);
+}
+
+console.log('\nLAS FINANZAS DE LO VIVO: en fabricación y cobrando');
+{
+  eq('los dos estatus del taller son los del puente', ['FABRICACION', 'REPARANDO'].every(e => VIVAS_EN_TALLER.includes(e)) && VIVAS_EN_TALLER.length === 2, true);
+  eq('FABRICACION va al taller', grupoFinanzas(proy()), 'fabricacion');
+  eq('REPARANDO también', grupoFinanzas(proy({ estatus_notion: 'REPARANDO' })), 'fabricacion');
+  eq('COBRANDO se está cobrando', grupoFinanzas(proy({ estatus_notion: 'COBRANDO', etapa: 'instalado' })), 'cobrando');
+  eq('LIQUIDADO no está vivo', grupoFinanzas(proy({ estatus_notion: 'LIQUIDADO' })), '');
+  eq('lo cancelado no cuenta', grupoFinanzas(proy({ etapa: 'cancelado' })), '');
+  eq('sin estatus y en la línea: fabricación', grupoFinanzas(proy({ estatus_notion: null, etapa: 'armado' })), 'fabricacion');
+  eq('sin estatus e instalado con saldo: cobrando', grupoFinanzas(proy({ estatus_notion: null, etapa: 'instalado' })), 'cobrando');
+  eq('sin estatus e instalado sin saldo: nada', grupoFinanzas(proy({ estatus_notion: null, etapa: 'instalado', anti_pactado: 11600 })), '');
+  eq('fila de la hoja sin estatus: no se inventa', grupoFinanzas({ ...proy({ estatus_notion: null }), de_hoja: true }), '');
+
+  const f = finanzasVivas([
+    proy({ id: 'a' }),                                                                   // 11600, saldo 5800 estimado
+    proy({ id: 'b', estatus_notion: 'REPARANDO', precio_auth: 20000, pago_pendiente: 2000 }),
+    proy({ id: 'c', estatus_notion: 'COBRANDO', etapa: 'instalado', pago_pendiente: 1000 }),
+    proy({ id: 'd', estatus_notion: 'LIQUIDADO' }),
+    proy({ id: 'e', etapa: 'cancelado' }),
+  ]);
+  eq('fabricación suma vendido, cobrado y saldo', [f.fabricacion.n, f.fabricacion.vendido, f.fabricacion.cobrado, f.fabricacion.saldo], [2, 31600, 23800, 7800]);
+  eq('y cuenta los saldos estimados', f.fabricacion.estimados, 1);
+  eq('de mayor a menor saldo', f.fabricacion.lista.map(x => x.proyecto.id), ['a', 'b']);
+  eq('cobrando', [f.cobrando.n, f.cobrando.vendido, f.cobrando.cobrado, f.cobrando.saldo, f.cobrando.estimados], [1, 11600, 10600, 1000, 0]);
+  eq('lista vacía', finanzasVivas(null).cobrando, { n: 0, vendido: 0, cobrado: 0, saldo: 0, estimados: 0, lista: [] });
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

@@ -3717,6 +3717,13 @@ button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 .ct-cobro .medidor{margin:4px 0 2px}
 .ct-cobro-t{display:block;font-size:var(--t1);line-height:1.4;color:var(--tinta2);font-variant-numeric:tabular-nums}
 
+/* ----- Finanzas de los proyectos: en fabricación y cobrando (`htmlFinanzas`) -----
+   Dos bolsas en la misma tarjeta, separadas por una raya: cada una con su fila de cuentas y sus
+   renglones, que son los de la cartera. */
+.ct-fin-bolsa + .ct-fin-bolsa{margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--linea)}
+.ct-fin-t{margin:0 0 var(--e2);font-size:var(--t3)}
+.ct-fin-bolsa > .btn{margin-top:var(--e2)}
+
 /* ----- F54 · comisiones, primero las chicas -----
    Una cuenta de lo que se puede pagar y una caja: el monto, la barra de cuánto alcanza (el
    medidor de la pieza 20: lleno = lo que se liquida, muesca = el dinero que hay), la frase, el
@@ -4174,7 +4181,7 @@ html[data-tema="oscuro"]{
 :is(.ct-tt,.ct-tt-vz) .tt-o{--tt:var(--tt-co)}
 :is(.ct-tt,.ct-tt-vz) .tt-x{--tt:var(--tt-cx)}
 
-.ct-tt{margin-bottom:var(--e4)}
+.ct-tt{margin-top:var(--e4);margin-bottom:var(--e4)}
 .ct-tt-barra{justify-content:space-between}
 .ct-tt-pista{font-size:var(--t1);color:var(--tinta3)}
 /* El punto de color que acompaña a cada nombre. */
