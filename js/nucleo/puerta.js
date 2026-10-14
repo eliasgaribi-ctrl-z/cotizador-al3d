@@ -969,7 +969,7 @@ function fondoHTML(clave) {
   switch (clave) {
     case 'neon': return '<i class="pfo-cielo"></i><i class="pfo-neon-a"></i><i class="pfo-neon-b"></i>' +
       '<i class="pfo-sigue"><b class="pfo-neon-foco"></b></i><i class="pfo-neon-tubo"></i>' + VINETA + GRANO;
-    case 'plano': return '<i class="pfo-rejilla"></i><i class="pfo-aro1"></i><i class="pfo-aro2"><b></b></i>' +
+    case 'plano': return '<i class="pfo-rejilla"></i><i class="pfo-rejilla-borde"></i><i class="pfo-aro1"></i><i class="pfo-aro2"><b></b></i>' +
       '<i class="pfo-cota-x"><s></s><em></em><span>1 200 mm</span><em></em><s></s></i>' +
       '<i class="pfo-cota-y"><s></s><em></em><span>800 mm</span><em></em><s></s></i>' +
       '<i class="pfo-mira-x"></i><i class="pfo-mira-y"></i><i class="pfo-sigue"><b class="pfo-rombo"></b></i>';
@@ -1249,25 +1249,41 @@ const TOQUES = {
 function constelacion(c, cursor) {
   const ctx = c.getContext && c.getContext('2d');
   if (!ctx) return { parar() {}, empujar() {} };
-  let w = 0, h = 0, raf = 0, vivo = true;
+  let w = 0, h = 0, raf = 0, vivo = true, dpr = 1;
   const pts = [], aros = [];
+  /* Cada punto lleva un resplandor (`shadowBlur`), y desenfocar 120 sombras en cada cuadro era
+     lo más caro de este fondo en una máquina sin tarjeta de video. Cada combinación de color y
+     tamaño se pinta UNA vez en un lienzo chico, con la misma sombra, y luego solo se estampa. */
+  const SOMBRA = 8, MARGEN = 14;
+  let sellos = new Map();
+  const sello = (col, r) => {
+    const k = col + r, hay = sellos.get(k);
+    if (hay) return hay;
+    const lado = Math.ceil((r + MARGEN) * 2 * dpr), o = document.createElement('canvas');
+    o.width = o.height = lado;
+    const x = o.getContext('2d');
+    x.fillStyle = x.shadowColor = col; x.shadowBlur = SOMBRA;
+    x.beginPath(); x.arc(lado / 2, lado / 2, r * dpr, 0, 6.283); x.fill();
+    sellos.set(k, o);
+    return o;
+  };
   const ajusta = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    sellos = new Map();
     w = c.clientWidth; h = c.clientHeight;
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const n = Math.round(Math.max(30, Math.min(120, w * h / 8000)));
     while (pts.length < n) {
       const vx = (Math.random() - .5) * .5, vy = (Math.random() - .5) * .5;
-      pts.push({ x: Math.random() * w, y: Math.random() * h, vx, vy, crucero: Math.hypot(vx, vy), r: Math.random() * 1.4 + .9 });
+      /* El tamaño va en décimas: así son unos cuantos sellos y no uno por punto. */
+      pts.push({ x: Math.random() * w, y: Math.random() * h, vx, vy, crucero: Math.hypot(vx, vy), r: Math.round((Math.random() * 1.4 + .9) * 10) / 10 });
     }
     pts.length = n;
   };
-  const COL = ['#6290ff', '#9db4ff', '#7b6bff'];
-  const cuadro = mueve => {
-    ctx.clearRect(0, 0, w, h);
-    const p = cursor(), mx = p ? p.x * w : null, my = p ? p.y * h : null;
-    if (mueve) for (const a of pts) {
+  const COL = ['#6290ff', '#9db4ff', '#7b6bff'], TRAMOS = 16;
+  const mueve = (mx, my) => {
+    for (const a of pts) {
       const v = Math.hypot(a.vx, a.vy);
       if (v > a.crucero) { const k = Math.max(a.crucero / v, .95); a.vx *= k; a.vy *= k; }
       a.x += a.vx; a.y += a.vy;
@@ -1280,22 +1296,38 @@ function constelacion(c, cursor) {
         if (d < 110 && d > 0) { a.x += dx / d * 1.4; a.y += dy / d * 1.4; }
       }
     }
+  };
+  const aqui = () => { const p = cursor(); return p ? [p.x * w, p.y * h] : [null, null]; };
+  /* El paso que se salta el freno: los puntos se mueven, pero no se pinta. */
+  const cuadroSinPintar = () => mueve(...aqui());
+  const cuadro = m => {
+    ctx.clearRect(0, 0, w, h);
+    const [mx, my] = aqui();
+    if (m) mueve(mx, my);
+    /* Las líneas se juntan en 16 escalones de transparencia y cada escalón va en un solo trazo:
+       antes era un trazo por línea, cientos por cuadro. La diferencia con el valor exacto no
+       llega a 2 % de opacidad. */
     ctx.lineWidth = 1;
+    const tramos = Array.from({ length: TRAMOS }, () => []);
     for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
-      const a = pts[i], b = pts[j], d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (d < 120) {
-        ctx.strokeStyle = 'rgba(98,144,255,' + ((1 - d / 120) * .5).toFixed(3) + ')';
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
+      const a = pts[i], b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+      if (d2 < 14400) tramos[Math.min(TRAMOS - 1, (1 - Math.sqrt(d2) / 120) * TRAMOS | 0)].push(a.x, a.y, b.x, b.y);
     }
+    const traza = (rgb, tope) => tramos.forEach((l, k) => {
+      if (!l.length) return;
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + ((k + .5) / TRAMOS * tope).toFixed(3) + ')';
+      ctx.beginPath();
+      for (let q = 0; q < l.length; q += 4) { ctx.moveTo(l[q], l[q + 1]); ctx.lineTo(l[q + 2], l[q + 3]); }
+      ctx.stroke();
+      l.length = 0;
+    });
+    traza('98,144,255', .5);
     if (mx != null) {
       for (const a of pts) {
         const d = Math.hypot(a.x - mx, a.y - my);
-        if (d < 190) {
-          ctx.strokeStyle = 'rgba(190,205,255,' + ((1 - d / 190) * .8).toFixed(3) + ')';
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mx, my); ctx.stroke();
-        }
+        if (d < 190) tramos[Math.min(TRAMOS - 1, (1 - d / 190) * TRAMOS | 0)].push(a.x, a.y, mx, my);
       }
+      traza('190,205,255', .8);
       const g = ctx.createRadialGradient(mx, my, 0, mx, my, 160);
       g.addColorStop(0, 'rgba(98,144,255,.35)'); g.addColorStop(1, 'rgba(98,144,255,0)');
       ctx.fillStyle = g; ctx.fillRect(mx - 160, my - 160, 320, 320);
@@ -1309,19 +1341,30 @@ function constelacion(c, cursor) {
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(aros[i].x, aros[i].y, 12 + 190 * (1 - Math.pow(1 - t, 3)), 0, 6.283); ctx.stroke();
     }
-    ctx.shadowBlur = 8;
-    pts.forEach((a, i) => { ctx.fillStyle = ctx.shadowColor = COL[i % 3]; ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, 6.283); ctx.fill(); });
-    ctx.shadowBlur = 0;
+    pts.forEach((a, i) => { const m = a.r + MARGEN; ctx.drawImage(sello(COL[i % 3], a.r), a.x - m, a.y - m, m * 2, m * 2); });
   };
-  const vuelta = () => {
+  /* El mismo freno que los fondos de lienzo (js/nucleo/puerta-fondos.js), en chico: si en 3 s
+     seguidos no llegan 45 cuadros por segundo, se pinta uno sí y uno no. Los puntos avanzan por
+     cuadro y no por tiempo, así que el cuadro pintado da dos pasos y la velocidad no cambia. */
+  let paso = 1, cuenta = 0, v0 = 0, vn = 0, malas = 0, desde = 0;
+  const vuelta = (ahora) => {
     raf = 0;
     if (!vivo || document.hidden) return;
-    cuadro(true);
     raf = requestAnimationFrame(vuelta);
+    if (++cuenta % paso) return;
+    if (paso === 2) cuadroSinPintar();
+    cuadro(true);
+    vn++;
+    if (!v0) { v0 = ahora; vn = 0; return; }
+    if (ahora - v0 < 1500) return;
+    const fps = vn * 1000 / (ahora - v0);
+    v0 = ahora; vn = 0;
+    if (paso === 1 && ahora - desde > 1500 && (malas = fps < 45 ? malas + 1 : 0) >= 2) paso = 2;
   };
   const arrancar = () => {
     if (!vivo || raf) return;
     if (sinMovimiento()) { cuadro(false); return; }
+    v0 = 0; malas = 0; desde = performance.now();
     raf = requestAnimationFrame(vuelta);
   };
   const alVolver = () => { if (!document.hidden) arrancar(); };
