@@ -29,6 +29,18 @@ const RND = Math.random;
    si la tipografía de la app cambia, el lienzo cambia con ella. */
 let LETRA = 'sans-serif';
 const RR = (ctx, x, y, w, h, r) => { if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+/* Lo que no cambia de un cuadro al otro —el degradado del cielo, el tablero de paletas vacío— se
+   pinta UNA vez en un lienzo aparte y cada cuadro solo lo copia. Pintar un degradado de pantalla
+   completa en cada cuadro era de lo más caro en las máquinas del taller, que pintan sin tarjeta
+   de video. Se rehace si el lienzo cambia de tamaño o de resolución. */
+const capa = (s, ctx, w, h, pinta) => {
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  if (!s.capa || s.capa.width !== W || s.capa.height !== H) {
+    const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+    const o = oc.getContext('2d'); o.scale(W / w, H / h); pinta(o); s.capa = oc;
+  }
+  ctx.drawImage(s.capa, 0, 0, w, h);
+};
 
 /** Los de fondo oscuro llevan encima una viñeta oscura; los claros, una azul muy tenue. */
 export const OSCUROS = ['impresion', 'flujo', 'laser', 'malla', 'persianas'];
@@ -59,8 +71,10 @@ export const LIENZOS = {
         else { p.th += dt / .2; while (p.th >= 1) { p.th -= 1; p.cols[p.lay] = s.ci; if (++p.lay >= NL) { p.th = 0; break; } } }
       };
       if (dt > 0) { paso(s.A); paso(s.B); }
-      const bg = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * .75);
-      bg.addColorStop(0, '#151a6e'); bg.addColorStop(1, '#05061a'); ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+      capa(s, ctx, w, h, o => {
+        const bg = o.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * .75);
+        bg.addColorStop(0, '#151a6e'); bg.addColorStop(1, '#05061a'); o.fillStyle = bg; o.fillRect(0, 0, w, h);
+      });
       const ex = .45 + P.on * (P.x / w - .5) * 1.1, ey = -1 + P.on * (P.y / h - .5) * .5;
       const pieza = (p, cx, cy, fs) => {
         const TX = 'AL3D';
@@ -115,23 +129,53 @@ export const LIENZOS = {
       const ondas = s.rip.map(r => { const age = (t - r.t0) / 1.8; return { x: r.x, y: r.y, f: age * 700, k: (1 - age) * .9 }; });
       const cerca = P.on > .01;
       ctx.fillStyle = '#f3f5ff'; ctx.fillRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .8;
       /* Rejilla más abierta en pantallas grandes: con 18 px a 1366 eran ~15 000 círculos con ruido por
          cuadro y la entrada bajaba a 21–40 cuadros por segundo (auditoría completa 2026-10, pub-8). */
       const g = w < 600 ? 14 : w < 1000 ? 18 : 24, D = Math.hypot(w, h) / 2 + g, cx = w / 2, cy = h / 2;
-      for (const [an, col, ph] of [[.26, '#6290ff', 0], [1.31, '#341efd', 2.1]]) {
-        const co = Math.cos(an), si = Math.sin(an); ctx.fillStyle = col; ctx.beginPath();
+      /* Los puntos se ESTAMPAN y no se trazan. Son unos 4 000 por cuadro, y trazar un círculo
+         suavizado, uno por uno, era lo que hacía a este fondo el más pesado de todos: 41 ms por
+         cuadro en una máquina que pinta sin tarjeta de video (para ir a 60 hay 16). Los puntos no
+         cambian de lugar, solo de tamaño, así que cada tamaño —en cuartos de píxel— se pinta una
+         vez por color en un lienzo chico, a la resolución del lienzo, y luego solo se copia,
+         alineado al píxel. Se rehacen si cambia la resolución (el freno) o la rejilla.
+
+         Las dos tramas se mezclan con `multiply` (donde se cruzan, oscurece), y mezclar punto
+         por punto costaba otros 9 ms. Da lo mismo con una sola mezcla: la primera trama cae
+         sobre el papel, que es liso, y multiplicar contra un liso es pintar normal con el color
+         ya multiplicado; la segunda se estampa aparte, en su propio lienzo, y se multiplica
+         encima de un jalón. El 80 % de tinta va dentro de los sellos de la primera y en la
+         mezcla de la segunda. */
+      const k = ctx.getTransform().a, W = ctx.canvas.width, H = ctx.canvas.height;
+      if (!s.sellos || s.k !== k || s.g !== g) {
+        s.k = k; s.g = g;
+        const x2 = (a, b) => Math.round(parseInt(a, 16) * parseInt(b, 16) / 255);
+        const sobrePapel = (c) => 'rgba(' + [1, 3, 5].map(i => x2(c.substr(i, 2), 'f3f5ff'.substr(i - 1, 2))).join(',') + ',.8)';
+        s.sellos = [sobrePapel('#6290ff'), '#341efd'].map(col => Array.from({ length: g * 2 + 1 }, (_, q) => {
+          const R = q / 4 * k, lado = Math.ceil(R * 2) + 2, o = document.createElement('canvas');
+          o.width = o.height = lado;
+          const x = o.getContext('2d'); x.fillStyle = col; x.beginPath(); x.arc(lado / 2, lado / 2, R, 0, 6.283); x.fill();
+          return o;
+        }));
+      }
+      if (!s.trama || s.trama.width !== W || s.trama.height !== H) { s.trama = document.createElement('canvas'); s.trama.width = W; s.trama.height = H; }
+      const t2 = s.trama.getContext('2d');
+      t2.clearRect(0, 0, W, H);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      [[.26, 0], [1.31, 2.1]].forEach(([an, ph], ci) => {
+        const co = Math.cos(an), si = Math.sin(an), sel = s.sellos[ci], lz = ci ? t2 : ctx;
         for (let u = -D; u <= D; u += g) for (let v = -D; v <= D; v += g) {
           const x = cx + u * co - v * si, y = cy + u * si + v * co;
           if (x < -g || x > w + g || y < -g || y > h + g) continue;
           let val = .5 + .5 * NZ(x * .004, y * .004, t * .4 + ph);
           if (cerca) { const d2 = (x - P.x) ** 2 + (y - P.y) ** 2; if (d2 < 202500) val += P.on * .9 * GS(d2, 150); }
           for (const r of ondas) { const e = Math.hypot(x - r.x, y - r.y) - r.f; if (e < 130 && e > -130) val += r.k * GS(e * e, 40); }
-          const rr = g * .5 * Math.min(1, Math.max(.06, val * .8));
-          ctx.moveTo(x + rr, y); ctx.arc(x, y, rr, 0, 6.283);
+          const rr = g * .5 * Math.min(1, Math.max(.06, val * .8)), o = sel[Math.round(rr * 4)], m = o.width / 2;
+          lz.drawImage(o, Math.round(x * k - m), Math.round(y * k - m));
         }
-        ctx.fill();
-      }
+      });
+      ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .8;
+      ctx.drawImage(s.trama, 0, 0);
+      ctx.setTransform(k, 0, 0, k, 0, 0);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     },
   },
@@ -270,8 +314,10 @@ export const LIENZOS = {
           vx[i] += ax * h2; vy[i] += ay * h2; x[i] += vx[i] * h2; y[i] += vy[i] * h2;
         }
       }
-      const bg = ctx.createRadialGradient(w / 2, h * .45, 0, w / 2, h * .45, Math.max(w, h) * .7); bg.addColorStop(0, '#13166b'); bg.addColorStop(1, '#05061a');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+      capa(s, ctx, w, h, o => {
+        const bg = o.createRadialGradient(w / 2, h * .45, 0, w / 2, h * .45, Math.max(w, h) * .7); bg.addColorStop(0, '#13166b'); bg.addColorStop(1, '#05061a');
+        o.fillStyle = bg; o.fillRect(0, 0, w, h);
+      });
       const ST = ['rgba(66,103,254,.25)', 'rgba(98,144,255,.42)', 'rgba(157,180,255,.62)', 'rgba(220,228,255,.85)'];
       const ps = ST.map(() => new Path2D()), nodos = new Path2D();
       const dsp = (i) => Math.hypot(x[i] - rx[i], y[i] - ry[i]);
@@ -309,10 +355,12 @@ export const LIENZOS = {
         if (sp[i] > 0 && t >= at[i]) { cur[i] = sp[i] === 1 ? tgt[i] : PALETA[RND() * PALETA.length | 0]; sp[i]--; at[i] = t + .055; fp[i] = t; glow[i] = 1; }
         if (glow[i]) glow[i] = Math.max(0, glow[i] - dt * 1.2);
       }
-      ctx.fillStyle = '#090a1f'; ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#15173f'; ctx.beginPath();
-      for (let i = 0; i < n; i++) RR(ctx, ox + (i % C) * px, oy + (i / C | 0) * py, cw, ch, 4);
-      ctx.fill();
+      capa(s, ctx, w, h, o => {
+        o.fillStyle = '#090a1f'; o.fillRect(0, 0, w, h);
+        o.fillStyle = '#15173f'; o.beginPath();
+        for (let i = 0; i < n; i++) RR(o, ox + (i % C) * px, oy + (i / C | 0) * py, cw, ch, 4);
+        o.fill();
+      });
       ctx.fillStyle = 'rgba(4,5,18,.6)';
       for (let i = 0; i < n; i++) { const p = (t - fp[i]) / .055; if (p >= 0 && p < 1) ctx.fillRect(ox + (i % C) * px, oy + (i / C | 0) * py, cw, ch / 2 * (1 - p)); }
       ctx.font = '600 ' + Math.round(ch * .6) + 'px ' + LETRA; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -372,7 +420,7 @@ export const LIENZOS = {
       }
       s.octx.putImageData(s.img, 0, 0);
       ctx.fillStyle = '#eef1ff'; ctx.fillRect(0, 0, w, h);
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
       ctx.drawImage(s.oc, 0, 0, W * sc, H * sc);
     },
   },
@@ -429,21 +477,26 @@ export const LIENZOS = {
  * guardado y vuelve a empezar el fondo si cambió (girar el teléfono). `dt` tope 0.05 s y
  * `devicePixelRatio` tope 2. Si la persona cambia a «menos movimiento» con la puerta abierta, el
  * fondo se detiene en un cuadro fijo, y al revés vuelve a andar.
+ *
+ * El freno para una máquina lenta (ver `vuelta`) baja primero los cuadros por segundo y, solo si
+ * no basta, la resolución del lienzo. En una máquina que aguanta no cambia nada.
  */
 export function lienzoAnimado(c, clave, { cursor, caja, quieto }) {
   const r = LIENZOS[clave];
   const ctx = r && c.getContext && c.getContext('2d');
   if (!ctx) return { tocar() {}, parar() {} };
   try { LETRA = getComputedStyle(document.documentElement).getPropertyValue('--f-cifra').trim() || LETRA; } catch (_) {}
-  let w = 0, h = 0, st = null, t = 0, last = 0, raf = 0, vivo = true;
+  let w = 0, h = 0, st = null, t = 0, last = 0, raf = 0, vivo = true, escala = 1;
   const P = { x: 0, y: 0, on: 0, caja: null }, toques = [];
-  const ajusta = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  /* `reinicia` en falso cuando solo cambia la resolución (el freno): el estado de cada fondo va
+     en px de la pantalla, no del lienzo, así que la pieza a medio imprimir sigue donde iba. */
+  const ajusta = (reinicia = true) => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * escala;
     w = c.clientWidth; h = c.clientHeight;
     if (!w || !h) return;
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    st = null;
+    if (reinicia) st = null;
   };
   /* El rectángulo de la caja, relativo al lienzo. Va suavizado: cuando salen los pasos la caja
      crece de golpe, y las piezas de 3a se encogían de un cuadro al otro. */
@@ -477,29 +530,58 @@ export function lienzoAnimado(c, clave, { cursor, caja, quieto }) {
   };
   /* Con movimiento reducido no hay bucle: un cuadro fijo, desde cero, y otro si la pantalla cambia. */
   const fijo = () => { st = null; seguro(0, true); };
-  /* El freno para un teléfono lento: si dibujar un cuadro cuesta más de 12 ms en promedio, se
-     pinta uno sí y uno no (30 por segundo, con el `dt` del doble) en lugar de trabar la pantalla;
-     si vuelve a bajar de 6 ms, regresa a todos. El cuadro saltado no toca `last`, así que el
-     tiempo del fondo no se atrasa. */
-  let costo = 0, medio = false, salta = false;
+  /* El freno para una máquina lenta. Antes medía solo lo que tarda el JavaScript del cuadro, y
+     en las computadoras del taller casi todo el costo está DESPUÉS, en pintar los píxeles (sin
+     tarjeta de video, el lienzo lo pinta el procesador): el freno no se enteraba y la puerta se
+     trababa. Ahora se cuentan los cuadros que de verdad llegan a la pantalla, en ventanas de
+     1.5 s, y si dos ventanas seguidas se quedan cortas se baja un escalón:
+       1. pintar uno sí y uno no (30 por segundo en una pantalla de 60), con el `dt` del doble;
+       2. luego, si ni así, el lienzo a 3/4 de resolución, y al final a 0.6. Son fondos detrás
+          de la caja y con viñeta: se notan menos un poco suaves que trabados.
+     No se sube de vuelta: probar otra vez a todo era volver a trabar la pantalla cada tantos
+     segundos. Una máquina que aguanta nunca baja: hacen falta 3 s seguidos por debajo, y no
+     cuenta el arranque. El paso 1 también llega de inmediato si el JavaScript del cuadro pasa de
+     12 ms. El cuadro saltado no toca `last`, así que el tiempo del fondo no se atrasa.
+
+     Y aparte, un tope: después de cada cuadro se deja libre al menos la mitad de lo que costó
+     (`libre`). Así el fondo nunca se queda con más de 2/3 del hilo principal, y el clic en
+     «Entrar con Google» contesta aunque el fondo vaya lento. Un cuadro de menos de ~10 ms no lo
+     nota: el siguiente llega a los 16. */
+  const ESCALAS = [1, .75, .6];
+  let costo = 0, paso = 1, cuenta = 0, nivel = 0, v0 = 0, vn = 0, malas = 0, desde = 0, libre = 0;
+  const frena = (ahora) => {
+    vn++;
+    if (!v0) { v0 = ahora; vn = 0; return; }
+    if (ahora - v0 < 1500) return;
+    const fps = vn * 1000 / (ahora - v0);
+    v0 = ahora; vn = 0;
+    if (ahora - desde < 1500) return;          // lo que tarda en asentarse la puerta al abrir
+    malas = fps < (paso === 1 ? 45 : 24) ? malas + 1 : 0;
+    if (malas < 2) return;
+    malas = 0;
+    if (paso === 1) paso = 2;
+    else if (nivel < ESCALAS.length - 1) { escala = ESCALAS[++nivel]; ajusta(false); }
+  };
   const vuelta = (ahora) => {
     raf = 0;
     if (!vivo || document.hidden) return;
     if (quieto()) { fijo(); return; }
     raf = requestAnimationFrame(vuelta);
-    if (medio && (salta = !salta)) return;
+    if (++cuenta % paso || performance.now() < libre) return;
     const dt = last ? Math.min(.05, Math.max(0, ahora - last) / 1000) : 1 / 60;
     last = ahora;
     const t0 = performance.now();
     seguro(dt, false);
-    const ms = performance.now() - t0;
+    const t1 = performance.now(), ms = t1 - t0;
     costo = costo ? costo * .9 + ms * .1 : ms;
-    if (!medio && costo > 12) medio = true; else if (medio && costo < 6) medio = false;
+    libre = t1 + ms / 2;
+    if (paso === 1 && costo > 12) { paso = 2; malas = 0; }
+    frena(ahora);
   };
   const arrancar = () => {
     if (!vivo || raf || document.hidden) return;
     if (quieto()) { fijo(); return; }
-    last = 0;
+    last = 0; v0 = 0; malas = 0; libre = 0; desde = performance.now();
     raf = requestAnimationFrame(vuelta);
   };
   const alVolver = () => { if (!document.hidden) arrancar(); };

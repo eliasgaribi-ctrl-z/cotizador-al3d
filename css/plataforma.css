@@ -3069,9 +3069,10 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 }
 .puerta-caja .puerta-pie,.puerta-caja .puerta-pie a,.puerta-traza .traza-reloj,
 .puerta-traza .traza-paso:not([data-estado="mal"]) .traza-d{color:var(--tinta2)}
-@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .puerta-caja{-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5)}
-}
+/* Sin `backdrop-filter`: detrás hay un fondo que se mueve, y el desenfoque había que rehacerlo
+   en CADA cuadro. En las computadoras del taller era lo que más trababa la puerta (neón de 36 a
+   60 cuadros por segundo, acrílico de 16 a 32, medido con el procesador frenado 4×), y con la
+   caja al 94 % el desenfoque apenas asomaba. */
 @media(max-width:420px){ .puerta-caja{padding:32px 22px 22px} }
 .puerta-caja.sale{opacity:0;transform:translateY(-8px)}
 
@@ -3141,11 +3142,23 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 
 /* 2b · Plano: la cuadrícula avanza, los círculos giran y una cruz de taller marca el cursor. */
 [data-fondo="plano"]{--pf-t:.3s}
-.pfo-rejilla{inset:0;background-image:linear-gradient(rgba(66,103,254,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.18) 1px,transparent 1px),
-  linear-gradient(rgba(66,103,254,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.07) 1px,transparent 1px);
-  background-size:120px 120px,120px 120px,24px 24px,24px 24px;animation:pf-rejilla 16s linear infinite;
-  -webkit-mask-image:radial-gradient(ellipse at center,#000 30%,transparent 85%);mask-image:radial-gradient(ellipse at center,#000 30%,transparent 85%)}
-@keyframes pf-rejilla{to{background-position:120px 120px,120px 120px,24px 24px,24px 24px}}
+.pfo-rejilla{inset:0;overflow:hidden}
+/* Lo que desvanece la cuadrícula hacia las orillas es una capa ENCIMA, del color del fondo, y no
+   una máscara: la máscara sobre algo que se mueve se recompone entera en cada cuadro (el plano
+   pasaba de 36 a 23 cuadros por segundo). Da el mismo color: la máscara dejaba ver --fondo justo
+   en la proporción en que esta capa lo pone. */
+.pfo-rejilla-borde{inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 30%,var(--fondo) 85%)}
+/* Las dos cuadrículas avanzan con `transform` (una capa cada una, una periodo más grande que la
+   pantalla) y no con `background-position`: así se repintaba la pantalla entera en cada cuadro, y
+   en una máquina lenta el plano iba a 16 cuadros por segundo. Mismo recorrido: la grande 120 px y
+   la chica 24 px cada 16 s. */
+.pfo-rejilla::before,.pfo-rejilla::after{content:"";position:absolute;right:0;bottom:0}
+.pfo-rejilla::before{left:-120px;top:-120px;background-size:120px 120px;animation:pf-rejilla 16s linear infinite;
+  background-image:linear-gradient(rgba(66,103,254,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.18) 1px,transparent 1px)}
+.pfo-rejilla::after{left:-24px;top:-24px;background-size:24px 24px;animation:pf-rejilla-chica 16s linear infinite;
+  background-image:linear-gradient(rgba(66,103,254,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(66,103,254,.07) 1px,transparent 1px)}
+@keyframes pf-rejilla{to{transform:translate(120px,120px)}}
+@keyframes pf-rejilla-chica{to{transform:translate(24px,24px)}}
 [data-fondo="plano"] .pfo-aro1{left:50%;top:50%;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;border:1px dashed rgba(66,103,254,.45);animation:pf-gira 60s linear infinite}
 .pfo-aro2{left:50%;top:50%;width:760px;height:760px;margin:-380px 0 0 -380px;border-radius:50%;border:1px solid rgba(66,103,254,.22);animation:pf-gira 24s linear infinite}
 .pfo-aro2>b{left:50%;top:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#4267fe;box-shadow:0 0 0 4px rgba(66,103,254,.18),0 0 14px #6290ff}
@@ -3167,13 +3180,21 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 /* 2c · Módulo LED: una franja barre la matriz; los puntos se encienden alrededor del dedo. */
 [data-fondo="led"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 45%,#141766 0%,#0d0f2e 60%,#06071a 100%)}
 .pfo-led-base{inset:0;background-image:radial-gradient(circle,rgba(98,144,255,.2) 1.7px,transparent 2.3px);background-size:14px 14px}
-.pfo-led-barre{inset:0;opacity:.6;background-image:radial-gradient(circle,#fff 1.7px,transparent 2.3px);background-size:14px 14px;filter:drop-shadow(0 0 3px #6290ff);
+/* La franja es una ventana de 35 % que cruza con `transform`, y la matriz de adentro se mueve al
+   revés lo mismo, así que los puntos se quedan quietos en su lugar. Antes se corría la máscara
+   (`mask-position`), que repinta la pantalla entera con su resplandor en cada cuadro: 10 cuadros
+   por segundo en una máquina lenta. El recorrido es el mismo: de -39 % a 104 % de la pantalla. */
+.pfo-led-barre{left:0;top:0;bottom:0;width:35vw;width:35cqw;overflow:hidden;opacity:.6;
   -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 50%,transparent 100%);mask-image:linear-gradient(90deg,transparent 0%,#000 50%,transparent 100%);
-  -webkit-mask-size:35% 100%;mask-size:35% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:pf-led 5s linear infinite}
+  animation:pf-led 5s linear infinite}
+.pfo-led-barre::before{content:"";position:absolute;left:0;top:0;bottom:0;width:100vw;width:100cqw;
+  background-image:radial-gradient(circle,#fff 1.7px,transparent 2.3px);background-size:14px 14px;filter:drop-shadow(0 0 3px #6290ff);
+  animation:pf-led-contra 5s linear infinite}
 .pfo-led-dedo{inset:0;background-image:radial-gradient(circle,#b9c9ff 1.9px,transparent 2.5px);background-size:14px 14px;filter:drop-shadow(0 0 4px #4267fe) drop-shadow(0 0 10px #341efd);
   -webkit-mask-image:radial-gradient(circle 180px at calc(var(--px)*100%) calc(var(--py)*100%),#000 0%,transparent 100%);
   mask-image:radial-gradient(circle 180px at calc(var(--px)*100%) calc(var(--py)*100%),#000 0%,transparent 100%)}
-@keyframes pf-led{from{-webkit-mask-position:-60% 0;mask-position:-60% 0}to{-webkit-mask-position:160% 0;mask-position:160% 0}}
+@keyframes pf-led{from{transform:translateX(-39vw);transform:translateX(-39cqw)}to{transform:translateX(104vw);transform:translateX(104cqw)}}
+@keyframes pf-led-contra{from{transform:translateX(39vw);transform:translateX(39cqw)}to{transform:translateX(-104vw);transform:translateX(-104cqw)}}
 
 /* 2d · Círculos: los tres azules del logo flotan en capas que se desplazan con el cursor. */
 .pfo-capa{inset:0;transition:transform .8s var(--pf-ease)}
@@ -3195,13 +3216,13 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 [data-fondo="letras"] .pfo-cielo{inset:0;background:radial-gradient(ellipse at 50% 50%,#0f1150 0%,#07081f 65%)}
 .pfo-fila{left:0;display:flex;padding-right:64px;white-space:nowrap;font:600 150px/1 var(--f-cifra);letter-spacing:-.02em;color:transparent;-webkit-text-stroke:2px var(--pf-tubo)}
 .pfo-fila>i{position:static!important;display:flex!important;gap:64px}
-.pfo-fila.f1{--pf-tubo:#4267fe;top:3%;opacity:.75;animation:pf-marquesina 48s linear infinite}
-.pfo-fila.f2{--pf-tubo:#6290ff;top:36%;font-size:210px;animation:pf-marquesina-r 62s linear infinite}
-.pfo-fila.f3{--pf-tubo:#7b6bff;top:76%;opacity:.75;animation:pf-marquesina 54s linear infinite}
-.pfo-fila{filter:drop-shadow(0 0 6px var(--pf-tubo)) drop-shadow(0 0 22px var(--pf-tubo))}
-.pfo-fila>i{animation:pf-enciende 7s linear infinite}
-.pfo-fila.f2>i{animation-delay:1.6s}
-.pfo-fila.f3>i{animation-delay:3.1s}
+.pfo-fila.f1{--pf-tubo:#4267fe;--pf-o:.75;top:3%;animation:pf-marquesina 48s linear infinite,pf-enciende 7s linear infinite}
+.pfo-fila.f2{--pf-tubo:#6290ff;--pf-o:1;top:36%;font-size:210px;animation:pf-marquesina-r 62s linear infinite,pf-enciende 7s linear 1.6s infinite}
+.pfo-fila.f3{--pf-tubo:#7b6bff;--pf-o:.75;top:76%;animation:pf-marquesina 54s linear infinite,pf-enciende 7s linear 3.1s infinite}
+/* El parpadeo va en la MISMA fila que el resplandor, no en las letras de adentro: con él adentro
+   el navegador rehacía los dos `drop-shadow` de las tres filas en cada cuadro (7 cuadros por
+   segundo en una máquina lenta; así, 37). Se ve igual: se atenúa la fila con todo y su brillo. */
+.pfo-fila{opacity:var(--pf-o);filter:drop-shadow(0 0 6px var(--pf-tubo)) drop-shadow(0 0 22px var(--pf-tubo))}
 .pfo-letras-luz{width:460px;height:460px;left:-230px;top:-230px;border-radius:50%;background:radial-gradient(circle,rgba(157,180,255,.38) 0%,rgba(7,8,31,0) 70%);mix-blend-mode:screen}
 /* El `transform` de .pfo-sigue la vuelve un grupo aislado y la luz ya solo se mezclaría consigo
    misma: la mezcla tiene que ir en el grupo para seguir aclarando las letras de detrás. */
@@ -3209,7 +3230,7 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .pfo-letras-borde{inset:0;background:linear-gradient(180deg,#07081f 0%,rgba(7,8,31,0) 18%,rgba(7,8,31,0) 82%,#07081f 100%)}
 @keyframes pf-marquesina{to{transform:translateX(-50%)}}
 @keyframes pf-marquesina-r{from{transform:translateX(-50%)}to{transform:translateX(0)}}
-@keyframes pf-enciende{0%{opacity:.2}3%{opacity:1}5%{opacity:.35}7%,100%{opacity:1}}
+@keyframes pf-enciende{0%{opacity:calc(var(--pf-o) * .2)}3%{opacity:var(--pf-o)}5%{opacity:calc(var(--pf-o) * .35)}7%,100%{opacity:var(--pf-o)}}
 
 /* 2f · Corte CNC: el cabezal recorre el contorno y deja el corte; el cursor es la mira. */
 [data-fondo="cnc"]{--pf-t:.25s}
