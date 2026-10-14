@@ -716,9 +716,21 @@ async function montarDeVerdad(ruta, opts = {}) {
     listo();
     cont.innerHTML = '<div class="vacio">' + ico('i-aviso') +
       '<p class="vacio-t">No se pudo cargar «' + esc(r.nombre) + '»</p>' +
-      '<p class="vacio-d">Puede ser que la app se haya actualizado a medias. Recargar la deja completa.</p>' +
-      '<button class="btn btn-pri" id="pf-recargar">Recargar</button></div>';
-    const b = $('pf-recargar'); if (b) b.onclick = () => location.reload();
+      (navigator.onLine === false
+        /* Sin señal la causa no es «una actualización a medias», y recargar sin señal deja la
+           página en blanco del navegador (marco-9): se dice lo que pasa y se reintenta solo en
+           cuanto vuelve la señal. */
+        ? '<p class="vacio-d">Esta pantalla todavía no está guardada en este aparato y no hay señal. Se abre sola en cuanto vuelva.</p>' +
+          '<button class="btn btn-pri" id="pf-recargar">Reintentar</button></div>'
+        : '<p class="vacio-d">Puede ser que la app se haya actualizado a medias. Recargar la deja completa.</p>' +
+          '<button class="btn btn-pri" id="pf-recargar">Recargar</button></div>');
+    /* Solo si se sigue en esa pantalla: volver la señal no tiene por qué jalar a nadie de regreso. */
+    const otraVez = () => { if (rutaDelHash() === ruta) montar(ruta, { forzar: true }); };
+    const b = $('pf-recargar');
+    if (navigator.onLine === false) {
+      if (b) b.onclick = otraVez;
+      window.addEventListener('online', otraVez, { once: true });
+    } else if (b) b.onclick = () => location.reload();
     return;
   }
 
@@ -1864,6 +1876,12 @@ async function arrancar() {
      le faltaba a la bandeja: guardar sin señal ya funcionaba desde fase 1, y lo que no
      existía era el momento en que eso sale solo. */
   window.addEventListener('online', () => sincronizarCallado());
+  /* Y al perderla se dice en el acto: solo con el reloj de 30 s, la nube seguía diciendo «al día»
+     medio minuto sin señal (auditoría completa 2026-10, marco-2). */
+  window.addEventListener('offline', () => { if (Sync.configurado()) pintarSync('sin-senal'); });
+  /* Tocar la nube dice qué significa (marco-3): con el dedo no hay `title`. */
+  const nube = $('pf-sync');
+  if (nube) nube.addEventListener('click', () => toast(nube.getAttribute('aria-label') || '', _syncEstado === 'mal' ? 'err' : '', 4000));
 
   /* ----- Traer lo nuevo sin cerrar ni abrir -----
      Lo que otro teléfono o la hoja cambian llega solo: cada 30 segundos mientras la app está

@@ -139,7 +139,10 @@ async function leer() {
 
   return { hoy, avisos: avisos || [], fres: fres || null,
            instHoy: instHoy || [], instSemana: instSemana || [],
-           sinFecha: sinFecha || [], vencidas: vencidas || [],
+           /* Sin las etapas cerradas, con la MISMA regla que la lista de abajo (A7): la cifra decía 30
+              y la lista 21, porque contaba instalados y en garantía sin fecha —los importados de la
+              hoja— que la lista, con razón, no pide agendar (auditoría completa 2026-10, marco-6). */
+           sinFecha: (sinFecha || []).filter(p => !Reglas.ETAPAS_CERRADAS.has(p.etapa)), vencidas: vencidas || [],
            compra: compra || [], porComprar, bajo: bajo || [], conSaldo: conSaldo || [] };
 }
 
@@ -323,8 +326,22 @@ function tarjetaDecidir(lista) {
    NO se reordena: si esta pantalla decidiera su propio orden, el aviso más urgente
    dependería de qué módulo lo pinta. */
 function tarjetaAvisos(lista, hayDecision) {
+  /* La explicación de cada regla se dice UNA vez: con 30 proyectos sin fecha salía el mismo
+     párrafo 18 veces y la tira llegaba a 37 000 px en el teléfono. Y a la vista van los primeros
+     diez —ya vienen por urgencia—; el resto, plegado (auditoría completa 2026-10, marco-5). */
+  const dichos = new Set();
+  const filas = lista.map(a => {
+    const repetido = !!a.detalle && dichos.has(a.regla + '|' + a.detalle);
+    if (a.detalle) dichos.add(a.regla + '|' + a.detalle);
+    return filaAviso(a, repetido);
+  });
+  const TOPE = 10;
   const cuerpo = lista.length
-    ? lista.map(filaAviso).join('')
+    ? filas.slice(0, TOPE).join('') +
+      (filas.length > TOPE
+        ? '<details class="tb-mas"><summary>Ver los otros ' + (filas.length - TOPE) + ' avisos</summary>' +
+          filas.slice(TOPE).join('') + '</details>'
+        : '')
     /* El vacío ya no enumera lo que «no hay»: la enumeración afirmaba más de lo que se
        revisó. Las reglas tienen umbral —dos días sin fecha, dos días vencida— y filtro por
        rol, así que un proyecto ganado ayer sin fecha aparecía contado en la cinta de arriba
@@ -354,14 +371,14 @@ const ICONO = {
    (`.av-fila > .av-fila-in`, la misma técnica de `grid-template-rows` del pliegue: el relleno
    vive adentro, porque un grid de 0fr no se come el padding de su propio hijo) y lleva su `rid`,
    para que `marcarYRecargar()` lo encuentre aunque la acción se haya hecho desde un modal. */
-function filaAviso(a) {
+function filaAviso(a, sinDetalle) {
   const tono = a.tono === 'urge' ? ' mal' : (a.tono === 'av' ? ' urge' : '');
   return '<div class="av-fila" data-rid="' + esc(a.rid) + '" data-titulo="' + esc(a.titulo) + '"><div class="av-fila-in">' +
   '<div class="pf-fila">' +
     '<span class="pf-fila-ico' + tono + '">' + ico(ICONO[a.regla] || 'i-aviso') + '</span>' +
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + esc(a.titulo) + fichaCuando(a) + '</p>' +
-      (a.detalle ? '<p class="pf-fila-d">' + esc(a.detalle) + '</p>' : '') +
+      (a.detalle && !sinDetalle ? '<p class="pf-fila-d">' + esc(a.detalle) + '</p>' : '') +
     '</div>' +
     accionesDe(a) +
   '</div></div></div>';

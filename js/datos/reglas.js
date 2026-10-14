@@ -171,7 +171,7 @@ const num = x => { const n = Number(x); return isFinite(n) ? n : 0; };
 const UC_UNO = { unidad: 'unidad', bolsa: 'bolsa', caja: 'caja',
                  lamina: 'lámina', litro: 'litro', metro: 'metro' };
 const cuanto = (n, u) => (Math.abs(num(n)) === 1 ? cant(n) + ' ' + (UC_UNO[u] || u) : cant(n, u));
-const ETAPAS_CERRADAS = new Set(['instalado', 'garantia', 'cancelado']);
+export const ETAPAS_CERRADAS = new Set(['instalado', 'garantia', 'cancelado']);
 const INST_VIVAS = new Set(['propuesta', 'confirmada', 'reagendada', 'hecha']);
 
 /* ============================================================================

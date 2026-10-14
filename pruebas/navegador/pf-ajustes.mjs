@@ -90,7 +90,7 @@ function puenteDeMentiras() {
     if (ruta === 'salud') {
       if (M.saludFalla) return json({ ok: false, codigo: 'SIN_RED', mensaje: 'El puente no contestó (de mentiras)' });
       /* La versión que la plataforma espera: con otra, `avisoVersion` saca un aviso de 600 caracteres que tapa media pantalla. */
-      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-9', rol: 'direccion', escribibles: ['Proyecto', 'Estatus'],
+      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-14', rol: 'direccion', escribibles: ['Proyecto', 'Estatus'],
         destino: 'google-sheets', ia: { qwen: true, deepseek: true, gemini: true } });
     }
     if (ruta === 'esquema') return json({ ok: true, faltan: [], accesos: M.sinAccesos ? false : true, nota: M.sinAccesos ? 'falta «Accesos»' : '' });
@@ -214,7 +214,8 @@ async function ronda(cfg) {
     catch (e) {
       const q = await p.evaluate(s => { const el = document.querySelector(s); if (!el) return 'no existe'; const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2,
         t = document.elementFromPoint(x, y); return { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], encima: t ? (t.tagName + '.' + t.className + '#' + t.id) : null,
-        estado: el.dataset.estado || '', aria: el.getAttribute('aria-disabled'), scrollY: Math.round(scrollY) }; }, sel).catch(() => '?');
+        estado: el.dataset.estado || '', aria: el.getAttribute('aria-disabled'), scrollY: Math.round(scrollY),
+        aviso: (document.querySelector('.toast-msg') || {}).textContent || '' }; }, sel).catch(() => '?');
       await p.screenshot({ path: '/tmp/claude-0/-home-user-cotizador-al3d/ae96bd60-a1ef-52f8-9258-59babac6b6d0/scratchpad/pf-ajustes/fallo-toque.png' }).catch(() => {});
       throw new Error('el toque en «' + sel + '» no cayó: ' + JSON.stringify(q));
     }
@@ -603,7 +604,9 @@ async function ronda(cfg) {
 
   await seccion('F32 · los pasos se palomean y se recuerdan', async () => {
     for (const [k, id, clave] of [['gcal', 'aj-pasos-gcal', 'al3d_pf_pasos_gcal'], ['puente', 'aj-pasos-puente', 'al3d_pf_pasos_puente']]) {
-      await ev(i => { document.getElementById(i).scrollIntoView({ block: 'center' }); }, id);
+      /* Los pasos viven dentro de su plegable, que nace cerrado (auditoría completa 2026-10, ope-5):
+         se abre como lo abriría la persona antes de buscarlos. */
+      await ev(i => { const d = document.getElementById(i).closest('details'); if (d) d.open = true; document.getElementById(i).scrollIntoView({ block: 'center' }); }, id);
       const r = await ev(async a => {
         const mod = a.k === 'gcal' ? await import('/js/nucleo/gcal.js') : await import('/js/datos/puente.js');
         const ins = mod[a.k === 'gcal' ? 'Gcal' : 'Puente'] ? mod[a.k === 'gcal' ? 'Gcal' : 'Puente'].instrucciones() : mod.instrucciones();
@@ -630,12 +633,12 @@ async function ronda(cfg) {
       cierto(g && g.hechos.join() === '0,1' && g.n === r.n, '[' + k + '] se recuerda en este dispositivo', a.g);
       /* Sobrevive a recargar la pantalla. */
       await p.reload({ waitUntil: 'load' });
-      await p.waitForSelector('#' + id, { timeout: 20000 });
+      await p.waitForSelector('#' + id, { timeout: 20000, state: 'attached' });   // dentro de un plegable cerrado
       await p.waitForTimeout(500);
       const d = await ev(i => [...document.querySelectorAll('#' + i + ' .riel-paso')].slice(0, 4).map(x => x.dataset.estado).join(), id);
       cierto(d === 'hecho,hecho,actual,pendiente', '[' + k + '] después de recargar siguen palomeados', d);
       /* Despalomear con teclado (o dedo) y quedar limpio. */
-      await ev(i => { document.getElementById(i).scrollIntoView({ block: 'center' }); }, id);
+      await ev(i => { const d = document.getElementById(i).closest('details'); if (d) d.open = true; document.getElementById(i).scrollIntoView({ block: 'center' }); }, id);
       await toca(sel + ':nth-child(2) .riel-boton');
       await toca(sel + ':nth-child(1) .riel-boton');
       await p.waitForTimeout(250);
@@ -643,7 +646,7 @@ async function ronda(cfg) {
       cierto(z.e === 'actual,pendiente' && z.g === null, '[' + k + '] al despalomear todo no queda nada guardado', z);
     }
     if (!cfg.tactil) {
-      await ev(() => { document.querySelector('#aj-pasos-gcal .riel-paso:nth-child(1) .riel-boton').focus(); });
+      await ev(() => { const d = document.getElementById('aj-pasos-gcal').closest('details'); if (d) d.open = true; document.querySelector('#aj-pasos-gcal .riel-paso:nth-child(1) .riel-boton').focus(); });
       await p.keyboard.press('Space');
       await p.waitForTimeout(200);
       cierto(await ev(() => document.querySelector('#aj-pasos-gcal .riel-paso:nth-child(1)').dataset.estado === 'hecho'), 'con el teclado (Espacio) también se palomea');
@@ -654,7 +657,7 @@ async function ronda(cfg) {
   });
 
   await seccion('F7 · los botones del puente dicen qué hacen, cuánto llevan y cómo terminaron', async () => {
-    await ev(() => { document.querySelector('#aj-s-puente [data-act="puente-probar"]').scrollIntoView({ block: 'center' }); });
+    await ev(() => { const b = document.querySelector('#aj-s-puente [data-act="puente-probar"]'); const d = b.closest('details'); if (d) d.open = true; b.scrollIntoView({ block: 'center' }); });
     const SEL = '#aj-s-puente [data-act="puente-probar"]';
     const orig = await ev(s => { const b = document.querySelector(s); return { txt: b.textContent.replace(/\s+/g, ' ').trim(), ancho: Math.round(b.getBoundingClientRect().width) }; }, SEL);
     M.retraso.salud = 2200;

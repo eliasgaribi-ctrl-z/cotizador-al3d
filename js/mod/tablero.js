@@ -86,6 +86,7 @@ let _origen = null;       // de qué proyecto se viene, cuando se entró con un 
    atrás del teléfono cierra la mesa y devuelve al renglón, en vez de sacar del Tablero; y la
    mesa NO se recuerda al salir (auditoría completa 2026-10, tab-1). */
 let _regreso = null;
+let _faltanAbierto = false;   // si «Ver los otros N» de Faltan datos quedó abierto
 let _pide = null;         // qué está preguntando el modal, si está abierto
 let _oyendo = false;
 let _alClic = null;   // alClic envuelto con conservandoFoco()
@@ -250,6 +251,7 @@ function globo(d) {
 }
 
 export function desmontar() {
+  if (_vigiaMbar) { _vigiaMbar.disconnect(); _vigiaMbar = null; const mb = $('pf-mbar'); if (mb) mb.classList.remove('de-sobra'); }
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
   if (_cont && _oyendo) _cont.removeEventListener('click', _alClic);
@@ -796,7 +798,7 @@ function decidir(d, rol) {
 function faltanDatos(d, rol) {
   const xs = d.faltan;
   if (!xs.length) return '';
-  const filas = xs.map(x => {
+  const fila = x => {
     const p = x.p;
     const que = x.falta.map(k => DD.textoDeFalta(p, k)).join(' · ');
     const puede = editablesDe(x.falta, rol).length > 0;
@@ -811,13 +813,24 @@ function faltanDatos(d, rol) {
           ? btn('Completar', 'btn btn-gho pf-btn-corto', { tipo: 'completar', id: p.id })
           : btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'abrir', id: p.id })) +
       '</div></div>';
-  }).join('');
+  };
+  /* Los primeros cinco a la vista —ya vienen ordenados por entrega— y el resto plegado. Sin tope,
+     con 57 proyectos la tarjeta medía 9 000 px en el teléfono y el taller empezaba a 18 000 px de
+     arriba (auditoría completa 2026-10, tablero-3). Plegado y no en otra pantalla: completar uno
+     es un toque, y aquí mismo. `_faltanAbierto` sobrevive a los repintados. */
+  const TOPE = 5;
   const n = xs.length;
+  const resto = xs.slice(TOPE);
   return '<div class="card tb-faltan"><div class="card-h" data-destino="faltan"><h2>' + ico('i-aviso') +
     ' Faltan datos de ' + (n === 1 ? 'un proyecto' : n + ' proyectos') + '</h2></div>' +
     '<div class="card-b">' +
       '<p class="pf-nota">El teléfono del cliente, cómo se entrega y, si se instala, la dirección y el pin. Primero lo que se entrega antes.</p>' +
-      filas + '</div></div>';
+      xs.slice(0, TOPE).map(fila).join('') +
+      (resto.length
+        ? '<details class="tb-mas"' + (_faltanAbierto ? ' open' : '') + '><summary data-faltan-mas>Ver ' +
+            (resto.length === 1 ? 'el otro' : 'los otros ' + resto.length) + '</summary>' + resto.map(fila).join('') + '</details>'
+        : '') +
+    '</div></div>';
 }
 
 /* «se entrega el jue 16, en 3 días». La que ya pasó se dice como pasada: es una instalación que
@@ -1420,9 +1433,25 @@ function pie() {
    que no llegan» el destino era «el primer `.card`», que solo era la correcta por casualidad del
    orden. Ahora cada destino es un `data-destino` con nombre y se llega igual que desde las
    cuentas (P3): con las esquinas de la pieza 17 y el foco puesto. */
+/* La barra fija de abajo se aparta mientras lo que ella señala ya está en pantalla: «Ver el que no
+   llega» encima de la propia tarjeta de «No llegan» solo tapaba el segundo renglón (auditoría
+   completa 2026-10, tab-5). Clase y no `hidden`: el alto reservado no cambia y nada brinca. */
+let _vigiaMbar = null;
+function vigilarDestinoMbar(b, destino) {
+  if (_vigiaMbar) { _vigiaMbar.disconnect(); _vigiaMbar = null; }
+  b.classList.remove('de-sobra');
+  const el = destino && _cont && _cont.querySelector(destino);
+  if (!el || typeof IntersectionObserver !== 'function') return;
+  _vigiaMbar = new IntersectionObserver(es => {
+    for (const e of es) b.classList.toggle('de-sobra', e.isIntersecting);
+  }, { threshold: 0.01 });
+  _vigiaMbar.observe(el);
+}
+
 function pintarMbar(d, rol) {
   const b = $('pf-mbar');
   if (!b) return;
+  if (_vigiaMbar) { _vigiaMbar.disconnect(); _vigiaMbar = null; b.classList.remove('de-sobra'); }
   const noLlega = d.V.filter(v => v.estado === 'no_llega').length;
   const n = d.pendientes.length;
 
@@ -1457,6 +1486,7 @@ function pintarMbar(d, rol) {
     const titulo = el.querySelector('.cp-txt') || el;
     llevarA(titulo, quien, el.querySelector('button, a'));
   };
+  vigilarDestinoMbar(b, destino);
   ajustarAltoBarra();
 }
 
@@ -1537,6 +1567,8 @@ function alAtras() {
 }
 
 async function alClic(ev) {
+  const masF = ev.target.closest('summary[data-faltan-mas]');
+  if (masF) { const det = masF.parentElement; _faltanAbierto = !(det && det.open); return; }
   const rec = ev.target.closest('[data-recargar]');
   if (rec) { location.reload(); return; }
 

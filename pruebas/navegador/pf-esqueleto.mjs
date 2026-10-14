@@ -728,12 +728,14 @@ for (const [tema, reducido] of [['claro', false], ['oscuro', true]]) {
     new MutationObserver(() => window.__estados.push(document.getElementById('pf-sync').dataset.sync)).observe(document.getElementById('pf-sync'), { attributes: true, attributeFilter: ['data-sync'] });
   });
   const vuelta = () => ev(() => document.dispatchEvent(new Event('visibilitychange')));
-  const estado = () => ev(() => { const e = document.getElementById('pf-sync'), m = e.querySelector('.marca-estado'); return { s: e.dataset.sync, oculto: e.hidden, etiqueta: e.getAttribute('aria-label'), titulo: e.title, rol: e.getAttribute('role'),
+  const estado = () => ev(() => { const e = document.getElementById('pf-sync'), m = e.querySelector('.marca-estado'); return { s: e.dataset.sync, oculto: e.hidden, etiqueta: e.getAttribute('aria-label'), titulo: e.title, rol: e.tagName === 'BUTTON' ? 'button' : e.getAttribute('role'),
     /* Lo que se VE, no lo que dice `display` del svg: el svg de la nube conserva su `display` aunque
        el contenedor que lo lleva esté quitado. */
     nube: e.querySelector('.nube').getClientRects().length > 0, nubeOff: e.querySelector('.nube-off').getClientRects().length > 0, marca: m ? m.getClientRects().length > 0 : false, mEstado: m && m.dataset.estado }; });
   const q = await estado();
-  cierto(!q.oculto && q.s === 'quieto' && q.nube && !q.nubeOff && !q.marca && q.rol === 'img', 'en reposo: la nube quieta, sin marca, y el glifo es una imagen con nombre', q);
+  /* Botón y no imagen desde la auditoría completa 2026-10 (marco-3): con el dedo no hay `title`, y
+     tocar la nube tiene que decir lo que significa. */
+  cierto(!q.oculto && q.s === 'quieto' && q.nube && !q.nubeOff && !q.marca && q.rol === 'button', 'en reposo: la nube quieta, sin marca, y el glifo es un botón con nombre', q);
   cierto(q.etiqueta === 'Sincronización: al día' && q.titulo === q.etiqueta, 'dice «al día» en su aria-label y en su title', q);
   cierto(!(await infinitas(p)).length, 'y nada se mueve', await infinitas(p));
   const cq = await contraste(p, '#pf-sync');
