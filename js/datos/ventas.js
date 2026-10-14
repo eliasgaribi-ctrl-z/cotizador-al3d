@@ -322,6 +322,61 @@ export function porCobrar(proyectos) {
   })).sort((a, b) => (Number(b.entregado) - Number(a.entregado)) || (b.saldo - a.saldo));
 }
 
+/* ============================================================================
+   LAS FINANZAS DE LO QUE ESTÁ VIVO — en fabricación y cobrando
+
+   La pregunta de la dirección al abrir Control (octubre de 2026): de lo que está en el taller y
+   de lo que ya se entregó y se está cobrando, cuánto se vendió, cuánto ya entró y cuánto falta.
+   Se reparte por el ESTATUS de la hoja, que es el eje del dinero (ver la cabecera de
+   datos/proyectos.js): FABRICACION y REPARANDO son trabajo del taller —los mismos dos que el
+   puente llama `VIVAS_EN_TALLER`; se escriben aquí para que este archivo siga siendo puro y no
+   cargue el puente—, COBRANDO es lo que ya se hizo y falta cobrar, y LIQUIDADO está cerrado.
+
+   Un proyecto de este teléfono que todavía no tiene estatus no ha salido a la hoja: el cotizador
+   lo registra como FABRICACION, así que ahí se cuenta, salvo que su etapa ya diga que se
+   instaló; entonces lo que le quede de saldo se está cobrando. Una fila de la hoja SIN estatus es
+   historia que nadie clasificó y no se inventa en qué está.
+   ============================================================================ */
+
+const EST_FABRICACION = ['FABRICACION', 'REPARANDO'];
+
+/** 'fabricacion' | 'cobrando' | '' (no está vivo: liquidado, cancelado o sin con qué decirlo). */
+export function grupoFinanzas(p) {
+  if (!p || p.etapa === 'cancelado') return '';
+  const est = String(p.estatus_notion || '').trim().toUpperCase();
+  if (est === 'LIQUIDADO') return '';
+  if (est === 'COBRANDO') return 'cobrando';
+  if (EST_FABRICACION.includes(est)) return 'fabricacion';
+  if (est || p.de_hoja) return '';
+  if (p.etapa === 'instalado' || p.etapa === 'garantia') return saldoDe(p) > 0 ? 'cobrando' : '';
+  return 'fabricacion';
+}
+
+/**
+ * Las dos bolsas, cada una con su total vendido, lo cobrado (vendido menos saldo) y el saldo, y
+ * sus proyectos de mayor a menor saldo. `estimados` cuenta los saldos que no son de la hoja.
+ */
+export function finanzasVivas(proyectos) {
+  const bolsa = () => ({ n: 0, vendido: 0, cobrado: 0, saldo: 0, estimados: 0, lista: [] });
+  const r = { fabricacion: bolsa(), cobrando: bolsa() };
+  for (const p of (Array.isArray(proyectos) ? proyectos : [])) {
+    const g = grupoFinanzas(p);
+    if (!g) continue;
+    const b = r[g];
+    const vendido = red2(vendidoDe(p)), saldo = saldoDe(p);
+    const cobrado = red2(Math.max(0, vendido - saldo));
+    const deHoja = saldoEsDeNotion(p);
+    b.n++;
+    b.vendido = red2(b.vendido + vendido);
+    b.cobrado = red2(b.cobrado + cobrado);
+    b.saldo = red2(b.saldo + saldo);
+    if (!deHoja && saldo > 0) b.estimados++;
+    b.lista.push({ proyecto: p, vendido, cobrado, saldo, deNotion: deHoja });
+  }
+  for (const b of Object.values(r)) b.lista.sort((a, c) => (c.saldo - a.saldo) || (c.vendido - a.vendido));
+  return r;
+}
+
 /**
  * La conversión cotización → venta, hecha bien.
  *

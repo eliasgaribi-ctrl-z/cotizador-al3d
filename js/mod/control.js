@@ -18,9 +18,12 @@
        empezando por las más chicas (la regla del negocio: bajar el número de pendientes).
        «Pagar estas» ARMA LA LISTA para registrarla en la hoja; esta pantalla no marca pagos.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
-   Y ARRIBA de las cuatro, desde octubre de 2026, lo vendido POR TIPO DE TRABAJO: una tarjeta
-   por tipo (este mes, este año o todo, contra el periodo anterior) y la gráfica mes a mes o
-   año por año. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
+   Desde octubre de 2026 la pestaña Ventas abre con lo que la dirección quiere ver primero: las
+   FINANZAS de los proyectos en fabricación y de los que se están cobrando (`htmlFinanzas`) y los
+   últimos doce meses. Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes
+   o año por año— va hasta el final de esa pestaña. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
+
+   El CSV de ventas (lo que se abre en Excel) solo lo baja la dirección: a pagos no se le pinta.
 
    De dónde salen los números, desde septiembre de 2026: de la HOJA de finanzas y de este
    teléfono, en una sola lista (`Ventas.unificar`). El puente baja el récord entero de la
@@ -75,6 +78,9 @@ let TT_VISTA = 'mes';        // mes | anio — la gráfica de abajo de las tarje
 let _ttScroll = null;        // dónde se dejó la gráfica de meses (null: al final, lo más nuevo)
 let _vzTT = null;            // el globo de un mes o un año de la gráfica por tipo
 let BUSCA = '';
+/* Las finanzas de lo vivo: cada bolsa enseña sus primeros renglones y «Ver todos» la abre. */
+let FIN_TODOS = { fabricacion: false, cobrando: false };
+const FIN_TOPE = 8;
 let ENTIDAD = '';            // filtro de la bitácora
 let BUSCA_BIT = '';
 let D = null;                // lo leído
@@ -172,7 +178,7 @@ export async function montar(contenedor, ctx) {
     const b = cont.querySelector('[data-recargar]'); if (b) b.onclick = () => location.reload();
     return;
   }
-  if (CTX.acciones) {
+  if (CTX.acciones && puedeBajarCSV()) {
     const acc = CTX.acciones('<button type="button" class="btn btn-gho pf-btn-corto" data-csv>' +
       ico('i-bajar') + ' Bajar CSV de ventas</button>');
     if (acc) acc.addEventListener('click', alClic);
@@ -241,6 +247,7 @@ async function leer() {
   const meses = Ventas.resumenMensual(ventas, { hoy, meses: 12 });
   const conv = Ventas.conversion(historial, ventas, Prefs.dispositivo());
   const cartera = Ventas.porCobrar(ventas);
+  const finanzas = Ventas.finanzasVivas(ventas);
   const bajada = await Sync.estadoBajada();
 
   /* El almacén, solo para dirección: fabricación no entra aquí y pagos no compra. */
@@ -258,7 +265,7 @@ async function leer() {
      periodo elegido y se sacan una vez; las tarjetas sí, y se sacan al pintar. */
   const porTipo = { mes: PorTipo.seriePorMes(ventas, { hoy }), anio: PorTipo.seriePorAnio(ventas, { hoy }) };
   return { hoy, proyectos, ventas, union, bajada, sinDecidir, historial, fechaInst, kpi, meses, conv,
-           cartera, almacen, bitacora, comisiones, porTipo };
+           cartera, finanzas, almacen, bitacora, comisiones, porTipo };
 }
 
 /* F54. Las comisiones de las ventas del récord UNIFICADO —la hoja paga las de todas, también las
@@ -509,7 +516,7 @@ function htmlPantalla() {
   else if (TAB === 'bitacora') cuerpo = pintarBitacora();
   else cuerpo = pintarVentas();
 
-  return htmlPorTipo() + '<div class="ag-barra ct-pestanas">' + tabs + '</div>' + cuerpo;
+  return '<div class="ag-barra ct-pestanas">' + tabs + '</div>' + cuerpo;
 }
 
 /* «Por cobrar» es de la hoja cuando TODOS los saldos bajaron de allá; «(estimado)» si alguno
@@ -523,12 +530,12 @@ function etiquetaCobrar() {
 }
 
 /* ============================================================================
-   Lo vendido por tipo de trabajo — arriba de todo, en las cuatro pestañas
+   Lo vendido por tipo de trabajo — al final de la pestaña Ventas (octubre de 2026)
    ============================================================================
    La petición del dueño: tener a la vista cuántas letras, cuántas cajas de luz, cuántos
-   viniles se han vendido, este mes, este año y desde que se trabaja. Va ARRIBA de las
-   pestañas porque es lo primero que se quiere ver al abrir Control, y no es de ninguna de las
-   cuatro: es el resumen de todas.
+   viniles se han vendido, este mes, este año y desde que se trabaja. Iba arriba de las
+   cuatro pestañas; en octubre de 2026 la dirección pidió que lo primero fueran las finanzas de
+   lo vivo y los doce meses, y esto bajó al final de la pestaña Ventas.
 
    La aritmética está en js/datos/ventas-por-tipo.js, que es pura y tiene pruebas; ahí está
    escrito cómo cuenta una venta con dos tipos (en los dos; el total general, una vez).
@@ -691,6 +698,71 @@ function ubicarMesesTipo() {
 }
 
 /* ----- Ventas ----- */
+/* ============================================================================
+   Las finanzas de los proyectos vivos — lo primero de la pestaña Ventas
+   ============================================================================
+   Dos bolsas por el estatus de la hoja (`Ventas.finanzasVivas`): EN FABRICACIÓN (FABRICACION y
+   REPARANDO) y COBRANDO. De cada una, cuánto se vendió, cuánto ya entró y cuánto falta, y sus
+   proyectos de mayor a menor saldo con el medidor de cobro de la cartera. */
+function htmlFinanzas() {
+  const F = D.finanzas;
+  const total = F.fabricacion.saldo + F.cobrando.saldo;
+  return '<section class="card ct-fin" id="ct-fin" aria-labelledby="ct-fin-h">' +
+    '<div class="card-h"><h2 id="ct-fin-h">' + ico('i-venta') + ' Finanzas de los proyectos</h2>' +
+      '<span class="folio">' + esc(money(total)) + ' por cobrar</span></div>' +
+    '<div class="card-b">' +
+      bolsaFinanzas('fabricacion', 'En fabricación', F.fabricacion,
+        'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
+      bolsaFinanzas('cobrando', 'Cobrando', F.cobrando,
+        'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con su saldo.') +
+      '<p class="pf-nota">Por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller, COBRANDO ya se ' +
+        'entregó y falta cobrarlo; LIQUIDADO ya no aparece. «Cobrado» es lo vendido menos el saldo: el de la hoja ' +
+        'cuando bajó, o el total menos el anticipo pactado («estimado»).</p>' +
+    '</div></section>';
+}
+
+function bolsaFinanzas(g, titulo, b, vacioT, vacioD) {
+  const pct = b.vendido > 0 ? Math.floor(b.cobrado / b.vendido * 100) : 0;
+  const c = [
+    [money(b.vendido), 'Vendido', { dinero: true, clave: g + '-vendido', em: b.n + (b.n === 1 ? ' proyecto' : ' proyectos') }],
+    [money(b.cobrado), 'Cobrado', { clave: g + '-cobrado', em: b.vendido > 0 ? pct + ' % de lo vendido' : '' }],
+    [money(b.saldo), 'Por cobrar', { urge: b.saldo > 0, clave: g + '-saldo',
+      em: b.estimados ? b.estimados + (b.estimados === 1 ? ' saldo estimado' : ' saldos estimados') : (b.saldo > 0 ? 'según la hoja' : '') }],
+  ];
+  const todos = FIN_TODOS[g] || b.lista.length <= FIN_TOPE;
+  const lista = todos ? b.lista : b.lista.slice(0, FIN_TOPE);
+  const mas = b.lista.length > FIN_TOPE
+    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') + '">' +
+      (todos ? 'Ver menos' : 'Ver los ' + b.lista.length) + '</button>'
+    : '';
+  return '<div class="ct-fin-bolsa" id="ct-fin-' + g + '">' +
+    '<h3 class="ct-fin-t">' + esc(titulo) + ' <span class="folio">' + b.n + '</span></h3>' +
+    filaCuentas(c) +
+    (b.lista.length ? lista.map(filaFinanza).join('') + mas : vacio(vacioT, vacioD)) +
+  '</div>';
+}
+
+function filaFinanza(x) {
+  const p = x.proyecto;
+  return '<div class="pf-fila ct-fila">' +
+    '<span class="pf-fila-ico' + (x.saldo > 0 ? ' urge' : ' bien') + '">' +
+      ico(p.etapa ? (Proy.ICO_ETAPA[p.etapa] || 'i-proyectos') : 'i-venta') + '</span>' +
+    '<div class="pf-fila-tx">' +
+      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
+      '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
+        (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
+        ' · vendido ' + esc(money(x.vendido)) + ' · cobrado ' + esc(money(x.cobrado)) +
+        (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
+      '</p>' +
+      medidorCobro(x) +
+    '</div>' +
+    '<div class="ct-monto' + (x.saldo > 0 ? ' saldo' : '') + '">' + esc(money(x.saldo)) +
+      '<small>' + (x.saldo > 0 ? 'por cobrar' : 'cobrado') + '</small></div>' +
+    (p.de_hoja ? '' :
+      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>') +
+  '</div>';
+}
+
 function pintarVentas() {
   const k = D.kpi;
   const c = [];
@@ -724,9 +796,10 @@ function pintarVentas() {
     va: k.perdidoMes.n > 0 ? { dest: 'mes:' + ymHoy, que: 'ir a ' + k.mes.etiqueta + ' en las doce barras' } : null,
     em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }]);
 
-  const partes = [lineaHoja(), filaCuentas(c)];
-
-  partes.push(graficaMeses());
+  /* Lo primero, desde octubre de 2026 y por petición de la dirección: las finanzas de lo que está
+     en fabricación y de lo que se está cobrando, y los últimos doce meses. Lo demás —las cuentas
+     del mes, el almacén, la lista de ventas y lo vendido por tipo de trabajo— va debajo. */
+  const partes = [lineaHoja(), htmlFinanzas(), graficaMeses(), filaCuentas(c)];
 
   if (D.almacen) partes.push(filaAlmacen());
 
@@ -737,6 +810,7 @@ function pintarVentas() {
     'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
     'El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
     (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '.</p>');
+  partes.push(htmlPorTipo());
   return partes.join('');
 }
 
@@ -897,7 +971,7 @@ function listaProyectos() {
      lo que baja, en la tira de su periodo y su buscador y no en la cabecera: la cabecera no
      envuelve, y en 360 px el botón encimaba la cuenta de ventas sobre el total. Se decide al
      pintar con el mismo corte del CSS, y un giro que lo cruza se repinta (`alCambiarAncho`). */
-  const csvAqui = enTelefono()
+  const csvAqui = enTelefono() && puedeBajarCSV()
     ? '<button type="button" class="btn btn-gho pf-btn-corto" data-csv>' +
       ico('i-bajar') + ' Bajar CSV de ventas</button>'
     : '';
@@ -1261,6 +1335,8 @@ function alClic(ev) {
     if (r.k) copiarTexto(textoLista(r), 'Lista copiada: pégala donde registras los abonos');
     return;
   }
+  const fin = t.closest('[data-fin-todos]');
+  if (fin) { const g = fin.dataset.finTodos; FIN_TODOS[g] = !FIN_TODOS[g]; pintar(); return; }
   const ttp = t.closest('[data-tt-per]');
   if (ttp) { TT_PER = ttp.dataset.ttPer; pintar(); return; }
   const ttv = t.closest('[data-tt-vista]');
@@ -1336,8 +1412,12 @@ function alEscribir(ev) {
   }, 220);
 }
 
+/* El CSV de ventas (el «Excel») es de la dirección: pagos ve la pantalla y cobra, pero no se lleva
+   el récord entero de ventas en un archivo. El botón no se pinta y, si llegara un clic, no baja. */
+const puedeBajarCSV = () => Prefs.esDireccion();
+
 function bajarCSV() {
-  if (!D) return;
+  if (!D || !puedeBajarCSV()) return;
   const lista = D.ventas;
   if (!lista.length) { toast('Todavía no hay ventas que exportar', '', 2600); return; }
   const csv = Ventas.csvProyectos(lista, D.fechaInst);

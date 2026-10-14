@@ -944,6 +944,48 @@ if (activa('medidas')) {
   }
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Octubre de 2026: lo primero de Ventas son las finanzas de lo que está en fabricación y de lo que
+   se está cobrando, luego los doce meses, y lo vendido por tipo de trabajo hasta el final. Y el
+   CSV de ventas es de la dirección: a pagos no se le pinta, ni en el encabezado ni en la tarjeta.
+   --------------------------------------------------------------------------------------------- */
+titulo('fin', 'FINANZAS DE LO VIVO, EL ORDEN DE VENTAS Y EL CSV SOLO PARA DIRECCIÓN');
+if (activa('fin')) {
+  const c = await entrar({ ancho: 360 });
+  const { p, errs } = c;
+  await llegaOtra(p, 'V-120', 'Rótulo en taller', 10000, { estatus: 'FABRICACION', pago_pendiente: 5800 });
+  await llegaOtra(p, 'V-121', 'Letras reparando', 5000, { estatus: 'REPARANDO', pago_pendiente: null });
+  await remontar(p);
+  const orden = await p.evaluate(() => {
+    const m = document.getElementById('mod-control');
+    const pos = sel => { const e = m.querySelector(sel); return e ? [...m.querySelectorAll('*')].indexOf(e) : -1; };
+    return { fin: pos('#ct-fin'), meses: pos('#ct-meses'), cuentas: pos(':scope .pf-cuentas:not(#ct-fin .pf-cuentas)'), lista: pos('#ct-lista'), tt: pos('#ct-tt') };
+  });
+  que(orden.fin >= 0 && orden.fin < orden.meses, 'las finanzas van antes que los doce meses');
+  que(orden.meses < orden.cuentas && orden.cuentas < orden.lista, 'y los doce meses antes que las cuentas del mes y la lista');
+  que(orden.tt > orden.lista, 'lo vendido por tipo de trabajo va hasta el final');
+  const n = sel => p.$$eval(sel, e => e.length);
+  que((await n('#ct-fin-fabricacion .ct-fila')) === 2, 'en fabricación: FABRICACION y REPARANDO (2)');
+  que((await n('#ct-fin-cobrando .ct-fila')) === 3, 'cobrando: las tres de la hoja en COBRANDO (3)');
+  que((await n('#ct-fin-cobrando .medidor')) === 3, 'y cada renglón lleva su medidor de cobro');
+  que((await n('#ct-lista [data-csv]')) === 1, 'dirección en el teléfono: el CSV está en la tarjeta de ventas');
+  await tab(p, 'cobrar');
+  que((await n('#ct-tt')) === 0, 'en Por cobrar ya no va lo de por tipo de trabajo');
+  que((await desborde(p)) <= 0, 'sin desborde');
+  que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
+  await c.ctx.close();
+
+  for (const ancho of [360, 1200]) {
+    const g = await entrar({ ancho, rol: 'pagos', touch: ancho < 760 });
+    que((await g.p.$$eval('[data-csv]', e => e.length)) === 0, 'pagos a ' + ancho + ' px: no hay botón de CSV de ventas');
+    que((await g.p.$$eval('#ct-fin', e => e.length)) === 1, 'pagos a ' + ancho + ' px: sí ve las finanzas');
+    await g.ctx.close();
+  }
+  const d = await entrar({ ancho: 1200, touch: false });
+  que((await d.p.$$eval('#pf-cab-acc [data-csv]', e => e.length)) === 1, 'dirección en la computadora: el CSV está en el encabezado');
+  await d.ctx.close();
+}
+
 await nav.close();
 console.log(fallos ? '\n' + fallos + ' fallo(s) en Control.' : '\nControl: las cuentas llevan a algo y ruedan, la hoja enseña su avance, las barras crecen una vez, cada saldo tiene su medidor y las comisiones arman su lista sin escribir nada.');
 process.exit(fallos ? 1 : 0);
