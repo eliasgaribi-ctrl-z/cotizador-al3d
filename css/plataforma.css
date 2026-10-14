@@ -1110,6 +1110,10 @@ button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 
 /* La barra fija del teléfono. Mismo esqueleto que la del cotizador. */
 .pf-mbar{gap:var(--e2)}
+/* tab-5: la barra se aparta mientras lo que señala ya está a la vista (js/mod/tablero.js). */
+.pf-mbar{transition:opacity .18s var(--ease-out),translate .22s var(--ease-out)}
+.pf-mbar.de-sobra{opacity:0;translate:0 12px;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.pf-mbar{transition:opacity .15s}.pf-mbar.de-sobra{translate:none}}
 .pf-mbar .btn{flex:1;margin:0}
 
 /* ============================================================================
@@ -1448,6 +1452,15 @@ button.cal-plazo:active{transform:scale(.97)}
 .aj-bloque{margin-top:var(--e5)}
 /* Los plegables de Ajustes eran el <summary> del navegador: 20 px de alto, el triángulo de
    fábrica y sin cursor de mano. Es la puerta a Google Calendar y al puente (ope-3 = mar-4). */
+/* «Ver los otros N» de Faltan datos (tablero-3): un renglón de 44 px con la tinta del acento. */
+.tb-mas>summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;cursor:pointer;list-style:none;
+  font-weight:600;color:var(--a-tx);border-radius:var(--r-sm)}
+.tb-mas>summary::-webkit-details-marker{display:none}
+.tb-mas>summary::after{content:'';width:7px;height:7px;margin-left:2px;border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .16s var(--ease-out)}
+.tb-mas[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+.tb-mas>summary:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.tb-mas>summary::after{transition:none}}
 details.aj-bloque>summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;cursor:pointer;
   list-style:none;font-weight:600;color:var(--tinta);border-radius:var(--r-sm)}
 details.aj-bloque>summary::-webkit-details-marker{display:none}
@@ -2790,7 +2803,13 @@ body.pf .card{animation:none}
    misma nube, tachada —el mismo dibujo de trazo, sin color nuevo—: no es una falla, es la
    respuesta a «¿esto está al día?». */
 .pf-sync{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
-  width:20px;height:20px;color:rgba(255,255,255,.72)}
+  width:20px;height:20px;color:rgba(255,255,255,.72);
+  /* Botón desde la auditoría completa 2026-10 (marco-3): en el teléfono el `title` no se ve nunca,
+     así que tocar la nube dice lo que significa. El dibujo sigue de 20 px; el blanco del dedo es
+     de 44 por el ::after, sin mover el título. */
+  position:relative;padding:0;border:0;background:transparent;cursor:pointer;font:inherit}
+.pf-sync::after{content:'';position:absolute;inset:-12px}
+.pf-sync:focus-visible{outline:2px solid var(--a);outline-offset:3px;border-radius:6px}
 .pf-sync .svgi{width:18px;height:18px}
 .pf-sync-nube{display:inline-flex}
 .pf-sync .nube-off,.pf-sync .marca-estado{display:none}

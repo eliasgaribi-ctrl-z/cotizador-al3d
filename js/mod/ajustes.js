@@ -671,7 +671,10 @@ function cardGcal() {
     '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="gcal-conectar"' +
     (Gcal.disponible() ? '' : ' disabled') + '>' + ico('i-nube') + ' Conectar con Google</button></div>' +
 
-    '<details class="aj-bloque"' + (Gcal.disponible() ? '' : ' open') + '><summary>Configuración (una sola vez)</summary>' +
+    /* Siempre cerrado: abierto mientras no hubiera Client ID, los doce pasos de Google Cloud se
+       comían 2 200 px del teléfono y quien entraba a cambiar el tema se topaba con un tutorial
+       (auditoría completa 2026-10, ope-5). El renglón de 44 px dice qué hay dentro. */
+    '<details class="aj-bloque"><summary>Configuración (una sola vez)</summary>' +
     '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez, con la cuenta de Google ' +
     'de Dirección. Los pasos completos van aquí para que nadie tenga que buscar un tutorial:</p>' +
     pasos +
