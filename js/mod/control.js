@@ -703,7 +703,7 @@ function ubicarMesesTipo() {
    ============================================================================
    Dos bolsas por el estatus de la hoja (`Ventas.finanzasVivas`): EN FABRICACIÓN (FABRICACION y
    REPARANDO) y COBRANDO. De cada una, cuánto se vendió, cuánto ya entró y cuánto falta, y sus
-   proyectos de mayor a menor saldo con el medidor de cobro de la cartera. */
+   proyectos por orden de entrada —lo más nuevo arriba, lo más antiguo abajo— con su barra de cobro. */
 function htmlFinanzas() {
   const F = D.finanzas;
   const total = red2(F.fabricacion.saldo + F.cobrando.saldo);
@@ -771,7 +771,7 @@ function bolsaFinanzas(g, titulo, sub, icono, b, vacioT, vacioD) {
       '<p class="ct-fin-sub">' + esc(sub) + '</p></div></div>' +
     nums +
     (b.lista.length
-      ? '<p class="ct-fin-lt">Proyectos, primero los que más deben</p>' + lista.map(filaFinanza).join('') + mas
+      ? '<p class="ct-fin-lt">Proyectos, del más reciente al más antiguo</p>' + lista.map(filaFinanza).join('') + mas
       : vacio(vacioT, vacioD)) +
   '</div>';
 }
@@ -783,6 +783,7 @@ function filaFinanza(x) {
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
       '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
+        ' · entró ' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') +
         (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
         (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
       '</p>' +

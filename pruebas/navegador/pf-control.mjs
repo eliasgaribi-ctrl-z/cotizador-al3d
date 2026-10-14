@@ -968,6 +968,9 @@ if (activa('fin')) {
   que((await n('#ct-fin-fabricacion .ct-fila')) === 2, 'en fabricación: FABRICACION y REPARANDO (2)');
   que((await n('#ct-fin-cobrando .ct-fila')) === 3, 'cobrando: las tres de la hoja en COBRANDO (3)');
   que((await n('#ct-fin-cobrando .ct-fin-fila .ct-fin-barra')) === 3, 'y cada renglón lleva su barra de cobro');
+  const nombres = await p.$$eval('#ct-fin-cobrando .ct-fin-fila .pf-fila-t', e => e.map(x => x.childNodes[0].textContent.trim()));
+  que(nombres.join('|') === 'Barbería El Toro|Óptica Visión|Clínica Norte',
+    'por orden de entrada: la más reciente arriba y la más antigua abajo (' + nombres.join(', ') + ')');
   que((await n('#ct-lista [data-csv]')) === 1, 'dirección en el teléfono: el CSV está en la tarjeta de ventas');
   await tab(p, 'cobrar');
   que((await n('#ct-tt')) === 0, 'en Por cobrar ya no va lo de por tipo de trabajo');

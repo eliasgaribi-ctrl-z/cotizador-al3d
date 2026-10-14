@@ -354,7 +354,7 @@ export function grupoFinanzas(p) {
 
 /**
  * Las dos bolsas, cada una con su total vendido, lo cobrado (vendido menos saldo) y el saldo, y
- * sus proyectos de mayor a menor saldo. `estimados` cuenta los saldos que no son de la hoja.
+ * sus proyectos del más reciente al más antiguo. `estimados` cuenta los saldos que no son de la hoja.
  */
 export function finanzasVivas(proyectos) {
   const bolsa = () => ({ n: 0, vendido: 0, cobrado: 0, saldo: 0, estimados: 0, lista: [] });
@@ -373,7 +373,13 @@ export function finanzasVivas(proyectos) {
     if (!deHoja && saldo > 0) b.estimados++;
     b.lista.push({ proyecto: p, vendido, cobrado, saldo, deNotion: deHoja });
   }
-  for (const b of Object.values(r)) b.lista.sort((a, c) => (c.saldo - a.saldo) || (c.vendido - a.vendido));
+  /* Por orden de entrada, lo más nuevo arriba y lo más antiguo abajo: la fecha de la venta (el
+     anticipo), que es cuando el trabajo entró. Lo que no trae fecha va al final; un empate, el
+     que más debe primero. */
+  const fecha = x => (esISO(x.proyecto.fecha_ganado) ? x.proyecto.fecha_ganado : '');
+  for (const b of Object.values(r)) {
+    b.lista.sort((a, c) => (fecha(c) > fecha(a) ? 1 : fecha(c) < fecha(a) ? -1 : 0) || (c.saldo - a.saldo));
+  }
   return r;
 }
 

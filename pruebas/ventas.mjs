@@ -359,14 +359,15 @@ console.log('\nLAS FINANZAS DE LO VIVO: en fabricación y cobrando');
 
   const f = finanzasVivas([
     proy({ id: 'a' }),                                                                   // 11600, saldo 5800 estimado
-    proy({ id: 'b', estatus_notion: 'REPARANDO', precio_auth: 20000, pago_pendiente: 2000 }),
+    proy({ id: 'b', estatus_notion: 'REPARANDO', precio_auth: 20000, pago_pendiente: 2000, fecha_ganado: '2026-09-10' }),
+    proy({ id: 'z', estatus_notion: 'REPARANDO', precio_auth: 0, neto: 0, anti_pactado: 0, fecha_ganado: '' }),
     proy({ id: 'c', estatus_notion: 'COBRANDO', etapa: 'instalado', pago_pendiente: 1000 }),
     proy({ id: 'd', estatus_notion: 'LIQUIDADO' }),
     proy({ id: 'e', etapa: 'cancelado' }),
   ]);
-  eq('fabricación suma vendido, cobrado y saldo', [f.fabricacion.n, f.fabricacion.vendido, f.fabricacion.cobrado, f.fabricacion.saldo], [2, 31600, 23800, 7800]);
+  eq('fabricación suma vendido, cobrado y saldo', [f.fabricacion.n, f.fabricacion.vendido, f.fabricacion.cobrado, f.fabricacion.saldo], [3, 31600, 23800, 7800]);
   eq('y cuenta los saldos estimados', f.fabricacion.estimados, 1);
-  eq('de mayor a menor saldo', f.fabricacion.lista.map(x => x.proyecto.id), ['a', 'b']);
+  eq('por orden de entrada: lo más nuevo arriba, lo más antiguo abajo, y sin fecha al final', f.fabricacion.lista.map(x => x.proyecto.id), ['b', 'a', 'z']);
   eq('cobrando', [f.cobrando.n, f.cobrando.vendido, f.cobrando.cobrado, f.cobrando.saldo, f.cobrando.estimados], [1, 11600, 10600, 1000, 0]);
   eq('lista vacía', finanzasVivas(null).cobrando, { n: 0, vendido: 0, cobrado: 0, saldo: 0, estimados: 0, lista: [] });
 }
