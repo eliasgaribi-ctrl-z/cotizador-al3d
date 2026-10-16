@@ -63,10 +63,18 @@ describir('SE-22 y SE-17 interno.sello_valido', () => {
   prueba('«250», 250 y 250.9 → 250 (floor); un texto numérico cuenta como número', async () => {
     for (const x of ['250', 250, 250.9, '250.9']) igual(await sv(x), 250, JSON.stringify(x));
   });
-  prueba('se acota a ahora + 10 min: ahora + 1 h → ahora + 600 000; ahora + 9 min se respeta', async () => {
-    igual(await sv(AHORA + 3_600_000), AHORA + 600_000);
-    igual(await sv(AHORA + 540_000), AHORA + 540_000);
+  // 0013 (H-3, decisión provisional Q-06): la holgura depende del área de la transacción (al3d.area, la fija el preámbulo de cada RPC).
+  prueba('sin área (importador, service_role) y para Fabricación/Pagos se acota a ahora + 60 s: ahora + 1 h → ahora + 60 000; ahora + 50 s se respeta', async () => {
+    igual(await sv(AHORA + 3_600_000), AHORA + 60_000);
+    igual(await sv(AHORA + 50_000), AHORA + 50_000);
     igual(await sv(AHORA), AHORA);
+    const conArea = async area => Number((await sql(await base(), `select pg_catalog.set_config('al3d.area', '${area}', true); select interno.sello_valido('${AHORA + 3_600_000}'::jsonb, ${AHORA}::bigint) as v`))[0].v);
+    igual(await conArea('fabricacion'), AHORA + 60_000);
+    igual(await conArea('pagos'), AHORA + 60_000);
+  });
+  prueba('Dirección conserva los 10 min de siempre: ahora + 1 h → ahora + 600 000', async () => {
+    const v = await sql(await base(), `select pg_catalog.set_config('al3d.area', 'direccion', true); select interno.sello_valido('${AHORA + 3_600_000}'::jsonb, ${AHORA}::bigint) as v`);
+    igual(Number(v[0].v), AHORA + 600_000);
   });
 });
 
