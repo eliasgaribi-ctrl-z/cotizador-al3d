@@ -14,7 +14,7 @@
  *   · P8  · la tarjeta VIAJA: la pieza se llama con la tarjeta todavía en su columna de antes
  *           (lo que la primera versión no hacía) y, en la ficha, después de cerrarla;
  *   · P9  · una tarjeta se arrastra de columna con el ratón, con el dedo y con Alt+→/←; un toque
- *           corto sigue abriendo la ficha; pagos no levanta nada; Escape suelta;
+ *           corto sigue abriendo la ficha; pagos también mueve obra (Q-05); Escape suelta;
  *   · P10 · la ficha del teléfono sube desde abajo y se baja con el dedo (la pieza 13);
  *   · P11 · la tarjeta de «sin decidir» da UN latido y se calla, y solo vuelve a latir si sube;
  *   · P12 + 31 · el modo cliente tapa la comisión y NO el total del proyecto, destapa SOLO el
@@ -941,16 +941,18 @@ if (activa('p9dedo')) {
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 
-  /* Pagos no mueve obra. */
+  /* Pagos también mueve obra (Q-05, decidida por Elías el 2026-10-16; hasta ese día no levantaba nada). */
   const pg = await entrar({ ancho: 1280, alto: 900, rol: 'pagos' });
   const cp = await centro(pg.p, `[data-abrir="${pg.h.ganado.id}"]`);
   await pg.p.mouse.move(cp.x, cp.y); await pg.p.mouse.down(); await pg.p.mouse.move(cp.x + 14, cp.y + 6, { steps: 4 }); await esp(pg.p, 300);
-  que(!(await pg.p.$('.pj-fantasma')), 'con el rol de pagos la tarjeta no se levanta: no mueve obra');
-  await pg.p.mouse.up(); await esp(pg.p, 500);
+  que(!!(await pg.p.$('.pj-fantasma')), 'con el rol de pagos la tarjeta también se levanta: mueve obra');
+  await pg.p.keyboard.press('Escape'); await esp(pg.p, 200);
+  await pg.p.mouse.up(); await esp(pg.p, 700);
+  que(!(await pg.p.$('.pj-fantasma')) && (await columnaDe(pg.p, pg.h.ganado.id)) === 'ganado', 'Escape la suelta donde estaba');
   await pg.p.evaluate(i => document.querySelector('[data-abrir="' + i + '"]').focus(), pg.h.ganado.id);
   await pg.p.keyboard.down('Alt'); await pg.p.keyboard.press('ArrowRight'); await pg.p.keyboard.up('Alt');
-  await esp(pg.p, 800);
-  que((await columnaDe(pg.p, pg.h.ganado.id)) === 'ganado', 'y Alt+→ tampoco la mueve (dice que con su rol no se marca)');
+  await esp(pg.p, 1200);
+  que((await columnaDe(pg.p, pg.h.ganado.id)) === 'en_diseno', 'y Alt+→ la pasa a «En diseño»');
   que(pg.errs.length === 0, 'cero errores de página');
   await pg.ctx.close();
 }
@@ -1153,11 +1155,11 @@ if (activa('fab')) {
   que((await p.$$('#pf-ficha .pf-interno')).length === 0 && (await p.$$('#pf-ficha .pj-liq')).length === 0,
     'en la ficha no se pinta ni la comisión ni la liquidación: no hay nada que difuminar');
   que(!!(await p.$('#pf-ficha .pj-gar')) && (await p.$$('#pf-ficha .pj-gar-f')).length === 2, 'la garantía sí la ve: la necesita en la calle y no lleva un peso encima');
-  /* Fabricación llega a «Listo», y lo dice cuando no puede seguir. */
+  /* Desde Q-05 (Elías, 2026-10-16) Fabricación ya no se detiene en «Listo»: el botón sigue a «Instalado». */
   await cerrarFicha(p);
   await abrirFicha(p, h.listo.id);
-  que((await p.$$('#pf-ficha .pj-sigue .btn')).length === 0 && /lo marca Dirección/.test(await p.$eval('#pf-ficha .pj-sigue', e => e.textContent)),
-    'fabricación en «Listo» no tiene botón para seguir, y la ficha dice que lo que sigue lo marca Dirección');
+  que((await p.$eval('#pf-ficha .pj-sigue .btn', e => e.textContent.trim())) === 'Ya se instaló',
+    'fabricación en «Listo» tiene el botón para seguir: «Ya se instaló»');
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 

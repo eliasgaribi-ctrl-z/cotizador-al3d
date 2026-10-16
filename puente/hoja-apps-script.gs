@@ -2113,6 +2113,10 @@ var PUENTE_FORMULAS = {
 
 var ETAPAS_OBRA = ['Ganado', 'En diseño', 'Cortado', 'Armado', 'Listo para instalar',
                    'Instalado', 'En garantía', 'No se dio'];
+/* Cancelar una venta. Desde el 2026-10-16 (Q-05, decidida por Elías) los tres roles mueven la etapa de
+   obra, pero «No se dio» —ponerlo y quitarlo— sigue siendo solo de Dirección: armarCeldas no deja
+   escribirlo a otro rol y unaOperacion no deja a otro rol sacar de ahí una fila. */
+var ETAPA_CANCELADA = 'No se dio';
 
 var TIPOS_TRABAJO = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion',
                      'Letras 3D con iluminacion', 'Letras 3D sin iluminacion',
@@ -2134,8 +2138,10 @@ var PUENTE_ROLES = {
                 'Telefono', 'Entrega', 'Notas', 'Plazo taller'],
   /* Las notas, los tres (puente-sheets-14): son las mismas que cada rol ya escribía en la ficha. El
      plazo de taller, dirección y fabricación: lo decide quien hace el trabajo. */
+  /* La etapa de obra, los tres (Q-05, Elías, 2026-10-16): pagos también la mueve. «No se dio» sigue
+     siendo solo de dirección (ETAPA_CANCELADA). */
   pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
-          'Porcentaje comision', 'Telefono', 'Notas']
+          'Porcentaje comision', 'Telefono', 'Notas', 'Etapa de obra']
 };
 
 /* ── Lo que cada rol puede LEER ─────────────────────────────────────────────
@@ -2871,6 +2877,14 @@ function unaOperacion(h, op, rol, anotaciones) {
         por: 'esta fila ya está atada al folio de cotización ' + yaTiene + ', y ése no se cambia desde un teléfono' });
       return false;
     });
+    /* Sacar una venta de «No se dio» es deshacer que se canceló: solo dirección (Q-05, 2026-10-16). */
+    if (rol !== 'direccion' && String(h.getRange(fila, COL['Etapa de obra']).getValue()).trim() === ETAPA_CANCELADA) {
+      armado.celdas = armado.celdas.filter(function (c) {
+        if (c.col !== COL['Etapa de obra']) return true;
+        armado.rechazadas.push({ nombre: 'Etapa de obra', por: 'esta venta está en «' + ETAPA_CANCELADA + '» y solo dirección la regresa' });
+        return false;
+      });
+    }
   }
 
   /* El abono se revisa ANTES de escribir nada: sin pestaña de abonos, o con sus 1999 renglones
@@ -3002,6 +3016,7 @@ function armarCeldas(datos, rol) {
       celdas.push({ col: col, valor: valor });
     } else if (nombre === 'Etapa de obra') {
       if (ETAPAS_OBRA.indexOf(valor) === -1) { rechazadas.push({ nombre: nombre, por: '«' + valor + '» no es una etapa de obra' }); continue; }
+      if (valor === ETAPA_CANCELADA && rol !== 'direccion') { rechazadas.push({ nombre: nombre, por: 'solo dirección marca una venta como «' + ETAPA_CANCELADA + '»' }); continue; }
       celdas.push({ col: col, valor: valor });
     } else if (nombre === 'Tipo de trabajo') {
       var arr = (Object.prototype.toString.call(valor) === '[object Array]' ? valor : [valor])
@@ -4135,10 +4150,13 @@ var IA_URLS = { qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/ch
 var IA_MODELOS = { qwen: ['qwen3.7-flash', 'qwen3.6-flash'], deepseek: ['deepseek-flash'],
                    gemini: ['gemini-3.1-flash-lite', 'gemini-3.6-flash'] };
 var IA_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-/* Por persona y por día. Una cotización con IA son de una a cuatro llamadas; doscientas es
-   un día de trabajo muy largo, y es muy poco para quien quiera vaciar la cuenta. La cuenta
-   de Google gratuita permite unas 20 000 salidas a internet al día en total. */
-var IA_LIMITE_DIARIO = 200;
+/* Por persona y por día de México. Una cotización con IA son de una a cuatro llamadas; cincuenta
+   (Q-19, Elías, 2026-10-16; antes doscientas) son más de una docena de cotizaciones con IA en un día,
+   y muy poco para quien quiera vaciar la cuenta. La cuenta de Google gratuita permite unas 20 000
+   salidas a internet al día en total. Es el mismo tope que pone Supabase (0017, ia_cuota). */
+var IA_LIMITE_DIARIO = 50;
+/* El día del cupo es el de México: con el GMT de antes el cupo se reiniciaba a las 18:00 locales. */
+var IA_ZONA_DEL_CUPO = 'America/Mexico_City';
 var IA_MAX_LLAVES = 4;
 var IA_MAX_CUERPO = 15 * 1024 * 1024;
 /* Cuerpos de más de 64 KB por minuto, entre todos. Un análisis manda uno; cuarenta por minuto
@@ -4182,7 +4200,7 @@ function iaOrdenDeLlaves_(prov) {
 }
 /* Leer, sumar y escribir, con candado. Sin él, una ráfaga de consultas en paralelo leía todas
    la misma cuenta y cada una escribía «la de antes + 1»: veinte a la vez contaban como una, y
-   el tope de doscientas se pasaba. El candado es el del script —el único que hay entre
+   el tope se pasaba. El candado es el del script —el único que hay entre
    ejecuciones— pero corto y solo alrededor de la cuenta, no de la llamada a la IA: tomado
    mientras el proveedor contesta, dejaría la hoja sin escrituras diez o veinte segundos. Si no
    se consigue en tres segundos (una subida grande del puente lo tiene), se niega con su razón
@@ -4193,7 +4211,7 @@ function dentroDelCupoIA(quien) {
   if (!candado.tryLock(3000)) return null;
   try {
     var props = PropertiesService.getScriptProperties();
-    var hoy = Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd');
+    var hoy = Utilities.formatDate(new Date(), IA_ZONA_DEL_CUPO, 'yyyyMMdd');
     var clave = 'IA_CUOTA_' + hoy;
     var m = {};
     try { m = JSON.parse(props.getProperty(clave) || '{}') || {}; } catch (e) { m = {}; }

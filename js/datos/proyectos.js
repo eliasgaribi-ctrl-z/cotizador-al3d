@@ -1110,20 +1110,19 @@ const textoValor = v => {
    La etapa, y las salidas de material que cuelgan de ella
    ============================================================================ */
 
-/* Hasta dónde mueve cada rol. Fabricación llega a 'listo' y no más: 'instalado' lo marca
-   quien estuvo en la obra y de ahí cuelga la cobranza. Pagos no mueve obra: lo que mueve es
-   `estatus_notion`, que es el otro eje. */
-const TOPE_ROL = { direccion: null, fabricacion: 'listo', pagos: false };
+/* Quién mueve la etapa (Q-05, decidida por Elías el 2026-10-16; docs/DECISIONES-SUPABASE.md): los TRES
+   roles mueven cualquier etapa, hacia adelante y hacia atrás, y `cancelado` («No se dio») es SOLO de
+   Dirección: marcarlo y sacar un proyecto de ahí. Hasta ese día Fabricación llegaba a «Listo» y no más
+   y Pagos no movía obra (era `TOPE_ROL`). La misma regla la imponen la base
+   (supabase/migrations/0017_decisiones_elias.sql) y la hoja (PUENTE_ROLES y ETAPA_CANCELADA del .gs). */
 
-/** Si este rol puede marcar esta etapa. Se exporta para que una pantalla pueda preguntar
- *  ANTES de pintar el botón, y así enseñar la razón en vez de un botón apagado. La política
- *  sigue viviendo aquí: `avanzarEtapa` la vuelve a preguntar y es la que manda. */
-export function puedeMover(rol, etapa) {
-  const tope = TOPE_ROL[rol];
-  if (tope === null || tope === undefined) return true;
-  if (tope === false) return false;
-  const d = ORDEN[etapa], t = ORDEN[tope];
-  return d !== undefined && t !== undefined && d <= t;
+/** Si este rol puede marcar esta etapa y, si se dice `desde`, sacar el proyecto de esa. Se exporta
+ *  para que una pantalla pueda preguntar ANTES de pintar el botón, y así enseñar la razón en vez de
+ *  un botón apagado. La política sigue viviendo aquí: `avanzarEtapa` la vuelve a preguntar y es la
+ *  que manda. PURA. */
+export function puedeMover(rol, etapa, desde) {
+  if (etapa === 'cancelado' || desde === 'cancelado') return rol === 'direccion';
+  return true;
 }
 
 /**
@@ -1239,9 +1238,11 @@ export async function avanzarEtapa(id, etapa) {
     const rc = await descartar(id, '');
     return rc.ok ? ok({ proyecto: rc.valor, movimientos: 0 }) : rc;
   }
-  if (!puedeMover(rol, etapa)) {
-    return mal('ROL_SIN_PERMISO', 'Con el rol de ' + (Prefs.ROL_NOMBRE[rol] || rol) +
-      ' no se marca «' + (ETAPA_NOMBRE[etapa] || etapa) + '». Eso lo marca Dirección.');
+  if (!puedeMover(rol, etapa, p.etapa)) {
+    return mal('ROL_SIN_PERMISO', p.etapa === 'cancelado'
+      ? 'Este proyecto se marcó «' + (ETAPA_NOMBRE.cancelado || 'No se dio') + '». Regresarlo lo decide Dirección.'
+      : 'Con el rol de ' + (Prefs.ROL_NOMBRE[rol] || rol) + ' no se marca «' + (ETAPA_NOMBRE[etapa] || etapa) +
+        '». Eso lo marca Dirección.');
   }
   /* Volver a tocar la etapa en la que ya está no es un error ni una escritura: es el doble
      toque de un dedo en un teléfono. Se contesta que sí y no se escribe nada. */

@@ -1551,8 +1551,8 @@ async function ejecutar(acc, id, boton) {
 
     case 'hecha': {
       /* `marcar` también pasa el proyecto a «Instalado» cuando el rol puede marcarlo (ver
-         `instalarProyecto` en js/datos/agenda.js). El aviso dice cuál de las dos pasó: con el
-         rol de fabricación el proyecto se queda en «Listo», y eso se dice aquí. */
+         `instalarProyecto` en js/datos/agenda.js). Desde Q-05 (2026-10-16) Dirección y Fabricación
+         pueden; el aviso sigue diciendo cuál de las dos pasó por si la regla vuelve a cambiar. */
       const r = await Agenda.marcar(i.id, 'hecha');
       avisarResultado(r, Proyectos.puedeMover(Prefs.rol(), 'instalado')
         ? 'Marcada como hecha, y el proyecto queda en «Instalado»'

@@ -26,8 +26,9 @@
      sesión → llaves (IA_KEYS) → cuerpo (tope y JSON) → petición (proveedor, modelo, formato) →
      las llaves de ese proveedor, en su turno (SIN_LLAVE no gasta cupo) → EL CUPO → el proveedor.
    La sesión va primero y antes de leer el cuerpo: a quien no la trae no se le leen quince megas.
-   El cupo se cuenta ANTES de llamar al proveedor, y una sola vez, con la RPC ia_cuota: 200 al día por
-   persona, el día de Ciudad de México (Q-19) y atómico en la base (A.md §8.1). Si no se pudo contar,
+   El cupo se cuenta ANTES de llamar al proveedor, y una sola vez, con la RPC ia_cuota: 50 al día por
+   persona (Q-19, Elías, 2026-10-16; la base no deja más aunque se le pida), el día de Ciudad de
+   México y atómico en la base (A.md §8.1). Si no se pudo contar,
    se niega con SIN_RED (transitorio): pasar sin contar es justo lo que el cupo cierra. El turno de las
    llaves de un mismo proveedor (para repartir la cuota entre ellas) lo lleva la RPC ia_turno; sin
    ella se empieza por la primera llave y no pasa nada más.

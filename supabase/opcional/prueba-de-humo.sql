@@ -2,7 +2,7 @@
 --
 -- Para qué sirve: las pruebas de supabase/tests corren sobre PGlite (PostgreSQL en WASM), que valida el
 -- SQL y las políticas pero NO es Supabase. Esto se ejecuta en el Editor SQL del panel del proyecto, con
--- las migraciones 0001..0016 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015; el 9, de la 0016), y comprueba ahí lo que más importa: que cada área ve y puede
+-- las migraciones 0001..0017 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015; el 9, de la 0016; el 10 y C08/C12, de la 0017), y comprueba ahí lo que más importa: que cada área ve y puede
 -- hacer solo lo que le toca. Simula a las personas igual que PostgREST (rol + claims del JWT), con
 -- usuarios de prueba creados DENTRO de la misma transacción.
 --
@@ -61,7 +61,7 @@ begin
   end;
   execute 'reset role';
 
-  -- 2) Fabricación ve la obra pero NADA de dinero, y no puede cobrar ni mover a «instalado».
+  -- 2) Fabricación ve la obra pero NADA de dinero, y no puede cobrar ni cancelar (0017: fuera de eso mueve cualquier etapa; ver el bloque 10).
   perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
   begin
     select count(*) into n from public.proyectos;
@@ -90,14 +90,14 @@ begin
   begin
     r := public.mover_etapa('humo1', 'en_diseno', ahora + 1000, '', null);
     inf := inf || jsonb_build_object('caso', 'C07 Fabricación mueve a en_diseno', 'ok', coalesce((r->>'ok')::boolean, false), 'det', coalesce(r->>'codigo', 'ok'));
-    r := public.mover_etapa('humo1', 'instalado', ahora + 2000, '', null);
-    inf := inf || jsonb_build_object('caso', 'C08 Fabricación NO mueve a instalado (ROL_SIN_PERMISO)', 'ok', r->>'codigo' = 'ROL_SIN_PERMISO', 'det', coalesce(r->>'codigo', 'ok'));
+    r := public.mover_etapa('humo1', 'cancelado', ahora + 2000, '', null);
+    inf := inf || jsonb_build_object('caso', 'C08 Fabricación NO cancela (ROL_SIN_PERMISO; desde 0017 es lo único de la etapa que no puede)', 'ok', r->>'codigo' = 'ROL_SIN_PERMISO', 'det', coalesce(r->>'codigo', 'ok'));
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C07-C08 (Fabricación mueve etapa)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
   execute 'reset role';
 
-  -- 3) Pagos cobra, lee el dinero y NO mueve etapa; reenviar el mismo cobro no lo suma dos veces.
+  -- 3) Pagos cobra, lee el dinero y NO cancela (0017: fuera de eso mueve cualquier etapa; ver el bloque 10); reenviar el mismo cobro no lo suma dos veces.
   perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
   begin
     select count(*) into n from public.ventas_dinero;
@@ -107,8 +107,8 @@ begin
     r := public.registrar_cobro('humo1', 1000, null, false, 'humo-op-1', null);
     select to_jsonb(v) into k from public.ventas_calculadas v where v.proyecto_id = 'humo1';
     inf := inf || jsonb_build_object('caso', 'C11 el mismo cobro reenviado NO suma dos veces (saldo 2640)', 'ok', coalesce((k->>'k_saldo')::numeric = 2640, false), 'det', k->>'k_saldo');
-    r := public.mover_etapa('humo1', 'armado', ahora + 3000, '', null);
-    inf := inf || jsonb_build_object('caso', 'C12 Pagos NO mueve etapa (ROL_SIN_PERMISO)', 'ok', r->>'codigo' = 'ROL_SIN_PERMISO', 'det', coalesce(r->>'codigo', 'ok'));
+    r := public.mover_etapa('humo1', 'cancelado', ahora + 3000, '', null);
+    inf := inf || jsonb_build_object('caso', 'C12 Pagos NO cancela (ROL_SIN_PERMISO; desde 0017 es lo único de la etapa que no puede)', 'ok', r->>'codigo' = 'ROL_SIN_PERMISO', 'det', coalesce(r->>'codigo', 'ok'));
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C09-C12 (Pagos)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
@@ -337,6 +337,67 @@ begin
   end if;
   select coalesce(cardinality(interno.auditoria()), -1) into n;
   inf := inf || jsonb_build_object('caso', 'C48 la auditoría de 0011 sigue limpia después de 0016', 'ok', coalesce(n = 0, false), 'det', n::text);
+
+  -- 10) Las decisiones de Elías del 2026-10-16 (0017). Q-05: los tres roles mueven cualquier etapa y SOLO Dirección cancela (o saca de
+  --     «cancelado»). Q-19: 50 consultas de IA al día por persona, aunque quien llama pida más. humo1 viene en «armado» (C32), con el sello
+  --     de etapa en ahora + 1500.
+  perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+  begin
+    r := public.mover_etapa('humo1', 'listo', ahora + 4000, '', null);
+    inf := inf || jsonb_build_object('caso', 'C49 Pagos mueve la etapa (armado → listo)', 'ok', coalesce(r->>'etapa' = 'listo', false), 'det', coalesce(r->>'etapa', r->>'codigo'));
+    r := public.mover_etapa('humo1', 'cancelado', ahora + 4500, '', null);
+    inf := inf || jsonb_build_object('caso', 'C50 Pagos NO cancela (ROL_SIN_PERMISO)', 'ok', coalesce(r->>'codigo' = 'ROL_SIN_PERMISO', false), 'det', coalesce(r->>'codigo', r->>'etapa'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C49-C50 (Pagos y la etapa, 0017)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+  begin
+    r := public.mover_etapa('humo1', 'instalado', ahora + 5000, '', null);
+    k := public.mover_etapa('humo1', 'garantia', ahora + 5500, '', null);
+    inf := inf || jsonb_build_object('caso', 'C51 Fabricación mueve fuera de ganado…listo (listo → instalado → garantía)', 'ok',
+                                     coalesce(r->>'etapa' = 'instalado' and k->>'etapa' = 'garantia', false), 'det', concat_ws(' / ', coalesce(r->>'etapa', r->>'codigo'), coalesce(k->>'etapa', k->>'codigo')));
+    r := public.mover_etapa('humo1', 'cancelado', ahora + 6000, '', null);
+    inf := inf || jsonb_build_object('caso', 'C52 Fabricación NO cancela (ROL_SIN_PERMISO)', 'ok', coalesce(r->>'codigo' = 'ROL_SIN_PERMISO', false), 'det', coalesce(r->>'codigo', r->>'etapa'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C51-C52 (Fabricación y la etapa, 0017)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+  begin
+    r := public.mover_etapa('humo1', 'cancelado', ahora + 6500, '', null);
+    inf := inf || jsonb_build_object('caso', 'C53 Dirección sí cancela («No se dio»)', 'ok', coalesce(r->>'etapa' = 'cancelado', false), 'det', coalesce(r->>'etapa', r->>'codigo'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C53 (Dirección cancela, 0017)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+  begin
+    r := public.mover_etapa('humo1', 'ganado', ahora + 7000, '', null);
+    t := coalesce(r->>'codigo', r->>'etapa');
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    r := public.mover_etapa('humo1', 'ganado', ahora + 7500, '', null);
+    inf := inf || jsonb_build_object('caso', 'C54 ni Fabricación ni Pagos sacan un proyecto de «cancelado» (ROL_SIN_PERMISO)', 'ok',
+                                     coalesce(t = 'ROL_SIN_PERMISO' and r->>'codigo' = 'ROL_SIN_PERMISO', false), 'det', t || ' / ' || coalesce(r->>'codigo', r->>'etapa'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C54 (sacar de cancelado, 0017)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  begin
+    for i in 1..50 loop r := public.ia_cuota(u_dir, 200, now()); end loop;
+    k := public.ia_cuota(u_dir, 200, now());
+    inf := inf || jsonb_build_object('caso', 'C55 IA: 50 consultas al día por persona aunque se pidan 200; la 51.ª es CUPO_AGOTADO', 'ok',
+                                     coalesce((r->>'usadas')::int = 50 and (r->>'limite')::int = 50 and k->>'codigo' = 'CUPO_AGOTADO', false),
+                                     'det', concat_ws(' / ', r->>'usadas', r->>'limite', k->>'codigo', k->>'mensaje'));
+    r := public.ia_cuota(u_fab, p_ahora => now());
+    inf := inf || jsonb_build_object('caso', 'C56 IA: sin tope pedido, el de la base es 50 y cada persona tiene el suyo', 'ok',
+                                     coalesce((r->>'usadas')::int = 1 and (r->>'limite')::int = 50, false), 'det', concat_ws(' / ', r->>'usadas', r->>'limite', r->>'codigo'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C55-C56 (IA, 0017)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  select coalesce(cardinality(interno.auditoria()), -1) into n;
+  inf := inf || jsonb_build_object('caso', 'C57 la auditoría de 0011 sigue limpia después de 0017', 'ok', coalesce(n = 0, false), 'det', n::text);
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).
   raise exception 'HUMO_RESULTADO %', jsonb_build_object(

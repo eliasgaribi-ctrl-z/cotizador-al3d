@@ -269,7 +269,7 @@ async function pestana(nombre, { rolLocal, sesion, area }) {
   let r = await pestana('pagos', { rolLocal: 'pagos', sesion: true, area: 'pagos' });
   cierto('Pagos con sesión ve los cuatro formularios', ['Cobro o anticipo', 'Abono de comisión', 'Repartir un depósito', 'Corregir'].every(t => r.html.includes(t)));
   cierto('con la venta de la base y su saldo en pesos', r.html.includes('V-214 · Letras Farmacia — saldo $5,800.00'));
-  cierto('y avisa que es la base de pruebas, no la hoja', /base <b>de pruebas<\/b>, no en la hoja/.test(r.html));
+  cierto('y avisa que escribe en Supabase, no en la hoja', /en <b>Supabase<\/b>, la base nueva, no en la hoja/.test(r.html));
   eq('pidió quién es y las ventas, y NO escribió nada al abrir', r.llamadas.map(x => x[0] + ':' + x[1]), ['rpc:mi_acceso', 'from:ventas_calculadas']);
   eq('el cliente manda la cabecera del contrato', opcionesDelCliente && opcionesDelCliente.global.headers['x-al3d-contrato'], '1');
 

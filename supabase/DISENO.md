@@ -1666,7 +1666,7 @@ Todas `SECURITY DEFINER`, `set search_path = ''`, `REVOKE … FROM PUBLIC, anon`
 | 8 | `descartar_cotizacion` | `(p_op jsonb, p_empresa text default null)` | Dirección | `folio_global` único |
 | 9 | `alta_venta` | `(p_op jsonb, p_empresa text default null)` | Dirección, Pagos | `id` único |
 | 10 | `proyecto_actualizar` | `(p_op jsonb, p_empresa text default null)` | Dirección, Fabricación, Pagos (por campo) | sello: empate escribe el mismo valor |
-| 11 | `mover_etapa` | `(p_proyecto text, p_etapa text, p_sello bigint default null, p_motivo text default '', p_empresa text default null)` | Dirección; Fabricación solo `ganado…listo` en origen **y** destino | misma etapa = sin cambio |
+| 11 | `mover_etapa` | `(p_proyecto text, p_etapa text, p_sello bigint default null, p_motivo text default '', p_empresa text default null)` | Dirección; Fabricación solo `ganado…listo` en origen **y** destino. **Desde `0017` (Q-05, Elías, 2026-10-16): los tres roles, cualquier etapa menos `cancelado`, que es solo de Dirección (en origen y en destino)** | misma etapa = sin cambio |
 | 12 | `instalacion_guardar` | `(p_op jsonb, p_empresa text default null)` | Dirección, Fabricación | `id` único + una viva por proyecto |
 | 13 | `emitir_salidas_derivadas` | `(p_hoy date default null, p_empresa text default null)` | Dirección, Fabricación, Pagos | `mov-salida:<req.id>` |
 | 14 | `registrar_cobro` | `(p_proyecto text, p_monto numeric, p_fecha date default null, p_liquidar boolean default true, p_op_id text default null, p_empresa text default null)` | Dirección, Pagos | `op_id` |
@@ -1985,6 +1985,12 @@ alta_venta(p_op, p_empresa)             [PREÁMBULO(dir, pag)]            -- el 
 ### 5.6 mover_etapa, salidas de material y las dos transiciones automáticas (R5)
 
 **Permiso (Q-05) — se IMPONE en la base; el servidor de hoy es permisivo y la regla solo vive en el cliente (`TOPE_ROL`, `proyectos.js:1116`) [C-10]:**
+
+> **Cambiado por Elías el 2026-10-16 (`supabase/migrations/0017_decisiones_elias.sql`, `docs/DECISIONES-SUPABASE.md` Q-05):** Dirección,
+> Fabricación **y Pagos** mueven cualquier etapa a cualquier etapa; **solo Dirección** cancela («No se dio») y solo ella saca un proyecto de
+> `cancelado`. La matriz (`etapas`) de Fabricación y Pagos es «todas menos `cancelado`», en origen y en destino, y el preámbulo de
+> `mover_etapa` admite a Pagos. La transición automática 1 (instalación `hecha` ⇒ `instalado`) corre para toda área cuya matriz deja marcar
+> `instalado` (Dirección y Fabricación). La tabla de abajo es la de la primera entrega, que `0017` reemplaza.
 
 | Área | Origen | Destino | Resultado |
 |---|---|---|---|
@@ -3190,10 +3196,10 @@ Parten de `proyecto = {etapa:'cortado', notas:'mía', plazo_k:2, tel:'33 1', dir
 | Id | Rol | Caso | Esperado |
 |---|---|---|---|
 | ET-01 | Dir | las 8 × 8 transiciones (incluye `cancelado` → cualquiera y cualquiera → `cancelado`) | todas permitidas |
-| ET-02 | Fab | las 25 transiciones dentro de `ganado…listo` (incluso retroceder) | permitidas |
-| ET-03 | Fab | desde `ganado…listo` a `instalado`, `garantia`, `cancelado` | `ROL_SIN_PERMISO` |
-| ET-04 | Fab | desde `instalado`, `garantia`, `cancelado` a cualquiera | `ROL_SIN_PERMISO` (**endurece**) |
-| ET-05 | Pag | cualquier movimiento | `ROL_SIN_PERMISO` |
+| ET-02 | Fab | las 25 transiciones dentro de `ganado…listo` (incluso retroceder). **Desde `0017`: las 49 entre las 7 etapas que no son `cancelado`** | permitidas |
+| ET-03 | Fab | desde `ganado…listo` a `instalado`, `garantia`, `cancelado`. **Desde `0017`: solo hacia `cancelado`** | `ROL_SIN_PERMISO` |
+| ET-04 | Fab | desde `instalado`, `garantia`, `cancelado` a cualquiera. **Desde `0017`: solo desde `cancelado`** | `ROL_SIN_PERMISO` (**endurece**) |
+| ET-05 | Pag | cualquier movimiento. **Desde `0017`: como Fabricación (las 49 permitidas; hacia o desde `cancelado`, `ROL_SIN_PERMISO`)** | `ROL_SIN_PERMISO` |
 | ET-06 | Dir | misma etapa | `sin_cambio`, sin escritura, sin bitácora |
 | ET-07 | Dir | `ganado→cortado` con 3 requerimientos (2 con cantidad, 1 en cero) | 2 salidas `mov-salida:<req.id>` con cantidad **negativa**, requerimientos `consumido`; la línea en cero queda `calculado` |
 | ET-08 | Fab | `ganado→listo` (salta `cortado`) | emite (alcanzar, no tocar) |
@@ -3205,7 +3211,7 @@ Parten de `proyecto = {etapa:'cortado', notas:'mía', plazo_k:2, tel:'33 1', dir
 | ET-14 | Dir/Fab/Pag | `emitir_salidas_derivadas` con instalación mañana / ayer / en 3 días / cancelada / proyecto cancelado | emite (`origen='derivado'`) / emite / no / no / no; segunda llamada = 0; **no mueve la etapa** |
 | ET-15 | Pag | `emitir_salidas_derivadas` | permitido (`derivado`+`salida`) |
 | ET-16 | Dir | instalación `hecha` con etapa `listo`; con `instalado`/`garantia`/`cancelado` | → `instalado`; no cambia |
-| ET-17 | Fab | marca `hecha` con etapa `listo` | la etapa **se queda** en `listo` |
+| ET-17 | Fab | marca `hecha` con etapa `listo` | la etapa **se queda** en `listo`. **Desde `0017`: pasa a `instalado`, como con Dirección** |
 | ET-18 | Dir | `hecha` con etapa `ganado` | → `instalado` y emite (cruzó el corte) |
 | ET-19 | Pag | `registrar_cobro(liquidar)` sobre proyecto `fuente='hoja'` en `armado`; sobre `fuente='cotizacion'`; sobre histórica; en `garantia` | → `instalado` (sin salidas, sello de etapa nuevo); **no cambia**; no cambia; no cambia |
 | ET-20 | Dir/Pag | `corregir_venta(estatus:'COBRANDO')` en `fuente='manual'` en `listo` | → `instalado` |
@@ -3367,7 +3373,7 @@ Casos **FM-01..FM-35**: §6.4 (tabla de casos borde, prueba diferencial de 20 00
 
 | Id | Rol | Caso | Esperado |
 |---|---|---|---|
-| CU-01 | `service_role` | `ia_cuota` 200 veces y una más | 200 ok; la 201.ª `CUPO_AGOTADO` (`transitorio:false`); el contador **no pasa de 200** |
+| CU-01 | `service_role` | `ia_cuota` 200 veces y una más | 200 ok; la 201.ª `CUPO_AGOTADO` (`transitorio:false`); el contador **no pasa de 200**. **Desde `0017` (Q-19): 50, aunque quien llama pida más** |
 | CU-02 | `service_role` | otro usuario | su propio cupo |
 | CU-03 | `service_role` | `dia_mx('2026-10-11 05:59:00Z')` y `dia_mx('2026-10-11 06:00:00Z')` | `20261010` y `20261011` (la medianoche de México) |
 | CU-04 | `service_role` | `dia_mx('2026-10-11 00:00:00Z')` (= **18:00 en México**) | `20261010`: **el tope ya no se reinicia a las 18:00** como con el día GMT de hoy [M01 §2.5] |

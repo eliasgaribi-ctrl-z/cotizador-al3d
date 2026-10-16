@@ -854,16 +854,18 @@ console.log('\nEL DÍA DEL CUPO — a las 18:00 de México no se reinicia nada; 
     }
     igual('2 500 instantes al azar de 1995 a 2060 en ' + zona + ' dan el día que dice el motor', malos.slice(0, 3), []);
   }
-  /* Y el .gs: su día es el GMT, y con la zona GMT el módulo lo reproduce. */
+  /* Y el .gs: desde el 2026-10-16 su día también es el de México (IA_ZONA_DEL_CUPO), y el módulo, con
+     su zona de siempre, da la misma propiedad IA_CUOTA_<día>. */
   const malosGmt = [];
   for (let i = 0; i < 60; i++) {
     const ms = Math.floor(Date.UTC(2024, 0, 1) + azar() * (Date.UTC(2028, 0, 1) - Date.UTC(2024, 0, 1)));
     mundo.reiniciar(); mundo.reloj(ms);
     mundo.rutaIA(chat('qwen', 'qwen3.7-flash'), 't:dia');
     const clave = Object.keys(mundo.propiedades()).find(k => k.startsWith('IA_CUOTA_')).replace('IA_CUOTA_', '');
-    if (IA.cuotaDelDia(ms, 'GMT').replace(/-/g, '') !== clave) malosGmt.push(new Date(ms).toISOString() + ': .gs ' + clave);
+    if (IA.cuotaDelDia(ms).replace(/-/g, '') !== clave) malosGmt.push(new Date(ms).toISOString() + ': .gs ' + clave);
   }
-  igual('con la zona GMT, el módulo da el mismo día que la propiedad IA_CUOTA_<día> del .gs, en 60 instantes', malosGmt, []);
+  igual('el módulo (día de México) da el mismo día que la propiedad IA_CUOTA_<día> del .gs, en 60 instantes', malosGmt, []);
+  igual('  y el .gs lo dice con su nombre de zona, no con un desfase', mundo.constante('IA_ZONA_DEL_CUPO'), IA.IA_ZONA);
 
   console.log('  — la cuenta de una persona a lo largo de un día —');
   /* Una base de mentiras: la cuenta es de (día, persona). Cada consulta la sube y devuelve el nuevo
@@ -873,30 +875,34 @@ console.log('\nEL DÍA DEL CUPO — a las 18:00 de México no se reinicia nada; 
   const pide = (ms, quien) => IA.decidirCuota(cuenta(ms, quien));
   const a1759 = t(2026, 10, 10, 17, 59, 0);
   let pasaron = 0;
-  for (let i = 0; i < 200; i++) if (pide(a1759 + i * 100, 'elias').ok) pasaron++;
-  igual('las primeras 200 consultas pasan (a las 17:59 de México)', pasaron, 200);
-  igual('la 201 se niega con la frase del .gs', plano(pide(t(2026, 10, 10, 17, 59, 30), 'elias')),
-        { ok: false, codigo: 'CUPO_AGOTADO', transitorio: false, mensaje: 'Llegaste al tope de 200 consultas de IA por hoy. Mañana se reinicia.' });
+  for (let i = 0; i < 50; i++) if (pide(a1759 + i * 100, 'elias').ok) pasaron++;
+  igual('las primeras 50 consultas pasan (a las 17:59 de México; Q-19, 50 desde el 2026-10-16)', pasaron, 50);
+  igual('la 51 se niega con la frase del .gs', plano(pide(t(2026, 10, 10, 17, 59, 30), 'elias')),
+        { ok: false, codigo: 'CUPO_AGOTADO', transitorio: false, mensaje: 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.' });
   igual('a las 18:00:00 de México (medianoche GMT) SIGUE negada: el cupo NO se reinicia', pide(t(2026, 10, 10, 18, 0, 0), 'elias').codigo, 'CUPO_AGOTADO');
   igual('  a las 18:01', pide(t(2026, 10, 10, 18, 1, 0), 'elias').codigo, 'CUPO_AGOTADO');
   igual('  a las 21:00', pide(t(2026, 10, 10, 21, 0, 0), 'elias').codigo, 'CUPO_AGOTADO');
   igual('  y a las 23:59:59', pide(t(2026, 10, 10, 23, 59, 59), 'elias').codigo, 'CUPO_AGOTADO');
-  igual('a la medianoche de México SÍ se reinicia: la primera consulta del día nuevo pasa', plano(pide(t(2026, 10, 11, 0, 0, 0), 'elias')), { ok: true, usado: 1, restantes: 199 });
-  igual('el cupo es de cada persona: otra, a las 18:01, empieza en uno', plano(pide(t(2026, 10, 10, 18, 1, 0), 'omar')), { ok: true, usado: 1, restantes: 199 });
+  igual('a la medianoche de México SÍ se reinicia: la primera consulta del día nuevo pasa', plano(pide(t(2026, 10, 11, 0, 0, 0), 'elias')), { ok: true, usado: 1, restantes: 49 });
+  igual('el cupo es de cada persona: otra, a las 18:01, empieza en uno', plano(pide(t(2026, 10, 10, 18, 1, 0), 'omar')), { ok: true, usado: 1, restantes: 49 });
 
-  console.log('  — y lo que se está reemplazando: el .gs sí lo reinicia a las 18:00 —');
-  /* Esto describe el sistema que se retira. Si el .gs algún día cambia de zona, esta parte se
-     borra: no se arregla. Es la premisa de la decisión Q-19. */
+  console.log('  — y el .gs, desde el 2026-10-16, cuenta igual: 50 y el día de México —');
+  /* Hasta el 2026-10-16 el .gs contaba 200 por día GMT y a las 18:00 de México volvía a dejar pasar
+     (la premisa de Q-19). Elías bajó el tope a 50 y el .gs pasó a contar el día de México: ya no hay
+     diferencia entre la hoja y Supabase. */
   mundo.reiniciar();
   const cuerpoDia = chat('qwen', 'qwen3.7-flash');
   mundo.reloj(t(2026, 10, 10, 17, 59, 0));
   let pasaronGs = 0;
-  for (let i = 0; i < 200; i++) if (mundo.rutaIA(cuerpoDia, 't:elias').ok) pasaronGs++;
-  igual('el .gs deja pasar 200 a las 17:59 de México', pasaronGs, 200);
-  igual('  y niega la 201', mundo.rutaIA(cuerpoDia, 't:elias').codigo, 'CUPO_AGOTADO');
+  for (let i = 0; i < 50; i++) if (mundo.rutaIA(cuerpoDia, 't:elias').ok) pasaronGs++;
+  igual('el .gs deja pasar 50 a las 17:59 de México', pasaronGs, 50);
+  igual('  y niega la 51 con la frase de siempre', plano(mundo.rutaIA(cuerpoDia, 't:elias')),
+        { ok: false, codigo: 'CUPO_AGOTADO', transitorio: false, mensaje: 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.' });
   mundo.reloj(t(2026, 10, 10, 18, 0, 30));
-  igual('  pero a las 18:00:30 de México, que ya es el 11 en GMT, el .gs vuelve a dejar pasar: ESE es el cambio', mundo.rutaIA(cuerpoDia, 't:elias').ok, true);
-  igual('  y su propiedad cambió de día', Object.keys(mundo.propiedades()).filter(k => k.startsWith('IA_CUOTA_')), ['IA_CUOTA_20261011']);
+  igual('  a las 18:00:30 de México (ya el 11 en GMT) SIGUE negada: ya no se reinicia a media tarde', mundo.rutaIA(cuerpoDia, 't:elias').codigo, 'CUPO_AGOTADO');
+  igual('  y su propiedad es la del día de México', Object.keys(mundo.propiedades()).filter(k => k.startsWith('IA_CUOTA_')), ['IA_CUOTA_20261010']);
+  mundo.reloj(t(2026, 10, 11, 0, 0, 30));
+  igual('  a la medianoche de México sí: la primera del día nuevo pasa', mundo.rutaIA(cuerpoDia, 't:elias').ok, true);
 }
 
 /* ============================================================================
@@ -904,25 +910,25 @@ console.log('\nEL DÍA DEL CUPO — a las 18:00 de México no se reinicia nada; 
    ============================================================================ */
 console.log('\nEL CUPO — contar ANTES de llamar, y la cuenta incluye a la consulta que se decide');
 {
-  for (const [usado, ok] of [[1, true], [100, true], [199, true], [200, true], [201, false], [202, false], [5000, false]]) {
+  for (const [usado, ok] of [[1, true], [25, true], [49, true], [50, true], [51, false], [52, false], [5000, false]]) {
     const r = IA.decidirCuota(usado);
     igual('con ' + usado + ' consulta(s) contadas hoy, ' + (ok ? 'pasa' : 'se niega'), [r.ok, r.codigo], [ok, ok ? undefined : 'CUPO_AGOTADO']);
   }
-  igual('queda lo que falta', [IA.decidirCuota(1).restantes, IA.decidirCuota(150).restantes, IA.decidirCuota(200).restantes], [199, 50, 0]);
+  igual('queda lo que falta', [IA.decidirCuota(1).restantes, IA.decidirCuota(30).restantes, IA.decidirCuota(50).restantes], [49, 20, 0]);
   igual('con otro tope', [IA.decidirCuota(5, 5).ok, IA.decidirCuota(6, 5).ok, IA.decidirCuota(6, 5).mensaje], [true, false, 'Llegaste al tope de 5 consultas de IA por hoy. Mañana se reinicia.']);
   igual('con tope cero, nada pasa', IA.decidirCuota(1, 0).codigo, 'CUPO_AGOTADO');
 
-  /* El .gs cuenta primero y compara después: la 200 pasa y la 201 es la primera que se niega. */
+  /* El .gs cuenta primero y compara después: la 50 pasa y la 51 es la primera que se niega. */
   mundo.reiniciar();
   const cuerpo = chat('qwen', 'qwen3.7-flash');
   let primeraNegada = null;
-  for (let i = 1; i <= 205 && primeraNegada === null; i++) {
+  for (let i = 1; i <= 55 && primeraNegada === null; i++) {
     const gs = mundo.rutaIA(cuerpo, 't:tope');
     const yo = IA.decidirCuota(i);
     if (gs.ok !== yo.ok) { mal('en la consulta ' + i + ' el .gs dice ok=' + gs.ok + ' y el módulo ok=' + yo.ok); primeraNegada = -1; }
-    else if (!gs.ok) { primeraNegada = i; igual('la primera que el .gs niega es la 201, con las mismas palabras que el módulo', [i, JSON.stringify(gs)], [201, JSON.stringify(yo)]); }
+    else if (!gs.ok) { primeraNegada = i; igual('la primera que el .gs niega es la 51, con las mismas palabras que el módulo', [i, JSON.stringify(gs)], [51, JSON.stringify(yo)]); }
   }
-  cierto('las 200 primeras coinciden consulta por consulta con el .gs', primeraNegada === 201);
+  cierto('las 50 primeras coinciden consulta por consulta con el .gs', primeraNegada === 51);
 
   console.log('  — cuando no se pudo contar —');
   /* El .gs: con el candado ocupado, no cuenta a ciegas y niega con SIN_RED. */

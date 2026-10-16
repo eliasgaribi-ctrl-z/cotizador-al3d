@@ -1258,7 +1258,7 @@ function guardarGcal() {
   if (CTX.refrescar) CTX.refrescar();
 }
 
-/* ----- Supabase (pruebas): la pieza 3 de la migración, APAGADA -----
+/* ----- Supabase (el proyecto de producción): la pieza 3 de la migración, APAGADA -----
    Solo la ve Dirección y solo hace algo en el aparato donde se enciende. Encendida: entrar con
    Google a Supabase, ver qué dice la base de ti, y —siendo Dirección activa— dar de alta, cambiar
    de área o dar de baja a las personas. Nada de esto cambia la puerta de hoy ni lo que ven los
@@ -1268,7 +1268,7 @@ const ESTADO_NOMBRE = { activo: 'activo', invitado: 'invitado (todavía no entra
 
 function cardSupabase() {
   if (Prefs.rol() !== 'direccion') return '';
-  return tarjeta('i-nube', 'Supabase (pruebas)', '<div id="aj-supa" aria-live="polite">' +
+  return tarjeta('i-nube', 'Supabase', '<div id="aj-supa" aria-live="polite">' +
     nota('Leyendo…') + '</div>', 'aj-s-supa');
 }
 
@@ -1281,7 +1281,7 @@ async function pintarSupabase() {
   const listo = html => { if (turno === _supaTurno && $('aj-supa')) $('aj-supa').innerHTML = html; };
   const apagar = '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
   if (!Supa.encendido()) {
-    listo('<p class="aj-p">Esto es <b>solo para probar</b> la base nueva en <b>este</b> aparato, contra el proyecto de pruebas. ' +
+    listo('<p class="aj-p">Esto es <b>solo para probar</b> la base nueva (Supabase, con los datos reales) en <b>este</b> aparato. ' +
       'Apagado (como está) no hace nada: la app sigue entrando y guardando como siempre, con la hoja.</p>' +
       '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-encender">Encender en este aparato</button></div>');
     return;

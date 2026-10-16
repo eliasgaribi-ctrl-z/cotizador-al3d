@@ -52,7 +52,8 @@
    LO QUE CAMBIA RESPECTO AL .gs, TODO A PROPÓSITO Y TODO PROBADO
      1. El día del cupo es el de Ciudad de México y no el GMT (decisión Q-19). El .gs contaba
         el día en GMT, que cambia a las 18:00 de México: quien llegaba a su tope a las 17:50
-        volvía a tener doscientas a las 18:00, y el aviso decía «mañana se reinicia». Aquí
+        volvía a tenerlo entero a las 18:00, y el aviso decía «mañana se reinicia» (el .gs ya
+        cuenta también el día de México desde el 2026-10-16, cuando bajó a 50). Aquí
         el día lo da `cuotaDelDia(ahora, zona)` con Intl y el nombre de la zona, no con un
         desfase fijo: México quitó el horario de verano en 2022 y antes lo tenía, y un `-6`
         escrito a mano contaría mal todo lo que se mire de antes.
@@ -107,9 +108,11 @@ export const IA_MODELOS = Object.freeze({
   gemini: Object.freeze(['gemini-3.1-flash-lite', 'gemini-3.6-flash']),
 });
 export const IA_MIMES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
-/* Por persona y por día. Una cotización con IA son de una a cuatro llamadas; doscientas es un
-   día de trabajo muy largo y es muy poco para quien quiera vaciar la cuenta. */
-export const IA_LIMITE_DIARIO = 200;
+/* Por persona y por día. Una cotización con IA son de una a cuatro llamadas; cincuenta (Q-19, Elías,
+   2026-10-16; antes doscientas) son más de una docena de cotizaciones con IA en un día y muy poco
+   para quien quiera vaciar la cuenta. La base pone el mismo tope y no deja pasar de él aunque se le
+   pida más (0017, ia_cuota); el .gs también (IA_LIMITE_DIARIO). */
+export const IA_LIMITE_DIARIO = 50;
 /* 15 MB de texto: una imagen o un PDF en base64 viaja dentro del cuerpo. Se mide en caracteres,
    como el .gs; con base64 (ASCII) caracteres y bytes son lo mismo. */
 export const IA_MAX_CUERPO = 15 * 1024 * 1024;
@@ -531,7 +534,7 @@ export function cuotaDelDia(ahora, zona = IA_ZONA) {
  * ¿Pasa esta consulta? `usadoHoy` es la cuenta de la persona HOY, CONTANDO la consulta que se
  * está decidiendo: la base la sube y la devuelve en un solo paso (un `insert … on conflict do
  * update … returning` atómico; leer, sumar y escribir por separado deja pasar a veinte que
- * llegan juntas). Con un tope de 200, la consulta 200 pasa y la 201 es la primera que se niega,
+ * llegan juntas). Con un tope de 50, la consulta 50 pasa y la 51 es la primera que se niega,
  * como en el .gs; las negadas también suman, y da igual.
  *
  * Si `usadoHoy` no es una cuenta (la base no contestó), se niega con SIN_RED, transitorio: el

@@ -12,6 +12,8 @@ const plantilla = dato(async () => {
 }, { limpiar: db => db.close() });
 
 const mover = (s, extra = {}) => llamar(s, 'mover_etapa', { p_proyecto: 'p4', p_etapa: 'armado', p_sello: Date.now(), ...extra });
+/* Desde 0017 (Q-05) Fabricación y Pagos mueven la etapa las dos: lo que las distingue en la obra es la agenda (Pagos no la toca). */
+const agendar = s => llamar(s, 'instalacion_guardar', { p_op: { id: 'ac10', proyecto_id: 'p4', fecha: '2026-12-01', hora: '09:30', sello: Date.now() } });
 
 describir('AC-01 sin fila en miembros (u_ext)', () => {
   prueba('mi_acceso y reclamar_acceso dicen sin_acceso; leer proyectos da 0 filas; mover_etapa da SIN_ACCESO (no definitivo); nunca acceso_revocado', async () => {
@@ -43,26 +45,27 @@ describir('AC-08 y AC-09 la baja de Fabricación: efecto inmediato con el mismo 
 });
 
 describir('AC-10 cambiar el área surte efecto en la SIGUIENTE petición', () => {
-  prueba('Fabricación → Pagos: antes ventas_dinero 0 filas y mover_etapa funciona; después lee ventas_dinero y mover_etapa da ROL_SIN_PERMISO', async () => {
+  prueba('Fabricación → Pagos: antes ventas_dinero 0 filas y agenda; después lee ventas_dinero, ya no agenda (ROL_SIN_PERMISO) y sigue moviendo la etapa (0017)', async () => {
     await conCopia(plantilla, async db => {
       const F = sesionDe(db, db.u.fab);
       igual(await contar(F, 'ventas_dinero'), 0);
-      igual((await mover(F)).ok, true);
+      igual((await agendar(F)).ok, true);
       igual((await llamar(sesionDe(db, db.u.dir), 'miembro_cambiar_area', { p_correo: 'fab@al3d.test', p_area: 'pagos' }, { confirmar: true })).ok, true);
       cierto(await contar(F, 'ventas_dinero') > 0, 'ahora lee dinero');
-      igual((await mover(F)).codigo, 'ROL_SIN_PERMISO');
+      igual((await agendar(F)).codigo, 'ROL_SIN_PERMISO');
+      igual((await mover(F)).ok, true, 'Pagos también mueve la etapa');
       const b = (await sql(db, `select antes, despues from public.bitacora where accion = 'cambio_area' and entidad_id = 'fab@al3d.test'`))[0];
       igual([b.antes.area, b.despues.area], ['fabricacion', 'pagos']);
     });
   });
-  prueba('lo contrario: Pagos → Fabricación pierde el dinero y gana mover_etapa en el rango de taller', async () => {
+  prueba('lo contrario: Pagos → Fabricación pierde el dinero y gana la agenda', async () => {
     await conCopia(plantilla, async db => {
       const P = sesionDe(db, db.u.pag);
       cierto(await contar(P, 'ventas_dinero') > 0);
-      igual((await mover(P)).codigo, 'ROL_SIN_PERMISO');
+      igual((await agendar(P)).codigo, 'ROL_SIN_PERMISO');
       await llamar(sesionDe(db, db.u.dir), 'miembro_cambiar_area', { p_correo: 'pag@al3d.test', p_area: 'fabricacion' }, { confirmar: true });
       igual(await contar(P, 'ventas_dinero'), 0);
-      igual((await mover(P)).ok, true);
+      igual((await agendar(P)).ok, true);
     });
   });
 });

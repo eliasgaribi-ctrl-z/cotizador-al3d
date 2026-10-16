@@ -7,7 +7,7 @@
    Corre:  node /tmp/probar-proyectos.mjs
    El código de salida es 0 si todo pasó y 1 si algo falló, para que un guion lo sepa. */
 
-import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO, camposDelRecalculo }
+import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO, camposDelRecalculo, puedeMover, ETAPAS }
   from '../js/datos/proyectos.js';
 import { readFileSync } from 'fs';
 
@@ -333,6 +333,18 @@ eq('la nota suma los campos sin repetir y se queda con su fecha; la operación v
    sm, { desde: 100, campos: ['etapa', 'anti_pactado', 'dir_texto', 'lat', 'lng', 'tipo_trabajo'] });
 eq('sin nota previa, desde ahora; una instalación sola deja la nota vacía',
    sumarSinMandar(null, [{ almacen: 'instalaciones', datos: {} }], 900), { desde: 900, campos: [] });
+
+console.log('\nQUIÉN MUEVE LA ETAPA (Q-05, decidida por Elías el 2026-10-16)');
+{
+  const vivas = ETAPAS.filter(e => e !== 'cancelado');
+  for (const rol of ['direccion', 'fabricacion', 'pagos']) {
+    eq(rol + ': marca las ' + vivas.length + ' etapas que no son «No se dio», desde cualquiera de ellas',
+       vivas.every(d => vivas.every(o => puedeMover(rol, d, o))), true);
+  }
+  eq('cancelar («No se dio») es solo de Dirección', ['direccion', 'fabricacion', 'pagos'].map(r => puedeMover(r, 'cancelado')), [true, false, false]);
+  eq('y sacar un proyecto de ahí también', ['direccion', 'fabricacion', 'pagos'].map(r => puedeMover(r, 'ganado', 'cancelado')), [true, false, false]);
+  eq('sin decir de dónde, solo cuenta el destino (como preguntan las pantallas)', [puedeMover('fabricacion', 'instalado'), puedeMover('pagos', 'garantia')], [true, true]);
+}
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

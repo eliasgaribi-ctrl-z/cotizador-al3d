@@ -76,8 +76,8 @@ function guardar() {
 export function html() {
   borradores();
   if (_vista === 'nada') return '';
-  const cab = '<div class="card pg-supa-card"><div class="card-h"><h2>' + ico('i-nube') + ' Registrar en Supabase (pruebas)</h2></div><div class="card-b">' +
-    '<p class="hintnote nota-av">Esto escribe en la base <b>de pruebas</b>, no en la hoja. La hoja sigue siendo la que manda: ' +
+  const cab = '<div class="card pg-supa-card"><div class="card-h"><h2>' + ico('i-nube') + ' Registrar en Supabase</h2></div><div class="card-b">' +
+    '<p class="hintnote nota-av">Esto escribe en <b>Supabase</b>, la base nueva, no en la hoja. La hoja sigue siendo la que manda: ' +
     'lo que registres aquí regístralo también allá.</p>';
   let cuerpo;
   if (_vista === 'esperando') cuerpo = '<p class="pf-nota" role="status">Preguntando a la base quién eres…</p>';

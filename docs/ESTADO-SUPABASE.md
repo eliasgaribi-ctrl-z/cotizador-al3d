@@ -1,10 +1,10 @@
 # Estado de la migración a Supabase
 
-**Última actualización: 2026-10-16 (segunda entrega: huecos de la revisión, `autorizar`, `respaldo`, escritura en sombra, lectura en vivo y pantallas de Pagos, todo apagado; y las decisiones de Elías del mismo día sobre sellos y folios, `0014` y `0015`, y sobre los plazos de conservación, `0016`; ver «Segunda entrega» abajo).** Primera entrega: 2026-10-10. Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
+**Última actualización: 2026-10-16, tercera entrega: el proyecto de PRODUCCIÓN existe y tiene los datos de la hoja, la app apunta a él (apagada) y las decisiones de Elías del mismo día (Q-05 y Q-19 cambian, `0017`); ver «Tercera entrega» abajo.** Antes, ese mismo día (segunda entrega: huecos de la revisión, `autorizar`, `respaldo`, escritura en sombra, lectura en vivo y pantallas de Pagos, todo apagado; y las decisiones de Elías del mismo día sobre sellos y folios, `0014` y `0015`, y sobre los plazos de conservación, `0016`; ver «Segunda entrega» abajo). Primera entrega: 2026-10-10. Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
 
 ## En una frase
 
-La migración está **en construcción y apagada**. La app, el puente y la hoja de Google siguen funcionando exactamente igual, **la hoja es la fuente de verdad hasta la fase 4**, y no hay ningún dato real en Supabase.
+La migración está **apagada, pero ya tiene su casa de verdad**: el proyecto de producción `al3d-produccion` existe, tiene las migraciones `0001`–`0016`, Google configurado y los datos de la hoja importados (219 ventas, 186 abonos, cuadre con 0 diferencias), y la app apunta a él con el interruptor **apagado** en cada aparato. **La hoja sigue siendo la fuente de verdad hasta la fase 4** (y pasa a solo lectura después de 7 días seguidos de cuadre, cuando Elías lo confirme). Lo único que cambia hoy para la gente es la regla de etapas (Q-05): los tres roles mueven la etapa y solo Dirección cancela.
 
 ## Cómo leer los estados
 
@@ -19,9 +19,9 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 
 | Fase | Qué es | Estado hoy | Puerta de salida (la del plan) |
 |---|---|---|---|
-| 0 | Decisiones y documentación | **hecho**, salvo lo que confirma Elías | Documento de decisión aprobado; no se toca código de producción |
+| 0 | Decisiones y documentación | **hecho**; Elías revisó todas las decisiones el 2026-10-16 (cambian Q-05 y Q-19) | Documento de decisión aprobado; no se toca código de producción |
 | 1 | Base y acceso | **hecho y verificado** (PGlite **y** el proyecto real de pruebas). Entrada con Google hecha en el cliente (apagada); falta probarla en el iPhone | Pruebas de RLS (las reglas de qué ve cada área) en verde para los tres roles; ninguna fila real todavía |
-| 2 | Importar | **script hecho y probado con hojas de mentiras** (PGlite, y el ensayo en el proyecto real de pruebas). Faltan tus datos: la copia de la hoja y los respaldos de los teléfonos | Reporte de cuadre que coincida con la hoja y con los teléfonos |
+| 2 | Importar | **hecho en producción el 2026-10-16**: 219 ventas y 186 abonos, cuadre con 0 diferencias. Quedan 30 autorizaciones esperando la clave del sello, y la «Bitácora del puente» se queda en la hoja | Reporte de cuadre que coincida con la hoja y con los teléfonos |
 | 3 | Doble escritura | **hecho con dobles, apagado**: ruta `espejo`, escritura en sombra desde la bandeja y cuadre (botón en Ajustes y flujo diario). Falta probarlo contra el proyecto real y encenderlo en cada aparato que escribe | Siete días seguidos de cuadre; si no cuadra, se regresa a la fase 2 |
 | 4 | Cambio de lectura | **hecho con dobles, apagado**: lectura de Supabase con Realtime (segundo interruptor) y pantallas de Pagos. Falta el respaldo en marcha (función hecha, sin secretos) y la prueba real | Los tres roles lo usan una semana sin incidentes; vuelta atrás: leer otra vez de la hoja, que sigue completa |
 | 5 | Retiro | **pendiente** | El Apps Script queda con dos rutas (`espejo` y `carpetas`) |
@@ -49,7 +49,9 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 
 | Pieza | Estado | Evidencia |
 |---|---|---|
-| Proyecto de pruebas en Supabase: `al3d-pruebas`, organización «AL3D Free», West US (North California), ref `hhwjlxukuzxearrjurtc`. Sin datos reales | hecho | Creado el 2026-10-10 desde la sesión local, con permiso de Elías (`PLAN-SUPABASE.md`, nota de implementación) |
+| **Proyecto de PRODUCCIÓN en Supabase: `al3d-produccion`**, ref `gwzfdprdrdudfakjsdxf`, `https://gwzfdprdrdudfakjsdxf.supabase.co`, región us-west-1. Migraciones `0001`–`0016` aplicadas y Google configurado | hecho (2026-10-16) | Creado y configurado en la sesión de Elías del 2026-10-16. `0017` está en esta rama y **falta aplicarla** (abajo, «Tercera entrega») |
+| La app apunta a producción: `js/datos/supabase-config.js` (URL y llave **pública** de `al3d-produccion`; el de pruebas queda anotado en una constante `EN_USO`, sin botón en la app) y la CSP de `index.html` (`https` y `wss`). `sw.js` 120 | hecho, **apagado** | `pruebas/supabase-entrada.mjs`: apagado no carga nada; lo publicado apunta a producción; la CSP coincide con el proyecto en uso y no deja pasar el de pruebas |
+| Proyecto de pruebas en Supabase: `al3d-pruebas`, organización «AL3D Free», West US (North California), ref `hhwjlxukuzxearrjurtc`. Sin datos reales. **Sigue existiendo**; la app ya no habla con él | hecho | Creado el 2026-10-10 desde la sesión local, con permiso de Elías (`PLAN-SUPABASE.md`, nota de implementación) |
 | Límites del plan gratuito | hecho | Verificados el 2026-10-10 (ver «Verificado vs. no verificado») |
 | Arnés de pruebas de base de datos en PGlite | hecho | [`supabase/tests/`](../supabase/tests/README.md): `arnes/`, `autoprueba.mjs`, `correr.sh` |
 | Módulos puros de las funciones: sello de autorización, enlace corto de Maps, inteligencia artificial y verificación | hecho y verificado | `supabase/functions/_shared/{sello,maps,ia,verificar}.js` y `pruebas/supabase-{sello,maps,ia}.mjs`. Probados contra el `.gs` **real** cargado en una máquina virtual (22 127 casos del sello) y, por mutación, rompiéndolos a propósito: cada rotura la detecta alguna prueba |
@@ -72,7 +74,9 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 |---|---|---|
 | Script de importación (hoja y teléfonos), con reporte de conflictos y de cuadre | hecho y verificado con hojas de mentiras | [`scripts/importar-hoja.mjs`](../scripts/importar-hoja.mjs) y [`scripts/importador/`](../scripts/importador/LEEME.md). No se conecta a la base: escribe `ensayo.sql`, `importar.sql` (idempotente) y `cuadre.sql` fuera del repositorio, y se niega a escribir dentro. No decide: reporta (Q-14). Pruebas IM-01 a IM-12 en `supabase/tests/sync-e-importacion/importador.mjs` (22 verificaciones en PGlite, siete de ellas por lo que encontró la revisión del código). **En el proyecto real `al3d-pruebas`** (2026-10-12) se corrió el ensayo (antes y después de las correcciones de la revisión) con 54 ventas inventadas, tres teléfonos y tres sellos: terminó sin errores con los mismos números que en PGlite y no dejó ninguna fila. **No probado en el proyecto real:** la carga confirmada, la segunda corrida y el cuadre (dejarían filas inventadas que la base no deja borrar) |
 | Volcado de la hoja con `getValues()` | hecho, **sin correr** en una hoja real | [`puente/volcado-para-importar.gs`](../puente/volcado-para-importar.gs): se pega en la COPIA de la hoja, nunca en la original; no escribe nada en la hoja |
-| «Solicitudes de autorización» y «Bitácora del puente» | no se importan (se cuentan en el reporte) | Son peticiones en curso e historia; decidir si hacen falta antes de la fase 4 |
+| **Importación a producción** | **hecho el 2026-10-16** | 219 ventas y 186 abonos en `al3d-produccion`; el cuadre contra la hoja dio **0 diferencias** (cifras de la sesión de importación de ese día; esta rama no las volvió a medir) |
+| Las autorizaciones (sellos) de la hoja | **30 pendientes** | Esperan la clave del sello para comprobar su firma antes de cargarlas (`SELLO_AUTORIZACION`, por un canal que no sea el chat) |
+| «Solicitudes de autorización» y «Bitácora del puente» | no se importan (se cuentan en el reporte). **La bitácora del puente se queda en la hoja** (2026-10-16) | Son peticiones en curso e historia |
 | Copia completa de la hoja y exportación de cada teléfono, antes de tocar nada | bloqueado por Elías | `PLAN-SUPABASE.md` §6 y §10 |
 | Aviso de privacidad actualizado antes de empezar | hecho el 2026-10-16 (texto); falta avisar al equipo | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
 
@@ -124,11 +128,15 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 
 | Qué | Cuándo hace falta | De dónde sale |
 |---|---|---|
-| Revisar y confirmar, o cambiar, las decisiones Q-01 a Q-20 | Al revisar el PR | `DECISIONES-SUPABASE.md` |
+| ~~Revisar y confirmar, o cambiar, las decisiones Q-01 a Q-20~~ | **hecho el 2026-10-16** | `DECISIONES-SUPABASE.md` |
+| **Aplicar `supabase/migrations/0017_decisiones_elias.sql`** en `al3d-pruebas` y en `al3d-produccion` (Editor SQL, completa; termina con la auditoría), y después la prueba de humo: **57** casos en verde | Antes de encender Supabase en cualquier aparato | «Tercera entrega», abajo |
+| **Pegar el Apps Script nuevo** (`puente/hoja-apps-script.gs`) e implementar una versión nueva: Pagos mueve la etapa en la hoja, «No se dio» solo Dirección, IA a 50 al día en hora de México | Ya: hasta entonces la hoja le rechaza a Pagos los cambios de etapa | `puente/DESPLIEGUE.md` |
+| Dar la clave del sello por un canal seguro para las 30 autorizaciones pendientes | Antes de apagar `/verificar` de Apps Script | Fase 2 |
+| Confirmar el día en que la hoja pasa a solo lectura (después de 7 días seguidos de cuadre) | Fase 3 → 4 | `DECISIONES-SUPABASE.md`, Q-01 |
 | Confirmar la lista de áreas: ¿cotizador, taller, cobranza, almacén y comisiones, o falta alguna? | Fase 1 | `PLAN-SUPABASE.md` §9 |
 | Decidir si WhatsApp Business entra en la plataforma o queda fuera | Al cerrar el alcance | `PLAN-SUPABASE.md` §4.9 y §9 |
 | Revisar el borrador de privacidad, decidir lo marcado **[POR DECIDIR]** (plazos, baja, región) y avisar al equipo antes de publicarlo | Antes de la fase 2 | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
-| Decidir la región y el proyecto de **producción** de Supabase | Antes de la fase 2 | El de pruebas está en West US (North California); el de producción no existe |
+| ~~Decidir la región y el proyecto de **producción** de Supabase~~ (**hecho el 2026-10-16**: `al3d-produccion`, us-west-1) | Antes de la fase 2 | El de pruebas está en West US (North California); el de producción no existe |
 | Hacer la copia completa de la hoja (archivo nuevo en Drive, con fecha) y pedir a cada persona que exporte su teléfono | Antes de la fase 2 | `PLAN-SUPABASE.md` §6 y §10 |
 | Aprobar el gestor de contraseñas y la copia fuera de línea del sello; decidir si él carga los secretos en el panel de Supabase (lo que recomienda el plan) o desde la sesión local | Fase 1 | `PLAN-SUPABASE.md` §4.12 |
 | Crear y cargar los secretos reales: sello de autorización (no se rota), llaves de IA, secreto del espejo, contraseña de la base, secreto de Google | Fases 1 a 3 | `PLAN-SUPABASE.md` §4.12; `DECISIONES-SUPABASE.md` §C |
@@ -248,6 +256,31 @@ Decisiones de cada pieza: [`supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md`](supabas
 **Para aplicar en `al3d-pruebas`:** `supabase/migrations/0014_sellos_mas_reciente.sql` y después `supabase/migrations/0015_folio_de_la_hoja.sql` (Editor SQL, cada una completa; las dos idempotentes y con la auditoría al final; `0014` borra la columna `proyectos.sellos_area`, así que Supabase avisará de una operación destructiva). Luego `supabase/opcional/prueba-de-humo.sql`: verde con **39** casos.
 
 **No verificado en esta entrega:** nada del cliente ni de las funciones corrió contra el Supabase real (PostgREST, Realtime con RLS por evento, despliegue de funciones, Drive real, clave real del sello); `deno check` (no hay Deno en esta máquina); las pruebas de navegador (no corren en Windows); el iPhone.
+
+## Tercera entrega (2026-10-16): producción y las decisiones de Elías
+
+Rama `claude/supabase-produccion-y-decisiones`. Supabase sigue **apagado** en cada aparato y la hoja sigue mandando.
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| Proyecto de producción `al3d-produccion` (ref `gwzfdprdrdudfakjsdxf`, us-west-1) con `0001`–`0016`, Google y los datos importados (219 ventas, 186 abonos, cuadre 0 diferencias; 30 autorizaciones esperan la clave del sello; la bitácora del puente se queda en la hoja) | hecho (sesión de Elías) | Fase 1 y Fase 2, arriba |
+| La app apunta a producción (configuración, CSP `https`+`wss`, letreros sin «pruebas»; `sw.js` 120). El de pruebas, solo como constante `EN_USO` en `js/datos/supabase-config.js`, sin botón | hecho, **apagado** | `pruebas/supabase-entrada.mjs`, `pruebas/pagos-supa.mjs`, `pruebas/csp.mjs` |
+| **Q-05**: los tres roles mueven cualquier etapa; solo Dirección cancela («No se dio») o saca de ahí; «instalación hecha ⇒ instalado» también desde Fabricación | **base**: `0017` (hecho y verificado en PGlite, **sin aplicar**); **app**: hecho, **en efecto hoy**; **hoja**: hecho, **falta pegarlo** | `supabase/tests/obra-y-etapas/etapas.mjs` (7 fallan sin `0017`), `acceso/matriz.mjs` (RL-20), `obra-y-etapas/acceso-con-obra.mjs` (AC-10); `pruebas/proyectos.mjs`, `pruebas/puente.mjs` (11 ·), `pruebas/puente-hoja.mjs`; `pruebas/navegador/pf-proyectos.mjs` (no corre en Windows) |
+| **Q-19**: IA a 50 consultas al día por persona, en hora de México | **base**: `0017` (`ia_cuota` nunca deja más de 50); **función `ia`**: hecho (no desplegada); **hoja**: hecho, **falta pegarlo** | `supabase/tests/cupos/cupos.mjs` (5 fallan sin `0017`), `pruebas/supabase-ia.mjs`, `pruebas/supabase-funciones.mjs`, `pruebas/notario.mjs` |
+| Q-01, Q-02, Q-03, Q-09 y Q-13 confirmadas; las demás aceptadas por defecto | hecho | `DECISIONES-SUPABASE.md` (Q-02 y Q-03 verificadas contra la base) |
+
+**Qué cambia HOY para la gente, con Supabase apagado** (en cuanto se publique esta rama): Pagos ve los pasos de la etapa en la ficha y puede
+moverla (también arrastrando en el tablero); Fabricación pasa de «Listo» a «Instalado» y «En garantía», y al marcar una instalación «hecha» el
+proyecto queda en «Instalado»; nadie más que Dirección cancela ni saca un proyecto de «No se dio» (antes Fabricación sí podía sacarlo en la app).
+Mientras no se pegue el Apps Script nuevo, **la hoja le rechaza a Pagos el cambio de etapa** (la bandeja lo dice: «este teléfono no puede
+escribir… Etapa de obra») y la IA sigue en 200 por día GMT; lo de Fabricación ya entra en la hoja de hoy, que no le ponía tope. Los letreros de
+Ajustes y de «Registrar en Supabase» ya no dicen «pruebas».
+
+**Cifras (Windows 11):** `sh supabase/tests/correr.sh`: **37 archivos, 857 verificaciones, 0 fallos** (378 s). `sh pruebas/correr.sh`: **68 archivos, todos en verde** (las 45 de navegador no corren en Windows). Prueba de humo en PGlite: **57 casos, 0 fallos** (sin `0017`: 4 fallan, C49, C51, C55 y C56). La auditoría de `0011` sigue limpia (la corre `0017` al final y C57 de la prueba de humo). Pruebas viejas que se ajustaron a propósito porque decían la regla anterior: ET-02…ET-05, ET-17 y el permiso por área de `etapas.mjs`, RL-20, AC-10 (ahora distingue a Fabricación de Pagos por la agenda), CU-01…CU-05, C08 y C12 de la prueba de humo («no cancela» en vez de «no mueve»), «pagos no mueve la obra» de `puente-hoja.mjs`, los 200 de `supabase-ia.mjs`, `supabase-funciones.mjs` y `notario.mjs`, y dos de `pf-proyectos.mjs` de navegador.
+
+**Para aplicar:** `supabase/migrations/0017_decisiones_elias.sql` en el Editor SQL, completa, primero en `al3d-pruebas` y después en `al3d-produccion` (idempotente; no cambia ninguna firma ni privilegio; termina con la auditoría, que debe pasar). Después `supabase/opcional/prueba-de-humo.sql`: verde con **57** casos.
+
+**No verificado en esta entrega:** `0017` contra el Supabase real (lo aplica Elías); el Apps Script nuevo en la hoja real; la app hablando con producción con el interruptor encendido (PostgREST, Realtime y la entrada con Google contra `al3d-produccion`); las pruebas de navegador (no corren en Windows); `deno check`.
 
 ## Lo que quedaba para la segunda entrega (resuelto arriba, salvo los secretos y la prueba real)
 

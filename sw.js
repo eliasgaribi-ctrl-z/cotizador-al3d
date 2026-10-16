@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 119;
+const APP_VERSION = 120;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -102,7 +102,7 @@ const APP_FILES = [
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',
   './js/nucleo/ingreso.js',
-  './js/nucleo/supa.js',             // Supabase (pruebas), apagado; vendor/supabase.js NO se precarga: se cachea al usarse
+  './js/nucleo/supa.js',             // Supabase (producción), apagado; vendor/supabase.js NO se precarga: se cachea al usarse
   /* La puerta. Va con app.js y no aparte: desde la versión 51 el arranque NO monta nada sin
      que ésta conteste, así que una copia sin este archivo es una copia que entra por el
      camino de emergencia y lo dice en la banda de arriba. */
@@ -118,7 +118,7 @@ const APP_FILES = [
   './js/datos/db.js',
   './js/datos/prefs.js',
   './js/datos/supabase-config.js',
-  './js/datos/pagos-supa.js',        // Pagos en Supabase (pruebas), apagado: solo lo importa js/mod/pagos-supa.js
+  './js/datos/pagos-supa.js',        // Pagos en Supabase (producción), apagado: solo lo importa js/mod/pagos-supa.js
   './js/datos/cotizador.js',
   './js/datos/catalogo-precios.js',
   './js/datos/proyectos.js',
