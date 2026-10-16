@@ -221,7 +221,7 @@ Decisiones de Elías del 2026-10-16, aplicadas en la rama `claude/aviso-privacid
 
 - **Purgas por plazo.** Nada borra cotizaciones no ganadas a los 8 meses, la bitácora al año ni las lápidas (`deleted_at`) a los 30 días: no hay ninguna tarea programada en la base (sin `pg_cron`, `0001_fundacion.sql`).
 - **Los 8 respaldos.** La función `respaldo` sube un archivo por semana y no borra los viejos (`supabase/functions/_shared/respaldo.js`).
-- **Las imágenes en Storage.** No está programado: hoy viven en el aparato (`al3d_cot_imgs` y el historial) y nadie escribe en el almacenamiento de archivos de Supabase.
+- **Las imágenes en Storage.** Programado el 2026-10-16 y **apagado** (rama `claude/supabase-imagenes`): con la sombra encendida en un aparato, las imágenes de las cotizaciones del historial (planos, renders y propuesta; `al3d_cot_imgs`) suben al bucket privado `cotizacion-imagenes`; las ve quien ve la cotización (Dirección todas, Pagos las suyas, Fabricación ninguna). No sube la imagen de referencia con la que se cotizó con IA (`aiFile`). Falta aplicar `supabase/opcional/storage.sql`.
 - **La IA por la función.** La función `ia` existe pero la app todavía no la llama (no hay `functions/v1` en `js/`).
 - **Excepción que conviene decidir:** las autorizaciones de precio son de solo agregar en la base (ni `service_role` las edita) y son las que permiten comprobar un PDF ya entregado; «lo borrado se borra a los 30 días» no puede alcanzarlas tal como está la base. La página no lo dice; decidir si se agrega como excepción.
 
