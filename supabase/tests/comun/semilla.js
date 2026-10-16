@@ -127,7 +127,9 @@ export async function sembrarProyectos(db) {
                    ('al3d', 'V-001',  50, '2026-10-03', 'a mano', null, 'abono'),
                    ('al3d', 'V-002', 200, '2026-10-04', 'a mano', null, 'abono'),
                    ('al3d', 'V-003',  20, null, 'sin fecha', null, 'abono')`);
-  await sql(db, `insert into public.contadores (empresa_id, clave, n) values ('al3d', 'V', 5), ('al3d', 'P', 1)`);
+  // 0015: el trigger proyectos_folio_contador ya puso V a la altura de V-005 al insertar los proyectos; aquí se fija igual que siempre.
+  await sql(db, `insert into public.contadores (empresa_id, clave, n) values ('al3d', 'V', 5), ('al3d', 'P', 1)
+                 on conflict (empresa_id, clave, ventana) do update set n = excluded.n`);
   return { p1: 'p1', p2: 'p2', p3: 'p3', p4: 'p4', p5: 'p5', p6: 'p6', i1: 'i1', i2: 'i2' };
 }
 

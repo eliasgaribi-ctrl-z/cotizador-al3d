@@ -1941,7 +1941,8 @@ ganar_proyecto(p_op, p_empresa)         [PREÁMBULO(dir)]
           lat, lng, geo_fuente, ubicacion_pendiente, entrega, plazo_k, notas,
           venta:{ sub, neto, anti, iva, cuenta, estatus, pct_comision, precio_auth, liquidacion?, fecha_liquidacion? },
           fecha_instalacion?, hora?, instalacion_id?,
-          sellos:{ etapa, tel, dir_texto, ubicacion, entrega, plazo_k? }, op_id }
+          sellos:{ etapa, tel, dir_texto, ubicacion, entrega, plazo_k? }, op_id,
+          folio_hoja? }                                                       -- 0015: el V-### que ya le dio la hoja (la sombra lo manda)
  validar: id (regex), folio_global (regex), nombre no vacío, venta.sub numérico, cuenta ∈ 5 o null, estatus ∈ 4 (def. 'FABRICACION'), venta.anti ≥ 0
  pg_advisory_xact_lock(hashtextextended(empresa || ':' || folio_global, 0))                          -- serializa dos «Se ganó» de la misma cotización
  e := proyectos(empresa, folio_global)
@@ -1949,7 +1950,10 @@ ganar_proyecto(p_op, p_empresa)         [PREÁMBULO(dir)]
                e.id ≠ p_op.id -> err('DUPLICADO', 'Esa cotización ya es un proyecto', {proyecto_id: e.id})   (`yaExiste`, `proyectos.js:643-654`)
  si existe proyectos.id = p_op.id -> DATO_INVALIDO
  (obra, dinero) := partir_origen(entrada)
+ folio_hoja := op.folio_hoja si viene (0015, Q-07): escrito como folio_texto lo escribe, o DATO_INVALIDO; si otro proyecto lo tiene,
+               DATO_INVALIDO {causa:'folio_ocupado', folio_hoja, proyecto_id} (candado por empresa:folio); y si no viene:
  folio_hoja := interno.folio_texto('V', interno.siguiente(empresa,'V','',1))                          -- nunca se reparte dos veces; V-001…V-999, V-1000… (§2.1)
+                                                                                                     -- el trigger proyectos_folio_contador (0015) sube V hasta el folio más alto, venga de donde venga
  INSERT proyectos (…, fuente 'cotizacion', historica false, etapa 'ganado', folio_hoja, folio_global, fecha_anticipo = coalesce(op, hoy_mx()),
                    estatus, iva = venta.iva, sellos = clamp(op.sellos) con sello_valido, origen_obra = obra, creado_por = uid)
  INSERT ventas_dinero (subtotal = venta.sub, anticipo = venta.anti, cuenta, pct_comision = coalesce(venta.pct_comision, 10),
