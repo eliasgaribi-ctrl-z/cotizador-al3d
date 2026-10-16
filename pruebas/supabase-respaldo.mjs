@@ -21,7 +21,8 @@ import * as R from '../supabase/functions/_shared/respaldo.js';
 import { manejar, VARIABLES, CABECERA_SECRETO } from '../supabase/functions/respaldo/handler.js';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
-const leer = (...p) => readFileSync(join(RAIZ, ...p), 'utf8');
+// En Windows los archivos pueden llegar con CRLF: se comparan como LF.
+const leer = (...p) => readFileSync(join(RAIZ, ...p), 'utf8').replace(/\r\n/g, '\n');
 let pasan = 0, fallos = 0;
 const recortar = (s, n = 400) => (String(s).length > n ? String(s).slice(0, n) + '…' : String(s));
 const bien = m => { pasan++; console.log('  ✓ ' + m); };
