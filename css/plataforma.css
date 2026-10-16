@@ -4373,3 +4373,25 @@ button.ct-tt-anio:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px
    la palabra «se entrega mañana» ya lo dice, y la barra lo dice antes de leer. */
 .tb-falta-que{font-weight:650;color:var(--n8)}
 .tb-falta.pronto{box-shadow:inset 3px 0 0 var(--mal);padding-left:var(--e2)}
+/* ----- Control · «Registrar (Supabase)» (js/mod/pagos-supa.js) -----
+   Solo existe con el interruptor de Supabase encendido en el aparato. Los errores son los de
+   «Datos para la entrega» (`.pf-de-err`, rojo con su marca); aquí el campo se pinta igual. */
+.pg-supa .pg-tabs{margin-top:var(--e3)}
+.pg-form{display:block;max-width:40rem;margin-top:var(--e3)}
+.pg-form>.tipo-seg{margin-bottom:var(--e3)}
+.pg-supa .fld.falta label{color:var(--mal)}
+.pg-supa .fld.falta input,.pg-supa .fld.falta select,.pg-supa .fld.falta textarea{border-color:var(--mal);background:var(--mal-bg)}
+.pg-supa .pg-err{margin-top:var(--e1)}
+.pg-supa .pg-venta,.pg-supa .pg-ayuda{margin-top:var(--e1)}
+.pg-supa select{max-width:100%}
+.pg-check label{display:flex;gap:var(--e2);align-items:center;min-height:44px;font-weight:600}
+.pg-check input{width:20px;height:20px;flex:0 0 auto}
+.pg-aviso:focus{outline:none}
+.pg-aviso:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.pg-aviso .hintnote{margin-top:var(--e3)}
+.pg-tabla-caja{overflow-x:auto;max-width:100%}
+.pg-tabla{width:100%;border-collapse:collapse;margin-top:var(--e3);font-size:var(--t2)}
+.pg-tabla caption{text-align:left;font-weight:600;color:var(--n8);margin-bottom:var(--e1)}
+.pg-tabla th,.pg-tabla td{padding:var(--e1) var(--e2);border-bottom:1px solid var(--n2);text-align:right;font-variant-numeric:tabular-nums}
+.pg-tabla th[scope="row"],.pg-tabla thead th:first-child{text-align:left;font-weight:600}
+.pg-tabla small{display:block;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
