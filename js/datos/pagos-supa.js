@@ -27,7 +27,8 @@
 export const TOPE_COBRO = 1e9;        // registrar_cobro, vista_previa_reparto, repartir_abono_fifo (0012)
 export const TOPE_ABONO = 1e7;        // registrar_abono_comision y corregir_abono (0007)
 export const TOPE_NOTA = 400;         // abonos.nota <= 500 (0012, M-3); el reparto le agrega «· Reparto P-### de $…»
-export const CLAVE_BORRADOR = 'al3d_pf_pagos_borrador';   // sessionStorage: muere con la pestaña
+/* Los borradores de la pantalla viven en el almacenamiento de la PESTAÑA (mueren con ella). */
+export const CLAVE_BORRADOR = 'al3d_pf_pagos_borrador';
 
 /** Las áreas (de la BASE, no de este aparato) que ven estas pantallas. */
 export const AREAS = ['direccion', 'pagos'];
