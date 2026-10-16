@@ -281,7 +281,8 @@ describir('SY-10 a SY-14 updated_at, espejo, cuadre y bitácora', () => {
     igual(r.solicitudes, { pendiente: 2, autorizada: 1 });
     igual(r.miembros, { activo: 5, invitado: 2, baja: 1 });
     igual(r.almacen, { movimientos: 6, materiales: 3, requerimientos: 4, costos: 2 });
-    igual([r.contadores.V, r.contadores.P, r.contadores.alm], [5, 1, await d(`select coalesce(max(n), 0) from public.contadores where empresa_id = 'al3d' and clave = 'alm'`)]);
+    // 0015: la fila V-950 de arriba sube el contador V a 950 (nunca queda por debajo del folio más alto; antes se quedaba en 5)
+    igual([r.contadores.V, r.contadores.P, r.contadores.alm], [950, 1,await d(`select coalesce(max(n), 0) from public.contadores where empresa_id = 'al3d' and clave = 'alm'`)]);
     igual(typeof r.x_revisar, 'object');
     const otra = await llamar(SR(db), 'cuadre_hoja', { p_empresa: 'otra' });
     igual([otra.proyectos.total, otra.ventas.filas, otra.abonos.n, otra.contadores.V], [0, 0, 0, 0], 'otra empresa: todo en cero');
