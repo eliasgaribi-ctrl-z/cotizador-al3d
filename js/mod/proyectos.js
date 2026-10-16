@@ -256,6 +256,7 @@ export function desmontar() {
   soltar(_rielFicha); _rielFicha = null;
   soltar(_bordesRiel); _bordesRiel = null;
   if (_obsFicha) { try { _obsFicha.disconnect(); } catch (_) {} _obsFicha = null; }
+  _imgFicha = { id: null, html: '' };
   _viaje = null;
   clearTimeout(_tViaje); _tViaje = 0;
   clearTimeout(_tYendo); _tYendo = 0; _yendoA = -1;
@@ -1152,6 +1153,7 @@ function cablearFicha() {
      una parada de tabulador (solo lo son con el modo cliente encendido). */
   marcarTapados();
   pintarCarpeta();
+  pintarImagenesNube();
   const p = P();
   const ol = $('pj-etapas');
   if (!p || !p.riel || !ol) return;
@@ -1212,6 +1214,54 @@ async function pintarCarpeta() {
     (filas ? '<ul class="pj-archivos">' + filas + '</ul>' : '<p class="hintnote">La carpeta todavía está vacía: sube ahí el .cdr y el PDF de órdenes.</p>') +
     (copias ? '<p class="hintnote">Y ' + (copias === 1 ? 'una copia de seguridad' : copias + ' copias de seguridad') + ' de Corel, en la carpeta.</p>' : '') +
     (r.vieja ? '<p class="hintnote">Es lo último que se vio: ahora mismo no se pudo preguntar a la hoja.</p>' : '');
+}
+
+/* ----- Las imágenes de la cotización, desde la nube (Q-02 bis) -----
+   La ventanilla `AL3D_NUBE` la pone js/datos/supa-enchufe.js SOLO con la lectura en vivo encendida;
+   `obra` solo para Dirección y Fabricación. Este archivo no habla con Supabase: le pide a la ventanilla
+   y pinta. Las imágenes llegan como data URL (la CSP ya deja `data:` en img-src) y no se guardan en el
+   teléfono. Una ficha que se repinta (cada chip que se toca) no las vuelve a pedir: se queda lo último
+   que se pintó de ESA ficha mientras no falte ninguna. */
+let _imgFicha = { id: null, html: '' };
+function nubeObra() {
+  try { const n = globalThis.AL3D_NUBE; return n && typeof n.obra === 'function' ? n : null; } catch (_) { return null; }
+}
+const URL_IMAGEN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+
+/** El contenido del hueco de las imágenes, según lo que contestó la ventanilla. PURA (la usa la prueba). */
+function htmlImagenesNube(r) {
+  const lab = '<div class="fld-lab">Imágenes de la cotización</div>';
+  const imgs = (r && Array.isArray(r.imagenes) ? r.imagenes : []).filter(x => x && URL_IMAGEN.test(String(x.url || '')));
+  const figs = imgs.map(x => '<figure><img src="' + esc(x.url) + '" alt="' + esc(x.que || 'Imagen de la cotización') + '">' +
+    '<figcaption>' + esc(x.que || '') + '</figcaption></figure>').join('');
+  const faltan = r && Number(r.faltan) > 0 ? Number(r.faltan) : 0;
+  const estado = r && r.estado;
+  const aviso =
+    estado === 'no_ganada' ? 'En la base esta obra no está ganada (o se canceló): sus imágenes no se enseñan.'
+    : estado === 'sin_obra' ? 'Esta obra todavía no está en la base: sus imágenes salen cuando llegue.'
+    : estado === 'sin_permiso' ? 'Esta cuenta no ve las imágenes de la obra.'
+    : estado !== 'ok' ? 'Ahora no se pudo preguntar a la nube. Vuelve a abrir la ficha con señal.'
+    : !imgs.length && !faltan ? 'La cotización no traía plano, renders ni propuesta.'
+    : faltan ? (faltan === 1 ? 'Una imagen todavía no está en la nube' : faltan + ' imágenes todavía no están en la nube') +
+               (r.sin_red ? ' (se cortó la señal).' : ': las sube el teléfono que hizo la cotización.')
+    : '';
+  return lab + (figs ? '<div class="pj-imgs">' + figs + '</div>' : '') + (aviso ? '<p class="hintnote">' + esc(aviso) + '</p>' : '');
+}
+
+async function pintarImagenesNube() {
+  const nube = nubeObra();
+  if (!$('pj-imagenes') || !nube || !fichaId) return;
+  const id = fichaId;
+  if (_imgFicha.id === id && _imgFicha.html) { $('pj-imagenes').innerHTML = _imgFicha.html; return; }
+  const p = await Proy.obtener(id);
+  if (!p || fichaId !== id) return;
+  let r;
+  try { r = await nube.obra(p.folio_global); } catch (_) { r = null; }
+  const caja = $('pj-imagenes');
+  if (!caja || fichaId !== id) return;
+  const html = htmlImagenesNube(r);
+  _imgFicha = r && r.estado === 'ok' && !r.faltan ? { id, html } : { id: null, html: '' };
+  caja.innerHTML = html;
 }
 
 /* Sin desplazar la ficha: la pieza 10 mueve solo la tira. Con la capa todavía cerrada la tira no
@@ -1370,6 +1420,17 @@ function htmlFicha(p) {
   if (Sync.configurado()) {
     partes.push('<section class="pj-carpeta" id="pj-carpeta" aria-live="polite">' +
       '<div class="fld-lab">Carpeta de Drive</div><p class="hintnote">Buscando su carpeta en Drive…</p></section>');
+  }
+
+  /* Las imágenes de la cotización (el plano de cada partida, los renders y la propuesta), desde la
+     nube: Q-02 bis, decidido por Elías el 2026-10-16 (Fabricación las ve para fabricar; no llevan
+     precios). Junto a la carpeta, por lo mismo: es lo que se abre la ficha a buscar. APAGADO: el hueco
+     sale solo si la lectura en vivo puso la ventanilla con `obra` (Dirección y Fabricación) y la obra
+     tiene folio de cotización y no está cancelada; sin ella, la ficha es la de siempre. Se llena
+     después de abrir (`pintarImagenesNube`). */
+  if (nubeObra() && p.folio_global && p.etapa !== 'cancelado') {
+    partes.push('<section class="pj-imagenes" id="pj-imagenes" aria-live="polite">' +
+      '<div class="fld-lab">Imágenes de la cotización</div><p class="hintnote">Buscando el plano y los renders en la nube…</p></section>');
   }
 
   /* El aviso de que hay algo tapado va ANTES de la lista de datos, no dentro: si viviera dentro

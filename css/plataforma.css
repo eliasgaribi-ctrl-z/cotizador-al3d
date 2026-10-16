@@ -1099,6 +1099,14 @@ button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 .pj-archivos a small{margin-left:auto;flex:none;font-weight:500;font-size:var(--t1);color:var(--muted)}
 .pj-archivos a:active{opacity:.7}
 
+/* Las imágenes de la cotización (Q-02 bis; solo salen con la lectura en vivo): junto a la carpeta, en
+   su caja, y cada una a todo lo ancho y sobre blanco, porque un plano con cotas tiene que leerse. */
+.pj-imagenes{margin:var(--e2) 0 var(--e4);padding:var(--e3);border:1px solid var(--line);border-radius:var(--rr2)}
+.pj-imagenes .fld-lab{margin-top:0}
+.pj-imgs figure{margin:var(--e2) 0 0}
+.pj-imgs img{display:block;width:100%;height:auto;border-radius:var(--rr1);background:#fff}
+.pj-imgs figcaption{margin-top:var(--e1);font-size:var(--t1);color:var(--muted)}
+
 /* El botón de WhatsApp. Lleva el verde del sistema porque es el color de la marca a la que
    manda, y es la única excepción de color de toda la plataforma: cualquier otra cosa verde
    aquí querría decir «terminado». */
