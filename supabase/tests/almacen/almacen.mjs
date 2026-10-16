@@ -309,14 +309,14 @@ describir('AL-13 a AL-15 lotes: atómico o no, tope de 25 y reloj adelantado', (
     const r = await aplicar(db, 'fab', [{ almacen: 'movimientos', datos: {} }, { id: 'x', almacen: 'cosas', datos: {} }, { id: 'y', almacen: 'movimientos', datos: 'texto' }, 7, mov('bueno')]);
     igual(r.resultados.map(x => (x.ok ? 'ok' : x.codigo)), ['DATO_INVALIDO', 'DATO_INVALIDO', 'DATO_INVALIDO', 'DATO_INVALIDO', 'ok']);
   });
-  prueba('AL-15 el sello de un campo con el reloj adelantado 1 h se ACOTA a ahora + 10 min (ya no «congela» el campo)', async () => {
+  prueba('AL-15 el sello de un campo con el reloj adelantado 1 h se ACOTA a ahora + 60 s para Fabricación (0013, H-3; antes 10 min) y ya no «congela» el campo', async () => {
     const db = await plantilla();
     const ahora = AHORA();
     const x = await enT(db, 'fab', async t => {
       await lote(t, [mat('acr-3mm', { nombre: 'Del futuro', actualizado_en: ahora + 3_600_000 }, { campos: ['nombre'] })]);
       return (await t.query(`select sellos->>'nombre' as s, sellos->>'_editado' as e from public.materiales where id = 'acr-3mm'`))[0];
     });
-    for (const v of [x.s, x.e]) cierto(Math.abs(Number(v) - (ahora + 600_000)) < 30_000, 'sello ' + (Number(v) - ahora));
+    for (const v of [x.s, x.e]) cierto(Math.abs(Number(v) - (ahora + 60_000)) < 20_000, 'sello ' + (Number(v) - ahora));
   });
   prueba('sin actualizado_en (o en cero) el sello es la hora del servidor', async () => {
     const db = await plantilla();

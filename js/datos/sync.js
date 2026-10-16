@@ -69,10 +69,13 @@
    estaba» a un id repetido y `jalar()` descarta uno que ya tiene.
 
    LA RUTA A SUPABASE. El transporte hacia Supabase (docs/PLAN-SUPABASE.md) se está construyendo
-   aparte y está apagado: este módulo no lo usa todavía. Hasta que se enchufe, todo lo de arriba
-   sigue siendo lo que corre. Lo que el plan conserva de aquí es la bandeja y la regla de sellos;
-   lo que cambia es el transporte, y la lectura, que pasaría a Realtime con el ciclo de 30 s de
-   respaldo. El estado real de cada fase está en docs/ESTADO-SUPABASE.md.
+   aparte y está apagado. Lo único que este archivo sabe de él es un gancho: `alSubir(fn)`, por el
+   que la SOMBRA (fase 3) recibe una copia de cada operación que la hoja aceptó. Lo enchufa
+   `datos/supa-enchufe.js` solo con su interruptor encendido; apagado vale null y todo lo de arriba
+   es lo que corre, sin una línea distinta. La lectura en vivo (fase 4) tampoco pasa por aquí: es
+   otra fuente de filas dentro del relevo (`Puente.fuenteDeLectura`). Lo que el plan conserva de
+   aquí es la bandeja y la regla de sellos. El estado real de cada fase está en
+   docs/ESTADO-SUPABASE.md y lo de esta entrega en docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md.
    ============================================================================ */
 
 import * as DB from './db.js';
@@ -199,6 +202,7 @@ let _adaptador = null;
 let _bombeando = null;       /* La promesa del bombeo en curso. Ver `bombear`. */
 let _jalando = null;         /* La de la bajada en curso. Ver `jalar`. */
 let _ultimoError = '';
+let _alSubir = null;         /* La sombra de Supabase, o null (lo normal). Ver `alSubir`. */
 
 /* ---------------------------------------------------------------------------
    REGISTRO Y ESTADO
@@ -208,6 +212,15 @@ let _ultimoError = '';
  *  hay puente guardado, y Ajustes cuando el usuario pega la URL. */
 export function registrar(adaptador) {
   _adaptador = (adaptador && typeof adaptador.subir === 'function') ? adaptador : null;
+}
+
+/** La SOMBRA de Supabase (fase 3, docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md): una función
+ *  que recibe cada operación que la hoja aceptó, `fn(op, respuesta)`, para copiarla también a la
+ *  base nueva. La enchufa `datos/supa-enchufe.js` y solo si el interruptor de la sombra está
+ *  encendido en este aparato; con null (lo normal) el bombeo es exactamente el de siempre. Lo que
+ *  haga la función no detiene ni cambia el bombeo: si lanza, se ignora. */
+export function alSubir(fn) {
+  _alSubir = typeof fn === 'function' ? fn : null;
 }
 
 /** true cuando hay a dónde mandar. Es lo que decide si Ajustes pinta el botón de bombear
@@ -619,6 +632,11 @@ async function bombearDeVerdad() {
       if (Array.isArray(respuesta.rechazadas) && respuesta.rechazadas.length) {
         rechazos.push({ op: op.id, tipo: op.tipo || '', lista: respuesta.rechazadas });
       }
+      /* La copia en la sombra (Supabase, fase 3; ver `alSubir`). Solo lo que la hoja ACEPTÓ, y
+         antes de sacarlo de la bandeja: si la app se cierra entre las dos cosas, la operación se
+         vuelve a mandar y la sombra la guarda otra vez con el mismo id (no se duplica). Nunca
+         detiene ni cambia el bombeo: si la sombra falla, la hoja ya tiene el dato. */
+      if (_alSubir) { try { await _alSubir(op, respuesta); } catch (_) { /* la hoja manda */ } }
       await DB.borrar('pendientes', op.id);
       subidas++;
       return false;

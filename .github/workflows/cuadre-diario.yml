@@ -1,0 +1,41 @@
+# El cuadre diario de la fase 3 de Supabase: ¿dice la base lo mismo que la hoja? APAGADO.
+#
+# No hace nada mientras no exista la variable del repositorio CUADRE_DIARIO con el valor
+# «encendido» (Settings > Secrets and variables > Actions > Variables). Para encenderlo, Elías
+# carga además cuatro SECRETOS (nunca variables: dos son llaves):
+#   PUENTE_URL         la URL /exec del Apps Script de la hoja
+#   PUENTE_TOKEN       un token de dispositivo de un aparato de DIRECCIÓN (menú ⚡ AL3D → Tokens del puente);
+#                      sin rol de Dirección la hoja no manda el dinero y el cuadre no tiene con qué comparar
+#   SUPABASE_URL       https://<ref>.supabase.co del proyecto
+#   SUPABASE_SECRETA   la llave secreta (service_role) del proyecto. Es la decisión más delicada: da todo.
+#                      Ver docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md antes de cargarla.
+#
+# La bitácora del flujo es pública (el repositorio lo es): el script solo imprime si cuadra y cuántas
+# diferencias hay, nunca nombres, folios ni importes. Si no cuadra, el flujo se pone en rojo y GitHub
+# avisa por correo; el detalle se ve en Ajustes → «Cuadrar ahora».
+#
+# GitHub solo ejecuta los flujos programados del archivo que está en la rama principal.
+name: Cuadre diario hoja contra Supabase
+
+on:
+  schedule:
+    - cron: '7 14 * * *'        # 08:07 en Guadalajara
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cuadre:
+    if: vars.CUADRE_DIARIO == 'encendido'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comparar la hoja con la base
+        env:
+          PUENTE_URL: ${{ secrets.PUENTE_URL }}
+          PUENTE_TOKEN: ${{ secrets.PUENTE_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRETA: ${{ secrets.SUPABASE_SECRETA }}
+        run: node scripts/cuadre-diario.mjs
