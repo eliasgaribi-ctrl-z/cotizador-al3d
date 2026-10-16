@@ -82,8 +82,15 @@ describir('referencias estáticas: todo lo que un archivo nombra existe y es de 
     igual(malas, []);
   });
   prueba('ninguna migración usa extensiones de Supabase ni de Postgres fuera del núcleo: nada de pgcrypto, pg_cron, pg_net, vault, extensions.*, ni CREATE EXTENSION', () => {
+    // Única excepción, a propósito: 0016_plazos.sql habilita pg_cron (y SOLO pg_cron) para programar las purgas diarias que decidió Elías
+    // el 2026-10-16, dentro de un bloque que, si la extensión no existe (PGlite), avisa y sigue en vez de abortar.
+    const CON_PG_CRON = '0016_plazos.sql';
     for (const [f, t0] of Object.entries(TEXTOS)) {
-      const t = sinComentarios(t0);
+      let t = sinComentarios(t0);
+      if (f.endsWith(CON_PG_CRON)) {
+        cierto(/begin\s+create\s+extension\s+if\s+not\s+exists\s+pg_cron;\s+exception\s+when\s+others\s+then\s+raise\s+notice/i.test(t), '0016: el create extension pg_cron va dentro de su bloque con NOTICE');
+        t = t.replace(/create\s+extension\s+if\s+not\s+exists\s+pg_cron;/gi, '').replace(/\bpg_cron\b/gi, '');
+      }
       for (const prohibido of [/create\s+extension/i, /\bpgcrypto\b/i, /\bpg_cron\b/i, /\bpg_net\b/i, /\bvault\./i, /\bextensions\./i, /\bgen_random_bytes\b/i, /\bdigest\s*\(/i, /\bhmac\s*\(/i]) {
         igual([f, prohibido.source, prohibido.test(t)], [f, prohibido.source, false]);
       }

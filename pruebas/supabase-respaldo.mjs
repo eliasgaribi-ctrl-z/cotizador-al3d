@@ -10,6 +10,8 @@
      4. que sin el secreto no pasa nada, que lo que falta se dice por su NOMBRE, que un fallo de la base no sube nada
         a medias, que Drive y Google fallando se dicen como tales, y que ningún secreto sale;
      5. el flujo semanal: apagado si falta su variable o su secreto, sin secretos en el archivo;
+     7. la rotación (Elías, 2026-10-16): después de una subida buena se quedan los 8 más recientes (RESPALDO_CONSERVAR), lo demás
+        va a la papelera, y solo lo que la función creó (nombre con su patrón Y su marca); si algo falla, el respaldo ya está arriba;
      6. Deno: `deno check` si hay deno (en esta máquina no hay: se dice).
    Se corre con pruebas/correr.sh, como todas. */
 
@@ -90,6 +92,23 @@ function mundo(o = {}) {
       m.tipoSubido = h.get('content-type');
       return respuesta(200, { id: 'archivo-falso-1', name: m.metadatos.name, size: String(m.subido.length) });
     }
+    if (u.origin === 'https://www.googleapis.com' && u.pathname === '/drive/v3/files' && (init.method || 'GET') === 'GET') {
+      if (h.get('authorization') !== 'Bearer ' + TOKEN) return respuesta(401, {});
+      m.listas = [...(m.listas || []), Object.fromEntries(u.searchParams)];
+      if (o.listaFalla) return respuesta(500, { error: { status: 'INTERNAL' } });
+      const todos = [...(o.carpeta || [])];
+      if (m.subido !== null && !o.nuevoInvisible) todos.push({ id: 'archivo-falso-1', name: m.metadatos.name, appProperties: m.metadatos.appProperties });
+      todos.sort((a, b) => b.name.localeCompare(a.name));
+      const tam = o.tamPagina || 1000, desde = Number(u.searchParams.get('pageToken') || 0);
+      return respuesta(200, { files: todos.slice(desde, desde + tam), ...(desde + tam < todos.length ? { nextPageToken: String(desde + tam) } : {}) });
+    }
+    if (u.origin === 'https://www.googleapis.com' && u.pathname.startsWith('/drive/v3/files/') && init.method === 'PATCH') {
+      if (h.get('authorization') !== 'Bearer ' + TOKEN) return respuesta(401, {});
+      const id = decodeURIComponent(u.pathname.slice('/drive/v3/files/'.length));
+      m.papelera = [...(m.papelera || []), { id, cuerpo: JSON.parse(String(init.body)), params: Object.fromEntries(u.searchParams) }];
+      if ((o.papeleraFalla || []).includes(id)) return respuesta(403, { error: { status: 'PERMISSION_DENIED' } });
+      return respuesta(200, { id, trashed: true });
+    }
     return respuesta(599, 'fetch de mentiras: no conozco ' + u.href);
   };
   return m;
@@ -141,8 +160,9 @@ seccion('1. QUÉ SE RESPALDA — las tablas de las migraciones, todas y completa
   eq('los metadatos: el nombre, la carpeta como padre y JSON', [r.m.metadatos.name, r.m.metadatos.parents, r.m.metadatos.mimeType], ['al3d-respaldo-2026-10-18T102300Z.json', [CARPETA], 'application/json']);
   eq('con supportsAllDrives (unidades compartidas) y subida reanudable', [r.m.paramsSubida.uploadType, r.m.paramsSubida.supportsAllDrives], ['resumable', 'true']);
   eq('el contenido va como application/json', r.m.tipoSubido, 'application/json');
-  eq('las llamadas, en orden: 17 tablas (bitácora en 3 páginas), el token, iniciar y subir', r.m.llamadas.map(x => new URL(x.url).host + ' ' + x.metodo).reduce((a, x) => ((a[x] = (a[x] || 0) + 1), a), {}),
-    { 'falso.supabase.co GET': 19, 'oauth2.googleapis.com POST': 1, 'www.googleapis.com POST': 1, 'www.googleapis.com PUT': 1 });
+  eq('las llamadas, en orden: 17 tablas (bitácora en 3 páginas), el token, iniciar, subir y listar la carpeta (vacía: nada a la papelera)', r.m.llamadas.map(x => new URL(x.url).host + ' ' + x.metodo).reduce((a, x) => ((a[x] = (a[x] || 0) + 1), a), {}),
+    { 'falso.supabase.co GET': 19, 'oauth2.googleapis.com POST': 1, 'www.googleapis.com POST': 1, 'www.googleapis.com PUT': 1, 'www.googleapis.com GET': 1 });
+  eq('el archivo sube con la marca appProperties.al3d = respaldo (la rotación solo toca lo que la lleva)', r.m.metadatos.appProperties, { al3d: 'respaldo' });
   const seco = await llamar({ cuerpo: '{"subir":false}', entorno: { [VARIABLES.credenciales]: undefined, [VARIABLES.carpeta]: undefined } });
   eq('prueba en seco ({subir:false}): exporta y cuenta, no pide credenciales ni toca Google', [seco.status, seco.cuerpo.subido, seco.cuerpo.filas.bitacora, seco.m.llamadas.some(x => !x.url.startsWith(URL_BASE))], [200, false, 2500, false]);
 }
@@ -182,6 +202,69 @@ seccion('4. CUANDO ALGO FALTA O FALLA');
 }
 
 /* ============================================================================ */
+seccion('4b. LA ROTACIÓN — se quedan los 8 más recientes, solo lo nuestro, solo después de subir bien');
+{
+  const MARCA = { al3d: 'respaldo' };
+  const semana = k => R.nombreDeArchivo(AHORA - k * 7 * 86_400_000);
+  const nuestros = n => Array.from({ length: n }, (_, i) => ({ id: 'viejo-' + String(i + 1).padStart(6, '0'), name: semana(i + 1), appProperties: MARCA }));
+  const papelera = r => (r.m.papelera || []).map(x => x.id);
+
+  const diez = await llamar({ carpeta: nuestros(10) });
+  eq('10 viejos + el nuevo, conservar 8 (por omisión): los 3 más viejos van a la papelera, el nuevo y los 7 siguientes se quedan',
+    [diez.status, diez.cuerpo.ok, diez.cuerpo.rotacion.conservar, papelera(diez)], [200, true, 8, ['viejo-000008', 'viejo-000009', 'viejo-000010']]);
+  eq('…y la respuesta nombra lo que mandó a la papelera, sin error', [diez.cuerpo.rotacion.a_la_papelera, 'error' in diez.cuerpo.rotacion], [[semana(8), semana(9), semana(10)], false]);
+  eq('a la papelera es un PATCH {trashed:true} con supportsAllDrives; ningún DELETE (se puede recuperar)',
+    [diez.m.papelera[0].cuerpo, diez.m.papelera[0].params.supportsAllDrives, diez.m.llamadas.some(x => x.metodo === 'DELETE')], [{ trashed: true }, 'true', false]);
+  eq('la lista pide solo lo de la carpeta, fuera de la papelera, con nombre de respaldo, en unidades compartidas',
+    [diez.m.listas[0].q, diez.m.listas[0].supportsAllDrives, diez.m.listas[0].includeItemsFromAllDrives],
+    ["'" + CARPETA + "' in parents and trashed = false and name contains 'al3d-respaldo-'", 'true', 'true']);
+
+  const pocos = await llamar({ carpeta: nuestros(7) });
+  eq('con 7 viejos + el nuevo (8 justos): nada a la papelera', [pocos.status, papelera(pocos), pocos.cuerpo.rotacion.a_la_papelera], [200, [], []]);
+
+  const ajenos = [{ id: 'ajeno-000001', name: semana(30), appProperties: {} }, { id: 'ajeno-000002', name: semana(31) },
+                  { id: 'ajeno-000003', name: 'al3d-respaldo-viejo-a-mano.json', appProperties: MARCA }, { id: 'ajeno-000004', name: 'notas.txt', appProperties: MARCA },
+                  { id: 'ajeno-000005', name: semana(32), appProperties: { al3d: 'otra-cosa' } }];
+  const mezcla = await llamar({ carpeta: [...nuestros(12), ...ajenos] });
+  eq('lo que no creó la función NO se toca aunque sea viejo: sin marca, con otra marca, o con la marca pero otro nombre', papelera(mezcla).filter(id => id.startsWith('ajeno')), []);
+  eq('…y de lo suyo, con 12 viejos, van los 5 más viejos', papelera(mezcla), ['viejo-000008', 'viejo-000009', 'viejo-000010', 'viejo-000011', 'viejo-000012']);
+
+  const invisible = await llamar({ carpeta: nuestros(10), nuevoInvisible: true });
+  eq('si Drive todavía no lista el archivo recién subido, cuenta igual como uno de los 8: quedan 7 viejos', papelera(invisible), ['viejo-000008', 'viejo-000009', 'viejo-000010']);
+
+  const paginas = await llamar({ carpeta: nuestros(10), tamPagina: 4 });
+  eq('la lista en varias páginas (nextPageToken) se lee entera', [paginas.m.listas.length, papelera(paginas)], [3, ['viejo-000008', 'viejo-000009', 'viejo-000010']]);
+
+  const tres = await llamar({ carpeta: nuestros(10), entorno: { [VARIABLES.conservar]: '3' } });
+  eq('RESPALDO_CONSERVAR=3: se queda el nuevo y los 2 más recientes', [tres.cuerpo.rotacion.conservar, papelera(tres).length, papelera(tres)[0]], [3, 8, 'viejo-000003']);
+  const valores = ['', ' ', '1', '520', '0', '521', '-1', '2.5', 'ocho'];
+  eq('leerConservar: vacío = 8; 1 y 520 valen; 0, 521, -1, 2.5 y «ocho» no', valores.map(t => { try { return R.leerConservar(t); } catch (e) { return e.clase; } }),
+    [8, 8, 1, 520, 'conservar', 'conservar', 'conservar', 'conservar', 'conservar']);
+  const malo = await llamar({ carpeta: nuestros(10), entorno: { [VARIABLES.conservar]: '0' } });
+  eq('RESPALDO_CONSERVAR que no sirve: el respaldo SE SUBE igual (200) y la rotación no toca nada y lo dice',
+    [malo.status, malo.cuerpo.archivo.id, papelera(malo), /RESPALDO_CONSERVAR/.test(malo.cuerpo.rotacion.error)], [200, 'archivo-falso-1', [], true]);
+
+  const cuota = await llamar({ carpeta: nuestros(10), cuota: true });
+  eq('si la subida falla, NI se lista NI se manda nada a la papelera', [cuota.status, cuota.m.listas, cuota.m.papelera], [502, undefined, undefined]);
+  const base = await llamar({ carpeta: nuestros(10), baseFalla: true });
+  eq('si la base falla, tampoco', [base.status, base.m.listas, base.m.papelera], [502, undefined, undefined]);
+  const tok = await llamar({ carpeta: nuestros(10), tokenFalla: true });
+  eq('si Google no da el token, tampoco', [tok.status, tok.m.listas, tok.m.papelera], [502, undefined, undefined]);
+  const seco = await llamar({ carpeta: nuestros(10), cuerpo: '{"subir":false}' });
+  eq('en seco ({subir:false}) no hay rotación', [seco.status, seco.m.listas, seco.m.papelera, 'rotacion' in seco.cuerpo], [200, undefined, undefined, false]);
+
+  const lista = await llamar({ carpeta: nuestros(10), listaFalla: true });
+  eq('si Drive no deja listar: 200 (el respaldo ya está arriba), nada a la papelera y el error dicho',
+    [lista.status, lista.cuerpo.ok, papelera(lista), /listar/.test(lista.cuerpo.rotacion.error)], [200, true, [], true]);
+  const unaFalla = await llamar({ carpeta: nuestros(10), papeleraFalla: ['viejo-000009'] });
+  eq('si UNA no se deja mandar a la papelera, las demás sí, y el error la nombra', [unaFalla.status, unaFalla.cuerpo.rotacion.a_la_papelera, unaFalla.cuerpo.rotacion.error],
+    [200, [semana(8), semana(10)], 'Drive no dejó mandar a la papelera: ' + semana(9) + '.']);
+  eq('sobrantes(): el nuevo jamás sale, aunque su nombre fuera el más viejo; un id raro no se usa',
+    [R.sobrantes(nuestros(3), 1, { id: 'viejo-000003', nombre: semana(3) }).map(a => a.id), R.direccionDeArchivo('../x'), R.direccionDeArchivo('viejo-000001')],
+    [['viejo-000001', 'viejo-000002'], null, 'https://www.googleapis.com/drive/v3/files/viejo-000001?supportsAllDrives=true&fields=id,trashed']);
+}
+
+/* ============================================================================ */
 seccion('5. EL FLUJO SEMANAL, LA CONFIGURACIÓN Y LOS ARCHIVOS');
 {
   const y = leer('.github', 'workflows', 'respaldo-semanal.yml');
@@ -201,7 +284,7 @@ seccion('5. EL FLUJO SEMANAL, LA CONFIGURACIÓN Y LOS ARCHIVOS');
 
   cierto('config.toml: [functions.respaldo] con verify_jwt = false (la protege su secreto, como a espejo)', /\[functions\.respaldo\]\s*\r?\n\s*verify_jwt\s*=\s*false/.test(leer('supabase', 'config.toml')));
   const readme = leer('supabase', 'README.md');
-  cierto('supabase/README.md nombra los tres secretos nuevos', ['RESPALDO_GOOGLE_CREDENCIALES', 'RESPALDO_CARPETA_DRIVE', 'RESPALDO_SECRETO_FUNCION'].every(n => readme.includes(n)));
+  cierto('supabase/README.md nombra los tres secretos nuevos y la variable de la rotación', ['RESPALDO_GOOGLE_CREDENCIALES', 'RESPALDO_CARPETA_DRIVE', 'RESPALDO_SECRETO_FUNCION', 'RESPALDO_CONSERVAR'].every(n => readme.includes(n)));
   for (const f of ['supabase/functions/respaldo/handler.js', 'supabase/functions/_shared/respaldo.js']) {
     const t = leer(...f.split('/')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     cierto(f + ': sin Deno, process, Buffer, require ni node:', !/\bDeno\b|\bprocess\.|\bBuffer\b|\brequire\(|from 'node:/.test(t));
