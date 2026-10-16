@@ -39,7 +39,7 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | `ARQUITECTURA.md` corregida: el punto 13 («No se usa Supabase») queda como decisión de agosto, revertida; notas «Ruta Supabase (en construcción, apagado)» en lo que el plan contradice | hecho | [`ARQUITECTURA.md`](ARQUITECTURA.md) |
 | Encabezado de `js/datos/sync.js` reescrito (hablaba de Notion y de un Worker que ya no existen). Solo comentarios: cero cambios de código | hecho | [`js/datos/sync.js`](../js/datos/sync.js), líneas 1-76 y 85-124 |
 | Notas «Migración a Supabase (en construcción)» y una corrección de hecho en el puente | hecho | [`puente/README.md`](../puente/README.md), [`puente/DESPLIEGUE.md`](../puente/DESPLIEGUE.md) |
-| Borrador de los cambios al aviso de privacidad | hecho (borrador); revisión de Elías pendiente | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
+| Borrador de los cambios al aviso de privacidad | hecho; **aplicado el 2026-10-16** con las decisiones de Elías (rama `claude/aviso-privacidad-supabase`). Falta avisar al equipo antes de encender y la revisión legal del aviso a clientes | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
 | Confirmar la lista de áreas | bloqueado por Elías | `PLAN-SUPABASE.md` §9, punto 2 |
 | Avisar al equipo de que la hoja dejará de ser editable | bloqueado por Elías | `PLAN-SUPABASE.md` §9, punto 3. La hoja **no** se declara de solo lectura antes de la fase 4 (`DECISIONES-SUPABASE.md`, Q-01) |
 
@@ -74,7 +74,7 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Volcado de la hoja con `getValues()` | hecho, **sin correr** en una hoja real | [`puente/volcado-para-importar.gs`](../puente/volcado-para-importar.gs): se pega en la COPIA de la hoja, nunca en la original; no escribe nada en la hoja |
 | «Solicitudes de autorización» y «Bitácora del puente» | no se importan (se cuentan en el reporte) | Son peticiones en curso e historia; decidir si hacen falta antes de la fase 4 |
 | Copia completa de la hoja y exportación de cada teléfono, antes de tocar nada | bloqueado por Elías | `PLAN-SUPABASE.md` §6 y §10 |
-| Aviso de privacidad actualizado antes de empezar | bloqueado por Elías | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
+| Aviso de privacidad actualizado antes de empezar | hecho el 2026-10-16 (texto); falta avisar al equipo | [`BORRADOR-PRIVACIDAD-SUPABASE.md`](BORRADOR-PRIVACIDAD-SUPABASE.md) |
 
 **Puerta de salida:** reporte de cuadre —número de ventas, suma de saldos, comisiones pendientes, cotizaciones autorizadas— que coincida con la hoja y con los teléfonos.
 

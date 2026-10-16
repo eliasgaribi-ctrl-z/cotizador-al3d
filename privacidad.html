@@ -44,11 +44,15 @@
   </div>
 
   <h1>Qué hacemos con tus datos</h1>
-  <p class="pub-fecha">Rige desde el 20 de septiembre de 2026.</p>
+  <p class="pub-fecha">Rige desde el 16 de octubre de 2026.</p>
 
   <p class="pub-entrada">Esto no es una plantilla. Dice exactamente qué toca esta aplicación,
   a quién se lo manda y qué no hace, porque el código está a la vista y cualquiera puede
   comprobarlo.</p>
+  <p>AL3D está mudando los datos del negocio a una base de datos en la nube, en Supabase. La
+  mudanza está construida pero <b>apagada</b>: hoy todo sigue funcionando con los aparatos y
+  la hoja de cálculo de siempre. Donde algo cambia el día que se encienda, esta página lo dice
+  aparte, bajo «Cuando se encienda la nube».</p>
 
   <!-- ============================================================================
      A19 · El índice, y A26 · el filete que dice cuánto llevas leído.
@@ -93,6 +97,11 @@
   <h2 id="de-quien-es">De quién es</h2>
   <p>De <b>AL3D — Elías Garibi</b>, Guadalajara, Jalisco, México. Para cualquier cosa sobre
   tus datos: <a href="mailto:eliasgaribi@gmail.com">eliasgaribi@gmail.com</a>.</p>
+  <h3>Cuando se encienda la nube</h3>
+  <p>La base de datos en la nube también es de AL3D, y responde por ella la misma persona. El
+  servicio es <b>Supabase</b>, con el proyecto de AL3D en la región <b>West US (North
+  California), en Estados Unidos</b>. Supabase, a su vez, corre en los servidores de Amazon
+  Web Services (AWS).</p>
 
   <h2 id="para-quien-es-la-aplicacion">Para quién es la aplicación</h2>
   <p>Para el equipo de AL3D. No se registra nadie por su cuenta: la dirección de AL3D pone
@@ -100,7 +109,7 @@
 
   <h2 id="que-te-pedimos-de-tu-cuenta-de-google">Qué te pedimos de tu cuenta de Google</h2>
   <div class="pub-caja">
-    <h3>Una sola cosa: tu correo</h3>
+    <h3>Hoy, una sola cosa: tu correo</h3>
     <p>El permiso que la aplicación le pide a Google se llama <b>«openid email»</b>, y es el
     más pequeño que existe. Sirve para saber quién eres y, con eso, qué te toca hacer dentro
     —dirección, fabricación o pagos—.</p>
@@ -110,22 +119,76 @@
 
   <h3>Qué pasa con la llave que Google entrega</h3>
   <p>Cuando entras, Google le da a la aplicación una llave temporal que dura una hora. Esa
-  llave <b>vive solo en la memoria del navegador</b> y se pierde al cerrar la pestaña: no se
-  guarda en el aparato ni viaja en ningún respaldo. Lo único que sí se guarda en tu aparato
-  es tu correo, para que la pantalla pueda decirte con quién estás dentro sin tener que
-  preguntarle otra vez a Google.</p>
+  llave <b>se guarda en tu aparato mientras vale</b> —para que no tengas que escoger tu cuenta
+  cada vez que recargas— y <b>se borra cuando sales</b>; no viaja en ningún respaldo. También
+  se guardan en tu aparato tu correo y el área que te toca (dirección, fabricación o pagos),
+  junto con la fecha hasta la que ese permiso sirve sin señal (30 días como máximo), para que
+  la pantalla pueda abrir y decirte con quién estás dentro sin esperar a la red. Cada día nuevo
+  la aplicación te pide entrar otra vez con Google, y al hacerlo se borra lo del día
+  anterior.</p>
+
+  <h3>Cuando se encienda la nube</h3>
+  <p>Se entra con el botón de Google para iniciar sesión, y Google le entrega a Supabase una
+  llave de identidad. Esa llave trae tu correo y, además, <b>tu nombre y la liga a tu foto de
+  perfil de Google</b>; el servicio de entrada de Supabase guarda esos datos junto con tu
+  cuenta. La aplicación solo usa tu correo, para saber qué área te toca. La sesión de Supabase
+  se guarda en tu aparato, se borra cuando sales y no viaja en ningún respaldo. Sigue sin
+  pedirse permiso para leer tu correo, tus archivos, tus fotos, tus contactos, tu calendario o
+  tu ubicación.</p>
 
   <h2 id="que-datos-guarda-la-aplicacion">Qué datos guarda la aplicación</h2>
-  <p>La mayor parte de lo que haces <b>se queda en tu propio aparato</b>, en el
-  almacenamiento del navegador: las cotizaciones, los proyectos, el catálogo de material, el
-  libro del almacén y la agenda. Si borras los datos del sitio, eso se va contigo.</p>
-  <p>Lo que <b>sí sale</b> del aparato es la venta: cuando un trabajo se gana, su nombre, su
-  importe, su fecha, su dirección de instalación y la etapa de la obra se escriben en una
-  hoja de cálculo de Google que es de AL3D. Esa hoja es el libro mayor del negocio y la
-  administra la dirección.</p>
+  <p>Hoy, buena parte de lo que haces <b>se queda en tu propio aparato</b>, en el
+  almacenamiento del navegador: el historial de cotizaciones con sus imágenes de referencia,
+  los proyectos, el catálogo de material, el libro del almacén y la agenda. Si borras los
+  datos del sitio, eso se va contigo.</p>
+  <p>Lo que <b>sí sale</b> del aparato es la venta: cuando un trabajo se gana, y después cada
+  vez que algo de él cambia, se escribe en una hoja de cálculo de Google que es de AL3D. Ahí
+  quedan el nombre del cliente y del negocio, el importe, el anticipo, la cuenta en la que se
+  cobró y el estado del cobro, las fechas, la dirección y la ubicación de la obra, la forma de
+  entrega, <b>el teléfono del cliente</b>, las notas del proyecto, el plazo de taller y la
+  etapa de la obra. Esa hoja es el libro mayor del negocio y la administra la dirección. El
+  dinero solo llega a los aparatos de dirección y de pagos.</p>
+  <p>Cuando alguien pide que se autorice el precio de una cotización, o la dirección lo
+  autoriza, a esa misma hoja llegan también el nombre del cliente y del negocio, las partidas
+  con sus precios y el correo de quien la pidió y de quien la autorizó.</p>
   <p>Quedan además anotadas las escrituras que entran a esa hoja —cuándo, desde qué rol y qué
   campos— para poder saber quién movió qué. Es una bitácora de trabajo, no un seguimiento de
   personas: no registra dónde estás, ni qué pantallas abriste, ni cuánto tiempo pasaste.</p>
+
+  <h3>Cuando se encienda la nube</h3>
+  <p>La copia buena de los datos del negocio pasa a la base de datos de AL3D en Supabase, y
+  cada aparato guarda una copia para poder trabajar sin señal, que se pone al día sola. En la
+  base quedan:</p>
+  <ul>
+    <li>Los datos de los clientes y de cada proyecto: nombre del cliente y del negocio,
+    teléfono, dirección, ubicación, forma de entrega y notas.</li>
+    <li>Las cotizaciones con sus partidas y precios, las solicitudes de autorización y las
+    autorizaciones.</li>
+    <li>Las imágenes de referencia de las cotizaciones, en el almacenamiento de archivos de
+    Supabase.</li>
+    <li>La obra: etapas, fechas, citas de instalación, material, almacén y proveedores (su
+    nombre y su teléfono).</li>
+    <li>El dinero —importes, anticipo, cuenta, estado del cobro, comisiones y abonos—, en una
+    parte aparte de la base.</li>
+    <li>La lista del equipo: el correo y el área de cada quien.</li>
+    <li>La bitácora: quién cambió qué y cuándo, con su correo, y también quién dio de alta, le
+    cambió el área o dio de baja a quién.</li>
+  </ul>
+
+  <h3>Quién ve qué en la nube</h3>
+  <p>Se limita por área, no por obra ni por cliente:</p>
+  <ul>
+    <li><b>El contacto del cliente</b> —teléfono, dirección, ubicación, entrega y notas— lo ven
+    las tres áreas: dirección, pagos y fabricación.</li>
+    <li><b>El dinero</b> y los costos del almacén solo los ven dirección y pagos. A fabricación
+    ni siquiera le llegan.</li>
+    <li><b>Las cotizaciones y las solicitudes de autorización:</b> dirección ve todas; pagos,
+    solo las suyas; fabricación, ninguna, porque llevan precios. Las autorizaciones, solo
+    dirección.</li>
+    <li><b>La lista del equipo</b> solo la ve dirección; cada quien ve su propio renglón.</li>
+    <li><b>La bitácora:</b> lo de la obra lo ven las tres áreas; lo del dinero, dirección y
+    pagos; las altas, cambios de área y bajas del equipo, solo dirección.</li>
+  </ul>
 
   <h2 id="a-quien-mas-le-llegan-datos">A quién más le llegan datos</h2>
   <p>Solo a estos, y solo para lo que dice cada renglón:</p>
@@ -133,6 +196,10 @@
     <li><b>Google</b> — para verificar quién eres al entrar, y para la hoja de cálculo donde
     viven las ventas. Si la dirección lo activa, también para crear los eventos de
     instalación en Google Calendar.</li>
+    <li><b>GitHub y Cloudflare</b> — sirven los archivos de la aplicación: se abre desde
+    GitHub Pages o desde Cloudflare Pages. Como con cualquier sitio, ven la dirección de
+    internet y los datos del navegador desde el que se abre; lo que capturas no pasa por
+    ellos.</li>
     <li><b>OpenStreetMap y Carto</b> — los mapas del taller se dibujan con sus mosaicos, y
     una dirección escrita se convierte en coordenadas con el buscador de OpenStreetMap. Al
     pedir un mapa, ellos ven la dirección de internet desde la que se pide.</li>
@@ -147,6 +214,20 @@
     que le des pasan por esa hoja —que corre en los servidores de Google— y de ahí a ese
     proveedor: Qwen los procesa en Singapur, DeepSeek en China y Gemini en los servidores de
     Google. Si no lo usas, nunca se llama a ninguno.</li>
+  </ul>
+
+  <h3>Cuando se encienda la nube</h3>
+  <ul>
+    <li><b>Supabase</b>, en servidores de Amazon Web Services en Estados Unidos — guarda la
+    base de datos, las imágenes de las cotizaciones y el registro de entrada con Google, y
+    corre las funciones del servidor.</li>
+    <li><b>Google</b> — se sigue entrando con tu cuenta. La hoja de cálculo pasa a ser una
+    <b>copia de solo lectura</b> cuando la nube sea la fuente. Se agrega <b>Google
+    Drive</b>: una vez por semana se guarda ahí un respaldo de toda la base, que lleva los
+    datos de los clientes y el dinero. Calendar sigue igual.</li>
+    <li><b>Qwen, DeepSeek o Gemini</b> — siguen siendo solo si tú lo usas, pero cambia el
+    camino: la imagen o el texto ya no pasan por la hoja, sino por una función de Supabase, y
+    de ahí al proveedor. Las claves se guardan en el servidor, no en los teléfonos.</li>
   </ul>
 
   <h2 id="que-no-hacemos">Qué NO hacemos</h2>
@@ -165,7 +246,20 @@
   <h2 id="cuanto-tiempo-se-guarda">Cuánto tiempo se guarda</h2>
   <p>Los datos del negocio —las ventas, los proyectos— se guardan mientras AL3D los necesite
   para su operación y para lo que la ley le exija conservar de su contabilidad. Tu correo en
-  la lista de accesos se guarda mientras trabajes con AL3D.</p>
+  la lista de accesos se guarda mientras trabajes con AL3D; lo que pasa cuando sales está en
+  la sección siguiente.</p>
+
+  <h3>Cuando se encienda la nube</h3>
+  <ul>
+    <li><b>Ventas ganadas y su dinero:</b> lo que la ley pida conservar de la contabilidad,
+    como hoy.</li>
+    <li><b>Cotizaciones que no se ganaron:</b> 8 meses en la nube.</li>
+    <li><b>Bitácora:</b> 1 año.</li>
+    <li><b>Lo que borras en la aplicación:</b> primero se marca como borrado, para que los
+    demás aparatos se enteren, y se borra de verdad a los 30 días.</li>
+    <li><b>Respaldos semanales en Google Drive:</b> se conservan los 8 más recientes, es
+    decir, unos dos meses.</li>
+  </ul>
 
   <h2 id="como-quitas-tu-acceso-y-tus-datos">Cómo quitas tu acceso y tus datos</h2>
   <ul>
@@ -173,11 +267,29 @@
     <li><b>Quitar el permiso que le diste a la aplicación:</b> desde tu cuenta de Google, en
     <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">las
     aplicaciones con acceso a tu cuenta</a>. Eso lo haces tú y no necesitas pedirnos nada.</li>
-    <li><b>Que te saquen de la lista:</b> escríbele a
-    <a href="mailto:eliasgaribi@gmail.com">eliasgaribi@gmail.com</a> y se borra tu correo.
-    Desde ese momento no entras.</li>
+    <li><b>Que te den de baja:</b> escríbele a
+    <a href="mailto:eliasgaribi@gmail.com">eliasgaribi@gmail.com</a>. Desde ese momento no
+    entras. Tu correo no desaparece de todo: se queda en los registros de lo que hiciste —por
+    ejemplo, las autorizaciones de precio que pediste o diste— como evidencia.</li>
     <li><b>Borrar lo que está en tu aparato:</b> borra los datos del sitio en tu navegador, o
     desinstala la aplicación del teléfono.</li>
+  </ul>
+
+  <h3>Cuando se encienda la nube</h3>
+  <ul>
+    <li><b>La baja la da la dirección</b> desde la aplicación, y vale desde tu siguiente
+    consulta a la base: ya no ves nada. Tu registro en la lista del equipo <b>no se borra</b>:
+    se conserva marcado como baja, con la fecha y quién la dio, y tu correo sigue en la
+    bitácora como evidencia.</li>
+    <li><b>Tu teléfono se cierra</b> la próxima vez que se conecte: la base le contesta que tu
+    acceso se retiró y la aplicación tapa la pantalla. Solo lo hace con esa respuesta
+    explícita, nunca por falta de señal.</li>
+    <li><b>Lo guardado en el teléfono no se borra solo todavía.</b> Ese borrado está
+    construido pero desactivado hasta que exista una forma segura de subir antes lo que solo
+    está en ese teléfono. Y un teléfono que nunca vuelve a conectarse conserva sus datos; lo
+    que lo protege es su propio bloqueo.</li>
+    <li><b>Borrar los datos del sitio</b> en tu navegador ya no se lleva los datos del
+    negocio: solo borra la copia de tu aparato. La copia buena está en la nube.</li>
   </ul>
   <p>Si quieres saber qué datos tuyos hay, corregirlos o pedir que se borren, escribe al
   mismo correo. Contestamos a la misma persona que pregunta.</p>
@@ -187,7 +299,9 @@
 
   <h2 id="si-esto-cambia">Si esto cambia</h2>
   <p>Cuando cambie, cambia la fecha de arriba. Si el cambio es de fondo —datos nuevos, o un
-  tercero nuevo— se avisa al equipo antes.</p>
+  tercero nuevo— se avisa al equipo antes. Encender la nube es un cambio de fondo —los datos
+  van a un lugar nuevo y entra un tercero nuevo, Supabase—, y por eso se avisa antes de
+  encenderla.</p>
 
   </div>
   </div>

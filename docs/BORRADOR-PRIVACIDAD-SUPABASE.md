@@ -1,6 +1,8 @@
 # BORRADOR de cambios al aviso de privacidad por la migración a Supabase
 
 > **BORRADOR para revisión de Elías; no es asesoría legal; no aplicar hasta la fase 2.**
+>
+> **Actualización 2026-10-16: aplicado.** Elías decidió lo pendiente y el texto ya está en `privacidad.html`, `condiciones.html` y `acerca.html` (rama `claude/aviso-privacidad-supabase`). Qué quedó, cómo y qué falta: ver «Aplicado el 2026-10-16» al final. Lo de abajo se deja como estaba, con las fuentes del 10 de octubre.
 
 Redactado el 2026-10-10. **No toca [`privacidad.html`](../privacidad.html)**: el aviso vigente sigue tal cual, porque escribir hoy que los datos están en Supabase sería falso. La migración está en construcción y apagada: la hoja de Google sigue siendo la fuente de verdad hasta la fase 4 ([`PLAN-SUPABASE.md`](PLAN-SUPABASE.md), [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md), avance en [`ESTADO-SUPABASE.md`](ESTADO-SUPABASE.md)).
 
@@ -192,3 +194,41 @@ No se venden ni se comparten los datos, no hay publicidad, no hay analítica de 
 5. **Quién es el responsable de la base.** La página nombra a «AL3D — Elías Garibi» (líneas 84-85); confirmar que se mantiene.
 6. **Los servidores del sitio.** La página no menciona a GitHub ni a Cloudflare, que son los que sirven la aplicación (`puente/DESPLIEGUE.md`, tabla «Lo que hay montado»). No es nuevo ni depende de Supabase; se anota porque se va a reescribir la sección de terceros.
 7. **Cuándo avisar al equipo y cuándo aplicar.** El plan pide actualizar el aviso antes de la fase 2 y, la propia página, avisar *antes* del cambio. Fecha por fijar por Elías.
+
+---
+
+## Aplicado el 2026-10-16
+
+Decisiones de Elías del 2026-10-16, aplicadas en la rama `claude/aviso-privacidad-supabase`. Cada afirmación se comparó contra el código de `main` de ese día (con la entrada con Google, la sombra, la lectura en vivo, Pagos, `autorizar`, `respaldo` y las migraciones 0013-0015 ya fusionadas). Todo lo que depende de Supabase va en la página bajo un subtítulo **«Cuando se encienda la nube»** (`h3`), dentro de las secciones que ya existían: privacidad sigue con 10 secciones y condiciones con 9. Sin JavaScript ni cambios de CSP. `sw.js` pasó de 118 a 119.
+
+| Parte | Estado | Dónde quedó |
+|---|---|---|
+| A1 (la llave de Google y el pase) | **aplicado** | Privacidad §3. Se agregó que cada día nuevo se pide entrar otra vez y se borra lo del día anterior (`CIERRE_DIARIO = true`, `js/nucleo/puerta.js`) |
+| A2 (lo que llega a la hoja) | **aplicado** | Privacidad §4 |
+| A3 (autorizaciones de precio en la hoja) | **aplicado** | Privacidad §4 |
+| B1 (qué datos van a la base) | **aplicado** como «Cuando se encienda la nube» | Privacidad §4 |
+| B2 (proveedor y región) | **aplicado** | Privacidad §1 y §5: Supabase, proyecto de producción en West US (North California), Estados Unidos, sobre AWS. AWS **confirmado** en `supabase.com/docs/guides/platform/regions` el 2026-10-16 («deploy to an available AWS region»; West US (North California) = `us-west-1`) |
+| B3 (quién ve qué) | **aplicado** | Privacidad §4, «Quién ve qué en la nube». Contacto del cliente: las tres áreas (decisión de Elías). **Corrección contra el código:** las cotizaciones y solicitudes **no** las ve Fabricación (`0008_notario.sql`: Dirección todas, Pagos las suyas, Fabricación ninguna); el borrador decía «las suyas». Las autorizaciones, solo Dirección. Lista del equipo: solo Dirección, cada quien su renglón (`0002_acceso.sql`). Bitácora por nivel: obra a las tres, dinero a Dirección y Pagos, equipo solo Dirección |
+| B4 (baja) | **aplicado** | Privacidad §8. Se quitó «se borra tu correo». Baja: el registro se conserva marcado, con fecha y quién la dio (`miembro_baja`), y el correo sigue en la bitácora. Se dice que el borrado del teléfono está construido pero **desactivado** (`BORRADO_HABILITADO = false`, `js/nucleo/supa.js`) y su límite |
+| B5 (plazos) | **aplicado** | Privacidad §7: no ganadas 8 meses; bitácora 1 año; lo borrado, de verdad a los 30 días; respaldos, los 8 más recientes; ventas ganadas y dinero, lo que pida la ley contable |
+| B6 (terceros) | **aplicado** | Privacidad §5: Supabase, Drive para el respaldo, la hoja como copia de solo lectura, la IA por una función de Supabase. Se agregaron GitHub y Cloudflare como quienes sirven el sitio (pregunta 6) |
+| B7 (lo que no cambia) | sin cambio de texto | Privacidad §6 |
+| C3 (condiciones y acerca) | **aplicado** | Condiciones §5 (Supabase entre los terceros) y §6 (respaldo semanal de la base), fecha 2026-10-16. Acerca: la tarjeta del dinero dice que se leerá de la base al encender |
+| Fecha «Rige desde» | **aplicado** | 16 de octubre de 2026, en privacidad y condiciones |
+| Responsable | sin cambio | «AL3D — Elías Garibi» |
+
+**Lo que la página promete y el código todavía no hace** (son decisiones para cuando se encienda; hay que construirlas antes de encender):
+
+- **Purgas por plazo.** Nada borra cotizaciones no ganadas a los 8 meses, la bitácora al año ni las lápidas (`deleted_at`) a los 30 días: no hay ninguna tarea programada en la base (sin `pg_cron`, `0001_fundacion.sql`).
+- **Los 8 respaldos.** La función `respaldo` sube un archivo por semana y no borra los viejos (`supabase/functions/_shared/respaldo.js`).
+- **Las imágenes en Storage.** No está programado: hoy viven en el aparato (`al3d_cot_imgs` y el historial) y nadie escribe en el almacenamiento de archivos de Supabase.
+- **La IA por la función.** La función `ia` existe pero la app todavía no la llama (no hay `functions/v1` en `js/`).
+- **Excepción que conviene decidir:** las autorizaciones de precio son de solo agregar en la base (ni `service_role` las edita) y son las que permiten comprobar un PDF ya entregado; «lo borrado se borra a los 30 días» no puede alcanzarlas tal como está la base. La página no lo dice; decidir si se agrega como excepción.
+
+**No confirmado en la documentación de Supabase:** qué datos del perfil guarda el servicio de entrada. La página dice que, además del correo, guarda el nombre y la liga a la foto de perfil, porque el botón de Google (`google.accounts.id`) entrega un token de identidad con esos datos y el servicio de entrada los guarda con la cuenta; la guía de Google de Supabase solo dice que pide acceso a «profile data». Comprobarlo en `auth.users` de `al3d-pruebas` con la cuenta invitada de Elías.
+
+**Pruebas de navegador:** `pruebas/navegador/publicas.mjs` (10 y 9 secciones, índice, contraste) no corre en Windows; los conteos se revisaron a mano (10 `h2` con `id` y 10 renglones de índice en privacidad, 9 y 9 en condiciones).
+
+### Pendiente: revisión legal del aviso a clientes
+
+Los teléfonos, direcciones, ubicaciones y notas que van a la nube son **de los clientes**, y esta página solo le habla al equipo. Si hace falta un aviso de privacidad para los clientes —por ejemplo, bajo la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)— y qué tiene que decir, **queda pendiente de que lo revise un asesor legal**. Este borrador no es asesoría legal y no lo resuelve; tampoco lo resuelve el texto aplicado el 2026-10-16.
