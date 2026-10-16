@@ -1,0 +1,59 @@
+# Respaldo semanal de la base de Supabase a una carpeta de Drive.
+#
+# El plan Free de Supabase no trae respaldos (verificado en supabase.com/pricing, 2026-10-10). Este flujo llama una
+# vez por semana a la función `respaldo` (supabase/functions/respaldo), que exporta todas las tablas a un archivo
+# JSON y lo sube a Drive con una cuenta de servicio. La función hace el trabajo; aquí solo se la dispara.
+#
+# APAGADO POR DEFECTO: si falta la variable o el secreto, el flujo lo dice y termina bien, sin llamar a nada.
+# Se enciende desde Settings > Secrets and variables > Actions:
+#   Variables:  RESPALDO_URL_FUNCION      la dirección de la función: https://<ref>.supabase.co/functions/v1/respaldo
+#   Secrets:    RESPALDO_SECRETO_FUNCION  el mismo valor que el secreto de la función (32 caracteres o más)
+# La llave de la cuenta de servicio y la carpeta (RESPALDO_GOOGLE_CREDENCIALES, RESPALDO_CARPETA_DRIVE) NO entran
+# aquí: viven solo en los secretos de la función. La llave secreta de Supabase tampoco.
+#
+# Se puede correr a mano (workflow_dispatch) con «seco» para exportar y contar sin subir nada.
+# GitHub solo ejecuta los flujos programados del archivo que está en la rama principal.
+name: Respaldo semanal de Supabase
+
+on:
+  schedule:
+    - cron: '23 10 * * 0'
+  workflow_dispatch:
+    inputs:
+      seco:
+        description: 'Prueba en seco: exporta y cuenta, pero no sube a Drive'
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Llamar a la función respaldo
+        env:
+          URL_FUNCION: ${{ vars.RESPALDO_URL_FUNCION }}
+          SECRETO: ${{ secrets.RESPALDO_SECRETO_FUNCION }}
+          SECO: ${{ inputs.seco }}
+        run: |
+          if [ -z "$URL_FUNCION" ] || [ -z "$SECRETO" ]; then
+            echo "Falta RESPALDO_URL_FUNCION o RESPALDO_SECRETO_FUNCION: el respaldo está apagado y no se llama a nada."
+            exit 0
+          fi
+          case "$URL_FUNCION" in
+            https://*.supabase.co/functions/v1/respaldo) ;;
+            *) echo "RESPALDO_URL_FUNCION no es la dirección de una función respaldo de supabase.co: no se llama."; exit 1 ;;
+          esac
+          cuerpo='{}'
+          if [ "$SECO" = "true" ]; then cuerpo='{"subir":false}'; fi
+          codigo=$(curl -sS -o respuesta.json -w '%{http_code}' --max-time 170 -X POST \
+            -H "x-respaldo-secreto: $SECRETO" -H 'Content-Type: application/json' --data "$cuerpo" "$URL_FUNCION" || echo 000)
+          # Solo lo que no es secreto: si salió, el nombre del archivo, cuántas filas y su huella.
+          jq -c '{ok, codigo, mensaje, archivo: .archivo.nombre, nombre, bytes, sha256, filas: ((.filas // {}) | add)}' respuesta.json 2>/dev/null || echo "La función contestó algo que no es JSON (HTTP $codigo)."
+          rm -f respuesta.json
+          if [ "$codigo" != "200" ]; then
+            echo "El respaldo NO se hizo (HTTP $codigo)."
+            exit 1
+          fi
