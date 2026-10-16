@@ -18,6 +18,10 @@
        empezando por las más chicas (la regla del negocio: bajar el número de pendientes).
        «Pagar estas» ARMA LA LISTA para registrarla en la hoja; esta pantalla no marca pagos.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
+   Y una quinta, «Registrar (Supabase)», que SOLO existe con el interruptor de Supabase encendido
+   en este aparato (Ajustes, `al3d_pf_supa`): los formularios de cobro, abono, reparto y
+   corrección contra la base de pruebas. Apagado, Control es exactamente las cuatro de arriba y
+   js/mod/pagos-supa.js ni se descarga. Ver `supaEncendido` y docs/supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md.
    Desde octubre de 2026 la pestaña Ventas abre con lo que la dirección quiere ver primero: las
    FINANZAS de los proyectos en fabricación y de los que se están cobrando (`htmlFinanzas`) y los
    últimos doce meses. Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes
@@ -68,7 +72,8 @@ import { masMeses } from '../nucleo/fechas.js';
 let cont = null;
 let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
-let TAB = 'ventas';          // ventas | cobrar | comisiones | bitacora — sobrevive a salir y volver
+let TAB = 'ventas';          // ventas | cobrar | comisiones | bitacora (| asientos) — sobrevive a salir y volver
+let _PS = null;              // js/mod/pagos-supa.js, ya cargado (solo con Supabase encendido)
 let PERIODO = '3m';          // mes | 3m | 12m | todo
 /* Lo vendido por tipo de trabajo, arriba de todo: el periodo de las tarjetas y la gráfica que
    se ve. Sobreviven a salir y volver, como la pestaña. Por defecto el año: es la pregunta del
@@ -140,7 +145,7 @@ export async function montar(contenedor, ctx) {
   if (_mqTelefono && _mqTelefono.addEventListener) _mqTelefono.addEventListener('change', alCambiarAncho);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
-  if (pase && TABS.includes(pase.tab)) TAB = pase.tab;
+  if (pase && tabs().includes(pase.tab)) TAB = pase.tab;
   /* La pestaña también vive en la dirección (`#/control?tab=cobrar`): un enlace directo a
      «Comisiones» y una recarga caen donde se estaba (auditoría completa 2026-10, control-11). El
      pase manda sobre la dirección: es quien acaba de pedir venir aquí. */
@@ -216,6 +221,7 @@ export function desmontar() {
      caer con el módulo ya desmontado. `pintar()` se protege sola, pero un reloj que sobrevive
      a su módulo es exactamente lo que `desmontar` existe para apagar. */
   clearTimeout(_espera); _espera = 0;
+  if (_PS) _PS.soltar();
   cont = null; CTX = null; D = null;
 }
 
@@ -494,6 +500,7 @@ function pintar() {
    —cifras con su valor nuevo, barras con su ancho— y lo que se mueve se decide aquí, con lo que
    se recuerda fuera del DOM. */
 function despuesDePintar() {
+  if (TAB === 'asientos') cablearAsientos();
   rodarCuentas(cont);
   vigilarBarras();
   ubicarMesesTipo();
@@ -503,20 +510,24 @@ function despuesDePintar() {
 
 function htmlPantalla() {
   const nCom = D.comisiones.abonables.length;
-  const tabs = segmento([
+  if (!tabs().includes(TAB)) TAB = 'ventas';            // se apagó Supabase con la pestaña abierta
+  const opciones = [
     { v: 'ventas', t: 'Resumen' },
     { v: 'cobrar', t: 'Por cobrar' + (D.kpi.porCobrar.n ? ' · ' + D.kpi.porCobrar.n : '') },
     { v: 'comisiones', t: 'Comisiones' + (nCom ? ' · ' + nCom : '') },
     { v: 'bitacora', t: 'Bitácora' },
-  ], TAB, 'data-tab', 'Qué ver');
+  ];
+  if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: 'Registrar (Supabase)' });
+  const pestanas = segmento(opciones, TAB, 'data-tab', 'Qué ver');
 
   let cuerpo;
-  if (TAB === 'cobrar') cuerpo = pintarCobrar();
+  if (TAB === 'asientos') cuerpo = '<div id="ct-asientos" class="pg-supa">' + (_PS ? _PS.html() : '<p class="pf-nota" role="status">Abriendo…</p>') + '</div>';
+  else if (TAB === 'cobrar') cuerpo = pintarCobrar();
   else if (TAB === 'comisiones') cuerpo = pintarComisiones();
   else if (TAB === 'bitacora') cuerpo = pintarBitacora();
   else cuerpo = pintarVentas();
 
-  return '<div class="ag-barra ct-pestanas">' + tabs + '</div>' + cuerpo;
+  return '<div class="ag-barra ct-pestanas">' + pestanas + '</div>' + cuerpo;
 }
 
 /* «Por cobrar» es de la hoja cuando TODOS los saldos bajaron de allá; «(estimado)» si alguno
@@ -1410,10 +1421,33 @@ function cambiarTab(tab) {
 }
 
 const TABS = ['ventas', 'cobrar', 'comisiones', 'bitacora'];
+/* La quinta pestaña solo con Supabase encendido en ESTE aparato. Se lee la clave como la lee
+   app.js —sin importar js/nucleo/supa.js—: apagado no se carga nada. Fabricación no tiene Control,
+   y aun así no se le ofrece. */
+function supaEncendido() {
+  try { return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || ''); } catch (_) { return false; }
+}
+function tabs() {
+  return supaEncendido() && Prefs.rol() !== 'fabricacion' ? TABS.concat('asientos') : TABS;
+}
+/* La pestaña de Supabase se carga la primera vez que se abre y después se pinta sin esperar: sus
+   borradores viven en ese módulo, así que un repintado de Control no tira lo escrito. */
+function cablearAsientos() {
+  const el = $('ct-asientos');
+  if (!el) return;
+  if (_PS) { _PS.cablear(el); return; }
+  import('./pagos-supa.js').then(m => {
+    _PS = m;
+    const ahora = $('ct-asientos');
+    if (!ahora || !cont || !cont.contains(ahora)) return;
+    ahora.innerHTML = m.html();
+    m.cablear(ahora);
+  }).catch(() => { const x = $('ct-asientos'); if (x) x.innerHTML = '<p class="hintnote nota-mal" role="alert">No se pudo abrir esta pestaña. Revisa la señal y vuelve a entrar.</p>'; });
+}
 function tabDeLaDireccion() {
   try {
     const t = new URLSearchParams(String(location.hash || '').split('?')[1] || '').get('tab');
-    return TABS.includes(t) ? t : null;
+    return tabs().includes(t) ? t : null;
   } catch (_) { return null; }
 }
 /* `replaceState` y no una entrada nueva: cambiar de pestaña no es cambiar de pantalla, y llenar
