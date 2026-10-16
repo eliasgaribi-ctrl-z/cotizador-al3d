@@ -1283,6 +1283,11 @@ function registrarGanada(){
 > lo aplica la pantalla (`TOPE_ROL`, `js/datos/proyectos.js:1116`): el Apps Script acepta
 > cualquiera de las ocho etapas de un rol que pueda escribirla (`.gs:2992-2994`).
 >
+> **Cambió el 2026-10-16 (Q-05, decidida por Elías):** ya no hay `TOPE_ROL`. Los tres roles mueven
+> cualquier etapa y «No se dio» (marcarlo y sacar un proyecto de ahí) es solo de Dirección, en la
+> pantalla (`puedeMover`, `js/datos/proyectos.js`), en el Apps Script (`PUENTE_ROLES` y
+> `ETAPA_CANCELADA`) y en la base (`supabase/migrations/0017_decisiones_elias.sql`).
+>
 > **Ruta Supabase (en construcción, apagado).** El rol sale de `miembros` y lo hace valer la
 > base: RLS en cada tabla, vistas por área para lectura y funciones para las acciones (autorizar,
 > cobrar, mover etapa), con la misma matriz de hoy —`PUENTE_ROLES`, `CAMPOS_ROL` y `TOPE_ROL`
