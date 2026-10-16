@@ -183,7 +183,7 @@ function crearBaseFalsa(M, cfg) {
   /* ia_cuota (A.md §8.1): por persona y por DÍA de Ciudad de México; si ya está en el tope no sube. */
   const iaCuota = args => {
     const dia = M.IA.cuotaDelDia(reloj());
-    const limite = args.p_limite == null ? 200 : args.p_limite;
+    const limite = Math.min(args.p_limite == null ? 50 : args.p_limite, 50);      // como ia_cuota desde 0017: 50 y nunca más
     const k = 'ia:' + args.p_usuario + '@' + dia;
     const n = cuentas.get(k) || 0;
     if (n >= limite) {
@@ -959,7 +959,7 @@ async function bateria(M, T) {
     eq('  UNA llamada a DeepSeek: su dirección, POST, y la llave en Authorization (una de las suyas)', [m.fetch.llamadas.length, c0.url, c0.init.method, c0.init.headers.Authorization], [1, IA.IA_URLS.deepseek, 'POST', 'Bearer ' + LLAVES_IA.deepseek[0]]);
     eq('  armada como el .gs: modelo, temperatura, imagen en data URL, response_format y thinking apagado, en ese orden de llaves',
       Object.keys(JSON.parse(c0.init.body)), ['model', 'temperature', 'max_tokens', 'messages', 'response_format', 'thinking']);
-    eq('  el orden del cupo: sesión → cupo → proveedor, una cuenta por consulta, con el usuario de la SESIÓN y el tope de 200',
+    eq('  el orden del cupo: sesión → cupo → proveedor, una cuenta por consulta, con el usuario de la SESIÓN y el tope de 50',
       m.base.llamadas.map(l => l.via + (l.nombre ? ':' + l.nombre : '')), ['usuarioDe', 'rpcUsuario:mi_acceso', 'rpcServicio:ia_cuota']);
     eq('  la cuenta es de quien llama (su id, no uno del cuerpo) y el tope es IA_LIMITE_DIARIO', m.base.llamadas[2].args, { p_usuario: ID.dir, p_limite: IA.IA_LIMITE_DIARIO });
     eq('  la señal de aborto viaja a fetch (el plazo)', [typeof c0.init.signal, c0.init.signal.aborted], ['object', false]);
@@ -1032,12 +1032,12 @@ async function bateria(M, T) {
     {
       const mm = montar();
       let buenas = 0;
-      for (let i = 1; i <= 200; i++) { const x = await pedirIA(mm, COTIZAR); if (x.cuerpo.ok) buenas++; }
+      for (let i = 1; i <= 50; i++) { const x = await pedirIA(mm, COTIZAR); if (x.cuerpo.ok) buenas++; }
       const x201 = await pedirIA(mm, COTIZAR);
-      eq('el cupo: 200 consultas pasan y la 201 es CUPO_AGOTADO con el texto del .gs (transitorio:false); el proveedor no se llama la 201', [buenas, mm.fetch.llamadas.length, x201.status, x201.cuerpo.ok, x201.cuerpo.codigo, x201.cuerpo.transitorio, x201.cuerpo.mensaje],
-        [200, 200, 200, false, 'CUPO_AGOTADO', false, 'Llegaste al tope de 200 consultas de IA por hoy. Mañana se reinicia.']);
+      eq('el cupo: 50 consultas pasan y la 51 es CUPO_AGOTADO con el texto del .gs (transitorio:false); el proveedor no se llama la 51', [buenas, mm.fetch.llamadas.length, x201.status, x201.cuerpo.ok, x201.cuerpo.codigo, x201.cuerpo.transitorio, x201.cuerpo.mensaje],
+        [50, 50, 200, false, 'CUPO_AGOTADO', false, 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.']);
       eq('  es de CADA persona: otra con sesión sigue teniendo las suyas', (await pedirIA(mm, COTIZAR, { jwt: JWT.pag })).cuerpo.ok, true);
-      eq('  el sobre de la base viaja tal cual (con su día y su tope)', [x201.cuerpo.limite, typeof x201.cuerpo.dia], [200, 'string']);
+      eq('  el sobre de la base viaja tal cual (con su día y su tope)', [x201.cuerpo.limite, typeof x201.cuerpo.dia], [50, 'string']);
       /* El día cambia a la medianoche de México, no a las 18:00 (el día GMT del .gs). */
       mm.reloj.ms = Date.UTC(2026, 9, 11, 0, 0, 0);       // 18:00 del 10 en México: SIGUE el mismo día
       const a1800 = await pedirIA(mm, COTIZAR);
@@ -1434,12 +1434,12 @@ async function sqlDeVerdad(arnes, db, H) {
   const pedirIA = (m, k, cuerpo) => correr(IaFn, pet('ia', { cuerpo, jwt: JWT[k], origen: ORIGEN }), m.deps);
   const r1 = await pedirIA(mi, 'dir', COTIZAR);
   eq('ia con sesión REAL (mi_acceso) y cupo REAL (ia_cuota): 200 {ok:true,…}, y la base llevó la cuenta de esa persona', [r1.status, r1.cuerpo.ok, await cuenta('ia:' + ID.dir)], [200, true, 1]);
-  await sql(db, `update public.contadores set n = 199 where clave = $1`, ['ia:' + ID.dir]);
+  await sql(db, `update public.contadores set n = 49 where clave = $1`, ['ia:' + ID.dir]);
   const r200 = await pedirIA(mi, 'dir', COTIZAR);
   const r201 = await pedirIA(mi, 'dir', COTIZAR);
-  eq('la consulta 200 pasa y la 201 es CUPO_AGOTADO con el sobre REAL de la base (transitorio:false, tope y día), sin llamar al proveedor',
+  eq('la consulta 50 pasa y la 51 es CUPO_AGOTADO con el sobre REAL de la base (transitorio:false, tope y día), sin llamar al proveedor',
     [r200.cuerpo.ok, r201.cuerpo.codigo, r201.cuerpo.transitorio, r201.cuerpo.limite, r201.cuerpo.dia, r201.cuerpo.mensaje, mi.fetch.llamadas.length, await cuenta('ia:' + ID.dir)],
-    [true, 'CUPO_AGOTADO', false, 200, '20261010', 'Llegaste al tope de 200 consultas de IA por hoy. Mañana se reinicia.', 2, 200]);
+    [true, 'CUPO_AGOTADO', false, 50, '20261010', 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.', 2, 50]);
   eq('  es de cada persona: Pagos empieza su propia cuenta', [(await pedirIA(mi, 'pag', COTIZAR)).cuerpo.ok, await cuenta('ia:' + ID.pag)], [true, 1]);
   reloj.ms = Date.UTC(2026, 9, 11, 0, 0, 0);
   eq('  a las 18:00 de México (medianoche GMT) sigue siendo el mismo día: el tope NO se reinicia (Q-19)', (await pedirIA(mi, 'dir', COTIZAR)).cuerpo.codigo, 'CUPO_AGOTADO');
@@ -1816,14 +1816,14 @@ const pedir = (f, o) => pedirCon(manejadores, f, o);
   eq('  a Supabase: getUser y mi_acceso con la llave pública y el JWT de la persona; ia_cuota con la SECRETA y con el id de la persona',
     v.map(r => [r.ruta, r.apikey === F.SECRETA ? 'secreta' : r.apikey === F.PUBLICA ? 'publica' : '?', r.auth === 'Bearer ' + JWT.dir ? 'jwt' : r.auth === 'Bearer ' + F.SECRETA ? 'secreta' : '?']),
     [['/auth/v1/user', 'publica', 'jwt'], ['/rest/v1/rpc/mi_acceso', 'publica', 'jwt'], ['/rest/v1/rpc/ia_cuota', 'secreta', 'secreta']]);
-  eq('  ia_cuota recibió el id de SU sesión y el tope de 200', JSON.parse(v[2].texto), { p_usuario: F.IDS.dir, p_limite: 200 });
+  eq('  ia_cuota recibió el id de SU sesión y el tope de 50', JSON.parse(v[2].texto), { p_usuario: F.IDS.dir, p_limite: 50 });
   const g = await leer(await pedir('ia', { jwt: JWT.dir, metodo: 'GET' })); todas.push(g.texto);
   eq('  GET: qué proveedores tienen llave', [g.status, g.cuerpo], [200, { ok: true, ia: { qwen: true, deepseek: true, gemini: true } }]);
   const q = await leer(await pedir('ia', { jwt: JWT.baja, cuerpo })); todas.push(q.texto);
   eq('  con el acceso retirado: 403 ACCESO_REVOCADO y no salió nada a internet', [q.status, q.cuerpo.codigo, afuera.length - a0], [403, 'ACCESO_REVOCADO', 1]);
   const sin = await leer(await pedir('ia', { jwt: JWT.sin, cuerpo })); todas.push(sin.texto);
   eq('  sin acceso: 403 SIN_ACCESO', [sin.status, sin.cuerpo.codigo], [403, 'SIN_ACCESO']);
-  base.sobre('rpcServicio:ia_cuota', async () => ({ data: { ok: false, codigo: 'CUPO_AGOTADO', mensaje: 'Llegaste al tope de 200 consultas de IA por hoy. Mañana se reinicia.', definitivo: false, transitorio: false, limite: 200, dia: '2026-10-10' }, error: null, status: 200 }));
+  base.sobre('rpcServicio:ia_cuota', async () => ({ data: { ok: false, codigo: 'CUPO_AGOTADO', mensaje: 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.', definitivo: false, transitorio: false, limite: 50, dia: '2026-10-10' }, error: null, status: 200 }));
   const c = await leer(await pedir('ia', { jwt: JWT.dir, cuerpo })); todas.push(c.texto);
   eq('  el cupo agotado que dice la base llega con su forma y no se llama al proveedor', [c.status, c.cuerpo.codigo, c.cuerpo.transitorio, afuera.length - a0], [200, 'CUPO_AGOTADO', false, 1]);
   base.sobre('rpcServicio:ia_cuota', async () => ({ data: null, error: { code: 'XX000', message: 'boom' }, status: 500 }));

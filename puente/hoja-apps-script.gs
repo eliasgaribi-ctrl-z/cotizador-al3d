@@ -4150,10 +4150,13 @@ var IA_URLS = { qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/ch
 var IA_MODELOS = { qwen: ['qwen3.7-flash', 'qwen3.6-flash'], deepseek: ['deepseek-flash'],
                    gemini: ['gemini-3.1-flash-lite', 'gemini-3.6-flash'] };
 var IA_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-/* Por persona y por día. Una cotización con IA son de una a cuatro llamadas; doscientas es
-   un día de trabajo muy largo, y es muy poco para quien quiera vaciar la cuenta. La cuenta
-   de Google gratuita permite unas 20 000 salidas a internet al día en total. */
-var IA_LIMITE_DIARIO = 200;
+/* Por persona y por día de México. Una cotización con IA son de una a cuatro llamadas; cincuenta
+   (Q-19, Elías, 2026-10-16; antes doscientas) son más de una docena de cotizaciones con IA en un día,
+   y muy poco para quien quiera vaciar la cuenta. La cuenta de Google gratuita permite unas 20 000
+   salidas a internet al día en total. Es el mismo tope que pone Supabase (0017, ia_cuota). */
+var IA_LIMITE_DIARIO = 50;
+/* El día del cupo es el de México: con el GMT de antes el cupo se reiniciaba a las 18:00 locales. */
+var IA_ZONA_DEL_CUPO = 'America/Mexico_City';
 var IA_MAX_LLAVES = 4;
 var IA_MAX_CUERPO = 15 * 1024 * 1024;
 /* Cuerpos de más de 64 KB por minuto, entre todos. Un análisis manda uno; cuarenta por minuto
@@ -4197,7 +4200,7 @@ function iaOrdenDeLlaves_(prov) {
 }
 /* Leer, sumar y escribir, con candado. Sin él, una ráfaga de consultas en paralelo leía todas
    la misma cuenta y cada una escribía «la de antes + 1»: veinte a la vez contaban como una, y
-   el tope de doscientas se pasaba. El candado es el del script —el único que hay entre
+   el tope se pasaba. El candado es el del script —el único que hay entre
    ejecuciones— pero corto y solo alrededor de la cuenta, no de la llamada a la IA: tomado
    mientras el proveedor contesta, dejaría la hoja sin escrituras diez o veinte segundos. Si no
    se consigue en tres segundos (una subida grande del puente lo tiene), se niega con su razón
@@ -4208,7 +4211,7 @@ function dentroDelCupoIA(quien) {
   if (!candado.tryLock(3000)) return null;
   try {
     var props = PropertiesService.getScriptProperties();
-    var hoy = Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd');
+    var hoy = Utilities.formatDate(new Date(), IA_ZONA_DEL_CUPO, 'yyyyMMdd');
     var clave = 'IA_CUOTA_' + hoy;
     var m = {};
     try { m = JSON.parse(props.getProperty(clave) || '{}') || {}; } catch (e) { m = {}; }

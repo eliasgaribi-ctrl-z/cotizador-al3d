@@ -576,7 +576,7 @@ console.log('\nLA IA — las llaves están aquí y no salen');
   /* El cupo diario por persona. */
   let agotado = null;
   for (let i = 0; i < 205 && agotado === null; i++) { const x = post({ ...base, token: TOK_DIR }); if (x.codigo === 'CUPO_AGOTADO') agotado = i; }
-  eq('doscientas consultas al día por persona, y ahí se frena', agotado, 200);
+  eq('cincuenta consultas al día por persona (Q-19, desde el 2026-10-16), y ahí se frena', agotado, 50);
   cierto('  sin frenar a los demás', post({ ...base, google_token: G.omar, token: '' }).ok);
 }
 
