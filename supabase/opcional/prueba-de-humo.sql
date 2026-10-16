@@ -2,7 +2,7 @@
 --
 -- Para qué sirve: las pruebas de supabase/tests corren sobre PGlite (PostgreSQL en WASM), que valida el
 -- SQL y las políticas pero NO es Supabase. Esto se ejecuta en el Editor SQL del panel del proyecto, con
--- las migraciones 0001..0013 ya aplicadas (el bloque 7 es de la 0013), y comprueba ahí lo que más importa: que cada área ve y puede
+-- las migraciones 0001..0015 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015), y comprueba ahí lo que más importa: que cada área ve y puede
 -- hacer solo lo que le toca. Simula a las personas igual que PostgREST (rol + claims del JWT), con
 -- usuarios de prueba creados DENTRO de la misma transacción.
 --
@@ -201,13 +201,14 @@ begin
   inf := inf || jsonb_build_object('caso', 'C23 registrar_autorizacion solo la ejecuta service_role', 'ok', coalesce(b, false), 'det', coalesce(b::text, 'no existe'));
 
   -- 7) Los huecos que cerró la migración 0013 (H-1 … H-6). Necesita 0013 aplicada; sin ella estos casos salen en rojo.
-  --    H-3 es una decisión PROVISIONAL (Q-06): holgura de 60 s para los roles bajos y Dirección gana ante Fabricación o Pagos.
+  --    H-3 (Q-06) lo decidió Elías el 2026-10-16 y lo dejó 0014: gana el cambio más reciente, con 10 min de holgura para TODAS las áreas
+  --    (la decisión provisional de 0013 —60 s para los roles bajos y Dirección gana ante ellos— ya no existe).
   perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
   begin
     r := public.proyecto_actualizar(jsonb_build_object('id', 'humo1', 'campos', jsonb_build_object('notas', 'reloj adelantado'),
                                                        'sellos', jsonb_build_object('notas', ahora + 3600000)), null);
     select (p.sellos ->> 'notas')::bigint - (extract(epoch from clock_timestamp()) * 1000)::bigint into n from public.proyectos p where p.id = 'humo1';
-    inf := inf || jsonb_build_object('caso', 'C28 Fabricación con el reloj 1 h adelantado: su sello queda a lo más 60 s en el futuro', 'ok', coalesce(n <= 61000, false), 'det', coalesce(n::text, r->>'codigo'));
+    inf := inf || jsonb_build_object('caso', 'C28 Fabricación con el reloj 1 h adelantado: su sello queda a 10 min en el futuro, como el de Dirección (0014)', 'ok', coalesce(n between 540000 and 601000, false), 'det', coalesce(n::text, r->>'codigo'));
     r := public.subida_unica(jsonb_build_object('disp', 'HUMO',
            'bitacora', jsonb_build_array(jsonb_build_object('id', 'h1', 'accion', 'cobro', 'titulo', 'Cobro falso de humo', 'usuario', 'pag@humo.test', 'rol', 'pagos', 'ts', 1500000000000)),
            'cotizaciones', jsonb_build_array(jsonb_build_object('folio', 'COT-9001', 'disp', 'HUMO', 'proy', 'Humo', 'items', '[]'::jsonb))), null);
@@ -226,13 +227,22 @@ begin
   execute 'reset role';
   perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
   begin
-    r := public.proyecto_actualizar(jsonb_build_object('id', 'humo1', 'campos', jsonb_build_object('notas', 'Dirección manda'),
+    -- Fabricación dejó «notas» con un sello de ~ahora + 10 min (C28): un sello de Dirección más viejo PIERDE y uno más nuevo gana.
+    r := public.proyecto_actualizar(jsonb_build_object('id', 'humo1', 'campos', jsonb_build_object('notas', 'Dirección, vieja'),
                                                        'sellos', jsonb_build_object('notas', ahora)), null);
-    inf := inf || jsonb_build_object('caso', 'C31 Dirección con un sello más viejo gana ante Fabricación (notas)', 'ok', coalesce(r->'escritos' ? 'notas', false), 'det', coalesce(r->>'viejos', r->>'codigo'));
+    t := coalesce(r->'viejos' @> '[{"nombre":"notas"}]'::jsonb, false)::text;
+    r := public.proyecto_actualizar(jsonb_build_object('id', 'humo1', 'campos', jsonb_build_object('notas', 'Dirección, nueva'),
+                                                       'sellos', jsonb_build_object('notas', ahora + 3600000)), null);
+    inf := inf || jsonb_build_object('caso', 'C31 gana el más reciente (notas): Dirección con un sello más viejo que el de Fabricación pierde; con uno más nuevo, gana', 'ok',
+                                     coalesce(t = 'true' and r->'escritos' ? 'notas', false), 'det', 'vieja perdió: ' || t || ' / nueva: ' || coalesce(r->>'escritos', r->>'codigo'));
+    -- Fabricación dejó la etapa con el sello ahora + 1000 (C07): ahora + 500 pierde, ahora + 1500 gana.
     r := public.mover_etapa('humo1', 'armado', ahora + 500, '', null);
-    inf := inf || jsonb_build_object('caso', 'C32 Dirección con un sello más viejo gana ante Fabricación (etapa)', 'ok', coalesce(r->>'etapa' = 'armado', false), 'det', coalesce(r->>'etapa', r->>'viejos', r->>'codigo'));
+    t := coalesce(r->'viejos' @> '[{"nombre":"etapa"}]'::jsonb, false)::text;
+    r := public.mover_etapa('humo1', 'armado', ahora + 1500, '', null);
+    inf := inf || jsonb_build_object('caso', 'C32 gana el más reciente (etapa): Dirección con un sello más viejo que el de Fabricación pierde; con uno más nuevo, mueve', 'ok',
+                                     coalesce(t = 'true' and r->>'etapa' = 'armado', false), 'det', 'vieja perdió: ' || t || ' / nueva: ' || coalesce(r->>'etapa', r->>'viejos', r->>'codigo'));
   exception when others then
-    inf := inf || jsonb_build_object('caso', 'C31-C32 (prioridad de Dirección, 0013)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    inf := inf || jsonb_build_object('caso', 'C31-C32 (gana el más reciente, 0014)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
   execute 'reset role';
   perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
@@ -249,7 +259,23 @@ begin
   select estado into t from public.cotizaciones where folio_global = 'COT-9001@HUMO';
   inf := inf || jsonb_build_object('caso', 'C35 una cotización subida sin sello del servidor NO nace autorizada (retirada)', 'ok', coalesce(t = 'retirada', false), 'det', coalesce(t, 'no está'));
   select coalesce(cardinality(interno.auditoria()), -1) into n;
-  inf := inf || jsonb_build_object('caso', 'C36 la auditoría de 0011 sigue limpia después de 0013', 'ok', coalesce(n = 0, false), 'det', n::text);
+  inf := inf || jsonb_build_object('caso', 'C36 la auditoría de 0011 sigue limpia después de 0013, 0014 y 0015', 'ok', coalesce(n = 0, false), 'det', n::text);
+
+  -- 8) El folio de la hoja (0015, Q-07): una venta nueva entra con el V-### que ya le dio la hoja; uno ocupado se rechaza; el contador no queda abajo.
+  perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+  begin
+    r := public.ganar_proyecto(jsonb_build_object('id', 'humo-v1', 'folio_global', 'COT-9002@HUMO', 'folio_local', 'COT-9002', 'dispositivo', 'HUMO',
+           'nombre', 'Humo - folio de la hoja', 'venta', jsonb_build_object('sub', 1000, 'anti', 0, 'cuenta', 'Moni MPago'), 'folio_hoja', 'V-9999999'), null);
+    inf := inf || jsonb_build_object('caso', 'C37 ganar_proyecto con el folio de la hoja: la venta queda con ESE V-###', 'ok', coalesce(r->>'folio_hoja' = 'V-9999999', false), 'det', coalesce(r->>'folio_hoja', r->>'codigo'));
+    r := public.ganar_proyecto(jsonb_build_object('id', 'humo-v2', 'folio_global', 'COT-9003@HUMO', 'folio_local', 'COT-9003', 'dispositivo', 'HUMO',
+           'nombre', 'Humo - folio repetido', 'venta', jsonb_build_object('sub', 1000, 'anti', 0, 'cuenta', 'Moni MPago'), 'folio_hoja', 'V-9999999'), null);
+    inf := inf || jsonb_build_object('caso', 'C38 el mismo folio de la hoja otra vez: DATO_INVALIDO folio_ocupado', 'ok', coalesce(r->>'causa' = 'folio_ocupado', false), 'det', coalesce(r->>'causa', r->>'codigo', r->>'folio_hoja'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C37-C38 (folio de la hoja, 0015)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  execute 'reset role';
+  select c.n into n from public.contadores c join public.proyectos p on p.empresa_id = c.empresa_id where p.id = 'humo-v1' and c.clave = 'V' and c.ventana = '';
+  inf := inf || jsonb_build_object('caso', 'C39 el contador V quedó a la altura del folio de la hoja (no por debajo)', 'ok', coalesce(n >= 9999999, false), 'det', coalesce(n::text, 'no está'));
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).
   raise exception 'HUMO_RESULTADO %', jsonb_build_object(

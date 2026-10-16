@@ -282,6 +282,55 @@ try {
     await sinRed.encolar(op('op-y'), { ok: true });
     eq('sin señal ni lo intenta', (await sinRed.bombear()).motivo, 'sin_red');
   }
+
+  console.log('\nEL V-### DE LA HOJA VIAJA A LA BASE (Q-07, decidida por Elías el 2026-10-16; 0015_folio_de_la_hoja.sql)');
+  {
+    /* Con la hoja de verdad: un alta sube, la hoja le da su V-###, la sombra lo guarda y se lo manda a ganar_proyecto. */
+    const llamadas = [];
+    let guion = () => ({ data: { ok: true } });
+    const cliente = { rpc: async (n, a) => { llamadas.push([n, JSON.parse(JSON.stringify(a))]); return guion(n, a); }, from: () => null };
+    let reloj = 5000;
+    const almacen = Sb.almacenEnMemoria();
+    const sombra = Sb.crearSombra({ cliente: async () => cliente, almacen, ahora: () => ++reloj, enLinea: () => true });
+    S.alSubir(sombra.encolar);
+    await DB.poner('proyectos', VENTA({ id: 'proy-2', folio_local: 'COT-0043', folio_global: 'COT-0043@K7QM', nombre: 'Beto - Tienda' }));
+    await S.encolar({ id: 'op-alta-2', tipo: 'crear', almacen: 'proyectos', registro_id: 'proy-2', datos: await DB.obtener('proyectos', 'proy-2'), campos: null, ts: 5000 });
+    const b = await S.bombear();
+    S.alSubir(null);
+    const enCola = await sombra.pendientes();
+    eq('la hoja da de alta la venta y la sombra guarda la copia con el V-### que contestó la hoja',
+      [b.valor.subidas, enCola.length, /^V-\d{3,7}$/.test(String(enCola[0] && enCola[0].folio_hoja))], [1, 1, true]);
+    const folio = enCola[0].folio_hoja;
+    eq('es el mismo folio que quedó en la fila de la hoja (y en este teléfono)', (await DB.obtener('proyectos', 'proy-2')).notion_page_id, folio);
+    const r1 = await sombra.bombear();
+    eq('ganar_proyecto recibe ESE folio', [r1.mandadas, llamadas.map(x => [x[0], x[1].p_op.folio_hoja])], [1, [['ganar_proyecto', folio]]]);
+
+    /* El traductor, puro. */
+    const alta = op => Sb.traducir({ id: 'op', tipo: 'crear', almacen: 'proyectos', datos: VENTA(), ts: 1 }, op).llamadas[0].args.p_op;
+    eq('sin folio de la hoja (una respuesta vieja) no manda la llave: la base pone el suyo, como antes', ['folio_hoja' in alta(), 'folio_hoja' in alta({ folio_hoja: '' })], [false, false]);
+    eq('con él, va tal cual (la base valida el formato)', [alta({ folio_hoja: 'V-310' }).folio_hoja, alta({ folio_hoja: ' V-1000 ' }).folio_hoja], ['V-310', 'V-1000']);
+    eq('solo el alta lo lleva: un cambio no', 'folio_hoja' in Sb.traducir({ id: 'o', tipo: 'actualizar', almacen: 'proyectos', campos: ['notas'], datos: VENTA({ notas: 'x' }) }, { folio_hoja: 'V-310' }).llamadas[0].args.p_op, false);
+
+    /* Si choca: se aparta con su motivo y las demás siguen. */
+    llamadas.length = 0;
+    guion = n => n === 'ganar_proyecto'
+      ? { data: { ok: false, codigo: 'DATO_INVALIDO', definitivo: true, causa: 'folio_ocupado', folio_hoja: 'V-310', proyecto_id: 'otro',
+                  mensaje: 'El folio V-310 de la hoja ya es de otro proyecto en la base: la venta no se da de alta con un folio repetido.' } }
+      : { data: { ok: true } };
+    await sombra.encolar({ id: 'op-alta-3', tipo: 'crear', almacen: 'proyectos', registro_id: 'proy-3', datos: VENTA({ id: 'proy-3', folio_global: 'COT-0044@K7QM' }), ts: 6000 },
+      { ok: true, remoto: { id_notion: 'V-310' } });
+    await sombra.encolar({ id: 'op-notas-9', tipo: 'actualizar', almacen: 'proyectos', registro_id: 'proy-9', campos: ['notas'], datos: VENTA({ id: 'proy-9', notas: 'sigue', sellos: { notas: 7 } }), ts: 7 },
+      { ok: true });
+    const r2 = await sombra.bombear();
+    eq('un folio ocupado: la copia se aparta como rechazada y la siguiente sale (no bloquea)', [r2.mandadas, r2.rechazadas, r2.pendientes, llamadas.map(x => x[0])],
+      [1, 1, 0, ['ganar_proyecto', 'proyecto_actualizar']]);
+    const ap = (await sombra.rechazadas())[0];
+    eq('con su motivo, que nombra el folio', [ap.id, ap.codigo, ap.rpc, /V-310/.test(ap.ultimo_error) && /otro proyecto/.test(ap.ultimo_error)], ['op-alta-3', 'DATO_INVALIDO', 'ganar_proyecto', true]);
+    cierto('y queda en el registro', (await sombra.registro(10)).some(x => x.tipo === 'rechazada' && x.op_id === 'op-alta-3' && /V-310/.test(x.mensaje)));
+    eq('el reintento de un alta que la base ya tenía con OTRO V-### se dice en el registro',
+      Sb.leerRespuesta('ganar_proyecto', { data: { ok: true, ya_existia: true, folio_hoja: 'V-007', folio_hoja_pedido: 'V-310' } }),
+      { caso: 'ok', detalle: 'ya_existia como V-007, la hoja dice V-310' });
+  }
 } catch (e) {
   mal++;
   console.log('  FALLA la prueba tronó: ' + (e && e.stack || e));

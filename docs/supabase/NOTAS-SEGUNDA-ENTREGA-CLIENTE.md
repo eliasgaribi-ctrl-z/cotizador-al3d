@@ -4,6 +4,12 @@
 
 Elías no estaba cuando se hizo esto. Cada vez que hubo que escoger, se escogió lo más conservador, y queda escrito abajo («Decisiones») para que lo confirme o lo cambie. Este documento no sustituye a [`ESTADO-SUPABASE.md`](../ESTADO-SUPABASE.md), que no se tocó: cuando Elías revise, ahí se pasan las filas de fase 3 y 4 que esto mueve.
 
+## Lo que decidió Elías (2026-10-16)
+
+- **Decisión 3 (el V-### de una venta nueva): CAMBIADA.** Supabase usa el **mismo** número que la hoja. La sombra manda el V-### que la hoja contestó al aceptar el alta (`remoto.id_notion`, que la cola ya guardaba) y `ganar_proyecto` lo usa (`supabase/migrations/0015_folio_de_la_hoja.sql`): validado (formato del libro, que no lo tenga otro proyecto). Si choca, la base contesta `DATO_INVALIDO` con `causa: folio_ocupado` y la sombra **aparta** la copia como rechazada con ese motivo, sin detener las demás. El contador `V` de la base nunca queda por debajo del folio más alto (un trigger lo sube). El cuadre empareja por V-### y deja el folio de cotización como respaldo para lo dado de alta antes de 0015.
+- **Decisiones 1, 2 y 4 a 11:** Elías no las cambió; siguen como están abajo.
+- **Del lado de Pagos** (ver [`NOTAS-SEGUNDA-ENTREGA-PAGOS.md`](NOTAS-SEGUNDA-ENTREGA-PAGOS.md)): encender Supabase desde Ajustes sigue siendo **solo de Dirección** y las correcciones siguen siendo solo abonos y liquidación. **CONFIRMADO.**
+
 ## En una frase
 
 Hay dos interruptores nuevos por aparato, los dos apagados y solo visibles para Dirección: la **sombra** (cada cambio que la hoja acepta se escribe también en Supabase) y la **lectura en vivo** (el aparato baja de Supabase con Realtime en vez de la hoja). Más un **cuadre** que compara la hoja con la base, a mano o una vez al día, y un flujo de GitHub para el cuadre diario, también apagado.
@@ -35,7 +41,7 @@ Todo está en Ajustes → «Supabase (pruebas)», solo para Dirección, y solo h
 | Cuadre diario fuera de la app | `scripts/cuadre-diario.mjs`, `.github/workflows/cuadre-diario.yml` | Apagado sin la variable `CUADRE_DIARIO=encendido` y sus cuatro secretos |
 | Service worker | `sw.js` | `APP_VERSION` 115 → 116; los cuatro módulos en el conjunto versionado |
 
-**Migración 0015:** **no hizo falta**. La publicación de Realtime ya tiene las 13 tablas (`0010_sync_espejo.sql`, lista cerrada), `ventas_calculadas` ya se lee con RLS (Dirección y Pagos ven filas, Fabricación cero) y todas las funciones que la sombra llama ya existen. No se tocó SQL; 0013 y 0014 siguen libres para el otro equipo.
+**Migración 0015:** **no hizo falta** para esta entrega (la `0015_folio_de_la_hoja.sql` que existe hoy es de la decisión de Elías del 2026-10-16, arriba). La publicación de Realtime ya tiene las 13 tablas (`0010_sync_espejo.sql`, lista cerrada), `ventas_calculadas` ya se lee con RLS (Dirección y Pagos ven filas, Fabricación cero) y todas las funciones que la sombra llama ya existen. No se tocó SQL; 0013 y 0014 siguen libres para el otro equipo.
 
 ## Cómo funciona la sombra
 
@@ -51,7 +57,7 @@ bandeja ──bombear──▶ hoja (Apps Script) ── ¿ok? ──▶ gancho 
 
 | Operación de la bandeja | Función de la base |
 |---|---|
-| `proyectos` / `crear` (nació en el cotizador) | `ganar_proyecto` (`fecha_ganado→fecha_anticipo`, `anti_pactado→venta.anti`, `sub→venta.sub`, `estatus_notion→venta.estatus`, sellos por grupo, `origen` como `entrada`) |
+| `proyectos` / `crear` (nació en el cotizador) | `ganar_proyecto` con el V-### que dio la hoja (`folio_hoja`, 0015) (`fecha_ganado→fecha_anticipo`, `anti_pactado→venta.anti`, `sub→venta.sub`, `estatus_notion→venta.estatus`, sellos por grupo, `origen` como `entrada`) |
 | `proyectos` / `crear` con etapa `cancelado` | `descartar_cotizacion` |
 | `proyectos` / `actualizar`: obra (notas, tel, dirección, ubicación —los cuatro campos juntos—, entrega, plazo, entrecalles, contacto, negocio, tipo, compromiso, fecha) | `proyecto_actualizar` con `op_id` y `sellos` |
 | `proyectos` / `actualizar`: dinero (`anti_pactado`, `sub`, `cuenta`, `estatus_notion`, `pct_comision`, `nombre`) | `corregir_venta` |
@@ -76,7 +82,7 @@ bandeja ──bombear──▶ hoja (Apps Script) ── ¿ok? ──▶ gancho 
 
 - **Qué compara:** las filas de la hoja con folio V-### contra `ventas_calculadas`: número de ventas y la suma de subtotal, neto, anticipo, liquidación, saldo (K), comisiones (R), abonado (S) y comisión restante (T), **en centavos enteros**. Y folio por folio. Un centavo de diferencia no cuadra (es justo R-01, el redondeo de Sheets en los empates).
 - **De dónde sale la hoja:** de la hoja misma (`/jalar` por el puente, en el momento), no del récord local: con la lectura en vivo encendida, el récord local ya viene de la base y compararla contra sí misma no diría nada.
-- **Emparejado:** por V-###; si no, por folio de cotización (ver «Decisiones», punto 3), y eso se reporta como «con otro V-### en la base», no como venta que falta.
+- **Emparejado:** por V-### (desde 0015 la venta nueva lleva el mismo en los dos lados); si no, por folio de cotización, que queda de respaldo para lo que la base numeró antes de 0015, y eso se reporta como «con otro V-### en la base», no como venta que falta. Si el mismo V-### está en los dos lados con **otra** cotización, no se emparejan: son ventas distintas.
 - **El diario:** con la sombra encendida y siendo Dirección, se hace solo la primera vez del día (día de México); si la hoja o la base no contestan, lo vuelve a intentar a la media hora. Se guardan los últimos 60 y Ajustes enseña la **racha** contra la meta de 7 días seguidos.
 - **El diario fuera de la app** (`scripts/cuadre-diario.mjs` + flujo de GitHub): misma cuenta. Apagado hasta que Elías cree la variable `CUADRE_DIARIO=encendido` y cuatro secretos (`PUENTE_URL`, `PUENTE_TOKEN` de un aparato de Dirección, `SUPABASE_URL`, `SUPABASE_SECRETA`). Su bitácora es pública (el repositorio lo es): solo imprime si cuadra y **cuántas** diferencias hay de cada tipo; nunca nombres, folios ni importes. Sale en rojo si no cuadra y GitHub avisa por correo.
 
@@ -84,7 +90,7 @@ bandeja ──bombear──▶ hoja (Apps Script) ── ¿ok? ──▶ gancho 
 
 1. **La sombra copia solo lo que la hoja aceptó**, y después de que lo aceptó. Alternativa descartada: escribir en la base al encolar. Si la base recibiera algo que la hoja rechazó, divergirían por diseño y el cuadre no serviría para nada.
 2. **La lectura en vivo exige la sombra.** Sin ella, las correcciones de este aparato irían solo a la hoja, y cada bajada de la base las regresaría en pantalla.
-3. **El V-### de una venta nueva puede no coincidir.** `ganar_proyecto` toma el folio de su propio contador (Q-07) y la hoja el suyo. No se cambió la función (habría que aceptar el folio de la hoja en la operación: es SQL nuevo y una decisión de la fase 4). El cuadre empareja por folio de cotización y lo cuenta aparte. **Por decidir:** que en sombra la base reciba el V-### de la hoja (respuesta `remoto.id_notion`, que la cola ya guarda).
+3. **[CAMBIADA el 2026-10-16: ahora coincide; ver arriba]** ~~**El V-### de una venta nueva puede no coincidir.**~~ `ganar_proyecto` toma el folio de su propio contador (Q-07) y la hoja el suyo. No se cambió la función (habría que aceptar el folio de la hoja en la operación: es SQL nuevo y una decisión de la fase 4). El cuadre empareja por folio de cotización y lo cuenta aparte. **Por decidir:** que en sombra la base reciba el V-### de la hoja (respuesta `remoto.id_notion`, que la cola ya guarda).
 4. **Las notas de una instalación ya creada no viajan.** La base pide el renglón nuevo (`anexo`, C-4) y la bandeja guarda las notas completas; mandarlas completas las duplicaría en el registro acumulativo. Al crear la cita sí van.
 5. **Una operación vieja sin `campos`** manda solo la obra, con sus sellos (la base decide por sello y no pisa lo más nuevo); ni el dinero ni la etapa, que solo viajan cuando se sabe que fueron lo que cambió (la misma regla que `aNotion`).
 6. **Una venta que la base ya tiene con otro id** (`DUPLICADO` en `ganar_proyecto`) cuenta como «ya estaba»: la trajo la importación. Las operaciones siguientes la encuentran por folio.
@@ -113,9 +119,9 @@ bandeja ──bombear──▶ hoja (Apps Script) ── ¿ok? ──▶ gancho 
 
 | Archivo | Qué cuida | Resultado |
 |---|---|---|
-| `pruebas/supabase-sombra.mjs` | **Apagado no carga ni llama nada nuevo**: un teléfono de Dirección de verdad contra el Apps Script de verdad gana, manda, baja y mueve una venta; toda la red es la URL del puente, no se crea ningún `<script>`, solo se abre la base de siempre; nadie importa los módulos nuevos de forma estática. Encendida no cambia el bombeo (ni si truena). El traductor, las respuestas y la cola | 73 / 73 |
+| `pruebas/supabase-sombra.mjs` | **Apagado no carga ni llama nada nuevo**: un teléfono de Dirección de verdad contra el Apps Script de verdad gana, manda, baja y mueve una venta; toda la red es la URL del puente, no se crea ningún `<script>`, solo se abre la base de siempre; nadie importa los módulos nuevos de forma estática. Encendida no cambia el bombeo (ni si truena). El traductor, las respuestas y la cola | 83 / 83 (incluye el V-### de la hoja: con el Apps Script de verdad, la copia guarda el folio que dio la hoja y `ganar_proyecto` lo recibe; un folio ocupado se aparta sin bloquear) |
 | `pruebas/supabase-vivo.mjs` | La fila de la base = la fila de la hoja; **R1** (Fabricación no pide ni recibe dinero, un área desconocida no lee nada); páginas de 500; el libro por secuencia; Realtime; **la vuelta atrás** contra el Apps Script de verdad | 32 / 32 |
-| `pruebas/supabase-cuadre.mjs` | Cuadra y no cuadra (un centavo), centavos enteros, dónde no cuadra, la racha, el script (apagado, sin datos en la bitácora, sin detalle dentro del repo) y el flujo apagado | 29 / 29 |
+| `pruebas/supabase-cuadre.mjs` | Cuadra y no cuadra (un centavo), centavos enteros, dónde no cuadra, la racha, el script (apagado, sin datos en la bitácora, sin detalle dentro del repo) y el flujo apagado | 33 / 33 (incluye el emparejado por V-### y la cotización de respaldo) |
 | `pruebas/supabase-entrada.mjs` | (ya existía) se ajustó la lista de bases locales | 59 / 59 |
 
 Suites completas, Windows 11, 2026-10-16:
@@ -128,4 +134,4 @@ Suites completas, Windows 11, 2026-10-16:
 - Fase 3, «La plataforma escribe en la base a través de la bandeja»: **hecho, apagado** (sombra por aparato; ver las limitaciones de arriba).
 - Fase 3, «Cuadre diario automático»: **hecho, apagado** (en la app y en GitHub).
 - Fase 4, «La plataforma lee de la base; Realtime sustituye el sondeo de 30 s»: **hecho, apagado, sin probar contra Supabase real**.
-- Pendiente de Elías: encender en `al3d-pruebas` con una cuenta de cada área; decidir el punto 3 (V-### de la hoja en la base) y el 9 (llave secreta en GitHub).
+- Pendiente de Elías: encender en `al3d-pruebas` con una cuenta de cada área; decidir el 9 (llave secreta en GitHub). El punto 3 ya se decidió (arriba).

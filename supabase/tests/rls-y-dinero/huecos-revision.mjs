@@ -3,7 +3,8 @@
 // Cada bloque FALLA sin 0013 y pasa con ella (se comprobó quitando el archivo de supabase/migrations y corriendo esta prueba):
 //   H-1  subida_unica · bitácora: el servidor pone quién, su área y la hora; nadie ocupa el op_id de otro;
 //   H-2  subida_unica · cotizaciones: nada nace «autorizada» sin la fila vigente del servidor con el mismo código;
-//   H-3  sellos (Q-06, DECISIÓN PROVISIONAL): holgura de 60 s para los roles bajos (10 min Dirección) y Dirección gana ante Fabricación o Pagos;
+//   H-3  sellos (Q-06): 0013 puso una decisión provisional (60 s para los roles bajos y Dirección gana ante ellos); Elías la cambió el 2026-10-16 y
+//        0014_sellos_mas_reciente.sql la deshace: gana el más reciente, con 10 min de holgura para todas las áreas. El bloque H-3 prueba ESO;
 //   H-4  almacen_movimientos.ts: no más de un día en el futuro;
 //   H-5  Pagos no crea requerimientos;
 //   H-6  authenticated (y anon) no crean tablas temporales.
@@ -59,58 +60,58 @@ describir('H-2 subida_unica: una cotización no nace autorizada sin sello del se
   }));
 });
 
-describir('H-3 sellos (Q-06, provisional): holgura de 60 s para los roles bajos y Dirección gana ante ellos', () => {
+describir('H-3 sellos (Q-06, decidida por Elías el 2026-10-16; 0014): gana el más reciente, con 10 min de holgura para TODAS las áreas', () => {
   const editar = (db, quien, campos, sellos) => rpc(db, quien, 'proyecto_actualizar', { p_op: { id: 'p1', campos, sellos } });
-  const fila = db => una(db, `select notas, etapa, sellos, sellos_area from public.proyectos where id = 'p1'`);
-  prueba('Fabricación con el reloj una hora adelantado: su sello se guarda a lo más en ahora + 60 s (antes, 10 min)', () => conCopia(plantilla, async db => {
+  const fila = db => una(db, `select notas, tel, dir_texto, etapa, sellos from public.proyectos where id = 'p1'`);
+  prueba('Fabricación, Pagos y Dirección con el reloj una hora adelantado: el sello de los tres se acota a ahora + 10 min (ni 60 s ni distinto por área)', () => conCopia(plantilla, async db => {
     const t = ahora();
     await editar(db, 'fab', { notas: 'del futuro' }, { notas: t + 3_600_000 });
-    const g = Number((await fila(db)).sellos.notas);
-    cierto(g - t <= 90_000 && g - t >= 30_000, 'se guardó ' + (g - t) + ' ms por delante');
+    await editar(db, 'pag', { tel: '33 1111 1111' }, { tel: t + 3_600_000 });
+    await editar(db, 'dir', { dir_texto: 'futuro de Dirección' }, { dir_texto: t + 3_600_000 });
+    const s = (await fila(db)).sellos;
+    for (const g of ['notas', 'tel', 'dir_texto']) cierto(Math.abs(Number(s[g]) - (t + 600_000)) < 30_000, g + ': ' + (Number(s[g]) - t) + ' ms por delante');
   }));
-  prueba('Dirección conserva su holgura de 10 min', () => conCopia(plantilla, async db => {
+  prueba('conflicto: Fabricación escribe con un sello más NUEVO y Dirección, con uno más viejo, PIERDE («viejos»); con uno más nuevo, gana', () => conCopia(plantilla, async db => {
     const t = ahora();
-    await editar(db, 'dir', { notas: 'futuro de Dirección' }, { notas: t + 3_600_000 });
-    cierto(Math.abs(Number((await fila(db)).sellos.notas) - (t + 600_000)) < 30_000);
+    await editar(db, 'fab', { notas: 'de Fabricación' }, { notas: t });
+    const vieja = await editar(db, 'dir', { notas: 'de Dirección, vieja' }, { notas: t - 300_000 });
+    igual([vieja.ok, vieja.escritos, vieja.viejos.map(v => v.nombre)], [true, [], ['notas']]);
+    igual([(await fila(db)).notas, Number((await fila(db)).sellos.notas)], ['de Fabricación', t], 'ni el valor ni el sello cambian');
+    cierto(!('sellos_area' in vieja.remoto), 'el teléfono recibe la fila sin sellos_area (la columna ya no existe)');
+    const nueva = await editar(db, 'dir', { notas: 'de Dirección, nueva' }, { notas: t + 1 });
+    igual([nueva.escritos, (await fila(db)).notas, Number((await fila(db)).sellos.notas)], [['notas'], 'de Dirección, nueva', t + 1]);
   }));
-  prueba('conflicto: Fabricación escribe con un sello del futuro y Dirección, con uno anterior, GANA; el sello sube a guardado + 1 y el autor queda «direccion»', () => conCopia(plantilla, async db => {
+  prueba('al revés, igual: Dirección escribe primero y Fabricación, con un sello más nuevo, gana; el empate escribe', () => conCopia(plantilla, async db => {
     const t = ahora();
-    await editar(db, 'fab', { notas: 'de Fabricación' }, { notas: t + 50_000 });
-    const antes = await fila(db);
-    igual(antes.sellos_area.notas, 'fabricacion');
-    const r = await editar(db, 'dir', { notas: 'de Dirección' }, { notas: t - 300_000 });
-    igual([r.ok, r.escritos, r.viejos], [true, ['notas'], []]);
-    const despues = await fila(db);
-    igual([despues.notas, Number(despues.sellos.notas), despues.sellos_area.notas], ['de Dirección', Number(antes.sellos.notas) + 1, 'direccion']);
-    cierto(!('sellos_area' in r.remoto), 'el teléfono no recibe sellos_area en «remoto»');
-    const otra = await editar(db, 'fab', { notas: 'reintento de Fabricación' }, { notas: Number(antes.sellos.notas) });
-    igual(otra.viejos.map(v => v.nombre), ['notas'], 'el reintento de Fabricación con su mismo sello ya no empata: pierde');
+    await editar(db, 'dir', { notas: 'de Dirección' }, { notas: t });
+    igual((await editar(db, 'fab', { notas: 'de Fabricación' }, { notas: t + 5 })).escritos, ['notas']);
+    igual((await editar(db, 'dir', { notas: 'empate' }, { notas: t + 5 })).escritos, ['notas'], 'el empate escribe (como en el .gs)');
+    igual((await fila(db)).notas, 'empate');
   }));
-  prueba('lo mismo ante Pagos (teléfono), en la etapa (mover_etapa) y en la cita (instalacion_guardar)', () => conCopia(plantilla, async db => {
+  prueba('lo mismo ante Pagos (teléfono), en la etapa (mover_etapa) y en la cita (instalacion_guardar): el más viejo pierde, el más nuevo gana', () => conCopia(plantilla, async db => {
     const t = ahora();
     await editar(db, 'pag', { tel: '33 1111 1111' }, { tel: t });
-    igual((await editar(db, 'dir', { tel: '33 2222 2222' }, { tel: t - 60_000 })).escritos, ['tel']);
+    igual((await editar(db, 'dir', { tel: '33 2222 2222' }, { tel: t - 60_000 })).viejos.map(v => v.nombre), ['tel']);
+    igual((await editar(db, 'dir', { tel: '33 3333 3333' }, { tel: t + 1_000 })).escritos, ['tel']);
     await rpc(db, 'fab', 'mover_etapa', { p_proyecto: 'p1', p_etapa: 'armado', p_sello: t });
     const m = await rpc(db, 'dir', 'mover_etapa', { p_proyecto: 'p1', p_etapa: 'listo', p_sello: t - 60_000 });
-    igual([m.ok, m.etapa], [true, 'listo']);
+    igual([m.ok, m.viejos.map(v => v.nombre), m.remoto.etapa], [true, ['etapa'], 'armado']);
+    igual((await rpc(db, 'dir', 'mover_etapa', { p_proyecto: 'p1', p_etapa: 'listo', p_sello: t + 1_000 })).etapa, 'listo');
     await rpc(db, 'fab', 'instalacion_guardar', { p_op: { id: 'i1', proyecto_id: 'p1', fecha: '2026-12-01', sello: t } });
     const i = await rpc(db, 'dir', 'instalacion_guardar', { p_op: { id: 'i1', proyecto_id: 'p1', fecha: '2026-12-02', sello: t - 60_000 } });
-    igual([i.ok, i.instalacion.fecha, i.viejos], [true, '2026-12-02', []]);
-    const f = await una(db, `select tel, etapa, sellos_area from public.proyectos where id = 'p1'`);
-    igual([f.tel, f.etapa, f.sellos_area.tel, f.sellos_area.etapa, f.sellos_area.instalacion], ['33 2222 2222', 'listo', 'direccion', 'direccion', 'direccion']);
+    igual([i.ok, i.viejos.map(v => v.nombre), i.instalacion.fecha], [true, ['instalacion'], '2026-12-01']);
+    igual((await rpc(db, 'dir', 'instalacion_guardar', { p_op: { id: 'i1', proyecto_id: 'p1', fecha: '2026-12-02', sello: t + 1_000 } })).instalacion.fecha, '2026-12-02');
+    const f = await fila(db);
+    igual([f.tel, f.etapa], ['33 3333 3333', 'listo']);
   }));
-  prueba('NO cambia: contra otro teléfono de Dirección, o contra un sello de origen desconocido (la importación), gana el más reciente', () => conCopia(plantilla, async db => {
-    const t = ahora();
-    await editar(db, 'dir2', { notas: 'de dir2' }, { notas: t });
-    igual((await editar(db, 'dir', { notas: 'de dir, vieja' }, { notas: t - 60_000 })).viejos.map(v => v.nombre), ['notas']);
-    igual((await fila(db)).notas, 'de dir2');
-    // el sello de etapa de la semilla (100) lo puso el «importador»: sin autor
-    igual((await fila(db)).sellos_area.etapa, undefined);
-    const m = await rpc(db, 'dir', 'mover_etapa', { p_proyecto: 'p1', p_etapa: 'armado', p_sello: 50 });
-    igual(m.viejos.map(v => v.nombre), ['etapa']);
-    const vacia = await editar(db, 'dir', { notas: '' }, { notas: 0 });
-    igual(vacia.escritos, [], 'un cambio SIN sello de Dirección no gana nada');
-  }));
+  prueba('lo de la decisión provisional ya no existe: ni la columna sellos_area, ni su trigger, ni compuerta_con_autor, holgura_sello_ms o area_actual', async () => {
+    const db = await plantilla();
+    igual((await una(db, `select count(*)::int as n from information_schema.columns where table_schema = 'public' and table_name = 'proyectos' and column_name = 'sellos_area'`)).n, 0);
+    igual((await una(db, `select count(*)::int as n from pg_trigger where tgname = 'proyectos_sellos_autor'`)).n, 0);
+    igual((await sql(db, `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                           where n.nspname = 'interno' and p.proname in ('compuerta_con_autor', 'holgura_sello_ms', 'area_actual', 'proyectos_sellos_autor')`)).map(x => x.proname), []);
+    igual((await una(db, `select provolatile as v from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'interno' and p.proname = 'sello_valido'`)).v, 'i', 'sello_valido vuelve a ser immutable');
+  });
 });
 
 describir('H-4 almacen_movimientos.ts con tope', () => {
@@ -161,7 +162,7 @@ describir('H-6 tablas temporales', () => {
 });
 
 describir('la auditoría de 0011 sigue limpia', () => {
-  prueba('interno.auditoria() = {} con todo lo de 0013 aplicado', async () => {
+  prueba('interno.auditoria() = {} con todo lo de 0013 y 0014 aplicado', async () => {
     igual((await una(await plantilla(), `select interno.auditoria() as p`)).p, []);
   });
 });

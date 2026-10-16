@@ -35,8 +35,14 @@
      · «Registrar venta» del cotizador va directo a la hoja, fuera de la bandeja: no pasa por aquí.
      · Las notas de una instalación ya creada no viajan (la base pide el renglón nuevo, `anexo`, y
        la bandeja guarda las notas completas).
-     · El V-### que la base le da a una venta nueva lo saca de su propio contador y puede no ser el
-       de la hoja: el cuadre empareja por folio de cotización y lo reporta aparte.
+
+   El V-### de una venta nueva (Q-07, decidida por Elías el 2026-10-16): es el MISMO que le dio la
+   hoja. La hoja contesta el alta con su folio (`remoto.id_notion`), la cola lo guarda con la copia
+   (`folio_hoja`) y `ganar_proyecto` lo recibe (0015_folio_de_la_hoja.sql): la base lo valida (formato
+   del libro, que nadie más lo tenga) y lo usa en vez de sacar uno de su contador. Si choca, la base
+   contesta DATO_INVALIDO con `causa: 'folio_ocupado'` y la copia se APARTA como rechazada con ese
+   motivo, sin detener las demás. Sin folio de la hoja (una respuesta vieja) se manda como antes y la
+   base pone el suyo; el cuadre empareja esas por folio de cotización.
    ============================================================================ */
 
 /* ----- Los interruptores (fuera de Prefs.CLAVES: no viajan en los respaldos) ----- */
@@ -94,11 +100,13 @@ export function selloDeCita(i) {
 /**
  * Qué llamar en la base por una operación de la bandeja.
  * @param {Object} op la operación tal como estaba en la bandeja
+ * @param {{folio_hoja?:string}} [extra] lo que la hoja contestó al aceptarla: `folio_hoja` es el
+ *   V-### que la hoja le dio a una venta nueva, y viaja a `ganar_proyecto` para que la base use ese.
  * @returns {{llamadas:Array<{rpc:string, args:Object, proyecto?:string}>}|{omitir:string}}
  *   `proyecto` marca la llamada cuyo id de proyecto se puede resolver por folio si la base no lo
  *   conoce con el id de este teléfono.
  */
-export function traducir(op) {
+export function traducir(op, extra = {}) {
   if (!op || typeof op !== 'object') return { omitir: 'La operación está vacía.' };
   const d = op.datos && typeof op.datos === 'object' ? op.datos : {};
   const sellos = d.sellos && typeof d.sellos === 'object' ? d.sellos : {};
@@ -142,6 +150,10 @@ export function traducir(op) {
     if (n(d.lat) !== null && n(d.lng) !== null) { p.lat = n(d.lat); p.lng = n(d.lng); }
     if (ISO.test(t(d.fecha_ganado))) p.fecha_anticipo = d.fecha_ganado;
     if (d.origen && typeof d.origen === 'object') p.entrada = d.origen;
+    /* El V-### que ya le dio la hoja (Q-07): la base usa ESE. Va tal cual lo escribió la hoja; si
+       no tiene el formato del libro o ya es de otro proyecto, la base lo rechaza con su motivo. */
+    const folioHoja = t(extra && extra.folio_hoja).trim();
+    if (folioHoja) p.folio_hoja = folioHoja;
     return { llamadas: [{ rpc: 'ganar_proyecto', args: { p_op: p } }] };
   }
 
@@ -211,6 +223,11 @@ export function leerRespuesta(rpc, r) {
     data.ok = false; data.codigo = x.codigo; data.mensaje = x.mensaje;
   }
   if (data.ok === true) {
+    /* `folio_hoja_pedido`: la base ya tenía esa venta con OTRO V-### (la dio de alta antes de 0015);
+       no se cambia nada, pero queda en el registro. */
+    if (data.ya_existia && data.folio_hoja_pedido) {
+      return { caso: 'ok', detalle: 'ya_existia como ' + String(data.folio_hoja || '') + ', la hoja dice ' + String(data.folio_hoja_pedido) };
+    }
     return { caso: 'ok', detalle: data.ya_existia ? 'ya_existia' : data.sin_cambio ? 'sin_cambio'
       : (Array.isArray(data.viejos) && data.viejos.length) ? 'gana_otro' : 'ok' };
   }
@@ -345,7 +362,7 @@ export function crearSombra(deps) {
 
   /** Una operación de la cola contra la base. */
   async function mandarUna(c, item) {
-    const tr = traducir(item.op);
+    const tr = traducir(item.op, { folio_hoja: item.folio_hoja });
     if (tr.omitir) return { caso: 'omitida', mensaje: tr.omitir };
     const detalles = [];
     for (const ll of tr.llamadas) {

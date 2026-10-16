@@ -19,7 +19,9 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0010_sync_espejo.sql` | vistas del espejo a la hoja, `cuadre_hoja` (solo `service_role`) y el cierre de la publicación `supabase_realtime` (lista cerrada de 13 tablas) |
 | `0011_auditoria.sql` | **la aduana**: comprueba los privilegios REALES y **aborta el despliegue** si algo quedó abierto (ver abajo) |
 | `0012_endurecimiento.sql` | lo que encontró la revisión adversarial: importes finitos y acotados (`NaN`/`Infinity` ya no entran), `p_hoy` acotado, topes de texto, estadísticas apagadas en las tablas de dinero y correo verificado solo con proveedor Google. Idempotente; conviene volver a correr `0011` después |
-| `0013_huecos_revision.sql` | lo que la revisión adversarial dejó «abierto, a propósito»: `subida_unica` ya no acepta quién, rol ni hora del cliente en la bitácora y no deja nacer cotizaciones autorizadas sin sello del servidor; holgura de sellos de 60 s para los roles bajos y Dirección gana ante ellos (decisión **provisional**, Q-06, con `proyectos.sellos_area`); tope de `almacen_movimientos.ts`; Pagos no crea requerimientos; sin tablas temporales para `authenticated`. Idempotente; termina corriendo la auditoría |
+| `0013_huecos_revision.sql` | lo que la revisión adversarial dejó «abierto, a propósito»: `subida_unica` ya no acepta quién, rol ni hora del cliente en la bitácora y no deja nacer cotizaciones autorizadas sin sello del servidor; holgura de sellos de 60 s para los roles bajos y Dirección gana ante ellos (decisión **provisional**, Q-06, con `proyectos.sellos_area`: **la deshace `0014`**); tope de `almacen_movimientos.ts`; Pagos no crea requerimientos; sin tablas temporales para `authenticated`. Idempotente; termina corriendo la auditoría |
+| `0014_sellos_mas_reciente.sql` | Q-06 decidida por Elías (2026-10-16): **gana el cambio más reciente, con 10 min de holgura para todas las áreas**, como el `.gs`. Regresa `sello_valido`, `compuerta`, `preambulo` y las tres RPC de obra a la regla de siempre y **borra** `proyectos.sellos_area` con su trigger y sus funciones (ya nada los usa). Lo demás de `0013` no cambia. Idempotente; termina corriendo la auditoría |
+| `0015_folio_de_la_hoja.sql` | Q-07 decidida por Elías (2026-10-16): `ganar_proyecto` acepta el V-### que ya le dio la hoja (`p_op.folio_hoja`, validado; si está ocupado, `DATO_INVALIDO` con `causa: folio_ocupado`), y un trigger mantiene el contador `V` a la altura del folio más alto. Idempotente; termina corriendo la auditoría |
 
 ## Antes de aplicar: la configuración del proyecto
 
@@ -33,7 +35,7 @@ probó simulando esos privilegios por defecto). Nada aquí depende de extensione
 
 ## Cómo aplicar
 
-- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0013`, en ese orden. Un archivo es una sola consulta de varias
+- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0015`, en ese orden. Un archivo es una sola consulta de varias
   sentencias, que Postgres ejecuta como una transacción implícita (en PGlite un error deshace todo el archivo; en el panel no lo verifiqué). Como son idempotentes,
   después de un fallo basta arreglar la causa y volver a ejecutar el mismo archivo.
 - **CLI:** con el proyecto enlazado (`supabase link`), `supabase db push` aplica en orden los que falten.

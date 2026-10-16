@@ -5,6 +5,12 @@ conservadora que encontré y es reversible. Están numeradas para que se puedan 
 Este documento no reemplaza a [`ESTADO-SUPABASE.md`](../ESTADO-SUPABASE.md) (que no se tocó en esta rama): cuando
 se fusione, ahí hay que pasar el renglón «Pantallas de Pagos» de *pendiente* a *hecho, apagado*.
 
+## Lo que decidió Elías (2026-10-16)
+
+- **D-2 (Pagos no enciende Supabase desde Ajustes; solo Dirección): CONFIRMADO.** No se cambia nada: en un teléfono de Pagos el interruptor se sigue encendiendo a mano.
+- **D-5 (las correcciones son solo abonos de comisión y liquidación): CONFIRMADO.** No se cambia nada.
+- D-1, D-3, D-4 y D-6 a D-12: Elías no las cambió; siguen como están.
+
 ## Qué hay
 
 | Pieza | Archivo | Qué hace |
@@ -102,6 +108,6 @@ se fusione, ahí hay que pasar el renglón «Pantallas de Pagos» de *pendiente*
 
 ## Pendiente para encender esto de verdad
 
-1. Elías confirma D-1 a D-12 (sobre todo D-2, D-3 y D-5).
+1. Elías confirma D-1 a D-12 (D-2 y D-5 ya **confirmadas** el 2026-10-16; falta sobre todo D-3).
 2. Prueba contra `al3d-pruebas` con las tres áreas.
 3. Fase 3: doble escritura (la hoja sigue mandando) y siete días de cuadre antes de pasar la hoja a solo lectura.
