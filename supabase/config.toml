@@ -57,6 +57,10 @@ verify_jwt = false
 [functions.autorizar]
 verify_jwt = false
 
+# `respaldo`: la dispara el flujo semanal de GitHub con un secreto compartido (cabecera x-respaldo-secreto), como espejo.
+[functions.respaldo]
+verify_jwt = false
+
 # Autenticación: SOLO Google. La revisión adversarial (2026-10-10) mostró que `correo_verificado()` confiaba en `email_confirmed_at` y que, con las
 # confirmaciones por correo apagadas (el valor por omisión de la CLI), alguien con correo y contraseña reclamaba una invitación. La migración 0012 ya exige
 # además el proveedor Google; esto cierra el otro lado: no se pueden crear cuentas con correo ni sesiones anónimas. Se aplica al proyecto con `supabase config push`
