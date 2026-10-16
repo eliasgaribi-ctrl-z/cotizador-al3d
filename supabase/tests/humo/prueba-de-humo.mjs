@@ -17,8 +17,9 @@ import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, 
 import { SUSTITUTO_STORAGE, TEXTO_STORAGE } from '../comun/storage.js';
 
 const HUMO = readFileSync(fileURLToPath(new URL('../../opcional/prueba-de-humo.sql', import.meta.url)), 'utf8');
-/** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C69). Los documentos dicen estas cifras. */
-const SIN_STORAGE = 58, CON_STORAGE = 69;
+/** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C69), más los cinco de cuadre_diario (D01…D05, 0018).
+ *  Los documentos dicen estas cifras. */
+const SIN_STORAGE = 63, CON_STORAGE = 74;
 
 /** Corre la prueba de humo y devuelve su informe (el JSON del error «HUMO_RESULTADO …»). */
 async function humo(db) {
@@ -116,6 +117,23 @@ describir('la prueba de humo pasa igual en una base vacía que en una con datos,
       await sql(db, `create policy todos_leen on storage.objects for select to authenticated using (bucket_id = 'cotizacion-imagenes')`);
       const inf = await humo(db);
       igual(rojos(inf).map(r => r.slice(0, 3)).sort(), ['C60', 'C64', 'C66', 'C69']);
+    } finally { await db.close(); }
+  });
+});
+
+describir('el bloque 12 (cuadre_diario, 0018): cuenta solo su renglón y no deja nada', () => {
+  prueba('con renglones de verdad de la copia diaria en la base: D01 ve 1 (el de la prueba), D03 cero para los demás, y la base queda igual', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      await sql(db, `insert into public.cuadre_diario (empresa_id, aplicado, cuadra, diferencias, conflictos, rechazos, resumen, duracion_ms) values
+                       ('al3d', true, true, 0, 0, 0, '{"v":1}', 900), ('al3d', false, false, 3, 1, 0, '{"v":1}', 950)`);
+      const antes = await foto(db);
+      const inf = await humo(db);
+      igual(rojos(inf), []);
+      igual(inf.casos.filter(c => /^D0[1-5] /.test(c.caso)).map(c => c.caso.slice(0, 3) + ':' + c.det),
+        ['D01:1', 'D02:42501', 'D03:0 / 0 / 0', 'D04:42501', 'D05:P0001 / P0001']);
+      igual(await foto(db), antes, 'los dos renglones de verdad siguen y el de la prueba no quedó');
     } finally { await db.close(); }
   });
 });

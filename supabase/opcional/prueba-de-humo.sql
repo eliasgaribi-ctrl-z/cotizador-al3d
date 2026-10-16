@@ -20,6 +20,7 @@
 -- (supabase/tests/humo/prueba-de-humo.mjs la corre en PGlite vacía, con datos, y con Storage.)
 --
 -- Uso: pegar TODO este archivo en el Editor SQL (no por partes) y ejecutar.
+-- El bloque 12 (casos D01–D05) es de la 0018 (la copia diaria y su bitácora cuadre_diario): sin ella, D01 sale en rojo y dice que falta.
 
 create function pg_temp.como(p_rol text, p_uid uuid, p_correo text) returns void language plpgsql as $f$
 begin
@@ -537,6 +538,60 @@ begin
        and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') like '%cotizacion-imagenes%'
             or (coalesce(pg_get_expr(p.polqual, p.polrelid), '') not like '%bucket_id%' and coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') not like '%bucket_id%'));
     inf := inf || jsonb_build_object('caso', 'C69 ninguna otra política de storage.objects abre el bucket (ni una que no mire bucket_id)', 'ok', t is null, 'det', coalesce(t, 'ninguna'));
+  end if;
+
+  -- 12) La copia diaria hoja → nube (0018, decidida por Elías el 2026-10-16): su bitácora `cuadre_diario`. Solo Dirección la lee,
+  --     nadie la escribe desde la app (la escribe la función importar-diario) y nadie la cambia ni la borra. Se siembra UN renglón de
+  --     la prueba (resumen {"humo": true}) como dueño; lo que Dirección ve se cuenta solo de ese renglón; lo que debe ser cero, de todo.
+  if to_regclass('public.cuadre_diario') is null then
+    inf := inf || jsonb_build_object('caso', 'D01 cuadre_diario no existe: falta aplicar supabase/migrations/0018_cuadre_diario.sql', 'ok', false, 'det', 'falta 0018');
+  else
+    insert into public.cuadre_diario (empresa_id, aplicado, cuadra, diferencias, conflictos, rechazos, resumen, duracion_ms)
+      values ('al3d', true, true, 0, 0, 0, '{"humo": true}', 1);
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      select count(*) into n from public.cuadre_diario where resumen @> '{"humo": true}';
+      inf := inf || jsonb_build_object('caso', 'D01 Dirección lee la copia diaria (el renglón de la prueba)', 'ok', n = 1, 'det', n::text);
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'D01 Dirección lee la copia diaria', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    begin
+      insert into public.cuadre_diario (empresa_id, aplicado, cuadra, diferencias, conflictos, duracion_ms) values ('al3d', true, true, 0, 0, 1);
+      t := 'pudo';
+    exception when others then t := sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'D02 Dirección NO escribe en cuadre_diario (42501: la escribe solo la función)', 'ok', t = '42501', 'det', t);
+    execute 'reset role';
+    t := '';
+    perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+    begin select count(*) into n from public.cuadre_diario; t := n::text;                 -- TODAS: cero haya lo que haya
+    exception when others then t := sqlstate; end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin select count(*) into n from public.cuadre_diario; t := t || ' / ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate; end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_ext, 'ext@humo.test');
+    begin select count(*) into n from public.cuadre_diario; t := t || ' / ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate; end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'D03 Fabricación, Pagos y la persona ajena NO ven ningún renglón de cuadre_diario (0 / 0 / 0)', 'ok', t = '0 / 0 / 0', 'det', t);
+    perform pg_temp.como('anon', null, null);
+    begin select count(*) into n from public.cuadre_diario; t := n::text;
+    exception when others then t := sqlstate; end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'D04 anon NO lee cuadre_diario (permission denied)', 'ok', t = '42501', 'det', t);
+    begin
+      update public.cuadre_diario set cuadra = cuadra where resumen @> '{"humo": true}';
+      t := 'pudo';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      delete from public.cuadre_diario where resumen @> '{"humo": true}';
+      t := t || ' / pudo';
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'D05 ni el dueño cambia ni borra cuadre_diario (solo_agregar y sin_borrar: P0001 / P0001)', 'ok', t = 'P0001 / P0001', 'det', t);
   end if;
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).
