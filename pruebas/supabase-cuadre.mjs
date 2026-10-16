@@ -5,7 +5,8 @@
  *     (es lo que tiene que encontrar: el redondeo de Sheets en los empates, R-01);
  *   · que suma en centavos enteros, sin el error de la coma flotante (0.1 + 0.2);
  *   · que dice dónde: solo en la hoja, solo en la base, columna por folio, y el V-### distinto que la
- *     sombra pudo recibir de la base (emparejado por folio de cotización, no contado como faltante);
+ *     sombra pudo recibir de la base ANTES de 0015 (emparejado por folio de cotización, no contado como
+ *     faltante); desde 0015 la venta nueva lleva el mismo V-### y se empareja por él (Q-07);
  *   · la racha de días seguidos (la meta de la fase 3 es 7), con días de México;
  *   · el script del cuadre diario: apagado sin sus variables, sale con 1 si no cuadra, NO imprime
  *     nombres, folios ni importes (su bitácora es pública), y no escribe el detalle dentro del repo;
@@ -51,6 +52,19 @@ console.log('\nCUADRA Y NO CUADRA');
   const r5 = C.cuadrar([HOJA('V-310', { folio_cotizacion: 'COT-0042@K7QM' })], [BASE('V-311', { folio_global: 'COT-0042@K7QM' })]);
   eq('la venta que la base numeró distinto se empareja por su cotización y se reporta aparte (no falta)',
     [r5.cuadra, r5.solo_hoja.n, r5.solo_base.n, r5.folio_distinto.lista], [true, 0, 0, [{ hoja: 'V-310', base: 'V-311' }]]);
+  /* Q-07 (decidida por Elías el 2026-10-16; 0015): lo nuevo lleva el MISMO V-### en los dos lados y se empareja por él; la cotización
+     queda de respaldo para lo viejo. */
+  const r7 = C.cuadrar([HOJA('V-310', { folio_cotizacion: 'COT-0042@K7QM' }), HOJA('V-311', { folio_cotizacion: 'COT-0043@K7QM' })],
+                       [BASE('V-311', { folio_global: 'COT-0043@K7QM' }), BASE('V-310', { folio_global: 'COT-0042@K7QM' })]);
+  eq('una venta con el mismo V-### en la hoja y en la base (0015) se empareja por el V-###, sin «folio distinto»', [r7.cuadra, r7.folio_distinto.n], [true, 0]);
+  const r8 = C.cuadrar([HOJA('V-310', { folio_cotizacion: 'COT-0042@K7QM' })], [BASE('V-310', { folio_global: 'COT-0099@K7QM' }), BASE('V-400', { folio_global: 'COT-0042@K7QM' })]);
+  eq('el mismo V-### con OTRA cotización no es la misma venta: se empareja por cotización y la otra queda «solo en la base»',
+    [r8.cuadra, r8.folio_distinto.lista, r8.solo_base.lista, r8.solo_hoja.n], [false, [{ hoja: 'V-310', base: 'V-400' }], [{ folio: 'V-310' }], 0]);
+  const r9 = C.cuadrar([HOJA('V-310', { folio_cotizacion: 'COT-0042' })], [BASE('V-310', { folio_global: 'COT-0042@K7QM' })]);
+  eq('la cotización sin el aparato (o en minúsculas) no impide emparejar por V-###', [r9.cuadra, r9.folio_distinto.n], [true, 0]);
+  const r10 = C.cuadrar([HOJA('V-310')], [BASE('V-310', { folio_global: 'COT-0042@K7QM' })]);
+  eq('si un lado no trae cotización (la venta capturada en la hoja), manda el V-###', [r10.cuadra, r10.solo_hoja.n], [true, 0]);
+
   const r6 = C.cuadrar([HOJA(''), HOJA('V-001')], [BASE('V-001')]);
   eq('un renglón de la hoja sin folio no entra a la cuenta, pero se cuenta aparte', [r6.cuadra, r6.sin_folio_hoja], [true, 1]);
   const muchas = Array.from({ length: 50 }, (_, i) => HOJA('V-' + String(100 + i)));

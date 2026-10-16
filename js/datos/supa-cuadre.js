@@ -15,9 +15,13 @@
    justo lo que el cuadre tiene que encontrar (el redondeo de Sheets en los empates, R-01 de
    supabase/DISENO.md).
 
-   Cómo se emparejan las filas. Por el folio de la hoja; si no, por el folio de cotización (la
-   sombra le pide a la base su propio V-### al dar de alta una venta, y puede no ser el mismo que
-   puso la hoja: eso se reporta como «folio distinto», no como venta que falta).
+   Cómo se emparejan las filas. Por el folio de la hoja (V-###): desde 0015 (Q-07, decidida por
+   Elías el 2026-10-16) la sombra le manda a la base el V-### que ya le dio la hoja y la base usa ESE,
+   así que en lo nuevo el folio es el mismo de los dos lados. El folio de cotización queda de
+   RESPALDO para lo viejo: las ventas que la sombra dio de alta antes de 0015 recibieron de la base su
+   propio número; esas se emparejan por cotización y se reportan como «folio distinto», no como venta
+   que falta. Si el mismo V-### está en los dos lados pero cada uno con OTRA cotización, no son la
+   misma venta: no se emparejan por folio (se intenta por cotización y, si no, cuentan como faltantes).
 
    Lo que NO hace: no decide nada ni corrige nada. Dice si cuadra y dónde no.
    ============================================================================ */
@@ -44,6 +48,16 @@ export function centavos(v) {
 }
 
 const folioValido = f => /^V-\d{3,7}$/.test(String(f || '').trim());
+
+/* ¿Dos folios de cotización son la misma? Sin distinguir mayúsculas, y si a uno le falta el aparato
+   («@K7QM») se compara sin él. Si falta alguno de los dos, no se puede saber: cuenta como la misma.
+   Solo sirve para NO emparejar por V-### dos ventas que claramente son distintas. */
+function mismaCotizacion(a, b) {
+  const x = String(a || '').trim().toUpperCase(), y = String(b || '').trim().toUpperCase();
+  if (!x || !y || x === y) return true;
+  if (x.includes('@') && y.includes('@')) return false;
+  return x.split('@')[0] === y.split('@')[0];
+}
 
 /** Una fila de la hoja (de `ventaDeHoja`) en la forma común del cuadre, o null. */
 export function deLaHoja(v) {
@@ -106,7 +120,7 @@ export function cuadrar(ventasHoja, filasBase) {
   const usados = new Set();
   for (const h of hoja) {
     let b = porFolio.get(h.folio);
-    if (b && usados.has(b)) b = null;
+    if (b && (usados.has(b) || !mismaCotizacion(h.cotizacion, b.cotizacion))) b = null;
     if (!b && h.cotizacion) {
       const c = porCot.get(h.cotizacion);
       if (c && !usados.has(c)) { b = c; anotar(folioDistinto, { hoja: h.folio, base: c.folio }); }
