@@ -26,7 +26,7 @@ marcado «(hallazgo)».
    `ENABLE ROW LEVEL SECURITY`. Ninguna función queda ejecutable por `anon`/`PUBLIC` salvo las públicas a
    propósito.
 5. **Vistas con `security_invoker = true`** (o no se exponen). Una vista normal se salta RLS.
-6. **Sin borrados duros** en tablas de negocio: `deleted_at` (lápida). Realtime no aplica RLS a DELETE.
+6. **Sin borrados duros** en tablas de negocio: `deleted_at` (lápida). Realtime no aplica RLS a DELETE. La **única** excepción son las purgas de los plazos de conservación (decididos por Elías el 2026-10-16, abajo; `0016_plazos.sql`): las corre el dueño de la base, no la app.
 7. **Dinero siempre `numeric`** sin escala forzada en G/I/J (la hoja no redondea al guardar) y
    `round(numeric, 2)` (mitad lejos de cero, igual que Sheets) en neto, saldo, comisión y restante.
 8. **Ids de texto.** Los ids del cliente (`proy-…`, `proy-hoja-V-NNN`, `mov-salida:…`, `inst-…`) se
@@ -72,6 +72,35 @@ marcado «(hallazgo)».
 - **Encender Supabase desde Ajustes: solo Dirección.** Pagos **no** lo enciende desde Ajustes (la tarjeta de Supabase sigue siendo solo de Dirección); en un teléfono de Pagos se enciende a mano, como dice `supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md` (D-2). **CONFIRMADO, sin cambios.**
 - **Correcciones desde la pantalla de Pagos: solo abonos de comisión y liquidación** (D-5 de las notas de Pagos). Subtotal, nombre, cuenta, estatus, porcentaje e IVA siguen fuera. **CONFIRMADO, sin cambios.**
 - **Q-06** y **Q-07**: arriba, en la tabla.
+
+### Plazos de conservación (decidido por Elías el 2026-10-16)
+
+Hasta aquí nada se borraba nunca (A.6). Elías fijó cuánto se guarda cada cosa en la nube; lo implementan
+`supabase/migrations/0016_plazos.sql` (purgas en el esquema `interno` y su programación diaria con pg_cron, 03:15 de México) y la
+función `respaldo` (la rotación en Drive).
+
+| Qué | Plazo | Cómo |
+|---|---|---|
+| Cotizaciones **no ganadas** | se borran a los **8 meses** de su última actividad | `interno.purgar_cotizaciones_no_ganadas`. Se van con sus solicitudes y su lápida «No se dio». «Última actividad» = lo más reciente entre su `updated_at`, su `created_at`, sus solicitudes y su lápida |
+| Bitácora | se conserva **1 año** (por la hora del hecho, `ts`) | `interno.purgar_bitacora`. Sigue sin poder editarse |
+| Lo borrado en la app (`deleted_at`) | se purga a los **30 días** de marcado | `interno.purgar_borrados`: cotizaciones (si no están protegidas), notas de cuaderno y citas |
+| Respaldos semanales en Drive | se quedan los **8 más recientes** | La función `respaldo`, solo después de una subida buena y solo sobre lo que ella creó (nombre `al3d-respaldo-…Z.json` **y** su marca `appProperties.al3d = respaldo`); lo que sobra va a la papelera de Drive. `RESPALDO_CONSERVAR` lo cambia (8 por omisión) |
+| Libros de dinero (ventas, abonos, comisiones) y autorizaciones | **no se purgan nunca** (contabilidad) | Ninguna purga los toca y `sin_borrar` los rechaza aun dentro de una purga. Tampoco `proyectos`/`ventas_dinero` con `deleted_at`: son el libro de ventas |
+
+**Qué cuenta como «no ganada» (criterio conservador: ante la duda, se queda).** Una cotización está **protegida** —no se borra ni
+a los 8 meses ni borrada en la app— si: está `autorizada`, tiene `autorizacion_id` o `revocada_en`; existe **cualquier** sello con su
+folio en `autorizaciones` (vigente, superada o revocada: es evidencia de un PDF impreso); alguna de sus solicitudes quedó autorizada;
+existe un proyecto con su folio que no es una lápida pura (una venta con V-###, una fila de la hoja o manual, cualquier etapa que no
+sea `cancelado`, o una lápida con citas, requerimientos o dinero colgando); o sus `hitos` dicen `venta`. Lo demás —`pendiente` sin
+resolver, `rechazada`, `retirada`— es «no ganada».
+
+**El camino para borrar.** `sin_borrar` sigue en todas las tablas (la auditoría de `0011` lo exige) y `service_role` sigue sin
+`DELETE`. La purga corre como el dueño (`postgres`, que es como corre pg_cron), marca la tabla en una variable de transacción y el
+trigger deja pasar **solo** la fila que cumple la regla de su tabla, revisada otra vez fila por fila. Las purgas no las ejecuta
+`service_role`, `authenticated` ni `anon`. Cada corrida que borra algo deja una línea en la bitácora de su empresa (nivel
+`direccion`). El aviso de Realtime de cada borrado lleva solo la llave primaria (identidad de réplica DEFAULT), nunca la fila: se
+acepta. Una cotización purgada puede volver si un teléfono que todavía la tiene la sube otra vez (la purga es de la nube, no de los
+teléfonos).
 
 ---
 

@@ -41,7 +41,7 @@ supabase/tests/
   acceso/ rls-y-dinero/ formulas/   las pruebas de las migraciones (supabase/migrations), una carpeta por
   obra-y-etapas/ pagos/ almacen/    área; cada caso lleva el id de supabase/DISENO.md §10 (AC-, SE-, ET-, PG-,
   notario/ cupos/                   FM-, CU-, GR-, R1-, …), permitido Y denegado por rol
-  sync-e-importacion/ auditoria/
+  sync-e-importacion/ auditoria/ plazos/
   comun/                            ayudantes compartidos (semilla de personas y empresas, notario, oráculo)
   node_modules/                     (ignorado por git)
 ```
