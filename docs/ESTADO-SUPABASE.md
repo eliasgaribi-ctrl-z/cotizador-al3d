@@ -208,17 +208,19 @@ Un revisor que **no escribió** las migraciones intentó romperlas en el arnés:
 | Configuración | Con «Confirm email» apagado, una cuenta de correo y contraseña reclamaba la invitación de Dirección | `correo_verificado()` exige proveedor Google; `config.toml` sin registros por correo ni anónimos; **proveedor de correo apagado en `al3d-pruebas`** (verificado: solo `google` activo) |
 | Mutantes M52, M53, M54 | Ninguna prueba llamaba una función con el id de un proyecto de **otra empresa**: quitar el filtro por empresa habría dejado a una Dirección ajena cobrar o editar | Prueba de cruce entre empresas por función |
 
+**Corregido en `0013_folios_del_dueno.sql`** (revisión de seguridad del 2026-10-16, pruebas `supabase/tests/notario/folios-del-dueno.mjs`, que fallan sin ella): un miembro podía apartar con `solicitar` o `subida_unica` el folio que otro teléfono iba a emitir (el dueño veía «Ese folio es de otra persona»), subir el contador de folios de un teléfono ajeno y ocupar los `op_id` de su bitácora, y la subida dejaba cotizaciones `autorizada` sin sello. Ahora cada aparato tiene dueño por empresa (`contadores('aparato:<disp>')`, lo registra quien lo usa primero; al aplicar, los aparatos con cotizaciones de una sola persona quedan a su nombre) y una entrada nace `autorizada` solo con un sello `vigente`. Si un teléfono cambia de manos, el dueño se corrige a mano en ese renglón.
+
 **Abierto, a propósito** (no bloquea porque todo está apagado, **bloquea encender** lo que se indica):
 
 | Hallazgo | Riesgo | Antes de encender |
 |---|---|---|
-| `subida_unica` acepta `usuario`, `rol`, `ts` y `id` del cliente en la bitácora: Fabricación puede forjar un «Cobro de $999,999» atribuido a Pagos y ocupar el `op_id` de un evento real | media | La subida única del historial (fase 2) |
+| `subida_unica` acepta `usuario`, `rol`, `ts` y `id` del cliente en la bitácora: Fabricación puede forjar un «Cobro de $999,999» atribuido a Pagos (desde `0013` ya no puede ocupar el `op_id` de un teléfono ajeno) | media | La subida única del historial (fase 2) |
 | La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`) | media | Decidir: acotar a unos segundos o que Dirección gane siempre |
 | `almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material | media | Fase de almacén |
 | Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`) | media | Fase de almacén |
 | Ids y contadores globales entre empresas (oráculo de existencia, `folio_cot:*` sin tope), invitación cruzada | baja hoy (solo existe `al3d`) | Antes de dar de alta una segunda empresa |
 | `origen_obra`: la lista blanca es de primer nivel y `contiene_dinero` es una lista de nombres | baja hoy (`renders` y `propuesta` son listas de imágenes) | Cuando el cliente mande `origen` |
-| Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales | baja | Con la subida única |
+| `authenticated` puede crear tablas temporales | baja | Con la subida única |
 | La hoja espejo tiene todo el dinero **fuera de RLS** (R-05 del diseño) | depende de con quién se comparta el archivo de Drive | Antes de encender el espejo: que Fabricación no tenga acceso a ese archivo |
 
 ## Lo que NO entra en esta entrega (segunda entrega)

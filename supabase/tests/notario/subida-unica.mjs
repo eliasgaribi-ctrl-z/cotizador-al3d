@@ -18,12 +18,12 @@ const estados = r => r.acuse.map(x => x.estado);
 
 describir('NO-22 cotizaciones del historial', () => {
   const LOTE = { disp: 'K7QM', letra_folio: 'B', folio_max: 42, cotizaciones: [entrada(42)], hitos: { 'COT-0042-B': { pdf: 111, wa: 222 } }, canva: { 'COT-0042-B': { primera: 1, ultima: 2, veces: 1 } } };
-  prueba('NO-22 crea: acuse «creada» por registro; la cotización queda autorizada, a nombre de quien sube, con hitos y propuesta, SIN data URL ni aiFile.url, y el contador del aparato en 42', () => conCopia(plantilla, async db => {
+  prueba('NO-22 crea: acuse «creada» por registro; la cotización queda «retirada» (sin sello vigente no es «autorizada»), a nombre de quien sube, con hitos y propuesta, SIN data URL ni aiFile.url, y el contador del aparato en 42', () => conCopia(plantilla, async db => {
     const r = await subir(db, 'pag', LOTE);
     igual([r.ok, estados(r), r.resumen], [true, ['creada'], { creadas: 1, ya_estaban: 0, conflictos: 0, rechazadas: 0 }]);
     igual(r.acuse[0], { tipo: 'cotizacion', id: 'COT-0042-B@K7QM', estado: 'creada' });
-    const c = await una(db, `select estado, creado_por::text as por, datos, hitos, procedencia, folio, disp, proy from public.cotizaciones where folio_global = 'COT-0042-B@K7QM'`);
-    igual([c.estado, c.por, c.folio, c.disp, c.proy], ['autorizada', db.u.pag.uid, 'COT-0042-B', 'K7QM', 'Tacos 42']);
+    const c = await una(db, `select estado, autorizacion_id, creado_por::text as por, datos, hitos, procedencia, folio, disp, proy from public.cotizaciones where folio_global = 'COT-0042-B@K7QM'`);
+    igual([c.estado, c.autorizacion_id, c.por, c.folio, c.disp, c.proy], ['retirada', null, db.u.pag.uid, 'COT-0042-B', 'K7QM', 'Tacos 42']);
     igual([c.hitos.pdf, c.hitos.wa, c.hitos.propuesta], [111, 222, { primera: 1, ultima: 2, veces: 1 }]);
     igual([c.procedencia.telefonos, c.procedencia.disp_inferido, typeof c.procedencia.subida_unica], [['K7QM'], false, 'string']);
     igual(['url' in c.datos.aiFile, c.datos.aiFile.name, JSON.stringify(c.datos).includes('data:')], [false, 'a.png', false]);
@@ -40,11 +40,11 @@ describir('NO-22 cotizaciones del historial', () => {
     igual(estados(desdeOtro), ['conflicto']);
     igual((await una(db, `select procedencia -> 'telefonos' as t from public.cotizaciones where folio_global = 'COT-0042-B@K7QM'`)).t, ['K7QM', 'ZZ99'], 'otro teléfono con datos distintos se anota');
   }));
-  prueba('NO-22 autor ajeno: Fabricación sobre una cotización de Pagos → «rechazada» (ROL_SIN_PERMISO) sin comparar ni revelar; Dirección sube lo de otro (ya_estaba)', () => conCopia(plantilla, async db => {
+  prueba('NO-22 autor ajeno: Fabricación (desde su teléfono) sobre una cotización de Pagos → «rechazada» (ROL_SIN_PERMISO) sin comparar ni revelar; Dirección sube lo de otro (ya_estaba)', () => conCopia(plantilla, async db => {
     await subir(db, 'pag', LOTE);
-    const f = await subir(db, 'fab', LOTE);
+    const f = await subir(db, 'fab', { ...LOTE, disp: 'FAB1' });
     igual([estados(f), f.acuse[0].motivo, f.resumen.rechazadas], [['rechazada'], 'ROL_SIN_PERMISO', 1]);
-    const fDistinto = await subir(db, 'fab', { ...LOTE, cotizaciones: [entrada(42, { cliente: 'Otro' })] });
+    const fDistinto = await subir(db, 'fab', { ...LOTE, disp: 'FAB1', cotizaciones: [entrada(42, { cliente: 'Otro' })] });
     igual([estados(fDistinto), fDistinto.acuse[0].motivo], [['rechazada'], 'ROL_SIN_PERMISO'], 'ni siquiera dice si los datos coinciden');
     igual(estados(await subir(db, 'dir', LOTE)), ['ya_estaba']);
     igual((await una(db, `select procedencia -> 'telefonos' as t from public.cotizaciones where folio_global = 'COT-0042-B@K7QM'`)).t, ['K7QM'], 'el rechazo no toca la fila');
@@ -124,7 +124,7 @@ describir('NO-22 la cola de pendientes, cuadernos y bitácora', () => {
     const r = await subir(db, 'dir', { disp: 'K7QM', cuadernos: { 'tel:3312345678': 'segunda', 'nom:ana lópez': 'otra', 'x': 'y', 'tel:3300000000': 'z'.repeat(1201) } });
     igual(r.acuse.map(x => [x.id, x.estado]).sort(), [['nom:ana lópez', 'creada'], ['tel:3300000000', 'rechazada'], ['tel:3312345678', 'conflicto'], ['x', 'rechazada']]);
     igual((await una(db, `select nota from public.cuaderno_notas where clave = 'tel:3312345678'`)).nota, 'primera');
-    const otraPersona = await subir(db, 'pag', { disp: 'K7QM', cuadernos: { 'tel:3312345678': 'la mía' } });
+    const otraPersona = await subir(db, 'pag', { disp: 'PAG1', cuadernos: { 'tel:3312345678': 'la mía' } });
     igual(estados(otraPersona), ['creada'], 'la nota es POR AUTOR');
     igual((await una(db, `select count(*)::int as n from public.cuaderno_notas where clave = 'tel:3312345678'`)).n, 2);
   }));

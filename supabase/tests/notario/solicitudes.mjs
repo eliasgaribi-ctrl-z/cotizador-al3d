@@ -132,8 +132,8 @@ describir('NO-04 y NO-05 cancelar y rechazar', () => {
     igual([r.ok, r.estado], [true, 'cancelada']);
     const v = await una(db, `select s.estado as se, c.estado as ce, s.resolvio_texto as quien, s.resolvio_id::text as qid from public.solicitudes s join public.cotizaciones c using (empresa_id, folio_global) where folio_global = $1`, [FG]);
     igual([v.se, v.ce, v.quien, v.qid], ['cancelada', 'retirada', db.u.pag.correo, db.u.pag.uid]);
-    await sol_(db, 'fab', 'COT-0101-B@K7QM');
-    const dir = await llamar(C(db, 'dir'), 'cancelar_solicitud', { p_folio_global: 'COT-0101-B@K7QM' });
+    await sol_(db, 'fab', 'COT-0101-B@FAB1');
+    const dir = await llamar(C(db, 'dir'), 'cancelar_solicitud', { p_folio_global: 'COT-0101-B@FAB1' });
     igual([dir.ok, dir.estado], [true, 'cancelada']);
     for (const malo of ['sin arroba', null, '']) igual((await llamar(sesionDe(db, db.u.dir), 'cancelar_solicitud', { p_folio_global: malo })).codigo, 'DATO_INVALIDO', String(malo));
   }));
@@ -196,17 +196,17 @@ describir('NO-14 revocar', () => {
 describir('NO-16 y NO-17 estado_solicitudes', () => {
   const armar = async db => {
     await sol_(db, 'dir', 'COT-0010-B@K7QM');
-    await sol_(db, 'pag', 'COT-0012-B@K7QM');
-    await sol_(db, 'fab', 'COT-0013-B@K7QM');
-    await autorizar(db, 'COT-0012-B@K7QM', 12, { p_items_auth: '1:1500.00', p_total_txt: '15000.00', p_sub_calc_txt: '13000.00' });
+    await sol_(db, 'pag', 'COT-0012-B@PAG1');
+    await sol_(db, 'fab', 'COT-0013-B@FAB1');
+    await autorizar(db, 'COT-0012-B@PAG1', 12, { p_items_auth: '1:1500.00', p_total_txt: '15000.00', p_sub_calc_txt: '13000.00' });
   };
   prueba('NO-16 Dirección ve todo (estado y sello completo con huella, importes y renglones como JSON); un folio inválido se OMITE del mapa', () => conCopia(plantilla, async db => {
     await armar(db);
-    const r = await llamar(sesionDe(db, db.u.dir), 'estado_solicitudes', { p_folios: ['COT-0010-B@K7QM', 'COT-0012-B@K7QM', 'COT-0013-B@K7QM', 'COT-malo', 'sin arroba'] });
+    const r = await llamar(sesionDe(db, db.u.dir), 'estado_solicitudes', { p_folios: ['COT-0010-B@K7QM', 'COT-0012-B@PAG1', 'COT-0013-B@FAB1', 'COT-malo', 'sin arroba'] });
     igual(r.ok, true);
-    igual(Object.keys(r.folios).sort(), ['COT-0010-B@K7QM', 'COT-0012-B@K7QM', 'COT-0013-B@K7QM']);
-    igual(['COT-0010-B@K7QM', 'COT-0012-B@K7QM', 'COT-0013-B@K7QM'].map(f => r.folios[f].estado), ['pendiente', 'autorizada', 'pendiente']);
-    const s = r.folios['COT-0012-B@K7QM'].sello;
+    igual(Object.keys(r.folios).sort(), ['COT-0010-B@K7QM', 'COT-0012-B@PAG1', 'COT-0013-B@FAB1']);
+    igual(['COT-0010-B@K7QM', 'COT-0012-B@PAG1', 'COT-0013-B@FAB1'].map(f => r.folios[f].estado), ['pendiente', 'autorizada', 'pendiente']);
+    const s = r.folios['COT-0012-B@PAG1'].sello;
     igual(Object.keys(s).sort(), ['codigo', 'correo', 'huella', 'itemsAuth', 'nota', 'precioAuth', 'renglones', 'subCalc', 'total', 'ts']);
     igual([s.codigo, s.correo, s.ts, s.huella, s.subCalc, s.precioAuth, s.total, s.itemsAuth, s.renglones, s.nota],
           [sello(12).p_codigo, db.u.dir.correo, '2026-10-01T04:30:15.123Z', 'c|1:x', 13000, 0, 15000, { 1: 1500 }, [{ descripcion: 'Letras', cantidad: 8, importe: 12500 }], '']);
@@ -214,23 +214,23 @@ describir('NO-16 y NO-17 estado_solicitudes', () => {
   }));
   prueba('NO-16 Pagos solo ve lo SUYO (de lo ajeno: estado null y sin sello) y su sello llega COMPLETO', () => conCopia(plantilla, async db => {
     await armar(db);
-    const r = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@K7QM', 'COT-0010-B@K7QM', 'COT-0013-B@K7QM', 'COT-malo'] });
-    igual(Object.keys(r.folios).sort(), ['COT-0010-B@K7QM', 'COT-0012-B@K7QM', 'COT-0013-B@K7QM']);
-    igual([r.folios['COT-0010-B@K7QM'].estado, r.folios['COT-0010-B@K7QM'].sello, r.folios['COT-0013-B@K7QM'].estado], [null, null, null]);
-    igual(r.folios['COT-0012-B@K7QM'].estado, 'autorizada');
-    cierto('total' in r.folios['COT-0012-B@K7QM'].sello && 'renglones' in r.folios['COT-0012-B@K7QM'].sello, 'Pagos ve el sello completo de lo suyo');
-    const otro = await llamar(sesionDe(db, db.u.pag2), 'estado_solicitudes', { p_folios: ['COT-0012-B@K7QM'] });
-    igual([otro.folios['COT-0012-B@K7QM'].estado, otro.folios['COT-0012-B@K7QM'].sello], [null, null], 'otro Pagos no ve la de su compañero');
+    const r = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@PAG1', 'COT-0010-B@K7QM', 'COT-0013-B@FAB1', 'COT-malo'] });
+    igual(Object.keys(r.folios).sort(), ['COT-0010-B@K7QM', 'COT-0012-B@PAG1', 'COT-0013-B@FAB1']);
+    igual([r.folios['COT-0010-B@K7QM'].estado, r.folios['COT-0010-B@K7QM'].sello, r.folios['COT-0013-B@FAB1'].estado], [null, null, null]);
+    igual(r.folios['COT-0012-B@PAG1'].estado, 'autorizada');
+    cierto('total' in r.folios['COT-0012-B@PAG1'].sello && 'renglones' in r.folios['COT-0012-B@PAG1'].sello, 'Pagos ve el sello completo de lo suyo');
+    const otro = await llamar(sesionDe(db, db.u.pag2), 'estado_solicitudes', { p_folios: ['COT-0012-B@PAG1'] });
+    igual([otro.folios['COT-0012-B@PAG1'].estado, otro.folios['COT-0012-B@PAG1'].sello], [null, null], 'otro Pagos no ve la de su compañero');
   }));
   prueba('NO-16 / R1-14 Fabricación: lo ajeno → null; lo propio pendiente → «pendiente» sin sello; lo propio autorizado → sello {codigo, correo, ts} SIN importes ni renglones', () => conCopia(plantilla, async db => {
     await armar(db);
     const F = sesionDe(db, db.u.fab);
-    const a = await llamar(F, 'estado_solicitudes', { p_folios: ['COT-0012-B@K7QM', 'COT-0013-B@K7QM'] });
-    igual([a.folios['COT-0012-B@K7QM'].estado, a.folios['COT-0012-B@K7QM'].sello, a.folios['COT-0013-B@K7QM'].estado, a.folios['COT-0013-B@K7QM'].sello], [null, null, 'pendiente', null]);
-    await autorizar(db, 'COT-0013-B@K7QM', 13, { p_total_txt: '98765.43', p_sub_calc_txt: '88888.00', p_renglones: '[["Secreto",1,98765.43]]' });
-    const b = await llamar(F, 'estado_solicitudes', { p_folios: ['COT-0013-B@K7QM'] });
-    igual(b.folios['COT-0013-B@K7QM'].estado, 'autorizada');
-    igual(Object.keys(b.folios['COT-0013-B@K7QM'].sello).sort(), ['codigo', 'correo', 'ts']);
+    const a = await llamar(F, 'estado_solicitudes', { p_folios: ['COT-0012-B@PAG1', 'COT-0013-B@FAB1'] });
+    igual([a.folios['COT-0012-B@PAG1'].estado, a.folios['COT-0012-B@PAG1'].sello, a.folios['COT-0013-B@FAB1'].estado, a.folios['COT-0013-B@FAB1'].sello], [null, null, 'pendiente', null]);
+    await autorizar(db, 'COT-0013-B@FAB1', 13, { p_total_txt: '98765.43', p_sub_calc_txt: '88888.00', p_renglones: '[["Secreto",1,98765.43]]' });
+    const b = await llamar(F, 'estado_solicitudes', { p_folios: ['COT-0013-B@FAB1'] });
+    igual(b.folios['COT-0013-B@FAB1'].estado, 'autorizada');
+    igual(Object.keys(b.folios['COT-0013-B@FAB1'].sello).sort(), ['codigo', 'correo', 'ts']);
     const texto = JSON.stringify(b);
     for (const prohibido of ['98765', '88888', 'Secreto', 'subCalc', 'precioAuth', 'itemsAuth', 'renglones', 'huella', 'total']) igual([prohibido, texto.includes(prohibido)], [prohibido, false]);
   }));
@@ -245,12 +245,12 @@ describir('NO-16 y NO-17 estado_solicitudes', () => {
   }));
   prueba('NO-17 Pagos pide reautorizar una ya AUTORIZADA: estado «pendiente» y SIN sello hasta que se resuelva (no devuelve el viejo); al autorizar con otra decisión, el nuevo', () => conCopia(plantilla, async db => {
     await armar(db);
-    await sol_(db, 'pag', 'COT-0012-B@K7QM', { nota: 'otra vez' });
-    const r = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@K7QM'] });
-    igual([r.folios['COT-0012-B@K7QM'].estado, r.folios['COT-0012-B@K7QM'].sello], ['pendiente', null]);
-    await autorizar(db, 'COT-0012-B@K7QM', 14, { p_total_txt: '17000.00' });
-    const s = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@K7QM'] });
-    igual([s.folios['COT-0012-B@K7QM'].estado, s.folios['COT-0012-B@K7QM'].sello.total, s.folios['COT-0012-B@K7QM'].sello.codigo], ['autorizada', 17000, sello(14).p_codigo]);
+    await sol_(db, 'pag', 'COT-0012-B@PAG1', { nota: 'otra vez' });
+    const r = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@PAG1'] });
+    igual([r.folios['COT-0012-B@PAG1'].estado, r.folios['COT-0012-B@PAG1'].sello], ['pendiente', null]);
+    await autorizar(db, 'COT-0012-B@PAG1', 14, { p_total_txt: '17000.00' });
+    const s = await llamar(sesionDe(db, db.u.pag), 'estado_solicitudes', { p_folios: ['COT-0012-B@PAG1'] });
+    igual([s.folios['COT-0012-B@PAG1'].estado, s.folios['COT-0012-B@PAG1'].sello.total, s.folios['COT-0012-B@PAG1'].sello.codigo], ['autorizada', 17000, sello(14).p_codigo]);
   }));
 });
 
@@ -348,14 +348,14 @@ describir('NO-25 columnas generadas de cotizaciones', () => {
 
 describir('Visibilidad de cotizaciones, solicitudes, autorizaciones y cuadernos (R1 > Q-02)', () => {
   prueba('RL-06 / RL-07 / RL-08 Dirección ve todas; Pagos solo las suyas (cotizaciones y solicitudes) y NINGUNA autorización; Fabricación, ninguna ni la suya; otra empresa, ninguna', () => conCopia(plantilla, async db => {
-    await sol_(db, 'dir', 'COT-0001-B@K7QM'); await sol_(db, 'pag', 'COT-0002-B@K7QM'); await sol_(db, 'fab', 'COT-0003-B@K7QM');
-    await autorizar(db, 'COT-0002-B@K7QM', 2);
+    await sol_(db, 'dir', 'COT-0001-B@K7QM'); await sol_(db, 'pag', 'COT-0002-B@PAG1'); await sol_(db, 'fab', 'COT-0003-B@FAB1');
+    await autorizar(db, 'COT-0002-B@PAG1', 2);
     const n = async (quien, t) => (await sesionDe(db, db.u[quien]).query(`select count(*)::int as n from public.${t}`))[0].n;
     for (const t of ['cotizaciones', 'solicitudes']) {
       igual([t, await n('dir', t), await n('pag', t), await n('pag2', t), await n('fab', t), await n('otra', t), await n('ext', t), await n('baja', t)], [t, 3, 1, 0, 0, 0, 0, 0]);
     }
     igual([await n('dir', 'autorizaciones'), await n('pag', 'autorizaciones'), await n('fab', 'autorizaciones'), await n('otra', 'autorizaciones'), await n('multi', 'autorizaciones')], [1, 0, 0, 0, 1], 'multi es Dirección en al3d');
-    igual((await sesionDe(db, db.u.pag).query(`select folio_global from public.solicitudes`)).map(r => r.folio_global), ['COT-0002-B@K7QM'], 'Pagos ve su propia fila');
+    igual((await sesionDe(db, db.u.pag).query(`select folio_global from public.solicitudes`)).map(r => r.folio_global), ['COT-0002-B@PAG1'], 'Pagos ve su propia fila');
     igual([await n('multi', 'cotizaciones'), await n('multi', 'solicitudes')], [3, 3]);
   }));
   prueba('RL-12 / RL-13 ningún cliente escribe directo en cotizaciones, solicitudes, autorizaciones ni cuaderno_notas (insert, update, delete): permission denied; anon ni lee', () => conCopia(plantilla, async db => {
