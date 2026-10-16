@@ -8,6 +8,9 @@
 //
 // La regla (2026-10-16): leer, quien puede VER la cotización de la carpeta (la RLS de `cotizaciones` decide: Dirección todas, Pagos las suyas, Fabricación
 // ninguna) y Dirección todo lo de su empresa; subir, el autor (Pagos, con la cotización en la base) o Dirección; cambiar y borrar, solo Dirección.
+// Q-02 bis (decidido por Elías el 2026-10-16): Fabricación LEE además las imágenes de las obras GANADAS (un proyecto con el folio de la carpeta, con V-###,
+// que no está cancelado ni borrado); no las de una cotización que no se ganó, ni las de una venta cancelada o una lápida «No se dio». Sigue sin subir,
+// cambiar ni borrar.
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
 import { sesionDe, sql, conCopia, como, una } from '../comun/semilla.js';
 import { crearBaseNotario } from '../comun/notario.js';
@@ -22,8 +25,14 @@ const R = {
   sin:  'al3d/COT-0005-B@K7QM/img-5.jpg',     // su cotización todavía NO está en la base (Dirección la subió desde su teléfono)
   baja: 'al3d/COT-0006-B@K7QM/img-6.jpg',     // cotización de alguien que ya está de baja
   otra: 'otra/COT-0009-B@ZZZZ/img-9.jpg',     // otra empresa
+  // Q-02 bis: las obras (proyectos con el folio de la carpeta)
+  gan:  'al3d/COT-0010-B@K7QM/img-10.jpg',    // obra GANADA (V-010, en diseño); su cotización NO está en la base (se ganó con la hoja)
+  can:  'al3d/COT-0011-B@K7QM/img-11.jpg',    // una venta que se CANCELÓ (V-011, `cancelado`)
+  lap:  'al3d/COT-0012-B@K7QM/img-12.jpg',    // la lápida «No se dio» (sin V-###, `cancelado`)
+  bor:  'al3d/COT-0013-B@K7QM/img-13.jpg',    // una obra con V-### pero BORRADA (`deleted_at`)
+  otrg: 'otra/COT-0019-B@ZZZZ/img-19.jpg',    // obra ganada en OTRA empresa
 };
-const AL3D = [R.pag, R.fab, R.pag2, R.dir, R.sin, R.baja].sort();
+const AL3D = [R.pag, R.fab, R.pag2, R.dir, R.sin, R.baja, R.gan, R.can, R.lap, R.bor].sort();
 
 const plantilla = dato(async () => {
   const db = await crearBaseNotario();
@@ -37,6 +46,15 @@ const plantilla = dato(async () => {
   await cot('al3d', 'COT-0004-B@K7QM', db.u.dir.uid);
   await cot('al3d', 'COT-0006-B@K7QM', db.u.baja.uid);
   await cot('otra', 'COT-0009-B@ZZZZ', db.u.otra.uid);
+  const obra = (empresa, id, fg, folioHoja, etapa, borrada = false) => sql(db,
+    `insert into public.proyectos (id, empresa_id, folio_hoja, folio_global, folio_local, dispositivo, fuente, nombre, etapa, deleted_at)
+     values ($1, $2, $3, $4, split_part($4, '@', 1), split_part($4, '@', 2), 'cotizacion', 'Prueba', $5, case when $6 then now() end)`,
+    [id, empresa, folioHoja, fg, etapa, borrada]);
+  await obra('al3d', 'obra-gan', 'COT-0010-B@K7QM', 'V-010', 'en_diseno');
+  await obra('al3d', 'obra-can', 'COT-0011-B@K7QM', 'V-011', 'cancelado');
+  await obra('al3d', 'obra-lap', 'COT-0012-B@K7QM', null, 'cancelado');
+  await obra('al3d', 'obra-bor', 'COT-0013-B@K7QM', 'V-013', 'armado', true);
+  await obra('otra', 'obra-otr', 'COT-0019-B@ZZZZ', 'V-001', 'listo');
   const objeto = (bucket, nombre, owner) => sql(db, `insert into storage.objects (bucket_id, name, owner_id, owner) values ($1, $2, $3::text, $3::uuid)`, [bucket, nombre, owner]);
   for (const [k, ruta] of Object.entries(R)) await objeto(B, ruta, (db.u[k] || db.u.dir).uid);
   await objeto('otros', 'al3d/COT-0001-B@K7QM/ajena.jpg', db.u.pag.uid);
@@ -87,7 +105,7 @@ describir('el bucket y su aplicación', () => {
   }));
 });
 
-describir('leer: quien puede ver la cotización (Q-02), y Dirección todo lo de su empresa', () => {
+describir('leer: quien puede ver la cotización (Q-02), Dirección todo lo de su empresa y Fabricación las de las obras ganadas (Q-02 bis)', () => {
   prueba('Dirección (las dos) ve TODO lo de al3d, también la imagen cuya cotización todavía no está en la base; ni lo de otra empresa ni el bucket ajeno', async () => {
     const db = await plantilla();
     for (const quien of ['dir', 'dir2']) igual([quien, await ver(db, quien)], [quien, AL3D]);
@@ -97,14 +115,37 @@ describir('leer: quien puede ver la cotización (Q-02), y Dirección todo lo de 
     igual(await ver(db, 'pag'), [R.pag]);
     igual(await ver(db, 'pag2'), [R.pag2]);
   });
-  prueba('Fabricación NO ve ninguna, ni la de la cotización que ella misma pidió (lleva precios: R1 manda sobre «cada quien las suyas»)', async () => {
+  prueba('Fabricación ve SOLO la imagen de la obra GANADA (Q-02 bis), aunque su cotización no esté en la base: ninguna de una cotización que no se ganó, ni la de la que ella misma pidió', async () => {
     const db = await plantilla();
-    igual(await ver(db, 'fab'), []);
+    igual(await ver(db, 'fab'), [R.gan]);
   });
-  prueba('otra empresa ve solo lo suyo; multi (Dirección en al3d, Fabricación en otra) ve al3d y NADA de otra', async () => {
+  prueba('Fabricación NO ve la de una venta CANCELADA, la de una lápida «No se dio» ni la de una obra BORRADA', async () => {
     const db = await plantilla();
-    igual(await ver(db, 'otra'), [R.otra]);
-    igual(await ver(db, 'multi'), AL3D);
+    const v = await ver(db, 'fab');
+    igual([R.can, R.lap, R.bor].filter(r => v.includes(r)), []);
+  });
+  prueba('se abre la IMAGEN, no la cotización: con la cotización ganada en la base, Fabricación sigue sin leerla (lleva precios) y la imagen sí', () => conCopia(plantilla, async db => {
+    await sql(db, `insert into public.cotizaciones (empresa_id, folio_global, folio, disp, creado_por, estado, datos)
+                   values ('al3d', 'COT-0010-B@K7QM', 'COT-0010-B', 'K7QM', $1::uuid, 'autorizada', '{"proy":"Ganada"}')`, [db.u.dir.uid]);
+    igual((await sesionDe(db, db.u.fab).query(`select folio_global from public.cotizaciones`)).length, 0, 'Fabricación no lee ninguna cotización');
+    igual(await ver(db, 'fab'), [R.gan], 'y la imagen de la obra la sigue viendo');
+  }));
+  prueba('en cuanto la obra se CANCELA, Fabricación deja de ver sus imágenes; si vuelve a una etapa viva, las ve otra vez', () => conCopia(plantilla, async db => {
+    await sql(db, `update public.proyectos set etapa = 'cancelado' where id = 'obra-gan'`);
+    igual(await ver(db, 'fab'), []);
+    await sql(db, `update public.proyectos set etapa = 'garantia' where id = 'obra-gan'`);
+    igual(await ver(db, 'fab'), [R.gan]);
+  }));
+  prueba('la rama de la obra es SOLO de Fabricación: Pagos no ve la imagen de una obra ganada que no es su cotización; ni la Fabricación invitada sin reclamar', async () => {
+    const db = await plantilla();
+    igual(await ver(db, 'pag'), [R.pag]);
+    igual(await ver(db, 'inv'), [], 'inv es Fabricación invitada: sin reclamar no es de nadie');
+  });
+  prueba('otra empresa ve solo lo suyo; multi (Dirección en al3d, Fabricación en otra) ve todo al3d y de otra SOLO la imagen de su obra ganada; la Fabricación de al3d, nada de otra', async () => {
+    const db = await plantilla();
+    igual(await ver(db, 'otra'), [R.otra, R.otrg]);
+    igual(await ver(db, 'multi'), [...AL3D, R.otrg].sort());
+    cierto(!(await ver(db, 'fab')).includes(R.otrg), 'la obra ganada de otra empresa no es de la Fabricación de al3d');
   });
   prueba('sin acceso (ext), de baja (aunque sea la autora de COT-0006), invitación sin reclamar y anon: 0 objetos (la lista de nombres tampoco se ve)', async () => {
     const db = await plantilla();
@@ -135,9 +176,9 @@ describir('subir: el autor de la cotización (Pagos, con la cotización en la ba
       await esperarError(subir(db, 'pag', `al3d/${fg}/img-x.jpg`), NEGADO, fg);
     }
   });
-  prueba('Fabricación NO sube nunca: ni a la cotización que ella pidió, ni a una de Pagos, ni a un folio que no está en la base', async () => {
+  prueba('Fabricación NO sube nunca: ni a la cotización que ella pidió, ni a una de Pagos, ni a un folio que no está en la base, ni a la carpeta de la obra ganada que sí ve', async () => {
     const db = await plantilla();
-    for (const fg of ['COT-0002-B@K7QM', 'COT-0001-B@K7QM', 'COT-0005-B@K7QM']) await esperarError(subir(db, 'fab', `al3d/${fg}/img-x.jpg`), NEGADO, fg);
+    for (const fg of ['COT-0002-B@K7QM', 'COT-0001-B@K7QM', 'COT-0005-B@K7QM', 'COT-0010-B@K7QM']) await esperarError(subir(db, 'fab', `al3d/${fg}/img-x.jpg`), NEGADO, fg);
   });
   prueba('Dirección sube a cualquier carpeta de SU empresa (también a un folio que todavía no está en la base), y no a la de otra', async () => {
     const db = await plantilla();
@@ -174,10 +215,12 @@ describir('cambiar y borrar: solo Dirección de esa empresa', () => {
     const db = await plantilla();
     for (const quien of ['dir', 'dir2']) igual([quien, (await cambiar(db, quien, R.pag)).afectadas], [quien, 1]);
     for (const quien of ['pag', 'fab', 'otra', 'ext', 'baja', 'inv']) igual([quien, (await cambiar(db, quien, R.pag)).afectadas], [quien, 0]);
+    igual((await cambiar(db, 'fab', R.gan)).afectadas, 0, 'Fabricación tampoco cambia la imagen de la obra ganada que sí ve');
   });
   prueba('borrar: Pagos (ni lo de su cotización), Fabricación, otra empresa y anon NO; Dirección sí, pero no en otra empresa', async () => {
     const db = await plantilla();
     for (const quien of ['pag', 'fab', 'otra', 'pag2']) igual([quien, (await borrar(db, quien, R.pag)).length], [quien, 0]);
+    igual((await borrar(db, 'fab', R.gan)).length, 0, 'Fabricación tampoco borra la imagen de la obra ganada que sí ve');
     igual((await como(db, { rol: 'anon' }).query(`delete from storage.objects where bucket_id = 'cotizacion-imagenes' returning name`)).length, 0);
     igual((await borrar(db, 'dir', R.pag)).map(r => r.name), [R.pag], 'Dirección borra');
     igual((await borrar(db, 'dir', R.otra)).length, 0, 'pero no en otra empresa');
