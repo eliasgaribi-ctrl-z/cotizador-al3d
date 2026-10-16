@@ -118,7 +118,10 @@ bandeja ──bombear──▶ hoja (Apps Script) ── ¿ok? ──▶ gancho 
 | `pruebas/supabase-cuadre.mjs` | Cuadra y no cuadra (un centavo), centavos enteros, dónde no cuadra, la racha, el script (apagado, sin datos en la bitácora, sin detalle dentro del repo) y el flujo apagado | 29 / 29 |
 | `pruebas/supabase-entrada.mjs` | (ya existía) se ajustó la lista de bases locales | 59 / 59 |
 
-Las cifras de las suites completas están en el mensaje del commit final y en el reporte de la sesión.
+Suites completas, Windows 11, 2026-10-16:
+
+- `sh pruebas/correr.sh`: **65 archivos, 64 en verde**. El que falla es `pruebas/supabase-funciones.mjs` (2 de 417: el lector de `supabase/config.toml`), y **falla igual en `origin/main` sin estos cambios** —lo más probable, los fines de línea CRLF de Windows; esta rama no toca ese archivo ni esa prueba—. Queda anotado para quien lo corra en Linux.
+- `sh supabase/tests/correr.sh`: **34 archivos, todo en verde** (402 s). No hubo SQL nuevo.
 
 ## Para pasar a `ESTADO-SUPABASE.md` cuando Elías lo revise
 
