@@ -1,6 +1,6 @@
 # Estado de la migración a Supabase
 
-**Última actualización: 2026-10-10 (cierre de la primera entrega: fase 0, fase 1 y las piezas de la 3 que no necesitan datos reales).** Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
+**Última actualización: 2026-10-16 (segunda entrega: huecos de la revisión, `autorizar`, `respaldo`, escritura en sombra, lectura en vivo y pantallas de Pagos, todo apagado; ver «Segunda entrega» abajo).** Primera entrega: 2026-10-10. Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
 
 ## En una frase
 
@@ -20,10 +20,10 @@ La migración está **en construcción y apagada**. La app, el puente y la hoja 
 | Fase | Qué es | Estado hoy | Puerta de salida (la del plan) |
 |---|---|---|---|
 | 0 | Decisiones y documentación | **hecho**, salvo lo que confirma Elías | Documento de decisión aprobado; no se toca código de producción |
-| 1 | Base y acceso | **hecho y verificado** (PGlite **y** el proyecto real de pruebas). Falta el inicio de sesión de punta a punta (cliente) | Pruebas de RLS (las reglas de qué ve cada área) en verde para los tres roles; ninguna fila real todavía |
+| 1 | Base y acceso | **hecho y verificado** (PGlite **y** el proyecto real de pruebas). Entrada con Google hecha en el cliente (apagada); falta probarla en el iPhone | Pruebas de RLS (las reglas de qué ve cada área) en verde para los tres roles; ninguna fila real todavía |
 | 2 | Importar | **script hecho y probado con hojas de mentiras** (PGlite, y el ensayo en el proyecto real de pruebas). Faltan tus datos: la copia de la hoja y los respaldos de los teléfonos | Reporte de cuadre que coincida con la hoja y con los teléfonos |
-| 3 | Doble escritura | **parcial**: la ruta `espejo` y la función están hechas y probadas con dobles, **apagadas**. Falta la escritura desde la bandeja y el cuadre diario | Siete días seguidos de cuadre; si no cuadra, se regresa a la fase 2 |
-| 4 | Cambio de lectura | **pendiente** | Los tres roles lo usan una semana sin incidentes; vuelta atrás: leer otra vez de la hoja, que sigue completa |
+| 3 | Doble escritura | **hecho con dobles, apagado**: ruta `espejo`, escritura en sombra desde la bandeja y cuadre (botón en Ajustes y flujo diario). Falta probarlo contra el proyecto real y encenderlo en cada aparato que escribe | Siete días seguidos de cuadre; si no cuadra, se regresa a la fase 2 |
+| 4 | Cambio de lectura | **hecho con dobles, apagado**: lectura de Supabase con Realtime (segundo interruptor) y pantallas de Pagos. Falta el respaldo en marcha (función hecha, sin secretos) y la prueba real | Los tres roles lo usan una semana sin incidentes; vuelta atrás: leer otra vez de la hoja, que sigue completa |
 | 5 | Retiro | **pendiente** | El Apps Script queda con dos rutas (`espejo` y `carpetas`) |
 | 6 | Clientes | **pendiente** (después) | El plan no la define; por completar al decidir su arranque |
 
@@ -212,16 +212,34 @@ Un revisor que **no escribió** las migraciones intentó romperlas en el arnés:
 
 | Hallazgo | Riesgo | Antes de encender |
 |---|---|---|
-| `subida_unica` acepta `usuario`, `rol`, `ts` y `id` del cliente en la bitácora: Fabricación puede forjar un «Cobro de $999,999» atribuido a Pagos y ocupar el `op_id` de un evento real | media | La subida única del historial (fase 2) |
-| La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`) | media | Decidir: acotar a unos segundos o que Dirección gane siempre |
-| `almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material | media | Fase de almacén |
-| Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`) | media | Fase de almacén |
+| ~~`subida_unica` acepta `usuario`, `rol`, `ts` y `id` del cliente en la bitácora: Fabricación puede forjar un «Cobro de $999,999» atribuido a Pagos y ocupar el `op_id` de un evento real~~ | — | **Cerrado en `0013`** (2026-10-16) |
+| ~~La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`)~~ | — | **Cerrado en `0013`** (2026-10-16) |
+| ~~`almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material~~ | — | **Cerrado en `0013`** (2026-10-16) |
+| ~~Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`)~~ | — | **Cerrado en `0013`** (2026-10-16) |
 | Ids y contadores globales entre empresas (oráculo de existencia, `folio_cot:*` sin tope), invitación cruzada | baja hoy (solo existe `al3d`) | Antes de dar de alta una segunda empresa |
 | `origen_obra`: la lista blanca es de primer nivel y `contiene_dinero` es una lista de nombres | baja hoy (`renders` y `propuesta` son listas de imágenes) | Cuando el cliente mande `origen` |
-| Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales | baja | Con la subida única |
+| ~~Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales~~ | — | **Cerrado en `0013`** (2026-10-16) |
 | La hoja espejo tiene todo el dinero **fuera de RLS** (R-05 del diseño) | depende de con quién se comparta el archivo de Drive | Antes de encender el espejo: que Fabricación no tenga acceso a ese archivo |
 
-## Lo que NO entra en esta entrega (segunda entrega)
+## Segunda entrega (2026-10-16)
+
+Tres ramas, cada una con su PR; todo **apagado**. Con los interruptores apagados la app no hace ni una petición nueva (hay prueba que lo demuestra).
+
+| Pieza | Rama | Estado | Evidencia |
+|---|---|---|---|
+| `0013_huecos_revision.sql`: cierra los seis hallazgos «Abierto, a propósito» de severidad media (bitácora forjada en `subida_unica`, cotizaciones sin sello, holgura de sellos, `ts` del almacén, Pagos creando requerimientos, tablas temporales) | `claude/supabase-huecos-autorizar` | **hecho y verificado en PGlite y en el proyecto real** | `supabase/tests/rls-y-dinero/huecos-revision.mjs` (12 de 15 casos fallan sin la migración). **Aplicada en `al3d-pruebas` el 2026-10-16; prueba de humo 36 de 36** (incluido C30: `authenticated` ya no crea tablas temporales) |
+| Función `autorizar` (precio del servidor + sello con la codificación real de Apps Script) | igual | hecho y verificado con dobles; **no desplegada** | `pruebas/supabase-autorizar.mjs`: 4000 cotizaciones y 3000 cuerpos comparados byte a byte contra el `.gs` real. Sin `SELLO_AUTORIZACION` contesta 503 (no inventa clave) |
+| Función `respaldo` a Drive con cuenta de servicio y flujo semanal apagado | igual | hecho con dobles; **no desplegada** | `pruebas/supabase-respaldo.mjs`; `.github/workflows/respaldo-semanal.yml`. Se aparta de Q-20 (Apps Script): la carpeta debe estar en una unidad compartida |
+| Escritura en sombra desde la bandeja, idempotente por `op_id`, cola propia `al3d_sombra` | `claude/supabase-sombra-y-vivo` | hecho con dobles, apagado | `pruebas/supabase-sombra.mjs` (apagado: solo sale la URL de la hoja) |
+| Lectura desde Supabase con Realtime (segundo interruptor, solo Dirección; exige la sombra encendida) | igual | hecho con dobles, apagado | `pruebas/supabase-vivo.mjs`. No hizo falta migración |
+| Cuadre hoja contra `ventas_calculadas` (Ajustes y flujo diario apagado) | igual | hecho con dobles, apagado | `pruebas/supabase-cuadre.mjs` |
+| Pantallas de Pagos: cobro, anticipo, abono, reparto FIFO y correcciones, en Control → «Registrar (Supabase)» | `claude/supabase-pantallas-pagos` | hecho con dobles, apagado | `pruebas/pagos-supa.mjs` (119 de 119) |
+
+Decisiones provisionales que Elías debe confirmar: [`supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md`](supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md), [`supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md`](supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md) y [`supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md`](supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md) (estas dos llegan con sus PRs). Las principales: Dirección gana siempre ante Fabricación o Pagos y los demás tienen 60 s de holgura (Q-06); el V-### de una venta nueva lo pone Supabase y puede no coincidir con el de la hoja; desde un teléfono de Pagos el interruptor todavía no se enciende en Ajustes.
+
+**No verificado en esta entrega:** nada del cliente ni de las funciones corrió contra el Supabase real (PostgREST, Realtime con RLS por evento, despliegue de funciones, Drive real, clave real del sello); `deno check` (no hay Deno en esta máquina); las pruebas de navegador (no corren en Windows); el iPhone.
+
+## Lo que quedaba para la segunda entrega (resuelto arriba, salvo los secretos y la prueba real)
 
 No se hizo por una razón concreta, no por olvido: cada pieza necesita datos reales, secretos o una decisión tuya, o es código de cliente que no se puede validar sin los teléfonos.
 
