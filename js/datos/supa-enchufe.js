@@ -26,7 +26,7 @@ import * as Puente from './puente.js';
 import * as Supa from '../nucleo/supa.js';
 import { crearSombra, almacenIndexedDB, sombraEncendida, vivoEncendido } from './supa-sombra.js';
 import { crearFuente, suscribir, todas } from './supa-vivo.js';
-import { cuadrar, diaMx, racha } from './supa-cuadre.js';
+import { cuadrar, diaMx, racha, resumenCopiaDiaria } from './supa-cuadre.js';
 import { crearImagenes, puedeImagenes, CLAVE_HISTORIAL } from './supa-imagenes.js';
 
 const MS_BOMBEO = 60 * 1000;
@@ -162,6 +162,19 @@ async function cuadreDelDia() {
 export async function cuadres() {
   const lista = (await almacen().listar('cuadres').catch(() => [])).sort((a, b) => b.ts - a.ts);
   return { lista, racha: racha(lista), meta: 7 };
+}
+
+/**
+ * La COPIA DIARIA hoja → nube (función importar-diario): lo último de `cuadre_diario` (0018), resumido para Ajustes
+ * (cuadró X de 7 días, la racha y el último resultado). Solo la lee Dirección (RLS); null si todavía no hay ninguna corrida.
+ * Lo pide Ajustes con la tarjeta de Supabase encendida y sesión; apagado, este módulo ni se carga.
+ */
+export async function cuadreDiario() {
+  const c = await Supa.cliente();
+  const { data, error } = await c.from('cuadre_diario').select('fecha, hecho_en, aplicado, cuadra, diferencias, conflictos, rechazos')
+    .eq('empresa_id', _empresa).order('hecho_en', { ascending: false }).limit(60);
+  if (error) throw new Error(Supa.mensajeDe(error));
+  return resumenCopiaDiaria(data || [], diaMx(Date.now()));
 }
 
 /* ----- La lectura en vivo ----- */
