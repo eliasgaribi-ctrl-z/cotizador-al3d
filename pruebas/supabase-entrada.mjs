@@ -13,7 +13,7 @@
  *
  * No toca Supabase ni Google. Se corre con pruebas/correr.sh, como todas. */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -144,6 +144,18 @@ console.log('\nLA CONFIGURACIÓN');
   cierto('la llave es la PÚBLICA (sb_publishable_)', /^sb_publishable_[A-Za-z0-9_-]{20,}$/.test(SUPABASE.llave));
   const cfg = leer('js/datos/supabase-config.js');
   cierto('y ninguna secreta ni JWT en la configuración ni en el módulo', !/sb_secret_[A-Za-z0-9_-]{10,}|eyJ[A-Za-z0-9_-]{10,}/.test(cfg + leer('js/nucleo/supa.js')));
+  /* Desde el 2026-10-16 la app publicada habla con PRODUCCIÓN. El de pruebas se queda anotado en la
+     configuración para una copia local, pero no hay manera de elegirlo desde la app. */
+  eq('la app publicada apunta al proyecto de PRODUCCIÓN', [SUPABASE.proyecto, SUPABASE.url],
+    ['al3d-produccion', 'https://gwzfdprdrdudfakjsdxf.supabase.co']);
+  cierto('  con su llave pública', SUPABASE.llave === 'sb_publishable__yKAsMzY5aar3i2oYmJtPA_uWcTWjed');
+  cierto('  y lo dice una sola constante, EN_USO, que no se exporta', /\nconst EN_USO = 'al3d-produccion';\n/.test(cfg.replace(/\r/g, '')) &&
+    [...cfg.matchAll(/^export /gm)].length === 1 && /^export const SUPABASE = PROYECTOS\[EN_USO\];/m.test(cfg));
+  const tocanPruebas = readdirSync(join(RAIZ, 'js'), { recursive: true }).map(String).filter(f => f.endsWith('.js'))
+    .filter(f => f.replace(/\\/g, '/') !== 'datos/supabase-config.js')
+    .filter(f => /hhwjlxukuzxearrjurtc|al3d-pruebas/.test(readFileSync(join(RAIZ, 'js', f), 'utf8')));
+  eq('ningún otro archivo de la app nombra el proyecto de pruebas (no hay botón para cambiarlo)', tocanPruebas, []);
+  cierto('ni la CSP lo deja pasar', !/hhwjlxukuzxearrjurtc/.test(leer('index.html')));
   const host = SUPABASE.url.replace('https://', '');
   const idx = leer('index.html');
   cierto('index.html deja hablar con ese proyecto por https y wss, y con nada más de supabase.co',

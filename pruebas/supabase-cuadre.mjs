@@ -91,7 +91,7 @@ console.log('\nEL SCRIPT DEL CUADRE DIARIO');
     [await correr({ env: {}, log: x => salida.push(x), fetch: () => { throw new Error('no debía llamar'); } }), /apagado/.test(salida[0])], [0, true]);
 
   const env = { PUENTE_URL: 'https://script.google.com/macros/s/x/exec', PUENTE_TOKEN: 't'.repeat(40),
-    SUPABASE_URL: 'https://hhwjlxukuzxearrjurtc.supabase.co', SUPABASE_SECRETA: 'sb_secret_DE_MENTIRAS' };
+    SUPABASE_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co', SUPABASE_SECRETA: 'sb_secret_DE_MENTIRAS' };
   const { P } = await import('../js/datos/puente.js');
   const fila = (folio, neto) => ({ almacen: 'proyectos', datos: { id_notion: folio, [P.proyecto]: 'Cliente Secreto ' + folio,
     [P.subtotal]: 1000, [P.neto]: neto, [P.anticipo]: 500, [P.liquidacion]: 0, [P.pendiente]: neto - 500, [P.comisiones]: 100,
