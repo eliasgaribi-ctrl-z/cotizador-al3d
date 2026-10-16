@@ -31,7 +31,7 @@ const cierto = (que, x) => eq(que, !!x, true);
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const leer = r => readFileSync(join(RAIZ, r), 'utf8').replace(/\r\n/g, '\n');
 const sinComentarios = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const NUEVOS = ['supa-sombra', 'supa-vivo', 'supa-cuadre', 'supa-enchufe'];
+const NUEVOS = ['supa-sombra', 'supa-vivo', 'supa-cuadre', 'supa-enchufe', 'supa-imagenes'];
 
 /* ── El mundo: un teléfono de Dirección y la hoja ─────────────────────────────────────────── */
 const URL_PUENTE = 'https://puente.test/exec';

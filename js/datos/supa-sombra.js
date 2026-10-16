@@ -246,18 +246,21 @@ export function leerRespuesta(rpc, r) {
 export const BASE = 'al3d_sombra';
 const TOPE_REGISTRO = 200;
 
-/** El almacén en IndexedDB (navegador). Tres almacenes: la cola, el registro y los cuadres. */
+/** El almacén en IndexedDB (navegador). Cuatro almacenes: la cola, el registro, los cuadres y las imágenes ya subidas a la nube
+ *  (js/datos/supa-imagenes.js; llegó en la versión 2: abrir la 1 de antes solo agrega ese almacén, no toca los otros). */
+export const VERSION_BASE = 2;
+export const ALMACENES_SOMBRA = Object.freeze(['cola', 'registro', 'cuadres', 'imagenes']);
 export function almacenIndexedDB() {
   let _db = null;
   const abrir = () => _db || (_db = new Promise((res, rej) => {
-    const r = globalThis.indexedDB.open(BASE, 1);
+    const r = globalThis.indexedDB.open(BASE, VERSION_BASE);
     r.onupgradeneeded = () => {
       const db = r.result;
-      if (!db.objectStoreNames.contains('cola')) db.createObjectStore('cola', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('registro')) db.createObjectStore('registro', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('cuadres')) db.createObjectStore('cuadres', { keyPath: 'id' });
+      for (const a of ALMACENES_SOMBRA) if (!db.objectStoreNames.contains(a)) db.createObjectStore(a, { keyPath: 'id' });
     };
-    r.onsuccess = () => res(r.result);
+    /* Otra pestaña con una versión más nueva quiere subir la base: se cierra esta conexión para no
+       detenerla, y la siguiente operación abre otra. */
+    r.onsuccess = () => { const db = r.result; db.onversionchange = () => { db.close(); _db = null; }; res(db); };
     r.onerror = () => { _db = null; rej(r.error); };
   }));
   const tx = async (almacen, modo, fn) => {
@@ -278,7 +281,7 @@ export function almacenIndexedDB() {
 
 /** El mismo almacén, en memoria (las pruebas de node). */
 export function almacenEnMemoria() {
-  const m = { cola: new Map(), registro: new Map(), cuadres: new Map() };
+  const m = Object.fromEntries(ALMACENES_SOMBRA.map(a => [a, new Map()]));
   return {
     listar: async a => [...m[a].values()].map(x => JSON.parse(JSON.stringify(x))),
     poner: async (a, r) => { m[a].set(r.id, JSON.parse(JSON.stringify(r))); },

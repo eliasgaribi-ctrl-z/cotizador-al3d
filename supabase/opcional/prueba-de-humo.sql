@@ -4,11 +4,20 @@
 -- SQL y las políticas pero NO es Supabase. Esto se ejecuta en el Editor SQL del panel del proyecto, con
 -- las migraciones 0001..0017 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015; el 9, de la 0016; el 10 y C08/C12, de la 0017), y comprueba ahí lo que más importa: que cada área ve y puede
 -- hacer solo lo que le toca. Simula a las personas igual que PostgREST (rol + claims del JWT), con
--- usuarios de prueba creados DENTRO de la misma transacción.
+-- usuarios de prueba creados DENTRO de la misma transacción. El bloque 11 es de opcional/storage.sql (las
+-- imágenes de las cotizaciones): sin el bucket, deja un solo caso que dice que no aplica.
 --
 -- No deja nada en la base: la última línea lanza un error A PROPÓSITO (con el informe como mensaje) y
 -- eso deshace todo, incluidos los usuarios de prueba. El error «HUMO_RESULTADO …» es el resultado
 -- esperado; lee el JSON: {"fallos":0,...} es verde. Cualquier otro error es un problema de verdad.
+--
+-- Corre igual en una base VACÍA que en una con datos reales (producción tiene 219 ventas): cada caso que
+-- cuenta filas cuenta solo las de la prueba (ids «humo…», folios «@HUMO», correos «@humo.test»). Los que
+-- esperan CERO filas (Fabricación y el dinero, la persona ajena, anon) cuentan TODO a propósito: ahí la
+-- respuesta correcta es cero haya lo que haya, y contar todo es la prueba más fuerte. Lo mismo C44, que
+-- compara los libros completos antes y después de purgar. Las purgas del bloque 9 sí recorren los datos
+-- reales, pero lo que borren se deshace con el error final, como todo lo demás.
+-- (supabase/tests/humo/prueba-de-humo.mjs la corre en PGlite vacía, con datos, y con Storage.)
 --
 -- Uso: pegar TODO este archivo en el Editor SQL (no por partes) y ejecutar.
 
@@ -31,7 +40,7 @@ declare
   u_ext uuid := gen_random_uuid();
   u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz;
+  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text;
 begin
   -- 0) Siembra, como dueño de la base: cuatro cuentas de Auth y tres membresías (la cuarta persona no es del equipo).
   insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -64,20 +73,20 @@ begin
   -- 2) Fabricación ve la obra pero NADA de dinero, y no puede cobrar ni cancelar (0017: fuera de eso mueve cualquier etapa; ver el bloque 10).
   perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
   begin
-    select count(*) into n from public.proyectos;
-    inf := inf || jsonb_build_object('caso', 'C03 Fabricación ve la obra (proyectos >= 1)', 'ok', n >= 1, 'det', n::text);
+    select count(*) into n from public.proyectos where id = 'humo1';
+    inf := inf || jsonb_build_object('caso', 'C03 Fabricación ve la obra (el proyecto humo1)', 'ok', n = 1, 'det', n::text);
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C03 Fabricación ve la obra', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
   begin
-    select count(*) into n from public.ventas_dinero;
-    inf := inf || jsonb_build_object('caso', 'C04 Fabricación NO lee ventas_dinero (0 filas)', 'ok', n = 0, 'det', n::text);
+    select count(*) into n from public.ventas_dinero;               -- TODAS: cero haya lo que haya
+    inf := inf || jsonb_build_object('caso', 'C04 Fabricación NO lee ventas_dinero (0 filas, de ninguna venta)', 'ok', n = 0, 'det', n::text);
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C04 Fabricación NO lee ventas_dinero (permission denied)', 'ok', sqlstate = '42501', 'det', sqlstate);
   end;
   begin
-    select count(*) into n from public.ventas_calculadas;
-    inf := inf || jsonb_build_object('caso', 'C05 Fabricación NO lee la vista de fórmulas (0 filas)', 'ok', n = 0, 'det', n::text);
+    select count(*) into n from public.ventas_calculadas;           -- TODAS: cero haya lo que haya
+    inf := inf || jsonb_build_object('caso', 'C05 Fabricación NO lee la vista de fórmulas (0 filas, de ninguna venta)', 'ok', n = 0, 'det', n::text);
   exception when others then
     inf := inf || jsonb_build_object('caso', 'C05 Fabricación NO lee la vista de fórmulas (permission denied)', 'ok', sqlstate = '42501', 'det', sqlstate);
   end;
@@ -100,8 +109,8 @@ begin
   -- 3) Pagos cobra, lee el dinero y NO cancela (0017: fuera de eso mueve cualquier etapa; ver el bloque 10); reenviar el mismo cobro no lo suma dos veces.
   perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
   begin
-    select count(*) into n from public.ventas_dinero;
-    inf := inf || jsonb_build_object('caso', 'C09 Pagos lee ventas_dinero (1 fila)', 'ok', n = 1, 'det', n::text);
+    select count(*) into n from public.ventas_dinero where proyecto_id = 'humo1';
+    inf := inf || jsonb_build_object('caso', 'C09 Pagos lee ventas_dinero (la fila de humo1)', 'ok', n = 1, 'det', n::text);
     r := public.registrar_cobro('humo1', 1000, null, false, 'humo-op-1', null);
     inf := inf || jsonb_build_object('caso', 'C10 Pagos registra un cobro de 1000', 'ok', coalesce((r->>'ok')::boolean, false), 'det', coalesce(r->>'codigo', 'ok'));
     r := public.registrar_cobro('humo1', 1000, null, false, 'humo-op-1', null);
@@ -119,8 +128,8 @@ begin
   begin
     r := public.mi_acceso();
     inf := inf || jsonb_build_object('caso', 'C13 persona ajena: mi_acceso = sin_acceso', 'ok', r->>'estado' = 'sin_acceso', 'det', coalesce(r->>'estado', r->>'codigo'));
-    select count(*) into n from public.proyectos;
-    inf := inf || jsonb_build_object('caso', 'C14 persona ajena ve 0 proyectos', 'ok', n = 0, 'det', n::text);
+    select count(*) into n from public.proyectos;                   -- TODOS: cero haya lo que haya
+    inf := inf || jsonb_build_object('caso', 'C14 persona ajena ve 0 proyectos (de ninguna venta)', 'ok', n = 0, 'det', n::text);
     r := public.alta_venta(jsonb_build_object('id', 'humo-x', 'nombre', 'X', 'cuenta', 'Moni MPago', 'tipo_trabajo', jsonb_build_array('Recorte acrilico'),
            'subtotal', 1, 'anticipo', 0, 'tel', '33 2222 3333', 'entrega', 'paqueteria', 'sellos', jsonb_build_object('etapa', ahora)));
     inf := inf || jsonb_build_object('caso', 'C15 persona ajena NO da de alta una venta', 'ok', coalesce((r->>'ok')::boolean, false) = false, 'det', coalesce(r->>'codigo', 'ok'));
@@ -398,6 +407,137 @@ begin
   end;
   select coalesce(cardinality(interno.auditoria()), -1) into n;
   inf := inf || jsonb_build_object('caso', 'C57 la auditoría de 0011 sigue limpia después de 0017', 'ok', coalesce(n = 0, false), 'det', n::text);
+
+  -- 11) Las imágenes de las cotizaciones en Storage (opcional/storage.sql, 2026-10-16). Las personas se simulan insertando y leyendo en
+  --     storage.objects con su rol y su JWT, que es lo que hace el servicio de Storage antes de guardar el archivo: aquí no se sube ningún
+  --     archivo (solo la fila, y se deshace con todo lo demás). Lo que esto NO prueba es el servicio en sí (la subida, las URLs firmadas).
+  --     Pagos ve y sube solo en SU cotización; Dirección todo; Fabricación nada; cambiar y borrar, solo Dirección.
+  if to_regclass('storage.objects') is null then
+    inf := inf || jsonb_build_object('caso', 'C58 Storage: no existe en esta base (PGlite sin sustituto): no aplica', 'ok', true, 'det', 'sin storage');
+  elsif not exists (select 1 from storage.buckets where id = 'cotizacion-imagenes') then
+    inf := inf || jsonb_build_object('caso', 'C58 Storage: el bucket cotizacion-imagenes no existe (falta aplicar opcional/storage.sql): no aplica', 'ok', true,
+                                     'det', 'aplica supabase/opcional/storage.sql y vuelve a correr esta prueba');
+  else
+    -- La condición de la política de borrar, para evaluarla como cada rol en C65 y C67 (ver allí por qué no se usa DELETE).
+    select pg_get_expr(p.polqual, p.polrelid) into q_borrar from pg_policy p
+     where p.polrelid = 'storage.objects'::regclass and p.polname = 'cotizacion_imagenes_borrar';
+    q_borrar := coalesce(q_borrar, 'false');
+    insert into public.cotizaciones (empresa_id, folio_global, folio, disp, creado_por, estado, datos) values
+      ('al3d', 'COT-9300@HUMO', 'COT-9300', 'HUMO', u_pag, 'pendiente', '{"proy":"Humo: imágenes de Pagos"}'),
+      ('al3d', 'COT-9301@HUMO', 'COT-9301', 'HUMO', u_dir, 'pendiente', '{"proy":"Humo: imágenes de Dirección"}');
+    -- Pagos: sube a SU cotización; no a la de Dirección ni a un folio que la base no tiene.
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9300@HUMO/img-humo-1.jpg', u_pag::text);
+      inf := inf || jsonb_build_object('caso', 'C58 Pagos sube una imagen a SU cotización', 'ok', true, 'det', 'ok');
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C58 Pagos sube una imagen a SU cotización', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9301@HUMO/img-humo-x.jpg', u_pag::text);
+      t := 'pudo';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9302@HUMO/img-humo-x.jpg', u_pag::text);
+      t := t || ' / pudo';
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'C59 Pagos NO sube a la cotización de Dirección ni a un folio que la base no tiene (42501)', 'ok', t = '42501 / 42501', 'det', t);
+    execute 'reset role';
+    -- Fabricación: ni sube ni ve (las cotizaciones llevan precios).
+    perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9300@HUMO/img-humo-f.jpg', u_fab::text);
+      t := 'pudo subir';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes';      -- TODAS: cero haya lo que haya
+      inf := inf || jsonb_build_object('caso', 'C60 Fabricación NO sube (42501) y NO ve ninguna imagen (0, de ninguna cotización)', 'ok', t = '42501' and n = 0, 'det', t || ' / ve ' || n::text);
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C60 Fabricación NO sube ni ve imágenes', 'ok', false, 'det', t || ' / ' || sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
+    -- Dirección: sube a cualquier carpeta de su empresa, también a un folio que la base todavía no tiene; una ruta mal formada, no.
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values
+        ('cotizacion-imagenes', 'al3d/COT-9300@HUMO/img-humo-2.jpg', u_dir::text),
+        ('cotizacion-imagenes', 'al3d/COT-9302@HUMO/img-humo-3.jpg', u_dir::text);
+      inf := inf || jsonb_build_object('caso', 'C61 Dirección sube a la cotización de Pagos y a un folio que la base todavía no tiene', 'ok', true, 'det', 'ok');
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C61 Dirección sube a la cotización de Pagos y a un folio que la base todavía no tiene', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/humo-suelta.jpg', u_dir::text);
+      t := 'pudo';
+    exception when others then t := sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'C62 una ruta que no es <empresa>/<folio_global>/<id>.jpg se rechaza, también a Dirección (42501)', 'ok', t = '42501', 'det', t);
+    begin
+      select string_agg(o.name, ' ' order by o.name) into t from storage.objects o where o.bucket_id = 'cotizacion-imagenes' and o.name like 'al3d/COT-93%@HUMO/%';
+      inf := inf || jsonb_build_object('caso', 'C63 Dirección ve las tres imágenes de la prueba (también la del folio que la base no tiene)', 'ok',
+                                       coalesce(t = 'al3d/COT-9300@HUMO/img-humo-1.jpg al3d/COT-9300@HUMO/img-humo-2.jpg al3d/COT-9302@HUMO/img-humo-3.jpg', false), 'det', coalesce(t, 'ninguna'));
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C63 Dirección ve las imágenes', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      select string_agg(o.name, ' ' order by o.name) into t from storage.objects o where o.bucket_id = 'cotizacion-imagenes' and o.name like 'al3d/COT-93%@HUMO/%';
+      inf := inf || jsonb_build_object('caso', 'C64 Pagos ve las dos de SU cotización (también la que subió Dirección) y no la del folio que la base no tiene', 'ok',
+                                       coalesce(t = 'al3d/COT-9300@HUMO/img-humo-1.jpg al3d/COT-9300@HUMO/img-humo-2.jpg', false), 'det', coalesce(t, 'ninguna'));
+      update storage.objects set metadata = '{"humo": true}'::jsonb where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-9300@HUMO/%';
+      get diagnostics n = row_count;
+      t := n::text;
+      -- Borrar no se prueba con DELETE: en Supabase real `protect_objects_delete` es un disparador POR SENTENCIA que rechaza
+      -- cualquier DELETE por SQL antes de mirar la política (los borrados van por la API de Storage, que sí la aplica). Se evalúa
+      -- la condición de la política de borrar, tal cual, como este rol: las filas que deja son las que la API dejaría borrar.
+      execute format('select count(*) from storage.objects where bucket_id = %L and name like %L and (%s)',
+                     'cotizacion-imagenes', 'al3d/COT-9300@HUMO/%', q_borrar) into n;
+      inf := inf || jsonb_build_object('caso', 'C65 Pagos NO cambia ni borra, ni lo de su cotización (0 y 0 filas)', 'ok', t = '0' and n = 0, 'det', t || ' / ' || n::text);
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C64-C65 (Pagos y sus imágenes)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_ext, 'ext@humo.test');
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes';      -- TODAS: cero haya lo que haya
+      t := n::text;
+    exception when others then t := sqlstate;
+    end;
+    execute 'reset role';
+    perform pg_temp.como('anon', null, null);
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes';
+      t := t || ' / ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'C66 la persona ajena y anon NO ven ninguna imagen (0 / 0, o permission denied)', 'ok', t in ('0 / 0', '0 / 42501'), 'det', t);
+    execute 'reset role';
+    -- Borrar: solo Dirección. Igual que en C65 se evalúa la condición de la política de borrar (no un DELETE, que el disparador por
+    -- sentencia de Supabase rechaza para todos, sin decir nada de la política).
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      execute format('select count(*) from storage.objects where bucket_id = %L and name = %L and (%s)',
+                     'cotizacion-imagenes', 'al3d/COT-9302@HUMO/img-humo-3.jpg', q_borrar) into n;
+      inf := inf || jsonb_build_object('caso', 'C67 Dirección borra una imagen (la política la deja)', 'ok', n = 1, 'det', n::text || ' fila');
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C67 Dirección borra una imagen (la política la deja)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
+    select bk.public = false and bk.file_size_limit = 2097152 and bk.allowed_mime_types @> array['image/jpeg']
+           and bk.allowed_mime_types <@ array['image/jpeg', 'image/png', 'image/webp'] into b
+      from storage.buckets bk where bk.id = 'cotizacion-imagenes';
+    inf := inf || jsonb_build_object('caso', 'C68 el bucket es privado, con tope de 2 MB y solo imágenes', 'ok', coalesce(b, false), 'det', coalesce(b::text, 'no está'));
+    select string_agg(p.polname, ', ' order by p.polname) into t from pg_policy p
+     where p.polrelid = 'storage.objects'::regclass and p.polpermissive
+       and p.polname not in ('cotizacion_imagenes_leer', 'cotizacion_imagenes_subir', 'cotizacion_imagenes_cambiar', 'cotizacion_imagenes_borrar')
+       and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') like '%cotizacion-imagenes%'
+            or (coalesce(pg_get_expr(p.polqual, p.polrelid), '') not like '%bucket_id%' and coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') not like '%bucket_id%'));
+    inf := inf || jsonb_build_object('caso', 'C69 ninguna otra política de storage.objects abre el bucket (ni una que no mire bucket_id)', 'ok', t is null, 'det', coalesce(t, 'ninguna'));
+  end if;
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).
   raise exception 'HUMO_RESULTADO %', jsonb_build_object(
