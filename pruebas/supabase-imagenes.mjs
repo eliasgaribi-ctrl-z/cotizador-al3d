@@ -12,7 +12,10 @@
  *     reintento que no bloquea (la red o la sesión paran la vuelta y se sigue en la siguiente), lo
  *     definitivo se aparta, pocas por vuelta, un tope por aparato;
  *   · Pagos solo sube lo de SUS cotizaciones que ya están en la base; Fabricación ni sube ni baja;
- *   · bajar: URL firmada de 60 s, busca en las carpetas que la comparten, no repite lo que no encontró.
+ *   · bajar: URL firmada de 60 s, busca en las carpetas que la comparten, no repite lo que no encontró;
+ *   · Q-02 bis (decidido por Elías el 2026-10-16): la imagen que comparte una duplicada GANADA se copia a
+ *     la carpeta de la ganada; Fabricación (y Dirección) ven en la ficha las imágenes de una obra
+ *     ganada, por la ventanilla `obra`, y las de una no ganada o cancelada no se piden.
  *
  * No toca Supabase: el cliente de supabase-js y la red son dobles. Se corre con pruebas/correr.sh. */
 
@@ -62,6 +65,15 @@ function nube(o = {}) {
           if (objetos.has(ruta)) return { data: null, error: { name: 'StorageApiError', status: 400, statusCode: '409', message: 'The resource already exists' } };
           objetos.set(ruta, { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: blob.type, opts });
           return { data: { path: ruta }, error: null };
+        },
+        async copy(de, a) {
+          llamadas.push(['copiar', bucket, de, a]);
+          const g = o.copiar && o.copiar(de, a);
+          if (g) { if (g.lanza) throw g.lanza; return g; }
+          if (!objetos.has(de)) return { data: null, error: { name: 'StorageApiError', status: 400, statusCode: '404', message: 'Object not found' } };
+          if (objetos.has(a)) return { data: null, error: { name: 'StorageApiError', status: 400, statusCode: '409', message: 'The resource already exists' } };
+          objetos.set(a, { ...objetos.get(de) });
+          return { data: { path: a }, error: null };
         },
         async createSignedUrl(ruta, segundos) {
           llamadas.push(['firmar', bucket, ruta, segundos]);
@@ -144,6 +156,23 @@ try {
       ['ya_estaba', 'no_esta', 'rechazada', 'rechazada', 'rechazada', 'reintentar', 'reintentar', 'reintentar']);
     eq('la ruta del diseño', I.rutaDe('al3d', 'COT-0042-B@K7QM', 'img-x1'), 'al3d/COT-0042-B@K7QM/img-x1.jpg');
     eq('solo Dirección y Pagos', ['direccion', 'pagos', 'fabricacion', '', null].map(I.puedeImagenes), [true, true, false, false, false]);
+    eq('las de una obra ganada en la ficha (Q-02 bis): Dirección y Fabricación, no Pagos', ['direccion', 'pagos', 'fabricacion', '', null].map(I.puedeVerObra),
+      [true, false, true, false, false]);
+    const g = { folio_global: 'COT-0042@K7QM', folio_hoja: 'V-042', etapa: 'armado', deleted_at: null };
+    eq('ganada = la regla de la política: V-###, no cancelada, no borrada (y con folio de cotización)', [
+      I.esGanada(g), I.esGanada({ ...g, etapa: 'garantia' }), I.esGanada({ ...g, etapa: 'cancelado' }), I.esGanada({ ...g, folio_hoja: null }),
+      I.esGanada({ ...g, deleted_at: '2026-10-16T00:00:00Z' }), I.esGanada({ ...g, folio_global: null }), I.esGanada({ ...g, etapa: null }), I.esGanada(null)],
+      [true, true, false, false, false, false, false, false]);
+    eq('las imágenes de una obra: el plano de cada partida, los renders y la propuesta, con su rótulo, sin repetir ni basura',
+      I.imagenesDeObra({ items: [{ plano: 'img-a' }, null, { plano: 'img-b' }, { plano: 'img-a' }], renders: ['img-r1', 7], propuesta: ['img-p1', '../x', 'img-b'], precio: 9 }),
+      [{ id: 'img-a', que: 'Plano · partida 1' }, { id: 'img-b', que: 'Plano · partida 3' }, { id: 'img-r1', que: 'Render 1' }, { id: 'img-p1', que: 'Propuesta 1' }]);
+    eq('sin origen de obra, ninguna', [I.imagenesDeObra(null), I.imagenesDeObra('x'), I.imagenesDeObra({})], [[], [], []]);
+    const reg = new Map([['img-a', { id: 'img-a', ruta: R('COT-0001@K7QM', 'img-a'), estado: 'subida' }], ['img-r1', { id: 'img-r1', ruta: R('COT-0001@K7QM', 'img-r1'), estado: 'apartada' }],
+                         [I.claveCopia(R('COT-0002@K7QM', 'img-x')), { estado: 'copiada' }]]);
+    eq('copias posibles: solo de lo que ya está en la nube, a las OTRAS carpetas que la usan, y no las ya hechas', I.copiasPosibles(p.imagenes, reg),
+      [{ id: 'img-a', de: R('COT-0001@K7QM', 'img-a'), ruta: R('COT-0002@K7QM', 'img-a'), folio_global: 'COT-0002@K7QM' }]);
+    reg.set(I.claveCopia(R('COT-0002@K7QM', 'img-a')), { estado: 'copiada' });
+    eq('y una vez copiada, ya no', I.copiasPosibles(p.imagenes, reg), []);
   }
 
   console.log('\nSUBIR (Dirección): una vez por id, idempotente');
@@ -152,9 +181,12 @@ try {
     const t = telefono({ historial: HIST, locales: LOCALES, n: N });
     const r = await t.im.subir();
     eq('sube las tres que tiene y no la de la entrada sin aparato', [r.motivo, r.subidas, r.ya_estaban, r.apartadas], ['ok', 3, 0, 0]);
-    eq('a sus carpetas, sin sobrescribir nunca (upsert: false), como JPEG y con su peso real', N.llamadas.map(x => x.slice(2)), [
+    eq('a sus carpetas, sin sobrescribir nunca (upsert: false), como JPEG y con su peso real', N.llamadas.filter(x => x[0] === 'subir').map(x => x.slice(2)), [
       [R('COT-0001@K7QM', 'img-a'), false, 'image/jpeg', 3000], [R('COT-0001@K7QM', 'img-r1'), false, 'image/jpeg', 2000], [R('COT-0002@K7QM', 'img-p1'), false, 'image/jpeg', 1500]]);
-    eq('al bucket privado de storage.sql', [...new Set(N.llamadas.map(x => x[1]))], ['cotizacion-imagenes']);
+    eq('al bucket privado de storage.sql', [...new Set(N.llamadas.filter(x => x[0] === 'subir').map(x => x[1]))], ['cotizacion-imagenes']);
+    eq('y pregunta UNA vez si la duplicada (COT-0002) es una obra ganada; no lo es: no copia nada', N.llamadas.filter(x => x[0] !== 'subir').map(x => [x[0], x[1], x[2].filtros]),
+      [['consulta', 'proyectos', [['eq', 'empresa_id', 'al3d'], ['in', 'folio_global', ['COT-0002@K7QM']]]]]);
+    eq('ni lo cuenta como copia', r.copiadas, 0);
     eq('lo que llegó a la nube son los MISMOS bytes', [...N.objetos.entries()].map(([k, v]) => [k, Buffer.from(v.bytes).equals(Buffer.from(BYTES[k.split('/')[2].replace('.jpg', '')]))]),
       [[R('COT-0001@K7QM', 'img-a'), true], [R('COT-0001@K7QM', 'img-r1'), true], [R('COT-0002@K7QM', 'img-p1'), true]]);
     eq('con sus medidas en los metadatos del objeto', N.objetos.get(R('COT-0001@K7QM', 'img-a')).opts.metadata, { w: 1800, h: 1200, ts: 1 });
@@ -296,6 +328,119 @@ try {
     eq('y como no fue «no está», la próxima vez sí la pide', Object.keys(await ts.im.bajar(['img-a'])), ['img-a']);
   }
 
+  /* La base de mentiras de las obras: COT-0002 (la duplicada Bd) está GANADA, con su copia sin precios. */
+  const OBRA_B = { items: [{ id: 1, plano: 'img-a' }], renders: ['img-r1'], propuesta: ['img-p1'] };
+  const ganadaB = q => ({ data: q.tabla !== 'proyectos' ? [] : q.filtros.find(f => f[0] === 'in')[2].filter(fg => fg === 'COT-0002@K7QM')
+    .map(folio_global => ({ folio_global, folio_hoja: 'V-042', etapa: 'en_diseno', deleted_at: null, origen_obra: OBRA_B })), error: null });
+
+  console.log('\nQ-02 BIS · LA DUPLICADA GANADA: la imagen que comparte se COPIA a la carpeta de la ganada');
+  {
+    const n = nube({ consulta: ganadaB });
+    const t = telefono({ historial: HIST, locales: LOCALES, n });
+    const r = await t.im.subir();
+    eq('sube las tres y copia las DOS que comparte (el plano y el render) a COT-0002, que la base dice ganada', [r.motivo, r.subidas, r.copiadas], ['ok', 3, 2]);
+    eq('con una copia de Storage (no se vuelven a subir), de la carpeta de la más vieja a la de la ganada', n.llamadas.filter(x => x[0] === 'copiar').map(x => x.slice(1)), [
+      ['cotizacion-imagenes', R('COT-0001@K7QM', 'img-a'), R('COT-0002@K7QM', 'img-a')], ['cotizacion-imagenes', R('COT-0001@K7QM', 'img-r1'), R('COT-0002@K7QM', 'img-r1')]]);
+    eq('y se anotan aparte («copia:<ruta>»), sin tocar lo subido', (await t.reg()).map(x => [x.id, x.estado]), [
+      ['copia:' + R('COT-0002@K7QM', 'img-a'), 'copiada'], ['copia:' + R('COT-0002@K7QM', 'img-r1'), 'copiada'], ['img-a', 'subida'], ['img-p1', 'subida'], ['img-r1', 'subida']]);
+    const e = await t.im.estado();
+    eq('Ajustes: 3 subidas y 2 copias', [e.subidas, e.copias, e.porSubir], [3, 2, 0]);
+    const k = n.llamadas.length;
+    eq('IDEMPOTENTE: la vuelta siguiente no copia ni pregunta nada', [(await t.im.subir()).motivo, n.llamadas.length - k], ['nada', 0]);
+    const t2 = telefono({ historial: HIST, locales: LOCALES, n });
+    const r2 = await t2.im.subir();
+    eq('otro teléfono con el mismo historial: «ya existe» también en la copia, y cuenta como hecha', [r2.ya_estaban, r2.copiadas], [3, 2]);
+
+    const f = telefono({ historial: [], locales: {}, n, area: 'fabricacion' });
+    const o = await f.im.deObra('COT-0002@K7QM');
+    eq('y Fabricación, que solo sabe el folio de la obra, encuentra las TRES en su carpeta (sin la copia, le faltaban el plano y el render)',
+      [o.estado, o.imagenes.map(x => [x.id, x.que, x.url === dataUrl(BYTES[x.id])]), o.faltan],
+      ['ok', [['img-a', 'Plano · partida 1', true], ['img-r1', 'Render 1', true], ['img-p1', 'Propuesta 1', true]], 0]);
+
+    let gana = false, reloj = 5000;
+    const nv = nube({ consulta: q => (gana ? ganadaB(q) : { data: [], error: null }) });
+    const tv = telefono({ historial: HIST, locales: LOCALES, n: nv, ahora: () => reloj });
+    eq('sin obra ganada no copia nada', (await tv.im.subir()).copiadas, 0);
+    gana = true;
+    const k2 = nv.llamadas.length;
+    eq('lo que no estaba ganado no se vuelve a preguntar antes de 10 minutos', [(await tv.im.subir()).motivo, nv.llamadas.length - k2], ['nada', 0]);
+    reloj += I.MS_NO_REPETIR;
+    eq('a los 10 minutos se pregunta otra vez; ya ganada, se copia', (await tv.im.subir()).copiadas, 2);
+
+    const nr = nube({ consulta: ganadaB, copiar: (de, a) => (a.endsWith('img-r1.jpg') ? { data: null, error: { status: 400, statusCode: '403', message: 'new row violates row-level security policy' } } : null) });
+    const tr = telefono({ historial: HIST, locales: LOCALES, n: nr });
+    const rr = await tr.im.subir();
+    eq('una copia que la base no deja se APARTA con su motivo, y la otra sí se hace', [rr.copiadas, rr.apartadas, (await tr.reg()).filter(x => x.estado === 'apartada').map(x => [x.id, x.codigo])],
+      [1, 1, [['copia:' + R('COT-0002@K7QM', 'img-r1'), 'SIN_PERMISO']]]);
+    let cae = true;
+    const nc = nube({ consulta: ganadaB, copiar: () => (cae ? { lanza: Object.assign(new Error('Failed to fetch'), { name: 'StorageUnknownError' }) } : null) });
+    const tc = telefono({ historial: HIST, locales: LOCALES, n: nc });
+    const rc = await tc.im.subir();
+    eq('sin red al copiar: se para, no anota la copia y no lanza', [rc.motivo, rc.subidas, rc.copiadas, (await tc.reg()).filter(x => x.id.startsWith('copia:')).length], ['parada', 3, 0, 0]);
+    cae = false;
+    eq('la vuelta siguiente las copia', (await tc.im.subir()).copiadas, 2);
+    const nq = nube({ consulta: q => (q.tabla === 'proyectos' ? { data: null, error: { message: 'Failed to fetch' } } : { data: [], error: null }) });
+    const rq = await telefono({ historial: HIST, locales: LOCALES, n: nq }).im.subir();
+    eq('si la base no contesta cuáles están ganadas: se para (sin copiar) y se reintenta', [rq.motivo, rq.subidas, rq.copiadas, nq.llamadas.filter(x => x[0] === 'copiar').length], ['parada', 3, 0, 0]);
+    const np = nube({ consulta: q => (q.tabla === 'cotizaciones' ? { data: q.filtros.find(f => f[0] === 'in')[2].map(folio_global => ({ folio_global })), error: null } : ganadaB(q)) });
+    eq('Pagos también copia, cuando las dos cotizaciones son suyas y están en la base', (await telefono({ historial: HIST, locales: LOCALES, n: np, area: 'pagos' }).im.subir()).copiadas, 2);
+  }
+
+  console.log('\nQ-02 BIS · LA FICHA: las imágenes de una OBRA GANADA (ventanilla `obra`, con la lectura en vivo)');
+  {
+    const OBRA = { items: [{ id: 1, plano: 'img-a' }, { id: 2 }, { id: 3, plano: 'img-a' }], renders: ['img-r1', 'img-falta'], propuesta: ['img-p1', '../x'] };
+    const fila = (extra = {}) => ({ folio_global: 'COT-0042@K7QM', folio_hoja: 'V-042', etapa: 'armado', deleted_at: null, origen_obra: OBRA, ...extra });
+    let filas = [fila()];
+    const n = nube({ consulta: q => ({ data: q.tabla === 'proyectos' ? filas.filter(x => q.filtros.find(f => f[0] === 'in')[2].includes(x.folio_global)) : [], error: null }) });
+    for (const id of ['img-a', 'img-r1', 'img-p1']) n.objetos.set(R('COT-0042@K7QM', id), { bytes: BYTES[id], tipo: 'image/jpeg' });
+    const f = telefono({ historial: [], locales: {}, n, area: 'fabricacion' });
+    const r = await f.im.deObra('COT-0042@K7QM');
+    eq('Fabricación: el plano de cada partida, los renders y la propuesta, en ese orden, sin repetir, con su rótulo', [r.estado, r.imagenes.map(x => [x.id, x.que])],
+      ['ok', [['img-a', 'Plano · partida 1'], ['img-r1', 'Render 1'], ['img-p1', 'Propuesta 1']]]);
+    eq('con los mismos bytes, como data URL', r.imagenes.every(x => x.url === dataUrl(BYTES[x.id])), true);
+    eq('la que la obra dice y la nube todavía no tiene, se cuenta', [r.faltan, r.total], [1, 4]);
+    eq('lee la fila de proyectos (con origen_obra, sin precios) por su folio', n.llamadas.filter(x => x[0] === 'consulta').map(x => [x[1], x[2].select, x[2].filtros]),
+      [['proyectos', 'folio_global, folio_hoja, etapa, deleted_at, origen_obra', [['eq', 'empresa_id', 'al3d'], ['in', 'folio_global', ['COT-0042@K7QM']]]]]);
+    eq('y firma cada una por ' + I.SEGUNDOS_URL + ' s, SOLO en la carpeta de la obra', n.llamadas.filter(x => x[0] === 'firmar').map(x => [x[2], x[3]]),
+      [[R('COT-0042@K7QM', 'img-a'), 60], [R('COT-0042@K7QM', 'img-r1'), 60], [R('COT-0042@K7QM', 'img-falta'), 60], [R('COT-0042@K7QM', 'img-p1'), 60]]);
+    eq('nada se escribe en el teléfono (ni en el registro de la sombra)', (await f.reg()).length, 0);
+    const k = n.llamadas.length;
+    const r2 = await f.im.deObra('COT-0042@K7QM');
+    eq('reabrir la ficha: lo bajado sale de memoria y lo que no estaba no se vuelve a pedir en 10 minutos (solo se relee la fila)',
+      [r2.imagenes.length, r2.faltan, n.llamadas.slice(k).map(x => x[0])], [3, 1, ['consulta']]);
+
+    const k3 = n.llamadas.length;
+    const casos = [];
+    for (const [que, x] of [['cancelada', fila({ etapa: 'cancelado' })], ['«No se dio» (lápida)', fila({ folio_hoja: null, etapa: 'cancelado' })],
+                            ['borrada', fila({ deleted_at: '2026-10-16T00:00:00Z' })]]) {
+      filas = [x];
+      const o = await f.im.deObra('COT-0042@K7QM');
+      casos.push([que, o.estado, o.imagenes.length]);
+    }
+    filas = [];
+    const o0 = await f.im.deObra('COT-0042@K7QM');
+    casos.push(['sin obra', o0.estado, o0.imagenes.length]);
+    eq('cancelada, «No se dio» o borrada: no_ganada y ninguna imagen, ni las que estaban en memoria; sin obra en la base: sin_obra', casos,
+      [['cancelada', 'no_ganada', 0], ['«No se dio» (lápida)', 'no_ganada', 0], ['borrada', 'no_ganada', 0], ['sin obra', 'sin_obra', 0]]);
+    eq('y en esos casos no se firmó nada', n.llamadas.slice(k3).filter(x => x[0] !== 'consulta').length, 0);
+
+    filas = [fila()];
+    const d = telefono({ historial: [], locales: {}, n, area: 'direccion' });
+    eq('Dirección también la ve', (await d.im.deObra('COT-0042@K7QM')).imagenes.length, 3);
+    const n0 = nube();
+    const vacias = [];
+    for (const area of ['pagos', '']) vacias.push((await telefono({ historial: [], locales: {}, n: n0, area }).im.deObra('COT-0042@K7QM')).estado);
+    vacias.push((await telefono({ historial: [], locales: {}, n: n0, area: 'fabricacion' }).im.deObra('../COT-0042')).estado);
+    eq('Pagos y sin área: sin_permiso; un folio que no es folio: sin_obra; y sin pedir NADA (ni el cliente)', [vacias, n0.clientes(), n0.llamadas.length],
+      [['sin_permiso', 'sin_permiso', 'sin_obra'], 0, 0]);
+    const nb = nube({ consulta: () => ({ data: null, error: { message: 'Failed to fetch' } }) });
+    eq('si la base no contesta: sin_red, sin firmar nada', [(await telefono({ historial: [], locales: {}, n: nb, area: 'fabricacion' }).im.deObra('COT-0042@K7QM')).estado,
+      nb.llamadas.filter(x => x[0] === 'firmar').length], ['sin_red', 0]);
+    const ns = nube({ consulta: () => ({ data: [fila()], error: null }), firmar: () => ({ data: null, error: { name: 'StorageUnknownError', message: 'Failed to fetch' } }) });
+    const os = await telefono({ historial: [], locales: {}, n: ns, area: 'fabricacion' }).im.deObra('COT-0042@K7QM');
+    eq('si se cae la red al firmar: sin_red, se para en la primera y no lanza', [os.estado, os.sin_red, ns.llamadas.filter(x => x[0] === 'firmar').length], ['sin_red', true, 1]);
+  }
+
   console.log('\nAPAGADO: EL COTIZADOR DE VERDAD, SIN LA VENTANILLA, NO PIDE NADA');
   {
     /* js/cotizador/imagenes.js es un guion clásico: se corre entero en un contexto aparte, con un IndexedDB de mentiras. */
@@ -349,6 +494,44 @@ try {
     sobra.en('imgAsegurar()');
     await hasta(() => sobra.en('repintados') > 0);
     eq('si la ventanilla truena, el cotizador sigue como siempre', [sobra.en(`_imgNoHay.has('img-falta')`), sobra.en('repintados')], [true, 1]);
+    const taller = montar();
+    let pidioObra = 0;
+    taller.ctx.AL3D_NUBE = { obra: async () => { pidioObra++; return { estado: 'ok', imagenes: [] }; } };
+    taller.en('imgAsegurar()');
+    await hasta(() => taller.en('repintados') > 0);
+    eq('con la ventanilla de Fabricación (solo `obra`, sin `imagenes`) el cotizador no pide nada: es como apagado',
+      [taller.en(`_imgNoHay.has('img-falta')`), pidioObra, taller.red], [true, 0, []]);
+  }
+
+  console.log('\nQ-02 BIS · LA FICHA DE VERDAD (js/mod/proyectos.js): el hueco de las imágenes');
+  {
+    const fuente = leer('js/mod/proyectos.js');
+    const sin = sinComentarios(fuente);
+    /* La función que pinta el hueco, sacada del archivo tal cual y corrida en un contexto aparte. */
+    const trozo = (re, que) => { const m = re.exec(fuente); if (!m) throw new Error('no encontré ' + que + ' en js/mod/proyectos.js'); return m[0]; };
+    const ctx = vm.createContext({ esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;') });
+    vm.runInContext(trozo(/const URL_IMAGEN = [^\n]+\n/, 'URL_IMAGEN') + trozo(/function htmlImagenesNube\(r\) \{[\s\S]*?\n\}\n/, 'htmlImagenesNube') +
+      'globalThis.h = htmlImagenesNube;', ctx);
+    const h = r => ctx.h(r);
+    const U = dataUrl(jpeg(300, 5));
+    const ok = h({ estado: 'ok', imagenes: [{ id: 'img-a', que: 'Plano · partida 1', url: U }, { id: 'img-x', que: 'Render 1', url: 'javascript:alert(1)' },
+                                            { id: 'img-y', que: '<b>', url: 'https://otro.sitio/a.jpg' }], faltan: 0 });
+    eq('pinta cada imagen con su rótulo; lo que no es una data URL de imagen NO se pinta', [(ok.match(/<img /g) || []).length, ok.includes(U), /javascript:|otro\.sitio/.test(ok)], [1, true, false]);
+    cierto('con su texto alternativo', ok.includes('alt="Plano · partida 1"'));
+    const avisos = {
+      no_ganada: h({ estado: 'no_ganada', imagenes: [] }), sin_obra: h({ estado: 'sin_obra', imagenes: [] }), sin_red: h({ estado: 'sin_red', imagenes: [] }),
+      nulo: h(null), ninguna: h({ estado: 'ok', imagenes: [], faltan: 0 }), falta: h({ estado: 'ok', imagenes: [{ id: 'img-a', que: 'P', url: U }], faltan: 2 }),
+    };
+    eq('cada estado dice lo suyo, sin pintar imágenes donde no las hay', [
+      /no está ganada/.test(avisos.no_ganada), /todavía no está en la base/.test(avisos.sin_obra), /no se pudo preguntar/.test(avisos.sin_red), /no se pudo preguntar/.test(avisos.nulo),
+      /no traía plano/.test(avisos.ninguna), /2 imágenes todavía no están en la nube/.test(avisos.falta) && (avisos.falta.match(/<img /g) || []).length === 1],
+      [true, true, true, true, true, true]);
+    cierto('APAGADO: el hueco sale solo con la ventanilla `obra`, con folio de cotización y si la obra no está cancelada',
+      /if \(nubeObra\(\) && p\.folio_global && p\.etapa !== 'cancelado'\) \{\s*partes\.push\('<section class="pj-imagenes" id="pj-imagenes"/.test(sin));
+    cierto('la ventanilla se busca con `obra` como función, y sin ella no hay nada', /function nubeObra\(\) \{\s*try \{ const n = globalThis\.AL3D_NUBE; return n && typeof n\.obra === 'function' \? n : null; \}/.test(sin));
+    cierto('se llena al abrir y al repintar la ficha, como la carpeta', /pintarCarpeta\(\);\s*pintarImagenesNube\(\);/.test(sin));
+    cierto('y no pide nada sin la ventanilla', /async function pintarImagenesNube\(\) \{\s*const nube = nubeObra\(\);\s*if \(!\$\('pj-imagenes'\) \|\| !nube \|\| !fichaId\) return;/.test(sin));
+    cierto('la ficha no habla con Supabase ni importa el módulo de las imágenes', !/supabase|supa-imagenes|createSignedUrl|\.storage\b/i.test(sin));
   }
 
   console.log('\nEL CÓDIGO: apagado no carga el módulo y la ventanilla solo la pone la lectura en vivo');
@@ -361,7 +544,8 @@ try {
       todos.filter(f => /^\s*import[^;(]*supa-imagenes\.js/m.test(leer(f))), ['js/datos/supa-enchufe.js']);
     const en = sinComentarios(leer('js/datos/supa-enchufe.js'));
     cierto('la ventanilla se pone al encender la lectura en vivo', /Puente\.fuenteDeLectura\(_fuente\);\s*ponerVentanilla\(\);/.test(en));
-    cierto('solo a quien puede (Dirección o Pagos)', /function ponerVentanilla\(\) \{\s*if \(!puedeImagenes\(_area\)\) \{ quitarVentanilla\(\); return; \}/.test(en));
+    cierto('solo a quien puede: `imagenes` a Dirección o Pagos, `obra` a Dirección o Fabricación (Q-02 bis); a nadie más',
+      /function ponerVentanilla\(\) \{\s*if \(!puedeImagenes\(_area\) && !puedeVerObra\(_area\)\) \{ quitarVentanilla\(\); return; \}\s*const v = \{\};\s*if \(puedeImagenes\(_area\)\) v\.imagenes = ids => imagenes\(\)\.bajar\(ids\);\s*if \(puedeVerObra\(_area\)\) v\.obra = folioGlobal => imagenes\(\)\.deObra\(folioGlobal\);\s*globalThis\.AL3D_NUBE = Object\.freeze\(v\);/.test(en));
     cierto('y se quita al apagarla (y apagar() apaga la lectura en vivo)', /function apagarVivo\(\) \{\s*Puente\.fuenteDeLectura\(null\);\s*quitarVentanilla\(\);/.test(en) &&
       /export function apagar\(\) \{[\s\S]*?apagarVivo\(\);/.test(en));
     eq('nadie más la pone', todos.filter(f => /AL3D_NUBE\s*=/.test(sinComentarios(leer(f)))), ['js/datos/supa-enchufe.js']);

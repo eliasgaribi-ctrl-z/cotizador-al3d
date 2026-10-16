@@ -16,6 +16,12 @@
      · UNA vez por id. Una cotización duplicada comparte las imágenes de la original (las apunta por
        id, no las copia), así que cada imagen va en la carpeta de la cotización MÁS VIEJA que la usa;
        subirla en cada carpeta gastaría el doble del 1 GB del plan gratuito.
+     · La excepción: si otra de las que la usan se GANÓ (la base tiene su obra con V-### y no
+       cancelada), la imagen se COPIA también a la carpeta de la ganada, con una copia de Storage (no
+       se vuelve a subir: no gasta datos del teléfono). Es ahí donde la busca Fabricación, que solo
+       sabe el folio de la obra (Q-02 bis); sin la copia, la duplicada ganada se quedaba sin plano.
+       Cada copia se anota como `copia:<ruta>`; un folio que no está ganado no se vuelve a preguntar
+       en 10 minutos.
      · Idempotente: lo subido se anota en la base local de la sombra (`al3d_sombra`, almacén
        `imagenes`) y no se vuelve a mandar; si la nube ya la tiene («ya existe»), cuenta como subida.
        Nunca se sobrescribe (`upsert: false`): una imagen no cambia con el mismo id.
@@ -24,7 +30,7 @@
        no es imagen) se APARTA con su motivo y se puede reintentar desde Ajustes.
      · Quién sube (supabase/opcional/storage.sql): Dirección, todo; Pagos, solo las de SUS
        cotizaciones que ya estén en la base (antes se pregunta cuáles: la base no le deja subir a
-       las demás); Fabricación, NADA, porque las cotizaciones llevan precios (Q-02).
+       las demás); Fabricación, NADA (Q-02; tampoco desde Q-02 bis, que solo le abre LEER).
      · Lo que no sale: los borradores (la cotización en pantalla, sin autorizar), las entradas del
        historial sin aparato (de antes de que se guardara `disp`; se cuentan en Ajustes) y la imagen
        de referencia con la que se cotizó con IA (`aiFile`: no tiene id y puede ser un PDF).
@@ -33,7 +39,15 @@
    en este teléfono (un respaldo no trae las imágenes, o es otro teléfono), la pide por la ventanilla
    `AL3D_NUBE` que pone el enchufe; aquí se busca en la nube con una URL FIRMADA de 60 segundos y se
    devuelve como data URL. El que la guarda en el teléfono es el propio cotizador. Fabricación no
-   baja nada (la base tampoco se lo dejaría).
+   baja nada por aquí (no tiene cotizaciones, y la base no le dejaría ver las de una no ganada).
+
+   LAS DE UNA OBRA GANADA (Q-02 bis, decidido por Elías el 2026-10-16; con la lectura en vivo). La
+   ficha del proyecto le pide a la ventanilla (`AL3D_NUBE.obra(folio_global)`) las imágenes de la
+   obra: se lee su fila de `proyectos` (los tres roles la leen; `origen_obra` trae los ids del plano,
+   los renders y la propuesta, sin precios), se confirma que está GANADA con la misma regla de la
+   política (V-###, no cancelada, no borrada) y se baja cada una de la carpeta de su folio con una
+   URL firmada de 60 s. Solo Dirección y Fabricación: la base no le abre a Pagos las de una obra que
+   no es su cotización. Nada se guarda en el teléfono: viven en memoria mientras la app está abierta.
    ============================================================================ */
 
 export const BUCKET = 'cotizacion-imagenes';
@@ -47,6 +61,10 @@ export const POR_BAJADA = 12;                               // imágenes por pet
 export const TOPE_APARATO = 750 * 1024 * 1024;
 export const MS_NO_REPETIR = 10 * 60 * 1000;                // una imagen que no se encontró no se vuelve a pedir en 10 min
 export const AREAS = Object.freeze(['direccion', 'pagos']);  // Fabricación nunca (Q-02)
+/* Quién ve en la ficha las imágenes de una obra ganada (Q-02 bis): Fabricación, para quien se abrió,
+   y Dirección, que ya lo ve todo. Pagos no: la base solo le enseña las de SUS cotizaciones. */
+export const AREAS_OBRA = Object.freeze(['direccion', 'fabricacion']);
+export const EN_MEMORIA = 16;                               // imágenes de obra que se quedan en memoria (las fichas que se reabren)
 export const CLAVE_HISTORIAL = 'al3d_historial';
 export const BASE_LOCAL = 'al3d_cot_imgs';
 export const ALMACEN_LOCAL = 'img';
@@ -57,6 +75,8 @@ const EMPRESA = /^[a-z][a-z0-9_]{1,31}$/;
 
 /** ¿Esta área sube y baja imágenes? Solo Dirección y Pagos. */
 export const puedeImagenes = area => AREAS.includes(String(area || ''));
+/** ¿Esta área ve las imágenes de una obra ganada en la ficha? Dirección y Fabricación (Q-02 bis). */
+export const puedeVerObra = area => AREAS_OBRA.includes(String(area || ''));
 
 /* ============================================================================
    Lo puro
@@ -110,6 +130,56 @@ export function planDeSubida(historial, { empresa = 'al3d', permitidos = null } 
     }
   }
   return { imagenes, sinAparato };
+}
+
+/**
+ * ¿La base dice que esta obra está GANADA? La misma regla que la política de Storage (Q-02 bis):
+ * una venta (V-###), que no está cancelada ni borrada. PURA.
+ * @param {Object} p una fila de `proyectos` ({folio_global, folio_hoja, etapa, deleted_at})
+ */
+export function esGanada(p) {
+  return !!(p && typeof p === 'object' && p.folio_hoja && p.folio_global && FOLIO_GLOBAL.test(String(p.folio_global)) &&
+            p.etapa && p.etapa !== 'cancelado' && !p.deleted_at);
+}
+
+/**
+ * Las imágenes de una obra, desde su `origen_obra` (la copia SIN precios de la cotización): el plano
+ * de cada partida, los renders y la propuesta, en ese orden, sin repetir, con su rótulo. PURA.
+ * @returns {Array<{id:string, que:string}>}
+ */
+export function imagenesDeObra(o) {
+  if (!o || typeof o !== 'object') return [];
+  const out = [], vistos = new Set();
+  const poner = (id, que) => { if (typeof id === 'string' && ID.test(id) && !vistos.has(id)) { vistos.add(id); out.push({ id, que }); } };
+  (Array.isArray(o.items) ? o.items : []).forEach((it, i) => { if (it && typeof it === 'object') poner(it.plano, 'Plano · partida ' + (i + 1)); });
+  (Array.isArray(o.renders) ? o.renders : []).forEach((id, i) => poner(id, 'Render ' + (i + 1)));
+  (Array.isArray(o.propuesta) ? o.propuesta : []).forEach((id, i) => poner(id, 'Propuesta ' + (i + 1)));
+  return out;
+}
+
+/** La llave en el registro de la sombra de la COPIA de una imagen en otra carpeta (no choca con un id: lleva «:» y «/»). */
+export const claveCopia = ruta => 'copia:' + ruta;
+
+/**
+ * Las copias que podrían hacer falta: por cada imagen que comparten varias cotizaciones y que YA
+ * está en la nube (según el registro), las demás carpetas que la usan y donde todavía no se copió.
+ * Si alguna de esas cotizaciones se ganó, ahí se copia (eso lo decide la base, no esta función). PURA.
+ * @param {Map} imagenes las de `planDeSubida`
+ * @param {Map<string,Object>} reg el registro de la sombra (id → {ruta, estado})
+ * @returns {Array<{id:string, de:string, ruta:string, folio_global:string}>}
+ */
+export function copiasPosibles(imagenes, reg) {
+  const out = [];
+  for (const p of imagenes.values()) {
+    if (p.candidatos.length < 2) continue;
+    const r = reg.get(p.id);
+    if (!r || (r.estado !== 'subida' && r.estado !== 'ya_estaba') || !r.ruta) continue;
+    for (const ruta of p.candidatos) {
+      if (ruta === r.ruta || reg.has(claveCopia(ruta))) continue;
+      out.push({ id: p.id, de: r.ruta, ruta, folio_global: folioDeRuta(ruta) });
+    }
+  }
+  return out;
 }
 
 /** Una data URL en base64 → {tipo, bytes}; null si no es una. Sin fetch: la CSP de la app no deja pedir `data:`. */
@@ -221,8 +291,27 @@ export function crearImagenes(deps) {
   const anotar = async ev => { try { if (deps.anotar) await deps.anotar(ev); } catch (_) { /* el registro es aviso */ } };
   let _subiendo = null, _ultimoError = '', _tope = false;
   const noEncontradas = new Map();          // id → cuándo se buscó sin encontrarla
+  const ganadas = new Set();                // folios que la base ya dijo que son obras ganadas (para las copias)
+  const revisadas = new Map();              // folio → cuándo se preguntó y NO estaba ganado
+  const enMemoria = new Map();              // ruta → data URL de una imagen de obra ya bajada (las más recientes al final)
+  const noEstaEnObra = new Map();           // ruta → cuándo se buscó sin encontrarla
 
   async function registro() { return new Map((await almacen.listar('imagenes')).map(r => [r.id, r])); }
+
+  /* Cuáles de esos folios son obras GANADAS (Q-02 bis): los tres roles leen `proyectos`. Lo ganado se
+     recuerda; lo que no, no se vuelve a preguntar en 10 minutos. */
+  async function foliosGanados(c, folios) {
+    for (let i = 0; i < folios.length; i += 50) {
+      const { data, error } = await c.from('proyectos').select('folio_global, folio_hoja, etapa, deleted_at').eq('empresa_id', empresa()).in('folio_global', folios.slice(i, i + 50));
+      if (error) throw Object.assign(new Error(error.message || 'La base no contestó.'), { codigo: 'SIN_RED' });
+      for (const r of (Array.isArray(data) ? data : [])) if (esGanada(r)) ganadas.add(r.folio_global);
+    }
+    const t = ahora();
+    for (const f of folios) if (!ganadas.has(f)) revisadas.set(f, t);
+  }
+  /** Las copias que tocan en esta vuelta: las de un folio ya ganado y las de uno que no se preguntó hace poco. */
+  const copiasPorRevisar = (imagenes, reg) => copiasPosibles(imagenes, reg).filter(x =>
+    ganadas.has(x.folio_global) || !(revisadas.has(x.folio_global) && ahora() - revisadas.get(x.folio_global) < MS_NO_REPETIR));
 
   /* Pagos: cuáles de esas carpetas son cotizaciones SUYAS que ya están en la base (la RLS solo le
      enseña las suyas). La política de Storage no le deja subir a ninguna otra. */
@@ -242,17 +331,20 @@ export function crearImagenes(deps) {
     if (!puedeImagenes(a)) return nada(a ? 'sin_permiso' : 'sin_area');
     if (!enLinea()) return nada('sin_red');
     const hist = historial();
-    const reg = await registro();
-    let pend = [...planDeSubida(hist, { empresa: empresa() }).imagenes.values()].filter(p => !reg.has(p.id));
-    if (!pend.length) return nada('nada');
+    let reg = await registro();
+    let plan = planDeSubida(hist, { empresa: empresa() }).imagenes;
+    let pend = [...plan.values()].filter(p => !reg.has(p.id));
+    if (!pend.length && !copiasPorRevisar(plan, reg).length) return nada('nada');
     let c;
     try { c = await deps.cliente(); } catch (e) { _ultimoError = String((e && e.message) || 'Supabase no cargó.'); return nada('sin_cliente'); }
     if (a === 'pagos') {
       let propios;
-      try { propios = await foliosPropios(c, [...new Set(pend.flatMap(p => p.candidatos.map(folioDeRuta)))]); }
+      const carpetas = [...pend, ...copiasPosibles(plan, reg).map(x => plan.get(x.id))].flatMap(p => p.candidatos.map(folioDeRuta));
+      try { propios = await foliosPropios(c, [...new Set(carpetas)]); }
       catch (e) { _ultimoError = String((e && e.message) || e); return nada('parada', { codigo: 'SIN_RED' }); }
-      pend = [...planDeSubida(hist, { empresa: empresa(), permitidos: propios }).imagenes.values()].filter(p => !reg.has(p.id));
-      if (!pend.length) return nada('esperan_cotizacion');
+      plan = planDeSubida(hist, { empresa: empresa(), permitidos: propios }).imagenes;
+      pend = [...plan.values()].filter(p => !reg.has(p.id));
+      if (!pend.length && !copiasPorRevisar(plan, reg).length) return nada('esperan_cotizacion');
     }
     let usados = 0;
     for (const r of reg.values()) if (r.estado === 'subida') usados += Number(r.bytes) || 0;
@@ -292,12 +384,43 @@ export function crearImagenes(deps) {
       parada = L.codigo; _ultimoError = L.mensaje;
       break;
     }
+    /* Las copias a la carpeta de una obra GANADA (ver la cabecera). Solo de lo que ya está en la nube,
+       y preguntando a la base, una vez, cuáles de esas carpetas son obras ganadas. */
+    let copiadas = 0;
+    if (!parada && vistas < POR_VUELTA) {
+      reg = await registro();
+      let lista = copiasPorRevisar(plan, reg);
+      const preguntar = [...new Set(lista.map(x => x.folio_global).filter(f => !ganadas.has(f)))];
+      if (preguntar.length) {
+        try { await foliosGanados(c, preguntar); }
+        catch (e) { parada = 'SIN_RED'; _ultimoError = String((e && e.message) || e); lista = []; }
+      }
+      for (const x of lista) {
+        if (vistas >= POR_VUELTA) break;
+        if (!ganadas.has(x.folio_global)) continue;
+        vistas++;
+        const copia = { id: claveCopia(x.ruta), ruta: x.ruta };
+        let r;
+        try { r = await c.storage.from(BUCKET).copy(x.de, x.ruta); } catch (e) { r = { error: e }; }
+        const L = r && !r.error ? null : leerError(r && r.error);
+        if (!L || L.caso === 'ya_estaba') {
+          await almacen.poner('imagenes', { ...copia, de: x.de, estado: 'copiada', ts: ahora() });
+          copiadas++;
+          continue;
+        }
+        if (L.caso === 'rechazada') { await apartar(copia, L.codigo, L.mensaje); continue; }
+        if (L.caso === 'no_esta') { await apartar(copia, L.codigo, 'El original ya no está en la nube: no hay qué copiar.'); continue; }
+        parada = L.codigo; _ultimoError = L.mensaje;
+        break;
+      }
+    }
     if (subidas || yaEstaban) {
       await anotar({ tipo: 'imagenes', mensaje: subidas + ' subidas a la nube (' + mb(bytes) + ')' + (yaEstaban ? ', ' + yaEstaban + ' ya estaban' : '') });
     }
+    if (copiadas) await anotar({ tipo: 'imagenes', mensaje: copiadas + (copiadas === 1 ? ' copiada' : ' copiadas') + ' a la carpeta de su obra ganada' });
     if (parada) await anotar({ tipo: 'imagenes', mensaje: (parada === 'TOPE' ? 'se paró: ' : 'se reintenta: ') + _ultimoError });
-    else if (subidas || yaEstaban) _ultimoError = '';
-    return { motivo: parada ? 'parada' : 'ok', codigo: parada, subidas, ya_estaban: yaEstaban, apartadas, bytes,
+    else if (subidas || yaEstaban || copiadas) _ultimoError = '';
+    return { motivo: parada ? 'parada' : 'ok', codigo: parada, subidas, ya_estaban: yaEstaban, copiadas, apartadas, bytes,
              hay_mas: !parada && vistas >= POR_VUELTA };
   }
 
@@ -308,6 +431,25 @@ export function crearImagenes(deps) {
       .catch(e => { _ultimoError = String((e && e.message) || e); return { motivo: 'error', subidas: 0, mensaje: _ultimoError, hay_mas: false }; })
       .finally(() => { _subiendo = null; });
     return _subiendo;
+  }
+
+  /**
+   * Una imagen de la nube por su ruta, con una URL firmada de 60 s: su data URL; null si no está ahí
+   * (o la base no deja verla, que Storage dice igual) o no es una imagen; 'sin_red' si no hubo con quién
+   * hablar. Nunca lanza.
+   */
+  async function traer(c, ruta) {
+    let s;
+    try { s = await c.storage.from(BUCKET).createSignedUrl(ruta, SEGUNDOS_URL); } catch (e) { s = { error: e }; }
+    if (!s || s.error || !s.data || !s.data.signedUrl) return leerError(s && s.error).caso === 'reintentar' ? 'sin_red' : null;
+    let resp;
+    try { resp = await pedir(s.data.signedUrl); } catch (_) { return 'sin_red'; }
+    if (!resp || !resp.ok) return null;
+    const tipo = String((resp.headers && resp.headers.get && resp.headers.get('content-type')) || '').split(';')[0].trim().toLowerCase();
+    if (!TIPOS.includes(tipo)) return null;
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    if (!buf.length || buf.length > TOPE_OBJETO) return null;
+    return dataUrlDeBytes(buf, tipo);
   }
 
   /**
@@ -330,21 +472,9 @@ export function crearImagenes(deps) {
       for (const id of pedidos) {
         const candidatos = [...new Set([reg.get(id) && reg.get(id).ruta, ...((plan.get(id) || {}).candidatos || [])].filter(Boolean))].slice(0, 3);
         for (const ruta of candidatos) {
-          let s;
-          try { s = await c.storage.from(BUCKET).createSignedUrl(ruta, SEGUNDOS_URL); } catch (e) { s = { error: e }; }
-          if (!s || s.error || !s.data || !s.data.signedUrl) {
-            if (leerError(s && s.error).caso === 'reintentar') { sinRed = true; break; }
-            continue;                                          // no está ahí (o la base no deja verla): la siguiente carpeta
-          }
-          let resp;
-          try { resp = await pedir(s.data.signedUrl); } catch (_) { sinRed = true; break; }
-          if (!resp || !resp.ok) continue;
-          const tipo = String((resp.headers && resp.headers.get && resp.headers.get('content-type')) || '').split(';')[0].trim().toLowerCase();
-          if (!TIPOS.includes(tipo)) continue;
-          const buf = new Uint8Array(await resp.arrayBuffer());
-          if (!buf.length || buf.length > TOPE_OBJETO) continue;
-          out[id] = dataUrlDeBytes(buf, tipo);
-          break;
+          const r = await traer(c, ruta);
+          if (r === 'sin_red') { sinRed = true; break; }
+          if (r) { out[id] = r; break; }                       // si no, no está ahí (o la base no deja verla): la siguiente carpeta
         }
         if (sinRed) break;
         if (!out[id]) noEncontradas.set(id, t);
@@ -355,14 +485,59 @@ export function crearImagenes(deps) {
     } catch (_) { return {}; }
   }
 
+  /**
+   * Las imágenes de una obra GANADA, para la ficha del proyecto (Q-02 bis): el plano de cada partida,
+   * los renders y la propuesta, de la carpeta de su folio. Lee la fila de `proyectos` (los ids vienen
+   * en `origen_obra`, sin precios) y confirma que está ganada antes de pedir nada a Storage. Nunca lanza.
+   * @returns {Promise<{estado:'ok'|'no_ganada'|'sin_obra'|'sin_red'|'sin_permiso', imagenes:Array<{id,que,url}>, faltan:number, total:number}>}
+   *   `faltan`: las que la obra dice que tiene y la nube todavía no (las sube el teléfono que la cotizó).
+   */
+  async function deObra(folioGlobal) {
+    const vacio = (estado, extra = {}) => ({ estado, imagenes: [], faltan: 0, total: 0, ...extra });
+    try {
+      if (!puedeVerObra(area())) return vacio('sin_permiso');
+      const fg = String(folioGlobal || '');
+      if (!FOLIO_GLOBAL.test(fg)) return vacio('sin_obra');
+      if (!enLinea()) return vacio('sin_red');
+      const c = await deps.cliente();
+      const { data, error } = await c.from('proyectos').select('folio_global, folio_hoja, etapa, deleted_at, origen_obra')
+        .eq('empresa_id', empresa()).in('folio_global', [fg]);
+      if (error) return vacio('sin_red');
+      const p = (Array.isArray(data) ? data : []).find(x => x && x.folio_global === fg);
+      if (!p) return vacio('sin_obra');
+      if (!esGanada(p)) return vacio('no_ganada');
+      const lista = imagenesDeObra(p.origen_obra).slice(0, POR_BAJADA);
+      const t = ahora();
+      const out = [];
+      let sinRed = false, nuevas = 0;
+      for (const x of lista) {
+        const ruta = rutaDe(empresa(), fg, x.id);
+        let url = enMemoria.get(ruta) || '';
+        if (!url && !sinRed && !(noEstaEnObra.has(ruta) && t - noEstaEnObra.get(ruta) < MS_NO_REPETIR)) {
+          const r = await traer(c, ruta);
+          if (r === 'sin_red') sinRed = true;
+          else if (r) { url = r; nuevas++; }
+          else noEstaEnObra.set(ruta, t);
+        }
+        if (!url) continue;
+        enMemoria.delete(ruta); enMemoria.set(ruta, url);                 // la más reciente al final
+        while (enMemoria.size > EN_MEMORIA) enMemoria.delete(enMemoria.keys().next().value);
+        out.push({ ...x, url });
+      }
+      if (nuevas) await anotar({ tipo: 'imagenes', mensaje: nuevas + (nuevas === 1 ? ' bajada' : ' bajadas') + ' de la nube para la obra ' + fg });
+      return { estado: sinRed && !out.length ? 'sin_red' : 'ok', imagenes: out, faltan: lista.length - out.length, total: lista.length, sin_red: sinRed };
+    } catch (_) { return vacio('sin_red'); }
+  }
+
   /** Para Ajustes: lo subido, lo que falta (y cuánto pesa) y lo apartado. Lee el teléfono, no la red. */
   async function estado() {
     const reg = await registro().catch(() => new Map());
     const plan = planDeSubida(historial(), { empresa: empresa() });
-    let subidas = 0, bytes = 0, apartadas = 0, porSubir = 0, bytesPorSubir = 0, noEstan = 0;
+    let subidas = 0, bytes = 0, apartadas = 0, copias = 0, porSubir = 0, bytesPorSubir = 0, noEstan = 0;
     for (const r of reg.values()) {
       if (r.estado === 'subida') { subidas++; bytes += Number(r.bytes) || 0; }
       else if (r.estado === 'ya_estaba') subidas++;
+      else if (r.estado === 'copiada') copias++;
       else if (r.estado === 'apartada') apartadas++;
     }
     for (const p of plan.imagenes.values()) {
@@ -370,7 +545,7 @@ export function crearImagenes(deps) {
       const l = await Promise.resolve().then(() => leerLocal(p.id)).catch(() => null);
       if (l && typeof l.url === 'string' && l.url) { porSubir++; bytesPorSubir += bytesAprox(l.url); } else noEstan++;
     }
-    return { area: area(), subidas, bytes, apartadas, porSubir, bytesPorSubir, noEstan, sinAparato: plan.sinAparato,
+    return { area: area(), subidas, bytes, copias, apartadas, porSubir, bytesPorSubir, noEstan, sinAparato: plan.sinAparato,
              tope: _tope, ultimo_error: _ultimoError, subiendo: !!_subiendo };
   }
 
@@ -383,5 +558,5 @@ export function crearImagenes(deps) {
     return k;
   }
 
-  return { subir, bajar, estado, reintentarApartadas };
+  return { subir, bajar, deObra, estado, reintentarApartadas };
 }
