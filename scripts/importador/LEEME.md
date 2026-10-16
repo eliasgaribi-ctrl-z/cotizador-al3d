@@ -46,9 +46,11 @@ importación del 2026-10-16. Si el plan trae conflictos o filas que no entran, n
 ## Cuándo se puede volver a correr
 
 Las veces que haga falta **mientras la hoja sea la fuente** (hasta la fase 4): cada corrida deja la base como dice la hoja, así
-que lo que alguien haya cambiado en la base desde la plataforma se pisa. Lo que la base no deja cambiar (una venta que pasó
-de viva a histórica, un abono que ya se importó y en la hoja se corrigió) no se toca: sale como «conflicto» al final de la
-corrida, para decidirlo a mano.
+que lo que alguien haya cambiado en la base desde la plataforma se pisa. Una venta que en la base ya es **viva** y que la hoja
+haría histórica (pasó de FABRICACION o REPARANDO a COBRANDO o LIQUIDADO sin folio de cotización) **sigue viva**, con su estatus
+y su dinero de la hoja (decidido el 2026-10-16, `docs/DECISIONES-SUPABASE.md`, «Transición», opción a). Lo que la base no deja
+cambiar (una venta que pasó de histórica a viva, un abono que ya se importó y en la hoja se corrigió) no se toca: sale como
+«conflicto» al final de la corrida, para decidirlo a mano.
 
 ## Qué no lleva todavía
 

@@ -91,11 +91,18 @@ const COLS = {
 /* Cómo entra el lote a su tabla. `l` es el lote (temporal). Cada sentencia devuelve (llave, nuevo). */
 const ESCRIBIR = {
   proyectos: `
+    -- Una venta que en la base ya es VIVA sigue viva aunque la hoja ahora la haría histórica (pasó de FABRICACION o REPARANDO a
+    -- COBRANDO o LIQUIDADO sin folio de cotización: el ciclo normal de una venta). Decidido el 2026-10-16 (DECISIONES, «Transición»,
+    -- opción a). La base no deja cambiar \`historica\` y eso NO se afloja: la fila entra como viva, con su estatus y su dinero de la
+    -- hoja, la etapa de la base si la hoja no trae una (una viva siempre tiene etapa) y sin fecha de instalación de histórica.
+    update _lote l set historica = false, etapa = coalesce(l.etapa, p.etapa), fecha_instalacion_hist = null
+      from public.proyectos p
+     where p.empresa_id = l.empresa_id and p.id = l.id and not p.historica and l.historica and p.fuente = l.fuente;
     insert into _imp_cambios (tabla, llave, accion)
       select 'proyectos', l.id, 'conflicto: su folio ya es de ' || p.id
         from _lote l join public.proyectos p on p.empresa_id = l.empresa_id and p.id <> l.id
                                               and (p.folio_hoja = l.folio_hoja or p.folio_global = l.folio_global);
-    -- lo que la base no deja cambiar de un proyecto (histórica/viva, de dónde viene): se reporta y la fila no se toca
+    -- lo que la base no deja cambiar de un proyecto (de histórica a viva, de dónde viene): se reporta y la fila no se toca
     insert into _imp_cambios (tabla, llave, accion)
       select 'proyectos', l.id, 'conflicto: en la base es ' || case when p.historica then 'histórica' else 'viva' end || ' de ' || p.fuente
                                 || ' y ahora sería ' || case when l.historica then 'histórica' else 'viva' end || ' de ' || l.fuente

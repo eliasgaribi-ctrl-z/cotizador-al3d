@@ -360,13 +360,18 @@ describir('Revisión: cosas que tumbaban un lote o perdían datos', () => {
       cierto(plan.reporte.conflictos.some(c => c.tema === 'folio de cotización en dos filas'), 'se reporta');
     } finally { await cerrar(db); }
   });
-  prueba('una fila que pasó de viva a histórica entre dos corridas se reporta y no tumba la carga', async () => {
+  prueba('una fila viva que la hoja pasa a COBRANDO sin folio de cotización SIGUE VIVA, con su estatus y su dinero nuevos (opción a, 2026-10-16); una histórica que la hoja vuelve viva se reporta y no tumba la carga', async () => {
     const { db } = await importar(await planear({ volcado: volcado({ ventas: [filaSimple('V-030', { C: 'FABRICACION' }), filaSimple('V-031')] }) }));
     try {
-      const cambios = await sql(db, sqlDeImportacion(await planear({ volcado: volcado({ ventas: [filaSimple('V-030', { C: 'COBRANDO', G: 150 }), filaSimple('V-031', { G: 200 })] }) })));
-      cierto(cambios.some(x => x.tabla === 'proyectos' && /^conflicto: en la base es viva/.test(x.accion)), JSON.stringify(cambios));
-      igual(await sql(db, `select p.folio_hoja, p.historica, d.subtotal::text as g from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id order by 1`),
-        [{ folio_hoja: 'V-030', historica: false, g: '150' }, { folio_hoja: 'V-031', historica: true, g: '200' }], 'el dinero sí se actualiza; la clasificación espera');
+      const plan2 = await planear({ volcado: volcado({ ventas: [filaSimple('V-030', { C: 'COBRANDO', G: 150 }), filaSimple('V-031', { C: 'REPARANDO', G: 200 })] }) });
+      const cambios = await sql(db, sqlDeImportacion(plan2));
+      const CONFLICTO = { tabla: 'proyectos', accion: 'conflicto: en la base es histórica de hoja y ahora sería viva de hoja', filas: 1 };
+      igual(cambios.filter(x => /^conflicto/.test(x.accion)), [CONFLICTO], 'un solo conflicto: el de V-031, que la base sigue sin dejar (histórica → viva)');
+      igual(await sql(db, `select p.folio_hoja, p.historica, p.estatus, p.etapa, d.subtotal::text as g from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id order by 1`),
+        [{ folio_hoja: 'V-030', historica: false, estatus: 'COBRANDO', etapa: 'ganado', g: '150' }, { folio_hoja: 'V-031', historica: true, estatus: 'COBRANDO', g: '200', etapa: null }],
+        'V-030 sigue viva con lo de la hoja; de V-031 el dinero sí se actualiza y la clasificación espera');
+      igual((await diferencias(db, plan2)).filter(x => x.folio === 'V-030'), [], 'y V-030 cuadra por folio');
+      igual(await sql(db, sqlDeImportacion(plan2)), [CONFLICTO], 'y la segunda corrida no vuelve a tocar V-030 (solo repite el conflicto de V-031)');
     } finally { await cerrar(db); }
   });
   prueba('la cita «hoja-V-…» de una corrida sin teléfonos se cancela cuando llega la del teléfono', async () => {

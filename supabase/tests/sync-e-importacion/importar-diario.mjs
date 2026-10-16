@@ -9,7 +9,8 @@
 //   CD-02  día 1 sobre la base vacía: se aplica, cuadra, y el renglón no lleva nombres ni importes
 //   CD-03  día 2 con la misma hoja: no cambia nada y sigue cuadrando; día 3 con cambios: los toma y cuadra
 //   CD-04  el plan con un conflicto o una fila que no entra: NO se aplica nada, se anota y no cuadra
-//   CD-05  lo que la BASE no deja cambiar (viva → histórica): se anota como conflicto, lo demás se aplica, no cuadra
+//   CD-05  una venta que la hoja pasa de FABRICACION a COBRANDO sin folio de cotización sigue VIVA (opción a): estatus y montos
+//          nuevos, sin conflicto, cuadra; y lo que la base sigue sin dejar (histórica → viva) es conflicto
 //   CD-06  si algo truena a media copia, se deshace ENTERA y el fallo se anota sin el mensaje de la base
 import { describir, prueba, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sesionDe, como, sql, una } from '../comun/semilla.js';
@@ -169,23 +170,43 @@ describir('CD-04 si el PLAN trae conflictos o filas que no entran, no se aplica 
 });
 
 /* ============================================================================
-   CD-05 — lo que la base no deja cambiar
+   CD-05 — una venta viva que la hoja haría histórica
    ============================================================================ */
-describir('CD-05 una venta que pasa de FABRICACION a COBRANDO sin folio de cotización (viva → histórica)', () => {
-  prueba('la base no deja cambiar `historica`: el SQL del importador no toca ese proyecto y lo anota; lo demás sí se aplica; el día NO cuadra', async () => {
+describir('CD-05 una venta que pasa de FABRICACION a COBRANDO (o LIQUIDADO) sin folio de cotización: sigue viva (opción a, 2026-10-16)', () => {
+  prueba('en la base sigue VIVA con el estatus, los montos y la fecha de liquidación nuevos, sin conflicto, y el día cuadra; la etapa se queda', async () => {
     const db = await crearBaseDePruebas();
     try {
-      const fila = (C, G = 1000) => filaVentas({ celdas: { A: 'V-200', B: 'Eva - Estética Eva', C, F: 'Sí', G, I: 500, L: dia('2026-10-01'), Z: C === 'FABRICACION' ? 'En diseño' : '' } });
+      const fila = (C, o = {}) => filaVentas({ celdas: { A: 'V-200', B: 'Eva - Estética Eva', C, F: 'Sí', G: 1000, I: 500, L: dia('2026-10-01'), Z: C === 'FABRICACION' ? 'En diseño' : '', ...o } });
       const otra = G => filaVentas({ celdas: { A: 'V-201', B: 'Fer - Ferretería', C: 'COBRANDO', F: 'Sí', G, L: dia('2026-09-01') } });
-      const d1 = await corre(db, volcado({ ventas: [fila('FABRICACION'), otra(700)] }));
+      const d1 = await corre(db, volcado({ ventas: [fila('FABRICACION', { M: dia('2026-10-20') }), otra(700)] }));
       igual([d1.aplicado, d1.cuadra], [true, true]);
-      const d2 = await corre(db, volcado({ ventas: [fila('COBRANDO'), otra(800)] }));
-      igual([d2.aplicado, d2.cuadra, d2.conflictos, d2.rechazos], [true, false, 1, 0]);
-      igual(d2.resumen.conflictos_base, [{ tabla: 'proyectos', tipo: 'en la base es viva de hoja y ahora sería histórica de hoja', n: 1, folios: ['V-200'] }]);
-      igual((await una(db, `select estatus, historica from public.proyectos where folio_hoja = 'V-200'`)), { estatus: 'FABRICACION', historica: false }, 'ese proyecto se quedó como estaba');
-      igual((await una(db, `select d.subtotal::text as s from public.ventas_dinero d join public.proyectos p on p.id = d.proyecto_id where p.folio_hoja = 'V-201'`)).s, '800', 'lo demás sí se aplicó');
-      const d3 = await corre(db, volcado({ ventas: [fila('COBRANDO'), otra(800)] }));
-      igual([d3.cuadra, d3.conflictos], [false, 1], 'y vuelve a salir cada día hasta que una persona lo decida (la racha no avanza)');
+      igual(await una(db, `select historica, estatus, etapa from public.proyectos where folio_hoja = 'V-200'`), { historica: false, estatus: 'FABRICACION', etapa: 'en_diseno' }, 'día 1: viva, en diseño');
+      // día 2: la hoja la pasa a COBRANDO, con otro subtotal y otro anticipo, y conserva la fecha de instalación (que en una histórica iría a fecha_instalacion_hist)
+      const d2 = await corre(db, volcado({ ventas: [fila('COBRANDO', { G: 1200, I: 700, M: dia('2026-10-20') }), otra(800)] }));
+      igual([d2.aplicado, d2.cuadra, d2.diferencias, d2.conflictos, d2.rechazos, d2.resumen.conflictos_base], [true, true, 0, 0, 0, []], 'día 2: sin conflicto y cuadra');
+      igual(await una(db, `select p.historica, p.estatus, p.etapa, p.fecha_instalacion_hist, d.subtotal::text as g, d.anticipo::text as i
+                             from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id where p.folio_hoja = 'V-200'`),
+        { historica: false, estatus: 'COBRANDO', etapa: 'en_diseno', fecha_instalacion_hist: null, g: '1200', i: '700' }, 'sigue viva, con el estatus y los montos de la hoja; la etapa de la base');
+      igual((await una(db, `select d.subtotal::text as g from public.ventas_dinero d join public.proyectos p on p.id = d.proyecto_id where p.folio_hoja = 'V-201'`)).g, '800', 'lo demás también');
+      // día 3: LIQUIDADO con su fecha y su liquidación; y la misma hoja otra vez no cambia nada
+      const d3 = await corre(db, volcado({ ventas: [fila('LIQUIDADO', { G: 1200, I: 700, J: 692, N: dia('2026-10-30'), Z: 'Instalado' }), otra(800)] }));
+      igual([d3.aplicado, d3.cuadra, d3.conflictos], [true, true, 0], 'día 3: liquidada, cuadra');
+      igual(await una(db, `select p.historica, p.estatus, p.etapa, d.fecha_liquidacion::text as n from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id where p.folio_hoja = 'V-200'`),
+        { historica: false, estatus: 'LIQUIDADO', etapa: 'instalado', n: '2026-10-30' }, 'sigue viva; la etapa que la hoja sí trae (Z) se toma');
+      const d4 = await corre(db, volcado({ ventas: [fila('LIQUIDADO', { G: 1200, I: 700, J: 692, N: dia('2026-10-30'), Z: 'Instalado' }), otra(800)] }));
+      igual([d4.cuadra, d4.resumen.cambios], [true, []], 'día 4, la misma hoja: ningún cambio');
+    } finally { await cerrar(db); }
+  });
+  prueba('la base NO se afloja: una histórica que la hoja vuelve viva (COBRANDO → REPARANDO) sigue siendo conflicto y ese día no cuadra', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      const fila = C => filaVentas({ celdas: { A: 'V-210', B: 'Gil - Gil', C, F: 'Sí', G: 900, L: dia('2026-09-01'), Z: C === 'REPARANDO' ? 'En diseño' : '' } });
+      await corre(db, volcado({ ventas: [fila('COBRANDO')] }));
+      const r = await corre(db, volcado({ ventas: [fila('REPARANDO')] }));
+      igual([r.aplicado, r.cuadra, r.conflictos, r.resumen.conflictos_base], [true, false, 1,
+        [{ tabla: 'proyectos', tipo: 'en la base es histórica de hoja y ahora sería viva de hoja', n: 1, folios: ['V-210'] }]]);
+      igual(await una(db, `select historica, estatus from public.proyectos where folio_hoja = 'V-210'`), { historica: true, estatus: 'COBRANDO' }, 'esa fila no se toca');
+      await esperarError(sql(db, `update public.proyectos set historica = false where folio_hoja = 'V-210'`), /no se cambia|no puede|inmutable|cambiar/i, 'y la base sigue sin dejar cambiar historica');
     } finally { await cerrar(db); }
   });
 });

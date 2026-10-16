@@ -134,7 +134,6 @@ La migración está **apagada, pero ya tiene su casa de verdad**: el proyecto de
 | **Volver a aplicar `supabase/opcional/storage.sql`** (la versión de Q-02 bis) en `al3d-pruebas` y en `al3d-produccion` (Editor SQL, completo; es idempotente y reemplaza las cuatro políticas), y la prueba de humo: **74** casos en verde (**79** con `0018` aplicada: D01–D05 son de la copia diaria; sin ella, D01 sale en rojo y dice que falta). Con la versión anterior todavía aplicada, la prueba nueva da 73 de 74 (C70 en rojo: Fabricación no ve la obra ganada) | Antes de encender la lectura en vivo en un teléfono de Fabricación | «Quinta entrega», abajo, y `supabase/README.md`, «Las imágenes de las cotizaciones (Storage)» |
 | **Pegar el Apps Script nuevo** (`puente/hoja-apps-script.gs`) e implementar una versión nueva: Pagos mueve la etapa en la hoja, «No se dio» solo Dirección, IA a 50 al día en hora de México | Ya: hasta entonces la hoja le rechaza a Pagos los cambios de etapa | `puente/DESPLIEGUE.md` |
 | **Poner en marcha la copia diaria**: aplicar `0018` en `al3d-produccion` (y la prueba de humo: **63** casos, **79** con `storage.sql`), generar `IMPORTAR_SECRETO` sin pasarlo por el chat, desplegar `importar-diario` pegando `supabase/functions/importar-diario/desplegar/index.ts` (con «Verify JWT» apagado), cargar el secreto en sus Secrets, pegar `puente/copia-diaria.gs` en la hoja real con `IMPORTAR_URL` e `IMPORTAR_SECRETO`, correr `copiarHojaASupabase` y después `instalarCopiaDiaria` | Ya: desde ese día cuenta la racha de 7 | `supabase/README.md`, «La copia diaria»; «Sexta entrega», abajo |
-| **Decidir qué pasa con una venta que la hoja pasa de FABRICACION/REPARANDO a COBRANDO/LIQUIDADO** sin folio de cotización (la base no deja que una «viva» se vuelva «histórica»; la copia la anota cada día y ese día no cuadra) | Antes de contar los 7 días: es lo más probable que corte la racha | `DECISIONES-SUPABASE.md`, «Transición» |
 | Dar la clave del sello por un canal seguro para las 30 autorizaciones pendientes | Antes de apagar `/verificar` de Apps Script | Fase 2 |
 | Confirmar el día en que la hoja pasa a solo lectura (después de 7 días seguidos de cuadre) | Fase 3 → 4 | `DECISIONES-SUPABASE.md`, Q-01 |
 | Confirmar la lista de áreas: ¿cotizador, taller, cobranza, almacén y comisiones, o falta alguna? | Fase 1 | `PLAN-SUPABASE.md` §9 |
@@ -353,12 +352,15 @@ primera petición de un proceso nuevo** (más unos 30 ms de cargar los módulos)
 (aplicar el SQL y cuadrar) lo hace Postgres, que no cuenta para ese límite. El reloj de CPU de Windows avanza de 15.6 ms en 15.6
 ms, así que las cifras chicas son aproximadas; en Supabase puede ser dos o tres veces más lento y sigue lejos del límite.
 
-**Lo más probable que corte la racha (hallazgo, para que Elías decida).** Una venta que la hoja tenía en FABRICACION o
-REPARANDO sin folio de cotización entró como «viva»; cuando pasa a COBRANDO o LIQUIDADO, la regla del importador (DISENO §3.0)
-la haría «histórica» y la base no deja cambiar `historica`. El importador deja esa venta sin tocar y lo anota («en la base es
-viva de hoja y ahora sería histórica de hoja», con su folio): su estatus se queda viejo en la base, el día **no cuadra** y vuelve
-a salir **cada día**, sin arreglo a mano limpio. Es el ciclo normal de una venta. Lo prueba CD-05. Opciones y valor por defecto:
-`DECISIONES-SUPABASE.md`, «Transición».
+**La venta viva que la hoja haría histórica (hallazgo de esta entrega, decidido el mismo día: opción a).** Una venta que la hoja
+tenía en FABRICACION o REPARANDO sin folio de cotización entró como «viva»; cuando pasa a COBRANDO o LIQUIDADO, la regla del
+importador (DISENO §3.0) la haría «histórica» y la base no deja cambiar `historica`. Antes, el importador la dejaba sin tocar y
+la anotaba como conflicto todos los días, y la racha no podía llegar a 7. Ahora **sigue viva**: el SQL del importador
+(`scripts/importador/sql.mjs`, el mismo para `importar-hoja.mjs` y para la función) le pone el estatus, el dinero y lo demás de la
+hoja, deja la etapa de la base si la hoja no trae una y la fecha de instalación de histórica vacía. La regla de la base **no se
+aflojó**: una histórica que la hoja vuelve viva (COBRANDO → REPARANDO) sigue siendo conflicto. Hecho y verificado en PGlite:
+CD-05 (la venta pasa a COBRANDO y después a LIQUIDADO: sigue viva, sin conflicto, y cuadra) y la de «sigue viva» de
+`importador.mjs`. `DECISIONES-SUPABASE.md`, «Transición».
 
 **Cifras (Windows 11):** `sh supabase/tests/correr.sh`: **39 archivos, 876 verificaciones, 0 fallos** (384 s). `sh pruebas/correr.sh`: **70 archivos, todos en verde** (`supabase-importar-diario.mjs`: 91 comprobaciones; las 45 de navegador no corren en Windows). Prueba de humo en PGlite: **63** casos sin `storage.sql` y **79** con él,
 0 fallos (D01–D05 son de `0018`).

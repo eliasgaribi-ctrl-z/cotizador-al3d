@@ -160,21 +160,26 @@ la sombra antes no estorba, pero no hace falta).
 - La función corre **el mismo importador** de la fase 2 (Q-14: no decide), en **una sola transacción**, y después el cuadre por
   folio de `cuadre.sql`. Deja un renglón en `cuadre_diario` (`0018`), que solo lee Dirección, sin nombres ni importes.
 - Si el **plan** trae conflictos o filas que no entran, **no se aplica nada** ese día (se anota y se arregla en la hoja). Lo que
-  la **base** no deja cambiar lo deja sin tocar el propio SQL del importador y se anota como conflicto: lo demás sí se aplica.
+  la **base** no deja cambiar (una histórica que la hoja volvería viva) lo deja sin tocar el propio SQL del importador y se anota
+  como conflicto: lo demás sí se aplica. Una VIVA que la hoja haría histórica sigue viva (abajo, opción a).
 - Sin teléfonos y sin la clave del sello, como la importación del 2026-10-16: las 30 autorizaciones siguen esperando la clave.
 
 **Cómo se lee Q-01 desde hoy.** «7 días seguidos de cuadre» = 7 días de México seguidos cuyo último renglón de `cuadre_diario`
 dice `cuadra` (se aplicó, 0 diferencias, 0 conflictos, 0 filas que no entran). Ajustes → Supabase lo cuenta. El día del cambio
 lo sigue confirmando Elías: no es automático.
 
-**Abierto (para Elías).** Una venta que la hoja tenía en **FABRICACION o REPARANDO** sin folio de cotización entró a la base como
-«viva»; cuando pasa a **COBRANDO o LIQUIDADO**, la regla de la fase 2 (DISENO §3.0) la haría «histórica», y la base no deja
-cambiar eso. La copia lo anota como conflicto, **esa venta deja de actualizarse** y el día no cuadra, todos los días, hasta que se
-decida. Es el ciclo normal de una venta, así que es lo más probable que corte la racha, y **no hay un arreglo a mano limpio**
-(ni en la hoja ni en la base: `historica` no se puede cambiar, a propósito). Hace falta una regla: (a) en el importador, una
-venta que ya es viva en la base sigue viva (con su etapa) y se actualizan su estatus y su dinero; o (b) en la base, dejar que una
-fila de la hoja pase de viva a histórica. **Por defecto no cambia nada** hasta que Elías decida; mientras, cada venta así se
-anota y el día no cuadra. Los detalles: `docs/ESTADO-SUPABASE.md`, «Sexta entrega».
+**Una venta viva que la hoja haría histórica — decidido el 2026-10-16: opción (a), en el importador.** Una venta que la hoja
+tenía en **FABRICACION o REPARANDO** sin folio de cotización entró a la base como «viva»; cuando pasa a **COBRANDO o LIQUIDADO**
+(el ciclo normal de una venta), la regla de la fase 2 (DISENO §3.0) la haría «histórica», y la base no deja cambiar eso. Sin una
+regla, esa venta dejaba de actualizarse y la racha no podía llegar a 7. Se eligió **(a): una venta que ya es VIVA en la base
+sigue viva**; se le actualizan su estatus y su dinero (y todo lo demás) desde la hoja, conserva la etapa de la base si la hoja no
+trae una (una viva siempre tiene etapa) y no lleva fecha de instalación de histórica. Vale igual para el importador de línea de
+comandos (`scripts/importar-hoja.mjs`) y para la función: está en el SQL que los dos usan (`scripts/importador/sql.mjs`). La otra
+opción, (b), era aflojar la regla de la base para que una fila de la hoja pudiera pasar de viva a histórica; **no se tomó: la base
+sigue sin dejar cambiar `historica`**, y lo contrario (una histórica que la hoja vuelve a poner en FABRICACION o REPARANDO, por
+ejemplo una garantía) sigue saliendo como conflicto para decidirlo a mano. **Elegida por Claude**, con el visto bueno general de
+Elías para decidir lo técnico; motivo: **no afloja ninguna regla de la base**. Pruebas: CD-05 de
+`supabase/tests/sync-e-importacion/importar-diario.mjs` y la de «sigue viva» de `importador.mjs`.
 
 ---
 

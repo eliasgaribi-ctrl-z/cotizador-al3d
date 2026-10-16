@@ -144,10 +144,10 @@ El `resumen` dice pestañas, filas, folios y columnas; **nunca** nombres ni impo
 - **Aplicada y cuadra:** la nube dice lo mismo que la hoja. Ese día cuenta para los 7.
 - **No se aplicó:** el importador encontró algo que no decide solo (un folio repetido, una fila con texto donde va un
   importe…). No se escribió nada. Se arregla en la hoja y la copia del día siguiente lo toma.
-- **Aplicada pero con conflictos de la base:** algo que la base no deja cambiar. El más probable: **una venta capturada como
-  FABRICACION o REPARANDO que pasa a COBRANDO o LIQUIDADO** sin folio de cotización (la base la tiene «viva» y la hoja ahora
-  la haría «histórica»). Esa venta no se actualiza, el día no cuadra y vuelve a salir cada día hasta que se decida una regla (no hay arreglo a mano limpio).
-  Ver `docs/ESTADO-SUPABASE.md`, «Sexta entrega».
+- **Aplicada pero con conflictos de la base:** algo que la base no deja cambiar, por ejemplo **una venta que ya era histórica y
+  la hoja vuelve a poner en FABRICACION o REPARANDO** (una garantía): esa venta no se actualiza, el día no cuadra y lo decide
+  una persona. Lo contrario, el ciclo normal (una venta en FABRICACION que pasa a COBRANDO o LIQUIDADO), **no** es conflicto:
+  sigue viva en la base, con su estatus y su dinero de la hoja (`docs/DECISIONES-SUPABASE.md`, «Transición», opción a).
 - **La función contestó 401:** el secreto de la hoja y el de la función no son el mismo. **503:** a la función le falta
   `IMPORTAR_SECRETO`. **409:** ya había otra copia corriendo (no pasa nada; se queda la otra).
 
