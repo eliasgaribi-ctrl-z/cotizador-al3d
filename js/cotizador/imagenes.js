@@ -14,6 +14,13 @@
    generarPDF() es síncrono —abre la hoja en el mismo toque, que es lo que los navegadores
    del teléfono dejan pasar—, así que lee de una caché en memoria. imgPrecargar() la llena
    al arrancar y al abrir una cotización del historial.
+
+   La nube (Supabase Storage, APAGADA por omisión). Con la sombra de Supabase encendida en el
+   aparato, la plataforma sube las imágenes del historial (js/datos/supa-imagenes.js); este
+   archivo no sube nada. Lo único que cambia aquí: con la lectura en vivo encendida, la
+   plataforma pone la ventanilla `AL3D_NUBE`, y una imagen que no está en este dispositivo se le
+   pide a ella antes de darla por perdida; la que llega se guarda aquí como cualquier otra.
+   Sin la ventanilla —lo normal— no se pide nada a nadie y todo es como antes.
    ============================================================================ */
 const IMG_DB='al3d_cot_imgs', IMG_ALM='img';
 const IMG_MAX_LADO=1800;          // más que esto no se nota en carta y pesa el triple
@@ -191,22 +198,60 @@ function imgFaltanParaPdf(luego){
   const faltan=imgIdsDeQ(Q).filter(id=>!_imgCache.has(id)&&!_imgNoHay.has(id));
   if(!faltan.length) return false;
   toast('Cargando las imágenes del PDF…','',1600);
-  imgPrecargar(faltan).then(()=>{ faltan.forEach(id=>{ if(!_imgCache.has(id)) _imgNoHay.add(id); }); luego(); });
+  imgPrecargar(faltan).then(()=>imgDeLaNube(faltan)).then(()=>{ faltan.forEach(id=>{ if(!_imgCache.has(id)) _imgNoHay.add(id); }); luego(); });
   return true;
 }
 /* La llama renderItems() al final: pinta el panel y, si la cotización apunta a imágenes que
    todavía no están en memoria —al arrancar, al abrir una del historial, al deshacer—, las trae y
    repinta una vez. Las que no existen en este dispositivo (llegaron en un respaldo sin ellas) se
-   recuerdan para no pedirlas en cada repintado. */
+   le piden a la nube si la plataforma la ofrece, y las que siguen sin aparecer se recuerdan para
+   no pedirlas en cada repintado. */
 const _imgNoHay=new Set(); let _imgPidiendo=false;
 function imgAsegurar(){
   renderImgsPdf();
   const faltan=imgIdsDeQ(Q).filter(id=>!_imgCache.has(id)&&!_imgNoHay.has(id));
   if(!faltan.length||_imgPidiendo) return;
   _imgPidiendo=true;
-  imgPrecargar(faltan).then(()=>{
+  imgPrecargar(faltan).then(()=>imgDeLaNube(faltan)).then(()=>{
     faltan.forEach(id=>{ if(!_imgCache.has(id)) _imgNoHay.add(id); });
     _imgPidiendo=false;
     try{ renderItems(); }catch(_){}
+  });
+}
+
+/* ----- Las que no están en este dispositivo, de la nube -----
+   La ventanilla la pone la plataforma (js/datos/supa-enchufe.js) solo con la lectura en vivo de
+   Supabase encendida, y solo para Dirección y Pagos. Se busca como `AL3D` en notario.js: en esta
+   ventana o en la de la plataforma, que es del mismo origen. */
+function _imgNube(){
+  try{ if(window.AL3D_NUBE&&typeof window.AL3D_NUBE.imagenes==='function') return window.AL3D_NUBE; }catch(_){}
+  try{ if(parent!==window&&parent.AL3D_NUBE&&typeof parent.AL3D_NUBE.imagenes==='function') return parent.AL3D_NUBE; }catch(_){}
+  return null;
+}
+/* Pide a la nube las que falten (una vez por sesión cada una), las guarda en este dispositivo con
+   su id y las deja en memoria. Sin ventanilla no hace nada. Nunca lanza; devuelve cuántas llegaron. */
+const _imgPedidasNube=new Set();
+async function imgDeLaNube(ids){
+  const nube=_imgNube(); if(!nube) return 0;
+  const faltan=[...new Set((ids||[]).filter(id=>id&&!_imgCache.has(id)&&!_imgPedidasNube.has(id)))];
+  if(!faltan.length) return 0;
+  faltan.forEach(id=>_imgPedidasNube.add(id));
+  let llegaron=null;
+  try{ llegaron=await nube.imagenes(faltan); }catch(_){ return 0; }
+  let n=0;
+  for(const id of faltan){
+    const url=llegaron&&llegaron[id];
+    if(typeof url!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(url)) continue;
+    const d=await _imgMedir(url);
+    try{ await _imgTx('readwrite',st=>st.put({id,url,w:d.w,h:d.h,ts:Date.now()})); }catch(_){}
+    _imgCache.set(id,url); if(d.w&&d.h) _imgDim.set(id,{w:d.w,h:d.h});
+    _imgNoHay.delete(id); n++;
+  }
+  return n;
+}
+function _imgMedir(url){
+  return new Promise(res=>{
+    try{ const im=new Image(); im.onload=()=>res({w:im.naturalWidth||0,h:im.naturalHeight||0}); im.onerror=()=>res({w:0,h:0}); im.src=url; }
+    catch(_){ res({w:0,h:0}); }
   });
 }

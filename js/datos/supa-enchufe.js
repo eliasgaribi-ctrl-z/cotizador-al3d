@@ -12,9 +12,13 @@
      · el CUADRE diario: una vez al día (día de México), con la sombra encendida y siendo Dirección,
        compara la hoja con la base (js/datos/supa-cuadre.js) y lo guarda; Ajustes enseña la racha;
      · la LECTURA EN VIVO: `Puente.fuenteDeLectura` (js/datos/puente.js) → js/datos/supa-vivo.js, y
-       la suscripción de Realtime que avisa a la app que hay algo que bajar.
-   `apagar()` lo desenchufa todo sin recargar: los ganchos vuelven a null y la app vuelve a ser la
-   de siempre.
+       la suscripción de Realtime que avisa a la app que hay algo que bajar;
+     · las IMÁGENES de las cotizaciones (js/datos/supa-imagenes.js): con la sombra, las del historial
+       suben a Storage después de cada bombeo (al arrancar, cuando el cotizador guarda el historial y
+       cada 15 minutos); con la lectura en vivo, la ventanilla `AL3D_NUBE` deja que el cotizador
+       pida las que no están en este teléfono. Solo Dirección y Pagos: a Fabricación ni se le pone.
+   `apagar()` lo desenchufa todo sin recargar: los ganchos vuelven a null, la ventanilla se quita y
+   la app vuelve a ser la de siempre.
    ============================================================================ */
 
 import * as Sync from './sync.js';
@@ -23,16 +27,19 @@ import * as Supa from '../nucleo/supa.js';
 import { crearSombra, almacenIndexedDB, sombraEncendida, vivoEncendido } from './supa-sombra.js';
 import { crearFuente, suscribir, todas } from './supa-vivo.js';
 import { cuadrar, diaMx, racha } from './supa-cuadre.js';
+import { crearImagenes, puedeImagenes, CLAVE_HISTORIAL } from './supa-imagenes.js';
 
 const MS_BOMBEO = 60 * 1000;
 const MS_TRAS_COPIA = 2000;
 const MS_RESPALDO_VIVO = 5 * 60 * 1000;      // con Realtime vivo, la base se relee igual cada 5 min (respaldo)
 const MS_ENTRE_INTENTOS_DE_CUADRE = 30 * 60 * 1000;
 const CLAVE_MARCA_ALMACEN = 'al3d_pf_supa_vivo_alm';
+const MS_IMAGENES = 15 * 60 * 1000;          // sin cambios en el historial, las imágenes se revisan cada 15 min
 
 let _almacen = null, _sombra = null, _canal = null, _fuente = null, _area = '', _empresa = 'al3d';
 let _reloj = 0, _programado = 0, _sincronizar = null, _debeJalar = true, _ultimoJalar = 0, _estadoCanal = '';
 let _avisarApp = null, _cuadreIntentadoEn = 0;
+let _imagenes = null, _imgSucias = true, _imgUltima = 0;
 
 const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
@@ -47,13 +54,56 @@ function sombra() {
   return _sombra || (_sombra = crearSombra({ cliente: Supa.cliente, almacen: almacen() }));
 }
 
-/** Manda la cola de la sombra si hay sesión. Nunca lanza. */
+/** Manda la cola de la sombra si hay sesión (y después, las imágenes que falten). Nunca lanza. */
 export async function bombearSombra() {
   if (!sombraEncendida()) return { motivo: 'apagada' };
   if (!await Supa.haySesion()) return { motivo: 'sin_sesion' };
   const r = await sombra().bombear();
   cuadreDelDia().catch(() => {});
+  subirImagenes().catch(() => {});
   return r;
+}
+
+/* ----- Las imágenes de las cotizaciones ----- */
+
+function imagenes() {
+  return _imagenes || (_imagenes = crearImagenes({ cliente: Supa.cliente, almacen: almacen(), area: () => _area, empresa: () => _empresa,
+    anotar: ev => sombra().anotar(ev) }));
+}
+
+/**
+ * Sube a Storage las imágenes del historial que falten. Sin `forzar`, solo si el historial cambió, si
+ * la vuelta anterior dejó algo a medias o si pasaron 15 minutos. Nunca lanza.
+ */
+export async function subirImagenes(forzar = false) {
+  if (!sombraEncendida()) return { motivo: 'apagada' };
+  if (!forzar && !_imgSucias && Date.now() - _imgUltima < MS_IMAGENES) return { motivo: 'al_dia' };
+  if (!await Supa.haySesion()) return { motivo: 'sin_sesion' };
+  if (!_area) await acceso();
+  _imgUltima = Date.now();
+  _imgSucias = false;
+  const r = await imagenes().subir();
+  /* Lo que quedó a medias (más de las que caben en una vuelta, o una red que falló) se sigue en la
+     vuelta siguiente, al minuto; lo que espera algo de fuera, a los 15. */
+  if (r.hay_mas || r.motivo === 'parada' && r.codigo !== 'TOPE') _imgSucias = true;
+  return r;
+}
+
+/** Para Ajustes. */
+export async function estadoImagenes() {
+  if (!sombraEncendida()) return null;
+  return imagenes().estado();
+}
+
+/* La ventanilla del cotizador (js/cotizador/imagenes.js, `_imgNube`): el marco es del mismo origen
+   y la busca en esta ventana. Existe SOLO con la lectura en vivo encendida y para Dirección o Pagos;
+   apagado, no existe y el cotizador no pide nada a nadie. */
+function ponerVentanilla() {
+  if (!puedeImagenes(_area)) { quitarVentanilla(); return; }
+  globalThis.AL3D_NUBE = Object.freeze({ imagenes: ids => imagenes().bajar(ids) });
+}
+function quitarVentanilla() {
+  try { delete globalThis.AL3D_NUBE; } catch (_) { globalThis.AL3D_NUBE = undefined; }
 }
 
 function programar(ms) {
@@ -124,6 +174,7 @@ function encenderVivo() {
   };
   _fuente = crearFuente({ cliente: Supa.cliente, area: () => _area, empresa: _empresa, marca });
   Puente.fuenteDeLectura(_fuente);
+  ponerVentanilla();
   _debeJalar = true;
   Supa.cliente().then(c => {
     if (!_fuente) return;
@@ -135,6 +186,7 @@ function encenderVivo() {
 
 function apagarVivo() {
   Puente.fuenteDeLectura(null);
+  quitarVentanilla();
   _fuente = null;
   if (_canal) { _canal.cerrar(); _canal = null; }
   _estadoCanal = '';
@@ -170,7 +222,10 @@ export async function arrancar(o = {}) {
   if (!_reloj) {
     _reloj = setInterval(() => { if (visible()) bombearSombra().catch(() => {}); }, MS_BOMBEO);
     try { globalThis.addEventListener('online', () => programar(MS_TRAS_COPIA)); } catch (_) {}
+    /* El cotizador guardó el historial (en su marco o en otra pestaña): puede haber imágenes nuevas. */
+    try { globalThis.addEventListener('storage', ev => { if (!ev.key || ev.key === CLAVE_HISTORIAL) _imgSucias = true; }); } catch (_) {}
   }
+  _imgSucias = true;
 
   const haySesion = await Supa.haySesion();
   if (haySesion) await acceso();
@@ -195,4 +250,10 @@ export async function estado() {
            canal: _estadoCanal, leeDeLaBase: Puente.leeDeOtraFuente(), ...s };
 }
 export async function registro(n) { return sombraEncendida() ? sombra().registro(n) : []; }
-export async function reintentarRechazadas() { const k = await sombra().reintentarRechazadas(); programar(100); return k; }
+export async function reintentarRechazadas() {
+  const k = await sombra().reintentarRechazadas();
+  const i = sombraEncendida() ? await imagenes().reintentarApartadas().catch(() => 0) : 0;
+  _imgSucias = true;
+  programar(100);
+  return k + i;
+}

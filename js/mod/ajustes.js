@@ -1376,7 +1376,9 @@ async function accionSupabase(b) {
    compara la hoja con la base. La hoja sigue mandando en todo. Ver js/datos/supa-enchufe.js y
    docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md. */
 const SB_EVENTO = { escrita: 'escrita en la base', omitida: 'no aplica en la base', rechazada: 'la base la rechazó',
-  reintentar: 'se reintenta', no_se_guardo: 'no se pudo guardar la copia', reintento: 'devueltas a la cola', cuadre: 'cuadre' };
+  reintentar: 'se reintenta', no_se_guardo: 'no se pudo guardar la copia', reintento: 'devueltas a la cola', cuadre: 'cuadre',
+  imagenes: 'imágenes', imagen_apartada: 'imagen apartada' };
+const sbMb = n => (Number(n || 0) / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
 const sbFecha = ts => new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 async function bloqueSombra() {
@@ -1384,8 +1386,9 @@ async function bloqueSombra() {
   const sombra = Sb.sombraEncendida(), vivo = Sb.vivoEncendido();
   let h = '<h3 class="aj-sub">Escritura en sombra, lectura en vivo y cuadre</h3>';
   h += '<p class="pf-nota">La hoja sigue mandando. Con la <b>sombra</b>, cada cambio que la hoja acepta desde este aparato se escribe también en la base; ' +
-    'si la base falla, no se detiene ni se pierde nada: se reintenta y se anota. Con la <b>lectura en vivo</b>, este aparato baja de la base (con Realtime) en vez de la hoja; ' +
-    'apagarla vuelve a leer de la hoja.</p>';
+    'si la base falla, no se detiene ni se pierde nada: se reintenta y se anota. Con la sombra también suben a la nube las <b>imágenes</b> de las cotizaciones del historial ' +
+    '(planos, renders y propuesta), cada una una sola vez. Con la <b>lectura en vivo</b>, este aparato baja de la base (con Realtime) en vez de la hoja, ' +
+    'y una imagen que no esté en el teléfono se trae de la nube; apagarla vuelve a leer de la hoja.</p>';
   h += '<div class="pf-acciones">' + (sombra
     ? '<button type="button" class="btn btn-gho" data-act="supasb-sombra-no">Apagar la sombra</button>'
     : '<button type="button" class="btn btn-gho" data-act="supasb-sombra-si">Encender la sombra en este aparato</button>') +
@@ -1404,8 +1407,17 @@ async function bloqueSombra() {
           ? 'Este aparato lee de la base' + (st.canal === 'SUBSCRIBED' ? ' y Realtime está conectado.' : '; Realtime todavía no conecta (baja cada 30 s).')
           : 'La lectura en vivo está pedida pero todavía no arranca (falta sesión o el área de la base).', st.leeDeLaBase ? 'ok' : 'av');
       }
+      const im = await E.estadoImagenes().catch(() => null);
+      if (im) {
+        h += nota('Imágenes en la nube: ' + im.subidas + ' subidas desde este aparato (' + sbMb(im.bytes) + ')' +
+          (im.porSubir ? ' · ' + im.porSubir + ' por subir (' + sbMb(im.bytesPorSubir) + ')' : ' · nada por subir') +
+          (im.apartadas ? ' · ' + im.apartadas + ' apartadas' : '') +
+          (im.sinAparato ? ' · ' + im.sinAparato + ' cotizaciones viejas sin aparato no se suben' : '') +
+          (im.tope ? ' · llegó al tope de este aparato' : '') +
+          (im.ultimo_error ? ' · último error: ' + esc(im.ultimo_error) : ''), im.apartadas || im.tope || im.ultimo_error ? 'av' : 'ok');
+      }
       h += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supasb-mandar">Mandar a la base ahora</button>' +
-        (st.rechazadas ? '<button type="button" class="btn btn-gho" data-act="supasb-reintentar">Reintentar las rechazadas</button>' : '') + '</div>';
+        (st.rechazadas || (im && im.apartadas) ? '<button type="button" class="btn btn-gho" data-act="supasb-reintentar">Reintentar las rechazadas</button>' : '') + '</div>';
     }
   }
   const cu = await E.cuadres().catch(() => ({ lista: [], racha: 0, meta: 7 }));
@@ -1455,10 +1467,12 @@ async function accionSombra(b) {
     else if (a === 'supasb-vivo-no') { Sb.encenderVivo(false); await arrancar(); toast('De vuelta a la hoja', 'ok', 2500); if (ctx.sincronizar) ctx.sincronizar(); }
     else if (a === 'supasb-mandar') {
       const r = await E.bombearSombra();
+      const im = r.motivo === 'sin_sesion' ? {} : await E.subirImagenes(true).catch(() => ({}));
       toast(r.motivo === 'sin_sesion' ? 'Sin sesión en la base: entra con Google arriba'
         : (r.mandadas || 0) + ' escritas en la base' + (r.rechazadas ? ', ' + r.rechazadas + ' rechazadas' : '') +
-          (r.pendientes ? ', ' + r.pendientes + ' esperan' : ''), r.codigo ? 'err' : 'ok', 4000);
-    } else if (a === 'supasb-reintentar') { const k = await E.reintentarRechazadas(); toast(k + ' de vuelta en la cola', 'ok', 2500); }
+          (r.pendientes ? ', ' + r.pendientes + ' esperan' : '') + (im.subidas ? ' · ' + im.subidas + ' imágenes subidas' : ''),
+        r.codigo || im.motivo === 'parada' ? 'err' : 'ok', 4000);
+    } else if (a === 'supasb-reintentar') { const k = await E.reintentarRechazadas(); toast(k + ' de vuelta en la cola (operaciones e imágenes)', 'ok', 2500); }
     else if (a === 'supasb-cuadrar') {
       b.disabled = true;
       const r = await E.cuadrarAhora();
