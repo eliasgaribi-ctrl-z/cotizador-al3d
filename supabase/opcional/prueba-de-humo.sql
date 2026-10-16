@@ -2,7 +2,7 @@
 --
 -- Para qué sirve: las pruebas de supabase/tests corren sobre PGlite (PostgreSQL en WASM), que valida el
 -- SQL y las políticas pero NO es Supabase. Esto se ejecuta en el Editor SQL del panel del proyecto, con
--- las migraciones 0001..0015 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015), y comprueba ahí lo que más importa: que cada área ve y puede
+-- las migraciones 0001..0016 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015; el 9, de la 0016), y comprueba ahí lo que más importa: que cada área ve y puede
 -- hacer solo lo que le toca. Simula a las personas igual que PostgREST (rol + claims del JWT), con
 -- usuarios de prueba creados DENTRO de la misma transacción.
 --
@@ -31,7 +31,7 @@ declare
   u_ext uuid := gen_random_uuid();
   u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  r jsonb; k jsonb; n numeric; t text; b boolean;
+  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz;
 begin
   -- 0) Siembra, como dueño de la base: cuatro cuentas de Auth y tres membresías (la cuarta persona no es del equipo).
   insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -276,6 +276,67 @@ begin
   execute 'reset role';
   select c.n into n from public.contadores c join public.proyectos p on p.empresa_id = c.empresa_id where p.id = 'humo-v1' and c.clave = 'V' and c.ventana = '';
   inf := inf || jsonb_build_object('caso', 'C39 el contador V quedó a la altura del folio de la hoja (no por debajo)', 'ok', coalesce(n >= 9999999, false), 'det', coalesce(n::text, 'no está'));
+
+  -- 9) Los plazos de conservación (0016, decididos por Elías el 2026-10-16). Todo como dueño; las purgas corren con un «ahora» movido y lo
+  --    que borran (aunque sea real) se deshace con el error final, como todo lo demás de esta prueba.
+  begin
+    insert into public.cotizaciones (empresa_id, folio_global, folio, disp, estado, datos) values
+      ('al3d', 'COT-9100@HUMO', 'COT-9100', 'HUMO', 'retirada', '{"proy":"Humo no ganada"}'),
+      ('al3d', 'COT-9002@HUMO', 'COT-9002', 'HUMO', 'retirada', '{"proy":"Humo ganada"}')
+    on conflict (empresa_id, folio_global) do nothing;
+    insert into public.cotizaciones (empresa_id, folio_global, folio, disp, estado, datos, deleted_at) values
+      ('al3d', 'COT-9101@HUMO', 'COT-9101', 'HUMO', 'retirada', '{"proy":"Humo borrada"}', now() - interval '30 days');
+    select x.updated_at into ts_humo from public.cotizaciones x where x.folio_global = 'COT-9100@HUMO';
+    r := interno.purgar_cotizaciones_no_ganadas(ts_humo + interval '8 months' - interval '1 second');
+    select count(*) into n from public.cotizaciones where folio_global = 'COT-9100@HUMO';
+    r := interno.purgar_cotizaciones_no_ganadas(ts_humo + interval '8 months');
+    select n::text || ' / ' || count(*)::text into t from public.cotizaciones where folio_global = 'COT-9100@HUMO';
+    inf := inf || jsonb_build_object('caso', 'C40 cotización no ganada: a 8 meses menos 1 s se queda; a los 8 meses justos se borra', 'ok', coalesce(t = '1 / 0', false), 'det', t);
+    select count(*)::text into t from public.cotizaciones where folio_global = 'COT-9002@HUMO';
+    inf := inf || jsonb_build_object('caso', 'C41 la cotización de una venta ganada (humo-v1) NO se borra aunque tenga 8 meses', 'ok', coalesce(t = '1', false), 'det', t);
+    r := interno.purgar_borrados(now());
+    select count(*)::text into t from public.cotizaciones where folio_global = 'COT-9101@HUMO';
+    inf := inf || jsonb_build_object('caso', 'C42 lo borrado en la app hace 30 días se purga', 'ok', coalesce(t = '0', false), 'det', t);
+    insert into public.bitacora (empresa_id, ts, nivel, accion, entidad, titulo) values
+      ('al3d', now() - interval '1 year', 'general', 'humo', 'sistema', 'Humo: justo un año'),
+      ('al3d', now() - interval '1 year' + interval '1 second', 'general', 'humo', 'sistema', 'Humo: un segundo más joven');
+    perform interno.purgar_bitacora(now());
+    select string_agg(titulo, ' | ' order by id) into t from public.bitacora where accion = 'humo';
+    inf := inf || jsonb_build_object('caso', 'C43 bitácora: la de justo un año se borra; la de un segundo menos se queda', 'ok', coalesce(t = 'Humo: un segundo más joven', false), 'det', coalesce(t, 'ninguna'));
+    select (select count(*) from public.ventas_dinero)::text || '/' || (select count(*) from public.abonos)::text || '/' || (select count(*) from public.autorizaciones)::text
+           || '/' || (select count(*) from public.proyectos where folio_hoja is not null)::text into t;
+    r := interno.purgar_plazos(now() + interval '10 years');
+    select (select count(*) from public.ventas_dinero)::text || '/' || (select count(*) from public.abonos)::text || '/' || (select count(*) from public.autorizaciones)::text
+           || '/' || (select count(*) from public.proyectos where folio_hoja is not null)::text = t into b;
+    inf := inf || jsonb_build_object('caso', 'C44 purgar_plazos con «ahora» en 10 años: ventas, dinero, abonos y autorizaciones quedan EXACTOS', 'ok', coalesce(b and jsonb_array_length(r->'errores') = 0, false),
+                                     'det', t || ' errores: ' || coalesce(r->>'errores', '?'));
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C40-C44 (plazos, 0016)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  begin
+    delete from public.ventas_dinero where proyecto_id = 'humo1';     -- la venta de C01: un libro, nunca se purga
+    get diagnostics n = row_count;
+    inf := inf || jsonb_build_object('caso', 'C45 después de las purgas, el libro de ventas sigue sin poder borrarse (sin_borrar), ni como dueño', 'ok', false, 'det', case when n = 0 then 'no había qué borrar' else 'se borró' end);
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C45 después de las purgas, el libro de ventas sigue sin poder borrarse (sin_borrar), ni como dueño', 'ok', sqlerrm like '%no se borran%', 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  begin
+    select has_function_privilege('service_role', 'interno.purgar_plazos(timestamptz)', 'EXECUTE') or has_function_privilege('authenticated', 'interno.purgar_plazos(timestamptz)', 'EXECUTE')
+        or has_function_privilege('anon', 'interno.purgar_plazos(timestamptz)', 'EXECUTE') into b;
+    inf := inf || jsonb_build_object('caso', 'C46 las purgas no las ejecuta service_role, authenticated ni anon', 'ok', not b, 'det', b::text);
+  exception when others then
+    inf := inf || jsonb_build_object('caso', 'C46 (purgas, 0016)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+  end;
+  if to_regclass('cron.job') is not null then
+    execute $q$select count(*) from cron.job where jobname = 'al3d-plazos' and schedule = '15 9 * * *' and active$q$ into n;
+    inf := inf || jsonb_build_object('caso', 'C47 pg_cron tiene programado al3d-plazos (diario, 09:15 UTC)', 'ok', n = 1, 'det', n::text);
+  elsif exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    inf := inf || jsonb_build_object('caso', 'C47 pg_cron tiene programado al3d-plazos (diario, 09:15 UTC)', 'ok', false, 'det', 'pg_cron está disponible pero no habilitado: revisa el NOTICE de 0016');
+  else
+    inf := inf || jsonb_build_object('caso', 'C47 pg_cron: no existe en esta base (PGlite): no aplica', 'ok', true, 'det', 'sin pg_cron');
+  end if;
+  select coalesce(cardinality(interno.auditoria()), -1) into n;
+  inf := inf || jsonb_build_object('caso', 'C48 la auditoría de 0011 sigue limpia después de 0016', 'ok', coalesce(n = 0, false), 'det', n::text);
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).
   raise exception 'HUMO_RESULTADO %', jsonb_build_object(

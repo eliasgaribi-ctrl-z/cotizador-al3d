@@ -44,7 +44,7 @@ export class ErrorDeRespaldo extends Error {
   constructor(clase, mensaje, extra) {
     super(mensaje);
     this.name = 'ErrorDeRespaldo';
-    this.clase = clase;            // 'credenciales' | 'carpeta' | 'base' | 'google' | 'drive'
+    this.clase = clase;            // 'credenciales' | 'carpeta' | 'base' | 'google' | 'drive' | 'conservar'
     Object.assign(this, extra || {});
   }
 }
@@ -150,4 +150,59 @@ export function direccionDeSubida(location) {
   if (u.protocol !== 'https:' || u.hostname !== 'www.googleapis.com' || u.username || u.password || u.port) return null;
   if (!u.pathname.startsWith('/upload/drive/v3/files')) return null;
   return u.href;
+}
+
+/* ---------------------------------------------------------------------------
+   La rotación: cuántos respaldos se quedan en la carpeta (decidido por Elías el 2026-10-16: los 8 más recientes)
+   ---------------------------------------------------------------------------
+   Solo DESPUÉS de una subida que terminó bien, y solo sobre archivos que esta función creó: el nombre con su patrón exacto
+   (al3d-respaldo-AAAA-MM-DDTHHMMSSZ.json) Y la marca appProperties.al3d = 'respaldo' que se les pone al subirlos. Un archivo que
+   alguien dejó a mano en la carpeta, aunque se llame parecido, no se toca. Lo que sobra va a la PAPELERA de Drive (trashed: true), no
+   se destruye: en una unidad compartida la papelera se vacía sola a los 30 días y mientras tanto se puede recuperar. */
+export const CONSERVAR_POR_DEFECTO = 8;
+export const CONSERVAR_MAXIMO = 520;           // diez años de semanas: un número más grande es un error de dedo
+export const URL_ARCHIVOS = 'https://www.googleapis.com/drive/v3/files';
+export const MARCA = Object.freeze({ al3d: 'respaldo' });
+export const PATRON_NOMBRE = /^al3d-respaldo-\d{4}-\d{2}-\d{2}T\d{6}Z\.json$/;
+
+/** Cuántos respaldos conservar: vacío = 8; un entero de 1 a 520; cualquier otra cosa es un error de configuración. */
+export function leerConservar(texto) {
+  const t = String(texto ?? '').trim();
+  if (t === '') return CONSERVAR_POR_DEFECTO;
+  if (!/^[0-9]{1,4}$/.test(t) || Number(t) < 1 || Number(t) > CONSERVAR_MAXIMO) {
+    throw new ErrorDeRespaldo('conservar', 'RESPALDO_CONSERVAR tiene que ser un número entero de 1 a ' + CONSERVAR_MAXIMO + ' (sin él, ' + CONSERVAR_POR_DEFECTO + ').');
+  }
+  return Number(t);
+}
+
+/** ¿Lo creó esta función? Nombre con su patrón exacto y la marca puesta al subirlo. */
+export const esRespaldoNuestro = a => !!a && typeof a.id === 'string' && typeof a.name === 'string' && PATRON_NOMBRE.test(a.name)
+  && !!a.appProperties && a.appProperties.al3d === MARCA.al3d;
+
+/** La consulta de una página de la lista de la carpeta (solo lo que no está en la papelera y se llama como un respaldo). */
+export function consultaDeLista(carpeta, pagina) {
+  const q = "'" + carpeta + "' in parents and trashed = false and name contains 'al3d-respaldo-'";
+  const p = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,appProperties)', pageSize: '1000', orderBy: 'name desc',
+    supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', corpora: 'allDrives' });
+  if (pagina) p.set('pageToken', pagina);
+  return URL_ARCHIVOS + '?' + p.toString();
+}
+
+/** La dirección para mandar UN archivo a la papelera (PATCH {trashed:true}). Un id raro no se usa. */
+export function direccionDeArchivo(id) {
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(String(id || ''))) return null;
+  return URL_ARCHIVOS + '/' + id + '?supportsAllDrives=true&fields=id,trashed';
+}
+
+/**
+ * Qué archivos sobran: de los NUESTROS, se ordenan por nombre (= por fecha) del más nuevo al más viejo y se quedan los `conservar`
+ * primeros. El recién subido (`nuevo`) cuenta SIEMPRE como uno de los que se quedan, aunque la lista de Drive todavía no lo traiga, y
+ * jamás sale en la lista de los que sobran.
+ */
+export function sobrantes(archivos, conservar, nuevo) {
+  const nuestros = (Array.isArray(archivos) ? archivos : []).filter(esRespaldoNuestro);
+  const mapa = new Map(nuestros.map(a => [a.id, a]));
+  if (nuevo && nuevo.id) mapa.set(nuevo.id, { id: nuevo.id, name: nuevo.nombre || '' });
+  const orden = [...mapa.values()].sort((a, b) => (a.id === nuevo?.id ? -1 : b.id === nuevo?.id ? 1 : b.name.localeCompare(a.name)));
+  return orden.slice(Math.max(1, conservar)).filter(a => a.id !== nuevo?.id);
 }

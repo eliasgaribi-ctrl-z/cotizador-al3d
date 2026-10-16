@@ -1,9 +1,9 @@
 # Migraciones de la base (Supabase / PostgreSQL 15–18)
 
-Trece archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
+Dieciséis archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
 de uno posterior. Son idempotentes (`create … if not exists`, `create or replace`, `drop … if exists`): volver a aplicar uno no rompe nada. El diseño completo está en
 `docs/PLAN-SUPABASE.md` y `docs/DECISIONES-SUPABASE.md`; la regla que lo resume: **se lee por RLS y se escribe solo por RPC `SECURITY DEFINER`** (`authenticated` no tiene
-`INSERT`/`UPDATE`/`DELETE` en ninguna tabla; `anon` no tiene nada; `service_role` tiene `SELECT`/`INSERT`/`UPDATE` y ni siquiera él borra).
+`INSERT`/`UPDATE`/`DELETE` en ninguna tabla; `anon` no tiene nada; `service_role` tiene `SELECT`/`INSERT`/`UPDATE` y ni siquiera él borra; lo único que borra son las purgas de los plazos de conservación de `0016`, que corre el dueño).
 
 | Archivo | Qué hace |
 |---|---|
@@ -22,20 +22,21 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0013_huecos_revision.sql` | lo que la revisión adversarial dejó «abierto, a propósito»: `subida_unica` ya no acepta quién, rol ni hora del cliente en la bitácora y no deja nacer cotizaciones autorizadas sin sello del servidor; holgura de sellos de 60 s para los roles bajos y Dirección gana ante ellos (decisión **provisional**, Q-06, con `proyectos.sellos_area`: **la deshace `0014`**); tope de `almacen_movimientos.ts`; Pagos no crea requerimientos; sin tablas temporales para `authenticated`. Idempotente; termina corriendo la auditoría |
 | `0014_sellos_mas_reciente.sql` | Q-06 decidida por Elías (2026-10-16): **gana el cambio más reciente, con 10 min de holgura para todas las áreas**, como el `.gs`. Regresa `sello_valido`, `compuerta`, `preambulo` y las tres RPC de obra a la regla de siempre y **borra** `proyectos.sellos_area` con su trigger y sus funciones (ya nada los usa). Lo demás de `0013` no cambia. Idempotente; termina corriendo la auditoría |
 | `0015_folio_de_la_hoja.sql` | Q-07 decidida por Elías (2026-10-16): `ganar_proyecto` acepta el V-### que ya le dio la hoja (`p_op.folio_hoja`, validado; si está ocupado, `DATO_INVALIDO` con `causa: folio_ocupado`), y un trigger mantiene el contador `V` a la altura del folio más alto. Idempotente; termina corriendo la auditoría |
+| `0016_plazos.sql` | Plazos de conservación, decididos por Elías (2026-10-16): purgas en `interno` (solo el dueño las ejecuta) de las **cotizaciones no ganadas a los 8 meses** (con sus solicitudes y su lápida; lo ganado o con sello nunca), la **bitácora a 1 año** y lo **borrado en la app a los 30 días**; `sin_borrar` deja pasar solo la fila que la purga marcó y que cumple la regla de su tabla (los libros de dinero y las autorizaciones, nunca). `interno.purgar_plazos()` corre todas y anota en la bitácora; **pg_cron** la programa a diario (09:15 UTC) si la extensión se puede habilitar (en Supabase sí; en PGlite avisa y sigue). Ver abajo «Los plazos en el proyecto real». Idempotente; termina corriendo la auditoría |
 
 ## Antes de aplicar: la configuración del proyecto
 
 El proyecto real se configura con **«exponer tablas automáticamente» APAGADO** y **«RLS automático» ENCENDIDO** (`docs/DECISIONES-SUPABASE.md`). Por eso **cada objeto declara
 su `GRANT`**, también para `service_role`: `BYPASSRLS` salta la RLS, no los privilegios. Cada tabla, vista y función empieza revocando a `PUBLIC`, `anon`, `authenticated` **y
 `service_role`** y solo después da lo que da, así que los privilegios finales son los mismos aunque el proyecto tuviera «exponer tablas automáticamente» encendido (se
-probó simulando esos privilegios por defecto). Nada aquí depende de extensiones de Supabase (ni `pgcrypto`, `pg_cron`, `pg_net` ni `vault`).
+probó simulando esos privilegios por defecto). Nada aquí depende de extensiones de Supabase (ni `pgcrypto`, `pg_net` ni `vault`), salvo `0016`, que **habilita `pg_cron` si puede** para programar las purgas diarias; sin él (PGlite) avisa con un NOTICE, sigue, y las purgas se corren a mano.
 
 `0001` usa `alter default privileges for role postgres …`: **las migraciones tienen que correr como `postgres`** (lo que hacen el SQL Editor del panel y
 `supabase db push`). Si se corren con otro rol, esos privilegios por defecto no aplican a lo que ese rol cree.
 
 ## Cómo aplicar
 
-- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0015`, en ese orden. Un archivo es una sola consulta de varias
+- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0016`, en ese orden. Un archivo es una sola consulta de varias
   sentencias, que Postgres ejecuta como una transacción implícita (en PGlite un error deshace todo el archivo; en el panel no lo verifiqué). Como son idempotentes,
   después de un fallo basta arreglar la causa y volver a ejecutar el mismo archivo.
 - **CLI:** con el proyecto enlazado (`supabase link`), `supabase db push` aplica en orden los que falten.
@@ -51,6 +52,26 @@ select interno.auditoria();   -- {} = limpio; si no, una lista de problemas
 
 Conviene correrla **después de cada migración nueva**: una función o tabla que no esté en las listas cerradas de `0011` sale nombrada.
 
+## Los plazos en el proyecto real (`0016`)
+
+Al aplicar `0016` en el SQL Editor, el panel muestra uno de dos avisos (NOTICE): «programado al3d-plazos con pg_cron» o «pg_cron no
+está disponible aquí». En Supabase debe salir el primero (la migración habilita la extensión con `create extension if not exists
+pg_cron`; si el plan o el proyecto no la dejan, se habilita a mano en *Database → Extensions* y se vuelve a correr `0016`). Para
+revisarlo después, como `postgres`:
+
+```sql
+select jobname, schedule, command, active from cron.job where jobname = 'al3d-plazos';               -- 15 9 * * *  (03:15 en México)
+select status, return_message, start_time from cron.job_run_details
+ where jobid = (select jobid from cron.job where jobname = 'al3d-plazos') order by start_time desc limit 5;
+select titulo, despues from public.bitacora where accion = 'purgo' order by id desc limit 5;          -- lo que borró cada corrida
+select interno.purgar_plazos();                                                                     -- correrla a mano (ya, con now())
+select cron.unschedule('al3d-plazos');                                                              -- apagarla sin quitar las funciones
+```
+
+Sin pg_cron (PGlite, o un proyecto donde no se habilite) las funciones quedan instaladas y **no corren solas**: hay que llamarlas a
+mano. `supabase/opcional/prueba-de-humo.sql` (C40–C48) comprueba los bordes, que los libros quedan exactos y que el trabajo está
+programado.
+
 ## Lo que no es una migración
 
 `supabase/opcional/` (aparte, no se aplica con las migraciones): `storage.sql` (bucket privado de imágenes y sus políticas; necesita el esquema `storage` del proyecto),
@@ -59,7 +80,7 @@ Conviene correrla **después de cada migración nueva**: una función o tabla qu
 ## Cómo se prueba
 
 `sh supabase/tests/correr.sh` aplica todos los archivos sobre PGlite (PostgreSQL 18 en WASM) y corre las pruebas de cada área (`acceso`, `rls-y-dinero`, `formulas`,
-`obra-y-etapas`, `pagos`, `almacen`, `notario`, `cupos`, `sync-e-importacion`, `auditoria`). **PGlite no es Supabase.** Lo que NO cubre y hay que comprobar en el proyecto
+`obra-y-etapas`, `pagos`, `almacen`, `notario`, `cupos`, `sync-e-importacion`, `auditoria`, `plazos`). **PGlite no es Supabase.** Lo que NO cubre y hay que comprobar en el proyecto
 de pruebas antes de confiar en el real:
 
 - PostgREST de verdad: el tope de 1000 filas (`max_rows`), los filtros `or=(…)` del cursor, el *embedding* bajo RLS y que la cabecera `x-al3d-contrato` llegue a `request.headers`;
