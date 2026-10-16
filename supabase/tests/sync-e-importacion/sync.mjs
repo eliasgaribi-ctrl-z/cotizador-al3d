@@ -17,9 +17,9 @@ const plantilla = dato(async () => {
   await sembrarAlmacen(db);
   const S = quien => sesionDe(db, db.u[quien], { confirmar: true });
   await llamar(S('dir'), 'solicitar', { p_op: sol('COT-0001-B@K7QM') });
-  await llamar(S('fab'), 'solicitar', { p_op: sol('COT-0002-B@K7QM') });
-  await llamar(S('pag'), 'solicitar', { p_op: sol('COT-0003-B@K7QM') });
-  await llamar(como(db, { rol: 'service_role', confirmar: true }), 'registrar_autorizacion', aut(db, { p_folio_global: 'COT-0003-B@K7QM', ...sello(3) }));
+  await llamar(S('fab'), 'solicitar', { p_op: sol('COT-0002-B@FAB1') });
+  await llamar(S('pag'), 'solicitar', { p_op: sol('COT-0003-B@PAG1') });
+  await llamar(como(db, { rol: 'service_role', confirmar: true }), 'registrar_autorizacion', aut(db, { p_folio_global: 'COT-0003-B@PAG1', ...sello(3) }));
   await llamar(S('dir'), 'cuaderno_guardar', { p_clave: 'tel:3312345678', p_nota: 'nota de Dirección' });
   await llamar(S('dir'), 'mover_etapa', { p_proyecto: 'p2', p_etapa: 'en_diseno', p_sello: AHORA() });          // un evento de nivel «general» en la bitácora
   return db;
@@ -83,7 +83,7 @@ describir('SY-01 a SY-03 el cursor (updated_at, id)', () => {
     const marca = (await una(db, `select clock_timestamp()::text as t`)).t;
     await sql(db, `update public.proyectos set deleted_at = now() where id = 'p4'`);
     await sql(db, `update public.instalaciones set deleted_at = now() where id = 'i2'`);
-    igual((await llamar(sesionDe(db, db.u.pag, { confirmar: true }), 'cotizacion_guardar', { p_op: { folio_global: 'COT-0003-B@K7QM', borrar: true } })).ok, true);
+    igual((await llamar(sesionDe(db, db.u.pag, { confirmar: true }), 'cotizacion_guardar', { p_op: { folio_global: 'COT-0003-B@PAG1', borrar: true } })).ok, true);
     for (const quien of ['dir', 'fab']) {
       const S = sesionDe(db, db.u[quien]);
       const p = await S.query(`select id, deleted_at is not null as borrada from public.proyectos where updated_at > $1::timestamptz order by id`, [marca]);
@@ -93,7 +93,7 @@ describir('SY-01 a SY-03 el cursor (updated_at, id)', () => {
     }
     for (const quien of ['dir', 'pag']) {
       const c = await sesionDe(db, db.u[quien]).query(`select folio_global, deleted_at is not null as borrada from public.cotizaciones where updated_at > $1::timestamptz`, [marca]);
-      igual([quien, c.map(r => [r.folio_global, r.borrada])], [quien, [['COT-0003-B@K7QM', true]]]);
+      igual([quien, c.map(r => [r.folio_global, r.borrada])], [quien, [['COT-0003-B@PAG1', true]]]);
     }
     igual((await sesionDe(db, db.u.fab).query(`select count(*)::int as n from public.cotizaciones`))[0].n, 0, 'Fabricación nunca ve cotizaciones, ni borradas');
     igual((await sesionDe(db, db.u.dir).query(`select count(*)::int as n from public.proyectos where deleted_at is not null`))[0].n, 1, 'RL-18: los tombstones SÍ aparecen en la lectura');
@@ -125,8 +125,8 @@ describir('SY-04 y SY-05 reenviar la misma operación', () => {
   }));
   prueba('SY-04 solicitar e instalacion_guardar dos veces: una sola fila (misma solicitud, misma cita) y `movida` no sube', () => conCopia(plantilla, async db => {
     const P = sesionDe(db, db.u.pag, { confirmar: true });
-    await llamar(P, 'solicitar', { p_op: sol('COT-0200-B@K7QM') }); await llamar(P, 'solicitar', { p_op: sol('COT-0200-B@K7QM') });
-    igual([(await una(db, `select count(*)::int as n from public.solicitudes where folio_global = 'COT-0200-B@K7QM'`)).n, (await una(db, `select count(*)::int as n from public.cotizaciones where folio_global = 'COT-0200-B@K7QM'`)).n], [1, 1]);
+    await llamar(P, 'solicitar', { p_op: sol('COT-0200-B@PAG1') }); await llamar(P, 'solicitar', { p_op: sol('COT-0200-B@PAG1') });
+    igual([(await una(db, `select count(*)::int as n from public.solicitudes where folio_global = 'COT-0200-B@PAG1'`)).n, (await una(db, `select count(*)::int as n from public.cotizaciones where folio_global = 'COT-0200-B@PAG1'`)).n], [1, 1]);
     const D = sesionDe(db, db.u.dir, { confirmar: true });
     const cita = { p_op: { id: 'nueva', proyecto_id: 'p2', fecha: '2026-11-05', hora: '10:00', ventana: 'dia', duracion_min: 120, sello: AHORA() } };
     const a = await llamar(D, 'instalacion_guardar', cita), b = await llamar(D, 'instalacion_guardar', cita);

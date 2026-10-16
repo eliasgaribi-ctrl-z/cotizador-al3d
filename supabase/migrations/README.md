@@ -19,6 +19,7 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0010_sync_espejo.sql` | vistas del espejo a la hoja, `cuadre_hoja` (solo `service_role`) y el cierre de la publicación `supabase_realtime` (lista cerrada de 13 tablas) |
 | `0011_auditoria.sql` | **la aduana**: comprueba los privilegios REALES y **aborta el despliegue** si algo quedó abierto (ver abajo) |
 | `0012_endurecimiento.sql` | lo que encontró la revisión adversarial: importes finitos y acotados (`NaN`/`Infinity` ya no entran), `p_hoy` acotado, topes de texto, estadísticas apagadas en las tablas de dinero y correo verificado solo con proveedor Google. Idempotente; conviene volver a correr `0011` después |
+| `0013_folios_del_dueno.sql` | cada aparato (`disp`) tiene dueño por empresa (`contadores('aparato:<disp>')`): un folio nuevo, el contador de folios y la bitácora de un teléfono solo los sube su dueño (Dirección no se bloquea); la subida única ya no deja `autorizada` una cotización sin sello vigente. Idempotente |
 
 ## Antes de aplicar: la configuración del proyecto
 
@@ -32,7 +33,7 @@ probó simulando esos privilegios por defecto). Nada aquí depende de extensione
 
 ## Cómo aplicar
 
-- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0012`, en ese orden. Un archivo es una sola consulta de varias
+- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0013`, en ese orden. Un archivo es una sola consulta de varias
   sentencias, que Postgres ejecuta como una transacción implícita (en PGlite un error deshace todo el archivo; en el panel no lo verifiqué). Como son idempotentes,
   después de un fallo basta arreglar la causa y volver a ejecutar el mismo archivo.
 - **CLI:** con el proyecto enlazado (`supabase link`), `supabase db push` aplica en orden los que falten.
