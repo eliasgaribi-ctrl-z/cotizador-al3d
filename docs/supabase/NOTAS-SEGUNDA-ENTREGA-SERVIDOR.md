@@ -2,6 +2,15 @@
 
 **Fecha: 2026-10-16. Rama `claude/supabase-huecos-autorizar`.** Todo sigue **apagado**: la hoja de Google es la fuente de verdad y no hay datos reales ni secretos reales en Supabase. Elías no estaba; cada decisión de abajo es el valor más conservador que encontré y está marcada para que la confirme o la cambie. Este archivo no sustituye a [`../ESTADO-SUPABASE.md`](../ESTADO-SUPABASE.md) (que no se tocó en esta rama): es el informe de lo que hay que pasar ahí cuando se revise.
 
+## Lo que decidió Elías (2026-10-16)
+
+| Decisión de esta entrega | Estado |
+|---|---|
+| H-3 / Q-06: 60 s para los roles bajos y Dirección gana ante Fabricación o Pagos | **CAMBIADA.** Gana el cambio más reciente, con **10 min de holgura para todos los roles**, como el `.gs`. La deshace `supabase/migrations/0014_sellos_mas_reciente.sql` (y quita `proyectos.sellos_area`, que ya nadie usaba); lo demás de `0013` sigue igual |
+| H-1, H-2 (`retirada`), H-4, H-5, H-6 | Siguen como están (no se tocaron) |
+| Respaldo: cuenta de servicio o Apps Script | Sigue pendiente |
+| El V-### de una venta nueva | **CAMBIADA** (era del lado cliente): Supabase usa el mismo número que la hoja. `supabase/migrations/0015_folio_de_la_hoja.sql`; ver [`NOTAS-SEGUNDA-ENTREGA-CLIENTE.md`](NOTAS-SEGUNDA-ENTREGA-CLIENTE.md) |
+
 ## Qué hay
 
 | Pieza | Archivos | Prueba |
@@ -19,7 +28,7 @@ Cada arreglo, y por qué así:
 |---|---|---|---|
 | H-1 | `subida_unica` aceptaba `usuario`, `rol`, `ts` e `id` del cliente en la bitácora; se podía ocupar el `op_id` de otro | El servidor pone `usuario_texto` (correo verificado), `rol` (área real) y `ts` (`now()`). `op_id = 'tel:<uid>:<disp>:<id>'` | La hora que dice el teléfono se conserva en `procedencia.ts_cliente` (solo si cae entre 2020 y mañana): es un dato declarado, no la hora del evento. El uid va **delante** y mide siempre 36: dos personas no pueden producir el mismo `op_id`. Cambia el formato de `DISENO.md` (`tel:<disp>:<id>`); hay que actualizarlo allá |
 | H-2 | Cotizaciones por `subida_unica` nacían `autorizada` sin sello | `autorizada` solo si `autorizaciones` tiene la fila `vigente` de ese folio global **y** su código es el del sello local; entonces queda enlazada (`autorizacion_id`). Si no, `retirada` y `procedencia.sin_sello_valido = true` | **`retirada` y no `pendiente`**: nadie pidió autorización y no hay solicitud; `pendiente` haría creer que alguien espera a Dirección. La base no puede comprobar el HMAC (no tiene la clave), así que exige que el sello exista del lado del servidor. **Para el importador (fase 2):** si «Autorizaciones» se carga DESPUÉS de una subida, su pasada de vínculo (`DISENO.md` §2.9 a) debe poner `autorizada` las que enlace con una `vigente` |
-| H-3 | La holgura de +10 min dejaba que un rol bajo anulara a Dirección (Q-06) | (a) holgura de **60 s** para Fabricación, Pagos y toda escritura sin área (importador, service_role); **Dirección conserva 10 min**. (b) ante un conflicto, **Dirección gana** cuando el sello guardado lo puso Fabricación o Pagos: su cambio se escribe con el sello guardado **+ 1 ms** | **PROVISIONAL, la confirma Elías.** Contra otro teléfono de Dirección o contra un sello de origen desconocido (lo importado) sigue «gana el más reciente»; un cambio de Dirección **sin** sello no gana nada. El «+1 ms» hace que el reintento del teléfono bajo con su mismo sello ya no empate. Para saber quién puso cada sello: columna nueva `proyectos.sellos_area` (`{grupo: área}`), la llena un trigger con el área que el preámbulo de cada RPC fija en `al3d.area` (parámetro local a la transacción; PostgREST no deja fijarlo desde fuera y el preámbulo lo pisa). `remoto` no la devuelve. Aplica a `proyecto_actualizar`, `mover_etapa` e `instalacion_guardar` (copias de 0006 con una línea cambiada). El almacén solo recibe la holgura nueva, sin prioridad |
+| H-3 | La holgura de +10 min dejaba que un rol bajo anulara a Dirección (Q-06) | **CAMBIADA por Elías el 2026-10-16 y deshecha en `0014`: gana el más reciente, con 10 min para todos; lo que sigue en esta fila es solo la historia.** (a) holgura de **60 s** para Fabricación, Pagos y toda escritura sin área (importador, service_role); **Dirección conserva 10 min**. (b) ante un conflicto, **Dirección gana** cuando el sello guardado lo puso Fabricación o Pagos: su cambio se escribe con el sello guardado **+ 1 ms** | ~~PROVISIONAL, la confirma Elías.~~ **Cambiada (ver arriba).** Contra otro teléfono de Dirección o contra un sello de origen desconocido (lo importado) sigue «gana el más reciente»; un cambio de Dirección **sin** sello no gana nada. El «+1 ms» hace que el reintento del teléfono bajo con su mismo sello ya no empate. Para saber quién puso cada sello: columna nueva `proyectos.sellos_area` (`{grupo: área}`), la llena un trigger con el área que el preámbulo de cada RPC fija en `al3d.area` (parámetro local a la transacción; PostgREST no deja fijarlo desde fuera y el preámbulo lo pisa). `remoto` no la devuelve. Aplica a `proyecto_actualizar`, `mover_etapa` e `instalacion_guardar` (copias de 0006 con una línea cambiada). El almacén solo recibe la holgura nueva, sin prioridad |
 | H-4 | `almacen_movimientos.ts` sin tope: un conteo de 2099 congelaba la existencia | Trigger: no más de **1 día** en el futuro respecto de `now()`; `almacen_aplicar` lo contesta `DATO_INVALIDO` (definitivo) | Vale también para el importador. No se puso tope hacia el pasado (lo histórico es legítimo) |
 | H-5 | Pagos podía **crear** un requerimiento | `almacen_aplicar` (copia de 0005) contesta `ROL_SIN_PERMISO` a Pagos sobre un requerimiento que **no existe**; sobre uno que existe sigue la regla de siempre (solo `estado = consumido`) | La guarda va en `almacen_aplicar` y no en un trigger: un error de trigger saldría como `DESCONOCIDO` y la bandeja lo reintentaría para siempre |
 | H-6 | `authenticated` podía crear tablas temporales | `REVOKE TEMPORARY … FROM PUBLIC` y se le devuelve a **cada rol que ya existía** salvo `anon` y `authenticated` | En PGlite funciona (la prueba lo exige). En Supabase `postgres` no es superusuario y puede no ser dueño de la base: si no puede revocar, la migración **no aborta**, deja un NOTICE y el caso **C30** de la prueba de humo sale en rojo. Riesgo aceptado: un rol que la plataforma cree **después** no tendrá TEMPORARY (no conozco ninguno que lo use para servir peticiones) |
@@ -62,9 +71,10 @@ Decisiones:
 
 ## Cómo aplicarlo al proyecto de pruebas
 
-1. SQL Editor: `supabase/migrations/0013_huecos_revision.sql` completo (es idempotente y corre la auditoría al final). Si aparece el NOTICE de tablas temporales, anotarlo: H-6 no quedó cerrado ahí.
-2. Volver a correr `0011` y después `supabase/opcional/prueba-de-humo.sql` completo: verde = `{"fallos":0,…}` con 36 casos.
-3. Funciones (cuando se quiera): `supabase functions deploy autorizar respaldo` y sus secretos. Nada de esto se desplegó.
+1. SQL Editor: `supabase/migrations/0013_huecos_revision.sql` completo (es idempotente y corre la auditoría al final). Si aparece el NOTICE de tablas temporales, anotarlo: H-6 no quedó cerrado ahí. **Ya aplicada en `al3d-pruebas` el 2026-10-16.**
+2. Después, en este orden: `supabase/migrations/0014_sellos_mas_reciente.sql` y `supabase/migrations/0015_folio_de_la_hoja.sql` (las dos idempotentes; cada una corre la auditoría al final).
+3. Volver a correr `0011` y después `supabase/opcional/prueba-de-humo.sql` completo: verde = `{"fallos":0,…}` con **39** casos (C28, C31 y C32 ahora prueban «gana el más reciente con 10 min para todos»; C37–C39, el folio de la hoja).
+4. Funciones (cuando se quiera): `supabase functions deploy autorizar respaldo` y sus secretos. Nada de esto se desplegó.
 
 ## Cifras de esta rama (Windows 11, node 24.17)
 
@@ -82,7 +92,7 @@ Decisiones:
 
 ## Para que Elías decida
 
-1. **Q-06 (H-3)**: ¿se queda «60 s para roles bajos + Dirección gana ante ellos», o prefiere solo una de las dos?
+1. ~~**Q-06 (H-3)**: ¿se queda «60 s para roles bajos + Dirección gana ante ellos», o prefiere solo una de las dos?~~ **Decidido el 2026-10-16: ninguna de las dos; gana el más reciente con 10 min para todos (`0014`).**
 2. **H-2**: ¿`retirada` para lo subido sin sello válido le parece bien, o prefiere otro estado?
 3. **Respaldo**: ¿cuenta de servicio (esta rama) o Apps Script (Q-20 original)? ¿Hay una unidad compartida para la carpeta?
-4. Pasar este informe a `docs/ESTADO-SUPABASE.md` (esta rama no lo tocó, a propósito).
+4. ~~Pasar este informe a `docs/ESTADO-SUPABASE.md`~~ hecho.
