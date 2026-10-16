@@ -33,6 +33,16 @@ mismo sello, una venta del teléfono que no está en la hoja) va al reporte y se
    ERRORES» y dice cuántas filas entrarían a cada tabla. No escribe nada.
 7. **`importar.sql`**, y después **`cuadre.sql`**: la primera consulta del cuadre tiene que salir vacía.
 
+## La copia diaria (desde el 2026-10-16)
+
+Elías decidió que, mientras el equipo siga capturando en la hoja, la nube se ponga al día **cada madrugada** con este mismo
+importador: el Apps Script de la hoja (`puente/copia-diaria.gs`) arma el volcado y se lo manda a la función de Supabase
+`importar-diario`, que corre `planear` y `sqlDeImportacion(plan, { externa: true })` (el mismo SQL de `importar.sql`, sin los
+`begin`/`commit` de cada lote: la transacción, UNA, la abre la función) y después la primera consulta de `cuadre.sql`
+(`sqlDeDiferencias`). Lo anota en `cuadre_diario` (migración `0018`). Sin teléfonos y sin la clave del sello, igual que la
+importación del 2026-10-16. Si el plan trae conflictos o filas que no entran, no aplica nada. Cómo se pone en marcha:
+`supabase/README.md`, «La copia diaria».
+
 ## Cuándo se puede volver a correr
 
 Las veces que haga falta **mientras la hoja sea la fuente** (hasta la fase 4): cada corrida deja la base como dice la hoja, así

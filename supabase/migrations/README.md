@@ -1,6 +1,6 @@
 # Migraciones de la base (Supabase / PostgreSQL 15–18)
 
-Diecisiete archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
+Dieciocho archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
 de uno posterior. Son idempotentes (`create … if not exists`, `create or replace`, `drop … if exists`): volver a aplicar uno no rompe nada. El diseño completo está en
 `docs/PLAN-SUPABASE.md` y `docs/DECISIONES-SUPABASE.md`; la regla que lo resume: **se lee por RLS y se escribe solo por RPC `SECURITY DEFINER`** (`authenticated` no tiene
 `INSERT`/`UPDATE`/`DELETE` en ninguna tabla; `anon` no tiene nada; `service_role` tiene `SELECT`/`INSERT`/`UPDATE` y ni siquiera él borra; lo único que borra son las purgas de los plazos de conservación de `0016`, que corre el dueño).
@@ -24,6 +24,7 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0015_folio_de_la_hoja.sql` | Q-07 decidida por Elías (2026-10-16): `ganar_proyecto` acepta el V-### que ya le dio la hoja (`p_op.folio_hoja`, validado; si está ocupado, `DATO_INVALIDO` con `causa: folio_ocupado`), y un trigger mantiene el contador `V` a la altura del folio más alto. Idempotente; termina corriendo la auditoría |
 | `0016_plazos.sql` | Plazos de conservación, decididos por Elías (2026-10-16): purgas en `interno` (solo el dueño las ejecuta) de las **cotizaciones no ganadas a los 8 meses** (con sus solicitudes y su lápida; lo ganado o con sello nunca), la **bitácora a 1 año** y lo **borrado en la app a los 30 días**; `sin_borrar` deja pasar solo la fila que la purga marcó y que cumple la regla de su tabla (los libros de dinero y las autorizaciones, nunca). `interno.purgar_plazos()` corre todas y anota en la bitácora; **pg_cron** la programa a diario (09:15 UTC) si la extensión se puede habilitar (en Supabase sí; en PGlite avisa y sigue). Ver abajo «Los plazos en el proyecto real». Idempotente; termina corriendo la auditoría |
 | `0017_decisiones_elias.sql` | Lo que Elías decidió el 2026-10-16 al revisar las preguntas abiertas (`docs/DECISIONES-SUPABASE.md`). **Q-05:** los tres roles (Dirección, Fabricación y Pagos) mueven cualquier etapa; **solo Dirección cancela** («No se dio») y solo ella saca un proyecto de `cancelado` (la matriz de `etapas` y el preámbulo de `mover_etapa`); la transición automática «instalación hecha ⇒ instalado» corre para quien puede marcar «instalado» (Dirección y Fabricación). **Q-19:** `ia_cuota` deja **50** consultas de IA al día por persona (antes 200), aunque quien llama pida más. Copias íntegras de `matriz_permisos`, `mover_etapa`, `instalacion_guardar` e `ia_cuota` con el cambio marcado «0017:»; ninguna firma, tabla ni privilegio nuevo. Idempotente; termina corriendo la auditoría |
+| `0018_cuadre_diario.sql` | La **copia diaria** hoja → nube, decidida por Elías el 2026-10-16: la tabla `cuadre_diario`, donde la función `importar-diario` deja un renglón por corrida (si se aplicó, si cuadró, cuántas diferencias, conflictos y filas que no entran, y un `resumen` sin nombres ni importes). Solo Dirección la lee (RLS); nadie la escribe desde la app (la función entra con `SUPABASE_DB_URL`); nadie la cambia ni la borra (`tocar`, `sin_borrar` y `solo_agregar`, como la bitácora); no va por Realtime. Una tabla y ninguna función: las listas cerradas de `0011` no cambian. Idempotente; termina corriendo la auditoría |
 
 ## Antes de aplicar: la configuración del proyecto
 
@@ -37,7 +38,7 @@ probó simulando esos privilegios por defecto). Nada aquí depende de extensione
 
 ## Cómo aplicar
 
-- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0017`, en ese orden. Un archivo es una sola consulta de varias
+- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0018`, en ese orden. Un archivo es una sola consulta de varias
   sentencias, que Postgres ejecuta como una transacción implícita (en PGlite un error deshace todo el archivo; en el panel no lo verifiqué). Como son idempotentes,
   después de un fallo basta arreglar la causa y volver a ejecutar el mismo archivo.
 - **CLI:** con el proyecto enlazado (`supabase link`), `supabase db push` aplica en orden los que falten.

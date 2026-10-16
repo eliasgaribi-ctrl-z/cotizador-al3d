@@ -11,6 +11,10 @@
                    `ventas_calculadas` (tolerancia 0.004 en importes) y el `cuadre_hoja` completo.
                    Cero renglones de diferencias = cuadra.
 
+   La función `importar-diario` (la copia de cada madrugada, desde el 2026-10-16) usa este mismo SQL
+   con `{ externa: true }`: sin los begin/commit por lote, dentro de UNA transacción que abre ella, y
+   después `sqlDeDiferencias` (la primera consulta de cuadre.sql).
+
    Escribe directo a las tablas (como `service_role` o el dueño), NO por las funciones del
    cliente: no debe disparar el IVA por cuenta, los folios ni las transiciones automáticas.
    Los textos van como literales SQL estándar ('…' con la comilla doblada): con

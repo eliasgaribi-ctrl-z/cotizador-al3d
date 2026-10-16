@@ -21,7 +21,7 @@
 //   c1f6d87ded802660  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
 //   dfdd7dea32aa9f4b  scripts/importador/plan.mjs
-//   c6f7bf59bcd8478b  scripts/importador/sql.mjs
+//   673b97eb51ef65ab  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   39675dc691bfa25c  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
