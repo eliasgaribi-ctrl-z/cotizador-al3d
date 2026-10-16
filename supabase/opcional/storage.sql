@@ -14,15 +14,25 @@
 -- Qué guarda. Las imágenes de las cotizaciones (`al3d_cot_imgs` del teléfono: el plano de cada partida, los renders y la propuesta visual; JPEG de hasta
 -- 1800 px). NO entran a la base: se suben desde el teléfono (js/datos/supa-imagenes.js) y `cotizaciones.datos` las referencia por id. Ruta de cada objeto:
 --         <empresa>/<folio_global>/<id>.jpg           p. ej.  al3d/COT-0042-B@K7QM/img-mf1k2x-a8c3d0.jpg
--- Una imagen que comparten dos cotizaciones (una duplicada de otra) se sube UNA vez, en la carpeta de la más vieja; el teléfono la busca ahí.
+-- Una imagen que comparten dos cotizaciones (una duplicada de otra) se sube UNA vez, en la carpeta de la más vieja; el teléfono la busca ahí. Si la que se
+-- GANA es otra de las que la usan, el teléfono la COPIA también a la carpeta de la ganada (una copia de Storage, sin volver a subirla): es donde la busca
+-- Fabricación, que solo sabe el folio de la obra.
 --
--- Quién puede qué (DISENO.md §3.5 y DECISIONES Q-02, confirmada por Elías el 2026-10-16):
+-- Quién puede qué (DISENO.md §3.5; DECISIONES Q-02, confirmada por Elías el 2026-10-16, y Q-02 bis, decidida por Elías el 2026-10-16):
 --   · LEER: quien puede VER ESA COTIZACIÓN. No se repite la regla: la política pregunta si existe la cotización de la carpeta CON LOS PERMISOS DE QUIEN LEE, y
 --           así decide la RLS de `public.cotizaciones` (0008: `cotizaciones_sel_direccion` y `cotizaciones_sel_autor_pagos`): Dirección, todas; Pagos, las suyas
---           (`creado_por`); Fabricación, NINGUNA, porque las cotizaciones llevan precios. Si Q-02 cambia, las imágenes la siguen solas. Además Dirección lee
+--           (`creado_por`); Fabricación, ninguna, porque las cotizaciones llevan precios. Si Q-02 cambia, las imágenes la siguen solas. Además Dirección lee
 --           todo lo de su empresa aunque la cotización todavía no esté en la base (hoy la app no las sube: solo las fotos).
+--           Y FABRICACIÓN lee las imágenes de las obras GANADAS (Q-02 bis): las necesita para fabricar y no llevan precios. La cotización sigue cerrada
+--           para ella; solo se abren sus IMÁGENES. «Ganada» es lo que ya dicen la base y la purga de 0016: existe un PROYECTO con el folio global de la
+--           carpeta (`proyectos.folio_global`, la llave con que `ganar_proyecto` ata la venta a su cotización) que es una VENTA (`folio_hoja`, el V-###:
+--           una lápida «No se dio» no lo tiene, CHECK `proyectos_libro`), que NO está cancelado (`etapa` ≠ 'cancelado': ni «No se dio» ni una venta que
+--           se cayó) y que no está borrado (`deleted_at`). Se pregunta por `proyectos` con los permisos de quien lee (los tres roles lo leen, 0003), así que
+--           sale de su empresa sola; y la rama exige además que quien lee sea Fabricación EN ESA EMPRESA: a Pagos no le abre nada (sigue con las suyas). En
+--           cuanto la obra se cancela, las imágenes dejan de verse en la siguiente petición. Es el criterio de `interno.cotizacion_protegida` (0016) del
+--           lado estricto: ahí, ante la duda, la cotización se QUEDA; aquí, ante la duda, la imagen NO se enseña.
 --   · SUBIR: el AUTOR de la cotización (Pagos, con la cotización ya en la base y a su nombre) o Dirección de esa empresa (cualquier carpeta de su empresa). Con
---           la forma exacta <empresa>/<folio_global>/<id>.jpg. Fabricación nunca: no ve la cotización.
+--           la forma exacta <empresa>/<folio_global>/<id>.jpg. Fabricación nunca, tampoco en la carpeta de una obra ganada.
 --   · CAMBIAR (sobrescribir, mover) y BORRAR: solo Dirección de esa empresa. El teléfono nunca sobrescribe: una imagen es inmutable por su id (sube con
 --           `upsert: false` y un «ya existe» es «ya estaba»).
 --   · `anon` no tiene ninguna política: no ve nada, ni la lista de nombres. El bucket es PRIVADO: no hay URL pública; cada lectura es una URL firmada de vida
@@ -80,17 +90,26 @@ drop policy if exists cotizacion_imagenes_subir   on storage.objects;
 drop policy if exists cotizacion_imagenes_cambiar on storage.objects;
 drop policy if exists cotizacion_imagenes_borrar  on storage.objects;
 
--- LEER. El `exists` corre con los permisos de quien lee: la RLS de `public.cotizaciones` es la que decide (Q-02). Se evalúa por objeto y va por la llave
--- primaria de `cotizaciones` (empresa_id, folio_global).
+-- LEER. Los `exists` corren con los permisos de quien lee: la RLS de `public.cotizaciones` decide la cotización (Q-02) y la de `public.proyectos`, la obra
+-- (Q-02 bis). Se evalúa por objeto: el primero va por la llave primaria de `cotizaciones` (empresa_id, folio_global) y el de la obra por el único
+-- `proyectos_folio_global_unico` (empresa_id, folio_global). La rama de Fabricación no crea funciones: usa las mismas dos que ya usaban las políticas.
 create policy cotizacion_imagenes_leer on storage.objects for select to authenticated
   using (bucket_id = 'cotizacion-imagenes'
          and ((storage.foldername(name))[1] in (select interno.empresas_donde(array['direccion']))
               or exists (select 1 from public.cotizaciones c
                           where c.empresa_id = (storage.foldername(name))[1]
-                            and c.folio_global = (storage.foldername(name))[2])));
+                            and c.folio_global = (storage.foldername(name))[2])
+              or ((storage.foldername(name))[1] in (select interno.empresas_donde(array['fabricacion']))
+                  and exists (select 1 from public.proyectos p
+                               where p.empresa_id = (storage.foldername(name))[1]
+                                 and p.folio_global = (storage.foldername(name))[2]
+                                 and p.folio_hoja is not null
+                                 and p.etapa <> 'cancelado'
+                                 and p.deleted_at is null))));
 
 -- SUBIR. Dirección, en cualquier carpeta de su empresa; Pagos, solo en la de una cotización suya que ya esté en la base. Las condiciones de Pagos se escriben
--- aunque la RLS de `cotizaciones` ya las impone: si un día Q-02 deja LEER a más gente, subir no se abre con ella.
+-- aunque la RLS de `cotizaciones` ya las impone: cuando LEER se abre a más gente, subir no se abre con ella (Q-02 bis le dio a Fabricación LEER las imágenes
+-- de las obras ganadas, y subir sigue sin ninguna rama para ella).
 create policy cotizacion_imagenes_subir on storage.objects for insert to authenticated
   with check (bucket_id = 'cotizacion-imagenes'
               and name ~ '^[a-z][a-z0-9_]{1,31}/[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}/[A-Za-z0-9_-]{1,64}\.jpg$'
@@ -119,7 +138,7 @@ create policy cotizacion_imagenes_borrar on storage.objects for delete to authen
 -- 3. Comprobación al final: el bucket quedó privado y nada más lo abre
 -- -----------------------------------------------------------------------------------------------------
 -- Las políticas PERMISIVAS se suman: una sola política suelta que deje pasar este bucket (hecha a mano en el panel, de otro uso, o una vieja) le abriría las
--- imágenes —con sus precios a la vista en el plano— a quien no debe, por ejemplo a Fabricación. Este archivo se detiene si:
+-- imágenes a quien no debe (por ejemplo, a Fabricación las de una cotización que no se ganó). Este archivo se detiene si:
 --   · el bucket no quedó privado;
 --   · otra política permisiva de `storage.objects` nombra este bucket (solo valen las cuatro de arriba);
 --   · otra política permisiva de `storage.objects` no mira `bucket_id` (valdría para TODOS los buckets, este incluido).

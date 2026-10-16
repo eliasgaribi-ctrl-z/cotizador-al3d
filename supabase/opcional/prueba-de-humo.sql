@@ -5,7 +5,7 @@
 -- las migraciones 0001..0017 ya aplicadas (el bloque 7 es de la 0013 y la 0014; el 8, de la 0015; el 9, de la 0016; el 10 y C08/C12, de la 0017), y comprueba ahí lo que más importa: que cada área ve y puede
 -- hacer solo lo que le toca. Simula a las personas igual que PostgREST (rol + claims del JWT), con
 -- usuarios de prueba creados DENTRO de la misma transacción. El bloque 11 es de opcional/storage.sql (las
--- imágenes de las cotizaciones): sin el bucket, deja un solo caso que dice que no aplica.
+-- imágenes de las cotizaciones; C70–C74, de Q-02 bis): sin el bucket, deja un solo caso que dice que no aplica.
 --
 -- No deja nada en la base: la última línea lanza un error A PROPÓSITO (con el informe como mensaje) y
 -- eso deshace todo, incluidos los usuarios de prueba. El error «HUMO_RESULTADO …» es el resultado
@@ -15,7 +15,8 @@
 -- cuenta filas cuenta solo las de la prueba (ids «humo…», folios «@HUMO», correos «@humo.test»). Los que
 -- esperan CERO filas (Fabricación y el dinero, la persona ajena, anon) cuentan TODO a propósito: ahí la
 -- respuesta correcta es cero haya lo que haya, y contar todo es la prueba más fuerte. Lo mismo C44, que
--- compara los libros completos antes y después de purgar. Las purgas del bloque 9 sí recorren los datos
+-- compara los libros completos antes y después de purgar, y C72, que cuenta TODAS las imágenes que ve
+-- Fabricación (cada una tiene que ser de una obra ganada: desde Q-02 bis, en producción sí ve algunas). Las purgas del bloque 9 sí recorren los datos
 -- reales, pero lo que borren se deshace con el error final, como todo lo demás.
 -- (supabase/tests/humo/prueba-de-humo.mjs la corre en PGlite vacía, con datos, y con Storage.)
 --
@@ -412,7 +413,8 @@ begin
   -- 11) Las imágenes de las cotizaciones en Storage (opcional/storage.sql, 2026-10-16). Las personas se simulan insertando y leyendo en
   --     storage.objects con su rol y su JWT, que es lo que hace el servicio de Storage antes de guardar el archivo: aquí no se sube ningún
   --     archivo (solo la fila, y se deshace con todo lo demás). Lo que esto NO prueba es el servicio en sí (la subida, las URLs firmadas).
-  --     Pagos ve y sube solo en SU cotización; Dirección todo; Fabricación nada; cambiar y borrar, solo Dirección.
+  --     Pagos ve y sube solo en SU cotización; Dirección todo; Fabricación no sube nada y solo VE las de una obra GANADA (Q-02 bis, decidido
+  --     por Elías el 2026-10-16: C70–C74, al final del bloque); cambiar y borrar, solo Dirección.
   if to_regclass('storage.objects') is null then
     inf := inf || jsonb_build_object('caso', 'C58 Storage: no existe en esta base (PGlite sin sustituto): no aplica', 'ok', true, 'det', 'sin storage');
   elsif not exists (select 1 from storage.buckets where id = 'cotizacion-imagenes') then
@@ -446,7 +448,8 @@ begin
     end;
     inf := inf || jsonb_build_object('caso', 'C59 Pagos NO sube a la cotización de Dirección ni a un folio que la base no tiene (42501)', 'ok', t = '42501 / 42501', 'det', t);
     execute 'reset role';
-    -- Fabricación: ni sube ni ve (las cotizaciones llevan precios).
+    -- Fabricación: ni sube ni ve las de una cotización que no se ganó (las cotizaciones llevan precios). Desde Q-02 bis SÍ ve las de una obra
+    -- ganada, y en producción las hay: por eso C60 cuenta solo las de la prueba, y C72 (abajo) cuenta TODAS las que ve, una por una contra su obra.
     perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
     begin
       insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9300@HUMO/img-humo-f.jpg', u_fab::text);
@@ -454,8 +457,8 @@ begin
     exception when others then t := sqlstate;
     end;
     begin
-      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes';      -- TODAS: cero haya lo que haya
-      inf := inf || jsonb_build_object('caso', 'C60 Fabricación NO sube (42501) y NO ve ninguna imagen (0, de ninguna cotización)', 'ok', t = '42501' and n = 0, 'det', t || ' / ve ' || n::text);
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-930_@HUMO/%';   -- las de la prueba
+      inf := inf || jsonb_build_object('caso', 'C60 Fabricación NO sube (42501) y NO ve la imagen de una cotización que no se ganó (0)', 'ok', t = '42501' and n = 0, 'det', t || ' / ve ' || n::text);
     exception when others then
       inf := inf || jsonb_build_object('caso', 'C60 Fabricación NO sube ni ve imágenes', 'ok', false, 'det', t || ' / ' || sqlstate || ' ' || sqlerrm);
     end;
@@ -538,6 +541,67 @@ begin
        and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') like '%cotizacion-imagenes%'
             or (coalesce(pg_get_expr(p.polqual, p.polrelid), '') not like '%bucket_id%' and coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') not like '%bucket_id%'));
     inf := inf || jsonb_build_object('caso', 'C69 ninguna otra política de storage.objects abre el bucket (ni una que no mire bucket_id)', 'ok', t is null, 'det', coalesce(t, 'ninguna'));
+
+    -- Q-02 bis (decidido por Elías el 2026-10-16): Fabricación VE las imágenes de las obras GANADAS (las necesita para fabricar; no llevan
+    -- precios) y nada más; sigue sin subir, cambiar ni borrar. Tres obras de la prueba, como dueño: una ganada (con V-###, en diseño), una venta
+    -- que se canceló y la lápida «No se dio» (sin V-###). Los V-### son de siete cifras, como el de C37, para no chocar con los de verdad, y
+    -- ninguna de esas cotizaciones está en la base: lo que cuenta es la obra. Dirección sube una imagen a la carpeta de cada una.
+    insert into public.proyectos (id, empresa_id, folio_hoja, folio_global, folio_local, dispositivo, fuente, nombre, etapa) values
+      ('humo-img-gan', 'al3d', 'V-9999931', 'COT-9310@HUMO', 'COT-9310', 'HUMO', 'cotizacion', 'Humo - obra ganada', 'en_diseno'),
+      ('humo-img-can', 'al3d', 'V-9999932', 'COT-9311@HUMO', 'COT-9311', 'HUMO', 'cotizacion', 'Humo - venta cancelada', 'cancelado'),
+      ('humo-img-lap', 'al3d', null,        'COT-9312@HUMO', 'COT-9312', 'HUMO', 'cotizacion', 'Humo - No se dio', 'cancelado');
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values
+        ('cotizacion-imagenes', 'al3d/COT-9310@HUMO/img-humo-g.jpg', u_dir::text),
+        ('cotizacion-imagenes', 'al3d/COT-9311@HUMO/img-humo-c.jpg', u_dir::text),
+        ('cotizacion-imagenes', 'al3d/COT-9312@HUMO/img-humo-l.jpg', u_dir::text);
+      t := 'ok';
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes' and name = 'al3d/COT-9310@HUMO/img-humo-g.jpg';
+      inf := inf || jsonb_build_object('caso', 'C70 Fabricación VE la imagen de una obra GANADA (aunque su cotización no esté en la base)', 'ok', t = 'ok' and n = 1,
+                                       'det', 'Dirección subió: ' || t || ' / Fabricación ve ' || n::text);
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes' and name in ('al3d/COT-9311@HUMO/img-humo-c.jpg', 'al3d/COT-9312@HUMO/img-humo-l.jpg');
+      inf := inf || jsonb_build_object('caso', 'C71 Fabricación NO ve la de una venta cancelada ni la de una cotización «No se dio» (0)', 'ok', n = 0, 'det', n::text);
+      -- TODAS las que ve, de la prueba o reales: cada una tiene que ser de una obra ganada (cero haya lo que haya).
+      select count(*) into n from storage.objects o
+       where o.bucket_id = 'cotizacion-imagenes'
+         and not exists (select 1 from public.proyectos p
+                          where p.empresa_id = (storage.foldername(o.name))[1] and p.folio_global = (storage.foldername(o.name))[2]
+                            and p.folio_hoja is not null and p.etapa <> 'cancelado' and p.deleted_at is null);
+      inf := inf || jsonb_build_object('caso', 'C72 Fabricación no ve NINGUNA imagen fuera de una obra ganada (0, contando todas las que ve)', 'ok', n = 0, 'det', n::text);
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C70-C72 (Fabricación y las obras ganadas)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('cotizacion-imagenes', 'al3d/COT-9310@HUMO/img-humo-f.jpg', u_fab::text);
+      t := 'pudo subir';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      update storage.objects set metadata = '{"humo": true}'::jsonb where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-9310@HUMO/%';
+      get diagnostics n = row_count;
+      t := t || ' / ' || n::text;
+      -- Borrar, como en C65: la condición de la política evaluada como este rol (no un DELETE).
+      execute format('select count(*) from storage.objects where bucket_id = %L and name like %L and (%s)',
+                     'cotizacion-imagenes', 'al3d/COT-9310@HUMO/%', q_borrar) into n;
+      t := t || ' / ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    inf := inf || jsonb_build_object('caso', 'C73 Fabricación NO sube, ni cambia ni borra, en la carpeta de la obra ganada que sí ve (42501 / 0 / 0)', 'ok', t = '42501 / 0 / 0', 'det', t);
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-931_@HUMO/%';
+      inf := inf || jsonb_build_object('caso', 'C74 la obra ganada se le abre SOLO a Fabricación: Pagos no ve su imagen (no es su cotización) (0)', 'ok', n = 0, 'det', n::text);
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'C74 Pagos y la obra ganada', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
   end if;
 
   -- 12) La copia diaria hoja → nube (0018, decidida por Elías el 2026-10-16): su bitácora `cuadre_diario`. Solo Dirección la lee,

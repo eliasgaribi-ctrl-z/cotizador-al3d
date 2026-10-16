@@ -16,7 +16,9 @@
      · las IMÁGENES de las cotizaciones (js/datos/supa-imagenes.js): con la sombra, las del historial
        suben a Storage después de cada bombeo (al arrancar, cuando el cotizador guarda el historial y
        cada 15 minutos); con la lectura en vivo, la ventanilla `AL3D_NUBE` deja que el cotizador
-       pida las que no están en este teléfono. Solo Dirección y Pagos: a Fabricación ni se le pone.
+       pida las que no están en este teléfono (`imagenes`: solo Dirección y Pagos) y que la ficha del
+       proyecto enseñe las de una obra ganada (`obra`: Dirección y Fabricación, Q-02 bis). A Pagos no
+       se le pone `obra`, a Fabricación no se le pone `imagenes`.
    `apagar()` lo desenchufa todo sin recargar: los ganchos vuelven a null, la ventanilla se quita y
    la app vuelve a ser la de siempre.
    ============================================================================ */
@@ -27,7 +29,7 @@ import * as Supa from '../nucleo/supa.js';
 import { crearSombra, almacenIndexedDB, sombraEncendida, vivoEncendido } from './supa-sombra.js';
 import { crearFuente, suscribir, todas } from './supa-vivo.js';
 import { cuadrar, diaMx, racha, resumenCopiaDiaria } from './supa-cuadre.js';
-import { crearImagenes, puedeImagenes, CLAVE_HISTORIAL } from './supa-imagenes.js';
+import { crearImagenes, puedeImagenes, puedeVerObra, CLAVE_HISTORIAL } from './supa-imagenes.js';
 
 const MS_BOMBEO = 60 * 1000;
 const MS_TRAS_COPIA = 2000;
@@ -95,12 +97,16 @@ export async function estadoImagenes() {
   return imagenes().estado();
 }
 
-/* La ventanilla del cotizador (js/cotizador/imagenes.js, `_imgNube`): el marco es del mismo origen
-   y la busca en esta ventana. Existe SOLO con la lectura en vivo encendida y para Dirección o Pagos;
-   apagado, no existe y el cotizador no pide nada a nadie. */
+/* La ventanilla (js/cotizador/imagenes.js, `_imgNube`, y la ficha de js/mod/proyectos.js): el marco del
+   cotizador es del mismo origen y la busca en esta ventana. Existe SOLO con la lectura en vivo
+   encendida, y lleva lo que el área puede: `imagenes` (el cotizador) para Dirección o Pagos, y `obra`
+   (las de una obra ganada, Q-02 bis) para Dirección o Fabricación. Apagado, no existe y nadie pide nada. */
 function ponerVentanilla() {
-  if (!puedeImagenes(_area)) { quitarVentanilla(); return; }
-  globalThis.AL3D_NUBE = Object.freeze({ imagenes: ids => imagenes().bajar(ids) });
+  if (!puedeImagenes(_area) && !puedeVerObra(_area)) { quitarVentanilla(); return; }
+  const v = {};
+  if (puedeImagenes(_area)) v.imagenes = ids => imagenes().bajar(ids);
+  if (puedeVerObra(_area)) v.obra = folioGlobal => imagenes().deObra(folioGlobal);
+  globalThis.AL3D_NUBE = Object.freeze(v);
 }
 function quitarVentanilla() {
   try { delete globalThis.AL3D_NUBE; } catch (_) { globalThis.AL3D_NUBE = undefined; }

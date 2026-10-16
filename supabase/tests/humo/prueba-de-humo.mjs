@@ -17,9 +17,9 @@ import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, 
 import { SUSTITUTO_STORAGE, TEXTO_STORAGE } from '../comun/storage.js';
 
 const HUMO = readFileSync(fileURLToPath(new URL('../../opcional/prueba-de-humo.sql', import.meta.url)), 'utf8');
-/** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C69), más los cinco de cuadre_diario (D01…D05, 0018).
- *  Los documentos dicen estas cifras. */
-const SIN_STORAGE = 63, CON_STORAGE = 74;
+/** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C74; C70–C74 son de Q-02 bis, Fabricación y las obras
+ *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018) en los dos. Los documentos dicen estas cifras. */
+const SIN_STORAGE = 63, CON_STORAGE = 79;
 
 /** Corre la prueba de humo y devuelve su informe (el JSON del error «HUMO_RESULTADO …»). */
 async function humo(db) {
@@ -80,21 +80,40 @@ describir('la prueba de humo pasa igual en una base vacía que en una con datos,
       igual(await foto(db), antes, 'no dejó ni una fila (ni las purgas del bloque 9, que recorren los datos reales)');
     } finally { await db.close(); }
   });
-  prueba('3 · con datos y con STORAGE (sustituto + opcional/storage.sql + imágenes que no son de la prueba): 0 fallos, ' + CON_STORAGE + ' casos; la base queda igual', async () => {
+  prueba('3 · con datos y con STORAGE (sustituto + opcional/storage.sql + imágenes que no son de la prueba, de obras ganadas y de no ganadas): 0 fallos, ' + CON_STORAGE + ' casos; la base queda igual', async () => {
     const db = await crearBaseDePruebas();
     try {
       await conDatos(db);
       await sql(db, SUSTITUTO_STORAGE);
       await sql(db, TEXTO_STORAGE);
+      /* COT-0001 y COT-0002 son obras GANADAS de la semilla (p1 y p2): Fabricación SÍ las ve, como en producción. COT-0005 es la lápida «No se dio»
+         (p5) y COT-0007 una cotización retirada sin obra: esas no. */
       await sql(db, `insert into storage.objects (bucket_id, name, owner_id) values
                        ('cotizacion-imagenes', 'al3d/COT-0001@K7QM/img-real-1.jpg', $1), ('cotizacion-imagenes', 'al3d/COT-0002@K7QM/img-real-2.jpg', $2),
+                       ('cotizacion-imagenes', 'al3d/COT-0005@K7QM/img-real-5.jpg', $2), ('cotizacion-imagenes', 'al3d/COT-0007@K7QM/img-real-7.jpg', $2),
                        ('otros', 'cualquier/cosa.jpg', $2)`, [db.u.pag.uid, db.u.dir.uid]);
       const antes = await foto(db);
       const inf = await humo(db);
       igual(rojos(inf), []);
       igual([inf.fallos, inf.total], [0, CON_STORAGE]);
-      igual(inf.casos.filter(c => /^C(5[89]|6\d) /.test(c.caso)).length, 12, 'los doce casos de Storage (C58…C69) corrieron');
+      igual(inf.casos.filter(c => /^C(5[89]|6\d|7[0-4]) /.test(c.caso)).length, 17, 'los diecisiete casos de Storage (C58…C74) corrieron');
       igual(await foto(db), antes, 'no dejó ni una fila, tampoco en storage.objects');
+    } finally { await db.close(); }
+  });
+  prueba('3 bis · SIN la rama de Q-02 bis (la política de leer de antes: Fabricación no ve ninguna), C70 sale en rojo y nada más', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      await sql(db, SUSTITUTO_STORAGE);
+      await sql(db, TEXTO_STORAGE);
+      await sql(db, `drop policy cotizacion_imagenes_leer on storage.objects;
+                     create policy cotizacion_imagenes_leer on storage.objects for select to authenticated
+                       using (bucket_id = 'cotizacion-imagenes'
+                              and ((storage.foldername(name))[1] in (select interno.empresas_donde(array['direccion']))
+                                   or exists (select 1 from public.cotizaciones c
+                                               where c.empresa_id = (storage.foldername(name))[1] and c.folio_global = (storage.foldername(name))[2])))`);
+      const inf = await humo(db);
+      igual(rojos(inf).map(r => r.slice(0, 3)), ['C70']);
     } finally { await db.close(); }
   });
   prueba('4 · con el esquema storage pero SIN storage.sql: el bloque 11 dice que falta aplicarlo (no truena), ' + SIN_STORAGE + ' casos', async () => {
@@ -107,7 +126,7 @@ describir('la prueba de humo pasa igual en una base vacía que en una con datos,
       cierto(inf.casos.some(c => /^C58 Storage: el bucket cotizacion-imagenes no existe/.test(c.caso)));
     } finally { await db.close(); }
   });
-  prueba('el bloque 11 SÍ detecta una política de más: con una que deja leer el bucket a cualquiera con sesión, Fabricación, Pagos y la persona ajena ven de más: C60, C64, C66 y C69 salen en rojo', async () => {
+  prueba('el bloque 11 SÍ detecta una política de más: con una que deja leer el bucket a cualquiera con sesión, Fabricación, Pagos y la persona ajena ven de más: C60, C64, C66, C69, C71, C72 y C74 salen en rojo', async () => {
     const db = await crearBaseDePruebas();
     try {
       await conDatos(db);
@@ -116,7 +135,19 @@ describir('la prueba de humo pasa igual en una base vacía que en una con datos,
       await sql(db, `insert into storage.objects (bucket_id, name) values ('cotizacion-imagenes', 'al3d/COT-0001@K7QM/img-real-1.jpg')`);
       await sql(db, `create policy todos_leen on storage.objects for select to authenticated using (bucket_id = 'cotizacion-imagenes')`);
       const inf = await humo(db);
-      igual(rojos(inf).map(r => r.slice(0, 3)).sort(), ['C60', 'C64', 'C66', 'C69']);
+      igual(rojos(inf).map(r => r.slice(0, 3)).sort(), ['C60', 'C64', 'C66', 'C69', 'C71', 'C72', 'C74']);
+    } finally { await db.close(); }
+  });
+  prueba('C72 cuenta TODAS las que ve Fabricación: una política de más que solo deja ver lo REAL que no se ganó (ninguna de la prueba) la pone en rojo', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      await sql(db, SUSTITUTO_STORAGE);
+      await sql(db, TEXTO_STORAGE);
+      await sql(db, `insert into storage.objects (bucket_id, name) values ('cotizacion-imagenes', 'al3d/COT-0007@K7QM/img-real-7.jpg')`);
+      await sql(db, `create policy fab_ve_retiradas on storage.objects for select to authenticated using (bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-0007@%')`);
+      const inf = await humo(db);
+      igual(rojos(inf).map(r => r.slice(0, 3)).sort(), ['C66', 'C69', 'C72']);
     } finally { await db.close(); }
   });
 });

@@ -52,7 +52,7 @@ marcado «(hallazgo)».
 | Q | Decisión (valor por defecto) | Por qué es el lado seguro |
 |---|---|---|
 | **Q-01 Pagos** | Se construye en la base lo que Pagos hace hoy en la hoja: `registrar_cobro`, `registrar_abono_comision`, `repartir_abono_fifo`, `corregir_venta` (anticipo/subtotal/nombre/cuenta), `alta_venta`. **Las pantallas de Pagos NO entran en esta rama.** La hoja **no se pasa a solo lectura** hasta que existan las pantallas y el cuadre de 7 días. (hallazgo: la plataforma hoy no tiene captura de liquidación, abonos ni reparto) **Decidido por Elías el 2026-10-16: CONFIRMADO.** La hoja pasa a **solo lectura después de 7 días seguidos de cuadre**, y el cambio lo confirma Elías ese día (no es automático). **Desde el 2026-10-16 los 7 días los cuenta la copia diaria** (`cuadre_diario`; abajo, «Transición»). | Declarar la hoja «solo lectura» antes de que exista la captura detendría la cobranza |
-| **Q-02 Cotizaciones y solicitudes** | **Decidido por Elías el 2026-10-16: CONFIRMADO como está.** Dirección las lee **todas**; Pagos, **las suyas** (`cotizaciones.creado_por`, `solicitudes.solicito_id`); Fabricación, **ninguna**, porque llevan precios (R1 manda sobre «cada quien las suyas»). Verificado en la base: políticas `cotizaciones_sel_direccion`/`cotizaciones_sel_autor_pagos` y `solicitudes_sel_direccion`/`solicitudes_sel_autor_pagos` de `0008_notario.sql`; ninguna migración posterior las toca. (La versión anterior de esta fila decía «Fabricación y Pagos solo las suyas»: la base nunca le dio cotizaciones a Fabricación.) (hallazgo: el Cotizador está abierto a los 3 roles) | Hoy cada teléfono ve solo lo suyo: es un superconjunto de lo actual para Dirección y nunca más abierto; a Fabricación no le llega un precio |
+| **Q-02 Cotizaciones y solicitudes** | **Decidido por Elías el 2026-10-16: CONFIRMADO como está.** Dirección las lee **todas**; Pagos, **las suyas** (`cotizaciones.creado_por`, `solicitudes.solicito_id`); Fabricación, **ninguna**, porque llevan precios (R1 manda sobre «cada quien las suyas»). Verificado en la base: políticas `cotizaciones_sel_direccion`/`cotizaciones_sel_autor_pagos` y `solicitudes_sel_direccion`/`solicitudes_sel_autor_pagos` de `0008_notario.sql`; ninguna migración posterior las toca. (La versión anterior de esta fila decía «Fabricación y Pagos solo las suyas»: la base nunca le dio cotizaciones a Fabricación.) (hallazgo: el Cotizador está abierto a los 3 roles) **Q-02 bis, decidido por Elías el 2026-10-16: Fabricación SÍ VE (lee y baja) las IMÁGENES —plano, renders y propuesta— de las cotizaciones de obras GANADAS**, para fabricarlas: no llevan precios. La cotización (con precios) sigue cerrada para Fabricación, y las imágenes de una cotización no ganada, de una venta cancelada o de una lápida «No se dio» también; sigue sin subir, cambiar ni borrar. Ver «Las imágenes de las obras ganadas», abajo. | Hoy cada teléfono ve solo lo suyo: es un superconjunto de lo actual para Dirección y nunca más abierto; a Fabricación no le llega un precio |
 | **Q-03 estatus, iva, fecha anticipo** | Siguen **visibles para los 3 roles** (hoy lo son). Viven fuera de `ventas_dinero`. (hallazgo) **Decidido por Elías el 2026-10-16: CONFIRMADO.** Verificado en la base: `estatus`, `iva` y `fecha_anticipo` viven en `proyectos` (`0003_proyectos.sql`), que leen los tres roles; las cifras siguen en `ventas_dinero`. | Romperlo quita «Faltan datos» y las marcas de Drive del Tablero |
 | **Q-04 Ventas históricas** | Las ≥199 filas de la hoja sin proyecto **no se pierden**: existen en la base (ver decisión de tablas en `DISENO.md`). `ventas_dinero.proyecto_id` no puede suponer que hay cotización. (hallazgo) **Aceptado por defecto (Elías no pidió cambio, 2026-10-16).** | Control suma todas |
 | **Q-05 Etapa por rol** | **Decidido por Elías el 2026-10-16: CAMBIA.** **Los tres roles (Dirección, Fabricación y Pagos) mueven cualquier etapa; solo Dirección cancela** («No se dio», `cancelado`). Se lee también al revés: **sacar** un proyecto de `cancelado` deshace esa decisión y también es solo de Dirección (para Fabricación ya era así en la base). Las dos transiciones automáticas **se quedan**: cobro ⇒ instalado en filas importadas (sin cambio) e instalación `hecha` ⇒ `instalado`, que ahora corre para toda área que puede marcar «instalado» según la matriz (Dirección y Fabricación; Pagos no toca la agenda), como ya lo hace el teléfono. Dónde vive: **la base** (`supabase/migrations/0017_decisiones_elias.sql`: la matriz `etapas`, `mover_etapa` e `instalacion_guardar`); **la app** (`puedeMover` en `js/datos/proyectos.js`, la ficha y el tablero de Proyectos), que con la hoja como fuente **cambia hoy** lo que cada quien puede hacer; y **la hoja** (`PUENTE_ROLES` y `ETAPA_CANCELADA` en `puente/hoja-apps-script.gs`), que surte efecto cuando se pegue. Antes (valor por defecto): Dirección cualquiera; Fabricación solo `ganado…listo` en origen y destino; Pagos ninguna. | Lo pidió Elías. El riesgo que queda es el de cualquier etapa: la mueve quien tiene el teléfono, y queda en la bitácora con su nombre |
@@ -91,6 +91,26 @@ creado y los datos importados. En la tabla de arriba cada fila dice qué decidi�
   Q-02, Q-03, Q-09 y Q-13.
 - **Aceptadas por defecto** (Elías no pidió cambio): Q-04, Q-08, Q-10, Q-11, Q-12, Q-15, Q-16, Q-18 y Q-20.
 - Q-06 y Q-07 ya estaban decididas (segunda entrega); Q-14 y Q-17 no estaban en la lista y se quedan como dicen sus filas.
+- Después, el mismo día: **Q-02 bis** (Fabricación ve las imágenes de las obras ganadas; abajo).
+
+### Las imágenes de las obras ganadas (Q-02 bis, decidido por Elías el 2026-10-16)
+
+Fabricación necesita el plano, los renders y la propuesta para fabricar, y las imágenes no llevan precios. Lo implementan
+`supabase/opcional/storage.sql` (la política `cotizacion_imagenes_leer` gana una rama), `js/datos/supa-imagenes.js` y la ficha del
+proyecto (`js/mod/proyectos.js`), todo apagado mientras no se encienda la lectura en vivo.
+
+- **Qué es «ganada»** (lo que la base ya tiene, sin funciones nuevas): existe un proyecto con el folio global de la carpeta de la imagen
+  (`proyectos.folio_global`, la llave con la que `ganar_proyecto` ata la venta a su cotización), que es una **venta** (`folio_hoja`,
+  el V-###; una lápida «No se dio» no lo tiene), que **no está cancelado** (`etapa` ≠ `cancelado`: ni «No se dio» ni una venta que se
+  cayó) y que no está borrado (`deleted_at`). Es el criterio de `interno.cotizacion_protegida` de `0016` («un proyecto con su folio que
+  no es una lápida pura»), del lado estricto: ahí, ante la duda, la cotización se queda; aquí, ante la duda, la imagen no se enseña.
+- **Quién**: solo Fabricación de esa empresa (Dirección ya leía todo; Pagos sigue con las de sus cotizaciones). La política pregunta por
+  `proyectos` con los permisos de quien lee, así que una baja o una obra que se cancela surten efecto en la siguiente petición.
+- **La duplicada ganada**: una imagen que comparten dos cotizaciones se sube una vez, en la carpeta de la más vieja. Si la que se gana es
+  la otra, el teléfono que la subió la **copia** (una copia de Storage, sin volver a subirla) a la carpeta de la ganada, que es donde la
+  busca Fabricación. Sin eso, la duplicada ganada se quedaba sin plano.
+- **Dónde se ven**: en la ficha del proyecto, junto a la carpeta de Drive, solo con la lectura en vivo encendida (Dirección y
+  Fabricación); con URL firmada de 60 s y sin guardarlas en el teléfono.
 
 ### Plazos de conservación (decidido por Elías el 2026-10-16)
 
@@ -154,7 +174,7 @@ decida. Es el ciclo normal de una venta, así que es lo más probable que corte 
 (ni en la hoja ni en la base: `historica` no se puede cambiar, a propósito). Hace falta una regla: (a) en el importador, una
 venta que ya es viva en la base sigue viva (con su etapa) y se actualizan su estatus y su dinero; o (b) en la base, dejar que una
 fila de la hoja pase de viva a histórica. **Por defecto no cambia nada** hasta que Elías decida; mientras, cada venta así se
-anota y el día no cuadra. Los detalles: `docs/ESTADO-SUPABASE.md`, «Quinta entrega».
+anota y el día no cuadra. Los detalles: `docs/ESTADO-SUPABASE.md`, «Sexta entrega».
 
 ---
 

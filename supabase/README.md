@@ -26,7 +26,7 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 3. **Correr `opcional/storage.sql`** completo (el bucket privado de las imágenes de las cotizaciones y sus políticas; ver
    «Las imágenes de las cotizaciones (Storage)», abajo).
 4. **Correr `opcional/prueba-de-humo.sql`** completo. Simula a las tres áreas y siempre se deshace; el «error» final
-   `HUMO_RESULTADO {"fallos":0,…}` es el resultado esperado (verde = `fallos` en 0): **74** casos con `storage.sql` aplicado,
+   `HUMO_RESULTADO {"fallos":0,…}` es el resultado esperado (verde = `fallos` en 0): **79** casos con `storage.sql` aplicado,
    **63** sin él (el caso C58 dice entonces que Storage no aplica); D01–D05 son de `0018`. Pasa igual en una base vacía que en una con datos reales:
    cada caso cuenta solo las filas de la prueba.
 5. **Auth → Sign In / Providers → Google**: habilitar con el Client ID público de la app (`js/nucleo/ingreso.js`); el flujo de
@@ -40,7 +40,9 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
    Dirección desde la plataforma con `miembro_alta`; quien entra con una cuenta que no está en `miembros` ve `sin_acceso` y nada más.
 
 En `al3d-pruebas` los pasos 1, 2, 4 y 5 se hicieron el 2026-10-10; en `al3d-produccion`, el 2026-10-16 (con `0001`–`0016`). Qué
-migraciones faltan en cada uno lo lleva `docs/ESTADO-SUPABASE.md`; el paso 3 (`storage.sql`) falta en los dos.
+migraciones faltan en cada uno lo lleva `docs/ESTADO-SUPABASE.md`. El paso 3 (`storage.sql`) se aplicó en los dos el 2026-10-16
+(humo 69 de 69); la versión con Q-02 bis (Fabricación ve las imágenes de las obras ganadas) hay que **volver a aplicarla** en los
+dos, y la prueba de humo da entonces 74.
 
 ## Las imágenes de las cotizaciones (Storage)
 
@@ -54,14 +56,16 @@ suben a la nube. Las sube el teléfono con la **sombra** encendida (`js/datos/su
    se puede volver a correr, y cada vez deja el bucket y las políticas exactamente como dice el archivo. No crea ninguna función
    (la auditoría de `0011` sigue limpia). Si termina con `AUDITORIA: …`, hay una política de `storage.objects` que abre el bucket
    (hecha a mano en el panel, o de otro uso): el mensaje dice cuál; quitarla y volver a correrlo.
-2. Correr **`supabase/opcional/prueba-de-humo.sql`**: verde con **74** casos (C58–C69 son de Storage; D01–D05, de `0018`).
+2. Correr **`supabase/opcional/prueba-de-humo.sql`**: verde con **79** casos (C58–C74 son de Storage; C70–C74, de Q-02 bis; D01–D05, de `0018`).
 3. En *Storage* del panel debe aparecer el bucket `cotizacion-imagenes`, **privado**, con tope de 2 MB y solo `image/jpeg`,
    `image/png` e `image/webp`.
 
 **Quién puede qué** (detalle en la cabecera de `storage.sql`): leer, quien puede **ver esa cotización** (lo decide la RLS de
-`cotizaciones`: Dirección todas, Pagos las suyas, Fabricación ninguna) y Dirección todo lo de su empresa; subir, el autor (Pagos,
-con la cotización ya en la base) o Dirección; cambiar y borrar, solo Dirección. Ruta: `<empresa>/<folio_global>/<id>.jpg`, una
-vez por imagen. Hoy la app todavía no sube las cotizaciones a la base (falta la subida única), así que **solo los teléfonos de
+`cotizaciones`: Dirección todas, Pagos las suyas, Fabricación ninguna) y Dirección todo lo de su empresa; además **Fabricación lee
+las de las obras GANADAS** (Q-02 bis, decidido por Elías el 2026-10-16: un proyecto con el folio de la carpeta, con V-###, no
+cancelado ni borrado; la cotización sigue cerrada para ella, solo se abren sus imágenes); subir, el autor (Pagos, con la cotización
+ya en la base) o Dirección; cambiar y borrar, solo Dirección. Ruta: `<empresa>/<folio_global>/<id>.jpg`, una vez por imagen (y,
+si una duplicada que la comparte se ganó, una copia en la carpeta de la ganada, que es donde la busca Fabricación). Hoy la app todavía no sube las cotizaciones a la base (falta la subida única), así que **solo los teléfonos de
 Dirección suben imágenes**; las de Pagos esperan, solas, a que su cotización esté en la base.
 
 **Cuánto ocupa.** El plan gratuito da **1 GB** de archivos para todo el proyecto (y 5 GB al mes de salida). Cada imagen ya va
@@ -111,7 +115,7 @@ Son tres piezas: la tabla (`migrations/0018_cuadre_diario.sql`), la función (pa
 
 1. **La tabla.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0018_cuadre_diario.sql` completo y
    ejecutarlo (después de `0017`). Termina corriendo la auditoría: si sale «AUDITORIA DE SEGURIDAD…», no se aplicó nada y el
-   mensaje dice por qué. Después la prueba de humo: verde con **63** casos (**74** con `storage.sql`).
+   mensaje dice por qué. Después la prueba de humo: verde con **63** casos (**79** con `storage.sql`).
 2. **El secreto.** Es una contraseña larga que solo conocen la función y la hoja. Generarlo en la computadora, **sin pasarlo
    por ningún chat**, y guardarlo en el gestor de contraseñas. Por ejemplo, en PowerShell:
    `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')` (da 64 letras y números; sirve cualquiera de 32 o más).
@@ -143,7 +147,7 @@ El `resumen` dice pestañas, filas, folios y columnas; **nunca** nombres ni impo
 - **Aplicada pero con conflictos de la base:** algo que la base no deja cambiar. El más probable: **una venta capturada como
   FABRICACION o REPARANDO que pasa a COBRANDO o LIQUIDADO** sin folio de cotización (la base la tiene «viva» y la hoja ahora
   la haría «histórica»). Esa venta no se actualiza, el día no cuadra y vuelve a salir cada día hasta que se decida una regla (no hay arreglo a mano limpio).
-  Ver `docs/ESTADO-SUPABASE.md`, «Quinta entrega».
+  Ver `docs/ESTADO-SUPABASE.md`, «Sexta entrega».
 - **La función contestó 401:** el secreto de la hoja y el de la función no son el mismo. **503:** a la función le falta
   `IMPORTAR_SECRETO`. **409:** ya había otra copia corriendo (no pasa nada; se queda la otra).
 
