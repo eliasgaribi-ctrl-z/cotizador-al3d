@@ -77,8 +77,9 @@ se fusione, ahí hay que pasar el renglón «Pantallas de Pagos» de *pendiente*
 
 ## Cómo se verificó
 
-- `sh pruebas/correr.sh`: ver cifras en el mensaje del commit final / el reporte. `pruebas/pagos-supa.mjs`
-  119 de 119.
+- `sh pruebas/correr.sh` (2026-10-16): 63 archivos, 62 sin fallos; el único con fallos es
+  `supabase-funciones.mjs` por el CRLF de `config.toml` (ver abajo; con LF pasa entero). `pruebas/pagos-supa.mjs`
+  119 de 119; `publicacion.mjs` y `supabase-entrada.mjs` sin fallos.
 - En el navegador local (servidor estático sobre el worktree, sin Supabase real):
   - apagado: Control con sus cuatro pestañas y ninguna petición a `supa.js`, `pagos-supa.js` ni `supabase.js`;
   - encendido sin sesión: la quinta pestaña con el aviso de pruebas, el botón de Google (dibujado por Google)
