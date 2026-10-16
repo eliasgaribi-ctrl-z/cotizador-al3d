@@ -1,6 +1,6 @@
 # Migraciones de la base (Supabase / PostgreSQL 15–18)
 
-Once archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
+Trece archivos, **en orden numérico**. Cada uno trae sus propias tablas, triggers, índices, `ENABLE ROW LEVEL SECURITY`, políticas y `GRANT`/`REVOKE`, y ninguno depende
 de uno posterior. Son idempotentes (`create … if not exists`, `create or replace`, `drop … if exists`): volver a aplicar uno no rompe nada. El diseño completo está en
 `docs/PLAN-SUPABASE.md` y `docs/DECISIONES-SUPABASE.md`; la regla que lo resume: **se lee por RLS y se escribe solo por RPC `SECURITY DEFINER`** (`authenticated` no tiene
 `INSERT`/`UPDATE`/`DELETE` en ninguna tabla; `anon` no tiene nada; `service_role` tiene `SELECT`/`INSERT`/`UPDATE` y ni siquiera él borra).
@@ -19,6 +19,7 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0010_sync_espejo.sql` | vistas del espejo a la hoja, `cuadre_hoja` (solo `service_role`) y el cierre de la publicación `supabase_realtime` (lista cerrada de 13 tablas) |
 | `0011_auditoria.sql` | **la aduana**: comprueba los privilegios REALES y **aborta el despliegue** si algo quedó abierto (ver abajo) |
 | `0012_endurecimiento.sql` | lo que encontró la revisión adversarial: importes finitos y acotados (`NaN`/`Infinity` ya no entran), `p_hoy` acotado, topes de texto, estadísticas apagadas en las tablas de dinero y correo verificado solo con proveedor Google. Idempotente; conviene volver a correr `0011` después |
+| `0013_huecos_revision.sql` | lo que la revisión adversarial dejó «abierto, a propósito»: `subida_unica` ya no acepta quién, rol ni hora del cliente en la bitácora y no deja nacer cotizaciones autorizadas sin sello del servidor; holgura de sellos de 60 s para los roles bajos y Dirección gana ante ellos (decisión **provisional**, Q-06, con `proyectos.sellos_area`); tope de `almacen_movimientos.ts`; Pagos no crea requerimientos; sin tablas temporales para `authenticated`. Idempotente; termina corriendo la auditoría |
 
 ## Antes de aplicar: la configuración del proyecto
 
@@ -32,7 +33,7 @@ probó simulando esos privilegios por defecto). Nada aquí depende de extensione
 
 ## Cómo aplicar
 
-- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0012`, en ese orden. Un archivo es una sola consulta de varias
+- **SQL Editor del panel de Supabase:** abrir cada archivo y ejecutarlo, uno por uno, de `0001` a `0013`, en ese orden. Un archivo es una sola consulta de varias
   sentencias, que Postgres ejecuta como una transacción implícita (en PGlite un error deshace todo el archivo; en el panel no lo verifiqué). Como son idempotentes,
   después de un fallo basta arreglar la causa y volver a ejecutar el mismo archivo.
 - **CLI:** con el proyecto enlazado (`supabase link`), `supabase db push` aplica en orden los que falten.
@@ -55,7 +56,7 @@ Conviene correrla **después de cada migración nueva**: una función o tabla qu
 
 ## Cómo se prueba
 
-`sh supabase/tests/correr.sh` aplica los once archivos sobre PGlite (PostgreSQL 18 en WASM) y corre las pruebas de cada área (`acceso`, `rls-y-dinero`, `formulas`,
+`sh supabase/tests/correr.sh` aplica todos los archivos sobre PGlite (PostgreSQL 18 en WASM) y corre las pruebas de cada área (`acceso`, `rls-y-dinero`, `formulas`,
 `obra-y-etapas`, `pagos`, `almacen`, `notario`, `cupos`, `sync-e-importacion`, `auditoria`). **PGlite no es Supabase.** Lo que NO cubre y hay que comprobar en el proyecto
 de pruebas antes de confiar en el real:
 
