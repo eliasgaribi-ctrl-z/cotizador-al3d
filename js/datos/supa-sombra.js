@@ -308,7 +308,7 @@ export function crearSombra(deps) {
         folio_hoja: (remoto && remoto.id_notion) ? String(remoto.id_notion) : '',
         estado: 'pendiente', intentos: 0, ultimo_error: '', creado: ahora() });
     } catch (e) {
-      await anotar({ tipo: 'no_se_guardo', op: String(op.id), mensaje: String((e && e.message) || e) });
+      await anotar({ tipo: 'no_se_guardo', op_id: String(op.id), mensaje: String((e && e.message) || e) });
     }
   }
 
@@ -376,7 +376,7 @@ export function crearSombra(deps) {
       let r;
       try { r = await mandarUna(c, item); }
       catch (e) { r = { caso: 'reintentar', codigo: 'SIN_RED', mensaje: String((e && e.message) || e) }; }
-      const quien = { op: item.id, almacen: item.op.almacen, tipo: item.op.tipo, registro: t(item.op.registro_id) };
+      const quien = { op_id: item.id, almacen: item.op.almacen, tipo: item.op.tipo, registro: t(item.op.registro_id) };
       if (r.caso === 'ok' || r.caso === 'omitida') {
         await almacen.borrar('cola', item.id);
         if (r.caso === 'ok') mandadas++; else omitidas++;
