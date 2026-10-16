@@ -1018,6 +1018,7 @@ async function clic(ev) {
   if ((b = acc('puente-jalar'))) { jalar(b); return; }
   if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
   if ((b = t.closest('[data-act^="supa-"]'))) { accionSupabase(b); return; }
+  if ((b = t.closest('[data-act^="supasb-"]'))) { accionSombra(b); return; }
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
 
@@ -1309,7 +1310,7 @@ async function pintarSupabase() {
   else html = nota(esc(a.mensaje || 'No se pudo preguntar a la base. Revisa la señal y vuelve a abrir Ajustes.'), 'av');
   if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
   html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
-  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa);
+  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloqueSombra();
   listo(html);
 }
 
@@ -1365,6 +1366,105 @@ async function accionSupabase(b) {
       toast('Baja de ' + correo, 'ok', 2500);
     }
   } catch (e) { toast(Supa.mensajeDe(e), 'err', 6000); }
+  pintarSupabase();
+}
+
+/* ----- Supabase: la sombra, la lectura en vivo y el cuadre (fases 3 y 4, APAGADAS) -----
+   Bloque propio dentro de la tarjeta de arriba: solo se pinta para Dirección con sesión activa en la
+   base, y solo hace algo en ESTE aparato. Encender la sombra copia a la base cada cambio que la hoja
+   aceptó; la lectura en vivo baja de la base en vez de la hoja (pide la sombra encendida). El cuadre
+   compara la hoja con la base. La hoja sigue mandando en todo. Ver js/datos/supa-enchufe.js y
+   docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md. */
+const SB_EVENTO = { escrita: 'escrita en la base', omitida: 'no aplica en la base', rechazada: 'la base la rechazó',
+  reintentar: 'se reintenta', no_se_guardo: 'no se pudo guardar la copia', reintento: 'devueltas a la cola', cuadre: 'cuadre' };
+const sbFecha = ts => new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+async function bloqueSombra() {
+  const Sb = await import('../datos/supa-sombra.js');
+  const sombra = Sb.sombraEncendida(), vivo = Sb.vivoEncendido();
+  let h = '<h3 class="aj-sub">Escritura en sombra, lectura en vivo y cuadre</h3>';
+  h += '<p class="pf-nota">La hoja sigue mandando. Con la <b>sombra</b>, cada cambio que la hoja acepta desde este aparato se escribe también en la base; ' +
+    'si la base falla, no se detiene ni se pierde nada: se reintenta y se anota. Con la <b>lectura en vivo</b>, este aparato baja de la base (con Realtime) en vez de la hoja; ' +
+    'apagarla vuelve a leer de la hoja.</p>';
+  h += '<div class="pf-acciones">' + (sombra
+    ? '<button type="button" class="btn btn-gho" data-act="supasb-sombra-no">Apagar la sombra</button>'
+    : '<button type="button" class="btn btn-gho" data-act="supasb-sombra-si">Encender la sombra en este aparato</button>') +
+    (sombra ? (vivo
+      ? '<button type="button" class="btn btn-gho" data-act="supasb-vivo-no">Volver a leer de la hoja</button>'
+      : '<button type="button" class="btn btn-gho" data-act="supasb-vivo-si">Leer de la base (en vivo)</button>') : '') + '</div>';
+  const E = await import('../datos/supa-enchufe.js');
+  if (sombra) {
+    const st = await E.estado().catch(() => null);
+    if (st) {
+      h += nota((st.pendientes ? st.pendientes + ' por escribir en la base' : 'Nada pendiente en la sombra') +
+        (st.rechazadas ? ' · ' + st.rechazadas + ' rechazadas' : '') +
+        (st.ultimo_error ? ' · último error: ' + esc(st.ultimo_error) : ''), st.ultimo_error || st.rechazadas ? 'av' : 'ok');
+      if (vivo) {
+        h += nota(st.leeDeLaBase
+          ? 'Este aparato lee de la base' + (st.canal === 'SUBSCRIBED' ? ' y Realtime está conectado.' : '; Realtime todavía no conecta (baja cada 30 s).')
+          : 'La lectura en vivo está pedida pero todavía no arranca (falta sesión o el área de la base).', st.leeDeLaBase ? 'ok' : 'av');
+      }
+      h += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supasb-mandar">Mandar a la base ahora</button>' +
+        (st.rechazadas ? '<button type="button" class="btn btn-gho" data-act="supasb-reintentar">Reintentar las rechazadas</button>' : '') + '</div>';
+    }
+  }
+  const cu = await E.cuadres().catch(() => ({ lista: [], racha: 0, meta: 7 }));
+  const ult = cu.lista[0];
+  h += '<p class="pf-nota">El <b>cuadre</b> compara la hoja con la base: número de ventas y la suma de cada columna (subtotal, neto, anticipo, liquidación, ' +
+    'saldo, comisiones, abonado y comisión restante), y folio por folio. Con la sombra encendida se hace solo una vez al día. ' +
+    'La fase 3 termina con ' + cu.meta + ' días seguidos cuadrando.</p>';
+  if (ult) {
+    const r = ult.resultado || {};
+    const partes = [];
+    if (r.totales && r.totales.length) partes.push(r.totales.length + ' totales distintos');
+    if (r.solo_hoja && r.solo_hoja.n) partes.push(r.solo_hoja.n + ' solo en la hoja');
+    if (r.solo_base && r.solo_base.n) partes.push(r.solo_base.n + ' solo en la base');
+    if (r.distintos && r.distintos.n) partes.push(r.distintos.n + ' diferencias por folio');
+    if (r.folio_distinto && r.folio_distinto.n) partes.push(r.folio_distinto.n + ' con otro V-### en la base');
+    h += nota('Último cuadre (' + esc(sbFecha(ult.ts)) + '): ' + (ult.cuadra ? 'cuadra' : 'no cuadra') +
+      (partes.length ? ' — ' + esc(partes.join(', ')) : '') + ' · ' + (r.hoja ? r.hoja.filas : 0) + ' ventas en la hoja, ' +
+      (r.base ? r.base.filas : 0) + ' en la base. Racha: ' + cu.racha + ' de ' + cu.meta + ' días.', ult.cuadra ? 'ok' : 'av');
+    const det = [].concat(((r.solo_hoja && r.solo_hoja.lista) || []).map(x => x.folio + ': solo en la hoja'),
+      ((r.solo_base && r.solo_base.lista) || []).map(x => x.folio + ': solo en la base'),
+      ((r.distintos && r.distintos.lista) || []).map(x => x.folio + ': ' + x.campo + ' hoja ' + (x.hoja / 100).toFixed(2) + ' / base ' + (x.base / 100).toFixed(2)));
+    if (det.length) h += '<details><summary>Dónde no cuadra</summary><ul class="aj-supa-registro">' + det.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></details>';
+  }
+  h += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supasb-cuadrar">Cuadrar ahora</button></div>';
+  if (sombra) {
+    const reg = await E.registro(12).catch(() => []);
+    if (reg.length) {
+      h += '<details><summary>Registro de la sombra (lo último)</summary><ul class="aj-supa-registro">' + reg.map(x =>
+        '<li>' + esc(sbFecha(x.ts)) + ' · ' + esc(SB_EVENTO[x.tipo] || x.tipo) +
+        (x.almacen ? ' · ' + esc(x.almacen) + (x.tipo === 'escrita' ? '' : ' ' + esc(x.registro || '')) : '') +
+        (x.mensaje ? ' — ' + esc(x.mensaje) : '') + '</li>').join('') + '</ul></details>';
+    }
+  }
+  return h;
+}
+
+async function accionSombra(b) {
+  const a = b.dataset.act;
+  try {
+    const Sb = await import('../datos/supa-sombra.js');
+    const E = await import('../datos/supa-enchufe.js');
+    const ctx = CTX || {};
+    const arrancar = () => E.arrancar({ sincronizar: ctx.sincronizar, avisarApp: ctx.ponerLecturaEnVivo });
+    if (a === 'supasb-sombra-si') { Sb.encenderSombra(true); await arrancar(); toast('Sombra encendida en este aparato', 'ok', 2500); }
+    else if (a === 'supasb-sombra-no') { Sb.encenderSombra(false); E.apagar(); toast('Sombra apagada: la app vuelve a ser la de siempre', 'ok', 3000); }
+    else if (a === 'supasb-vivo-si') { Sb.encenderVivo(true); await arrancar(); toast('Este aparato lee de la base', 'ok', 2500); if (ctx.sincronizar) ctx.sincronizar(); }
+    else if (a === 'supasb-vivo-no') { Sb.encenderVivo(false); await arrancar(); toast('De vuelta a la hoja', 'ok', 2500); if (ctx.sincronizar) ctx.sincronizar(); }
+    else if (a === 'supasb-mandar') {
+      const r = await E.bombearSombra();
+      toast(r.motivo === 'sin_sesion' ? 'Sin sesión en la base: entra con Google arriba'
+        : (r.mandadas || 0) + ' escritas en la base' + (r.rechazadas ? ', ' + r.rechazadas + ' rechazadas' : '') +
+          (r.pendientes ? ', ' + r.pendientes + ' esperan' : ''), r.codigo ? 'err' : 'ok', 4000);
+    } else if (a === 'supasb-reintentar') { const k = await E.reintentarRechazadas(); toast(k + ' de vuelta en la cola', 'ok', 2500); }
+    else if (a === 'supasb-cuadrar') {
+      b.disabled = true;
+      const r = await E.cuadrarAhora();
+      toast(!r.ok ? r.mensaje : r.cuadra ? 'Cuadra: la hoja y la base dicen lo mismo' : 'No cuadra: abajo dice dónde', !r.ok || !r.cuadra ? 'err' : 'ok', 5000);
+    }
+  } catch (e) { toast((e && e.message) || 'Algo falló con Supabase.', 'err', 6000); }
   pintarSupabase();
 }
 

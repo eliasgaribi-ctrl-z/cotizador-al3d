@@ -1839,6 +1839,16 @@ async function arrancar() {
   try {
     if (/"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '')) import('./nucleo/supa.js').then(S => S.vigilar()).catch(() => {});
   } catch (_) { /* sin almacenamiento: apagado */ }
+  /* La sombra (fase 3) y la lectura en vivo (fase 4), con su propio interruptor cada una y solo en
+     este aparato: js/datos/supa-enchufe.js. Sin el general Y el de la sombra encendidos, ni se carga. */
+  try {
+    if (/"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+        /"encendido":true/.test(localStorage.getItem('al3d_pf_supa_sombra') || '')) {
+      import('./datos/supa-enchufe.js')
+        .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
+        .catch(() => {});
+    }
+  } catch (_) { /* sin almacenamiento: apagado */ }
 
   /* El cotizador acaba de guardar en otra pestaña. Aquí no se avisa de conflicto como hace
      el cotizador —la plataforma solo LEE su almacenamiento, así que no hay nada que pisar—:
@@ -1981,6 +1991,10 @@ let _renovadoEn = 0;
 let _renovarDesde = 0;
 let _sincronizando = null;
 let _repintarDebe = false;
+/* La lectura en vivo de Supabase (fase 4), o null: lo normal. Solo la pone js/datos/supa-enchufe.js
+   con su interruptor encendido, y entonces Realtime avisa cuándo bajar y la vuelta de 30 s solo baja
+   de respaldo cada 5 minutos. Con null, la vuelta es la de siempre. */
+let _lecturaEnVivo = null;
 
 /* ----- P15 · EL INDICADOR DE SINCRONIZACIÓN -----
    La sincronización es muda a propósito —un aviso cada 30 segundos se aprende a ignorar— y por
@@ -2116,7 +2130,7 @@ async function sincronizarDeVerdad() {
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
      a la plataforma van primero en el orden por edición y con una sola página por apertura
      hacían falta cuatro aperturas para llegar a las nuevas. */
-  try {
+  if (!(_lecturaEnVivo && _lecturaEnVivo.saltarJalar())) try {
     for (let vuelta = 0; vuelta < 10; vuelta++) {
       const r = await Sync.jalar();
       if (!r.ok) {
@@ -2175,6 +2189,7 @@ async function sincronizarDeVerdad() {
   }
 }
 ctx.sincronizar = sincronizarCallado;
+ctx.ponerLecturaEnVivo = v => { _lecturaEnVivo = v; };
 
 /* El service worker guarda una copia de la app para que abra sin señal. Se registra al
    PRINCIPIO del arranque, antes de la puerta —el porqué está escrito en `arrancar()`—, y en su

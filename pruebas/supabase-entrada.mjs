@@ -117,7 +117,7 @@ console.log('\nCANDADO 3: LO QUE SE CONSERVA');
   cierto('ninguno de los dos está en la lista de lo que se borra', S.SE_CONSERVAN.every(k => !S.SE_BORRAN.includes(k)));
   cierto('las preferencias del aparato (tema, mapa, último respaldo) tampoco', ['al3d_tema', 'al3d_pf_tiles', 'al3d_pf_ult_export', 'al3d_pf_fondo'].every(k => !S.SE_BORRAN.includes(k)));
   cierto('y sí se borran el pase, la sesión de Supabase, el historial y las credenciales', ['al3d_pf_pase', S.CLAVE_SESION, 'al3d_historial', 'al3d_pf_gtok', 'al3d_pf_puente'].every(k => S.SE_BORRAN.includes(k)));
-  eq('y las dos bases locales', S.BASES_LOCALES, ['al3d_pf', 'al3d_cot_imgs']);
+  eq('y las bases locales (la de la sombra incluida)', S.BASES_LOCALES, ['al3d_pf', 'al3d_cot_imgs', 'al3d_sombra']);
 }
 
 console.log('\nEL NONCE');
