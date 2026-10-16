@@ -327,11 +327,14 @@ function lotes(tabla, filas, conTransaccion) {
 
 /**
  * El archivo de carga completo.
- * @param {{hecho?: string, ensayo?: boolean}} [o]  ensayo: todo en UNA transacción que al final se deshace (rollback), para
- *   probar el archivo en un proyecto sin dejar nada escrito; las consultas del final enseñan lo que habría hecho.
+ * @param {{hecho?: string, ensayo?: boolean, externa?: boolean}} [o]  ensayo: todo en UNA transacción que al final se deshace
+ *   (rollback), para probar el archivo en un proyecto sin dejar nada escrito; las consultas del final enseñan lo que habría hecho.
+ *   externa: la transacción la abre y la cierra QUIEN LLAMA (la función `importar-diario`): sin ningún begin/commit adentro, sin
+ *   el error del ensayo y sin la consulta final; lo que hizo queda en la tabla temporal _imp_cambios para que lo lea.
  */
-export function sqlDeImportacion(plan, { hecho = '', ensayo = false } = {}) {
+export function sqlDeImportacion(plan, { hecho = '', ensayo = false, externa = false } = {}) {
   const e = cadena(plan.empresa);
+  const propias = !ensayo && !externa;           // ¿lleva sus propias transacciones (un begin/commit por lote)?
   const partes = [
     `-- Importación de la hoja y los teléfonos a Supabase (scripts/importar-hoja.mjs). ${hecho}`,
     '-- IDEMPOTENTE: correrlo dos veces con las mismas entradas no cambia nada la segunda vez.',
@@ -347,7 +350,7 @@ export function sqlDeImportacion(plan, { hecho = '', ensayo = false } = {}) {
     let filas = plan.tablas[t] || [];
     // las canceladas, todas antes que cualquier viva: el índice de «una viva por proyecto» no distingue lotes
     if (t === 'instalaciones') filas = [...filas.filter(f => f.estado === 'cancelada'), ...filas.filter(f => f.estado !== 'cancelada')];
-    partes.push(...lotes(t, filas, !ensayo));
+    partes.push(...lotes(t, filas, propias));
   }
   // un abono importado antes que ya no está en la hoja (alguien corrigió su importe o su fecha): no se borra —es un libro—, se avisa
   const ops = (plan.tablas.abonos || []).map(a => a.op_id);
@@ -360,7 +363,7 @@ insert into _imp_cambios (tabla, llave, accion)
 `);
   // el vínculo cotización → autorización (DISENO.md §3.4): la vigente o, si no hay, la de mayor id; la revocación con fecha de hoy
   partes.push(`-- cotizaciones ↔ autorizaciones
-${ensayo ? '' : 'begin;'}
+${propias ? 'begin;' : ''}
 with ult as (
   select distinct on (a.folio_global) a.folio_global, a.id from public.autorizaciones a where a.empresa_id = ${e}
    order by a.folio_global, (a.estado = 'vigente') desc, a.id desc),
@@ -377,10 +380,11 @@ w as (
    where c.empresa_id = ${e} and c.folio_global = u.folio_global and u.estado = 'revocada' and c.revocada_en is null
   returning c.folio_global as llave)
 insert into _imp_cambios (tabla, llave, accion) select 'cotizaciones', llave, 'cambio: revocada' from w;
-${ensayo ? '' : 'commit;'}
+${propias ? 'commit;' : ''}
 `);
   partes.push('-- contadores: nunca bajan (contador_sembrar toma el mayor)');
   for (const c of plan.contadores) partes.push(`select public.contador_sembrar(${e}, ${cadena(c.clave)}, ${Math.trunc(Number(c.n) || 0)});`);
+  if (externa) return partes.join('\n') + '\n';
   partes.push('', '-- lo que hizo esta corrida (vacío = nada cambió)',
     "select tabla, accion, count(*)::int as filas from _imp_cambios group by tabla, accion order by tabla, accion;");
   // En ensayo el final es un error a propósito: el Editor SQL enseña su mensaje (lo que habría hecho) y el error deshace TODO,
@@ -404,6 +408,14 @@ function valorHoja(v) {
 
 /** cuadre.sql: un renglón por diferencia (cero renglones = cuadra) y, aparte, `cuadre_hoja`. */
 export function sqlDeCuadre(plan) {
+  return sqlDeDiferencias(plan) + `
+select public.cuadre_hoja(${cadena(plan.empresa)}) as cuadre;
+`;
+}
+
+/** La primera consulta de cuadre.sql, sola: un renglón (folio, col, en_hoja, en_base) por diferencia; cero renglones = cuadra.
+ *  La corre también la función `importar-diario`, que de cada renglón guarda solo el folio y la columna (nunca los importes). */
+export function sqlDeDiferencias(plan) {
   const e = cadena(plan.empresa);
   const n = v => { const x = valorHoja(v); return x === null || !Number.isFinite(Number(x)) ? 'NULL::numeric' : cadena(String(Number(x))) + '::numeric'; };
   const t = v => { const x = valorHoja(v); return x === null ? 'NULL::text' : cadena(String(x)) + '::text'; };
@@ -437,7 +449,5 @@ dif as (
   select b.a_folio, 'fila', 'no está', 'sí' from base b where not exists (select 1 from hoja_ok h where h.folio = b.a_folio)
 )
 select * from dif order by folio, col;
-
-select public.cuadre_hoja(${e}) as cuadre;
 `;
 }
