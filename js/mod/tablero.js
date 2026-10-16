@@ -1130,7 +1130,7 @@ function accionesRenglon(v, d) {
                                 'data-anidar="' + esc(v.proyecto_id) + '"') : '') +
     botonIdx('Abrir', 'btn btn-gho pf-btn-corto', iAbrir);
   if (!sig) return { html: abrir, iAbrir, iAvanza: -1, verbo: '' };
-  if (!puedeMover(Prefs.rol(), sig)) {
+  if (!puedeMover(Prefs.rol(), sig, v.etapa_real)) {
     return { html: '<p class="pf-nota">' + esc('«' + (VERBO_AVANZA[v.etapa_real] || '') + '» lo marca Dirección.') + '</p>' + abrir,
              iAbrir, iAvanza: -1, verbo: '' };
   }

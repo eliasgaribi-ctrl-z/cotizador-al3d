@@ -436,9 +436,10 @@ export async function marcar(instId, estado, motivo = '') {
    y dejaban el proyecto en «Listo», así que nunca llegaba a la regla A11, ni a «Ya instalado y
    sin liquidar» de Control, ni al pin «I» del mapa. Solo hacia adelante —lo que ya está
    instalado, en garantía o cancelado no se toca— y con el permiso de siempre: `avanzarEtapa`
-   vuelve a preguntar el rol, y con el de fabricación, que llega a «Listo» y no más, el
-   proyecto se queda donde está. Después de escribir y sin poder tumbar la marca: la
-   instalación ya quedó hecha. */
+   vuelve a preguntar el rol. Desde Q-05 (Elías, 2026-10-16) Fabricación también marca «Instalado»
+   (antes llegaba a «Listo» y el proyecto se quedaba ahí); la base hace lo mismo en
+   instalacion_guardar (0017). Después de escribir y sin poder tumbar la marca: la instalación ya
+   quedó hecha. */
 async function instalarProyecto(proyectoId) {
   const P = await mod('proyectos');
   if (!P || typeof P.avanzarEtapa !== 'function' || !proyectoId) return;

@@ -1430,9 +1430,9 @@ function htmlFicha(p) {
       esc(p.notas).replace(/\n/g, '<br>') + '</p>');
   }
 
-  /* Etapa: los pasos con lo que ESTE rol puede marcar. Fabricación llega a «Listo» y no
-     más: «Instalado» lo marca quien estuvo en la obra, y de ahí cuelga la cobranza. */
-  if (rol !== 'pagos') partes.push(pasosDeEtapa(p, rol));
+  /* Etapa: los pasos, para los tres roles (Q-05, Elías, 2026-10-16: todos mueven cualquier etapa;
+     «No se dio» es de Dirección). Hasta ese día Fabricación llegaba a «Listo» y Pagos no la veía. */
+  partes.push(pasosDeEtapa(p, rol));
 
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
@@ -1520,46 +1520,46 @@ const VERBO_ETAPA = {
   garantia: 'Pasa a garantía',
 };
 
-/* El tope sale de ETAPAS y no de una lista escrita a mano: el día que se meta una etapa entre
-   cortado y armado, fabricación la ve sin que nadie se acuerde de este archivo. `cancelado` no
-   está en los pasos: se descarta con su propio botón, que pregunta por qué. */
-function etapasDelRol(rol) {
-  return rol === 'fabricacion'
-    ? Proy.ETAPAS.slice(0, Proy.ETAPAS.indexOf('listo') + 1)
-    : Proy.ETAPAS.filter(e => e !== 'cancelado');
+/* Los pasos salen de ETAPAS y no de una lista escrita a mano: el día que se meta una etapa entre
+   cortado y armado, todos la ven sin que nadie se acuerde de este archivo. Son los mismos para los
+   tres roles desde Q-05 (2026-10-16). `cancelado` no está en los pasos: se descarta con su propio
+   botón, que pregunta por qué, y es de Dirección. */
+function etapasDelRol() {
+  return Proy.ETAPAS.filter(e => e !== 'cancelado');
 }
 
 function pasosDeEtapa(p, rol) {
-  const etapas = etapasDelRol(rol);
+  const etapas = etapasDelRol();
+  /* Un proyecto que «no se dio» solo lo regresa Dirección: a los demás se les enseñan los pasos, sin
+     dejarlos tocar, y se dice por qué. */
+  const atado = !Proy.puedeMover(rol, p.etapa, p.etapa);
   const i = etapas.indexOf(p.etapa);
   const pasos = etapas.map((e, k) => ({
     texto: Proy.ETAPA_NOMBRE[e] || e,
     clave: e,
-    /* Con la etapa fuera del tope del rol (fabricación mirando un proyecto ya instalado), `i`
-       es −1 y todos quedan pendientes: es lo correcto, ninguno de esos pasos es «el actual»
-       para quien no puede marcarlos. */
+    /* Con la etapa fuera de los pasos (un proyecto que «no se dio»), `i` es −1 y todos quedan
+       pendientes: ninguno es «el actual». */
     estado: i < 0 ? 'pendiente' : k < i ? 'hecho' : k === i ? 'actual' : 'pendiente',
   }));
   const sig = i >= 0 && i + 1 < etapas.length ? etapas[i + 1] : null;
   const piezas = P();
   const riel = piezas && piezas.rielHTML
-    ? piezas.rielHTML(pasos, { forma: 'horizontal', desliza: true, tocable: true,
+    ? piezas.rielHTML(pasos, { forma: 'horizontal', desliza: true, tocable: !atado,
         numeros: false, etiqueta: 'Etapa de obra', id: 'pj-etapas' })
     /* Sin las piezas (una caché a medias), el segmento de siempre: la pantalla no se queda sin
        forma de mover la etapa por un guion que no llegó. */
     : segmento(etapas.map(e => ({ v: e, t: Proy.ETAPA_NOMBRE[e] || e })), p.etapa, 'data-mover',
         'Etapa de obra');
 
-  /* El rol llegó a su tope (fabricación en «Listo»): no hay botón, y un paso sin botón sin decir
-     por qué se lee como una pantalla a medias. */
-  const siguienteDeTodos = i >= 0 ? Proy.ETAPAS[Proy.ETAPAS.indexOf(p.etapa) + 1] : null;
+  /* Un paso sin botón sin decir por qué se lee como una pantalla a medias: con el proyecto en «No se
+     dio», para quien no es Dirección, se dice de quién es. */
   return '<div class="fld-lab">Etapa de obra</div>' + riel +
     (sig
       ? '<div class="btn-fila pj-sigue"><button type="button" class="btn btn-pri" data-mover="' +
         esc(sig) + '">' + esc(VERBO_ETAPA[sig] || Proy.ETAPA_NOMBRE[sig] || sig) + '</button></div>'
-      : (!sig && siguienteDeTodos && siguienteDeTodos !== 'cancelado'
-          ? '<p class="hintnote pj-sigue">Lo que sigue, «' + esc(Proy.ETAPA_NOMBRE[siguienteDeTodos] || siguienteDeTodos) +
-            '», lo marca Dirección.</p>'
+      : (atado
+          ? '<p class="hintnote pj-sigue">Se marcó «' + esc(Proy.ETAPA_NOMBRE.cancelado || 'No se dio') +
+            '»: regresarlo lo decide Dirección.</p>'
           : '')) +
     '<p class="hintnote">Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre. ' +
     'Tocar un paso de atrás regresa la etapa, y eso sí pregunta.</p>';
@@ -1829,8 +1829,9 @@ function cablearModoCliente() {
    regla 10, y encima es más rápida que el arrastre para quien tiene teclado.
 
    Los roles se respetan por el mismo camino que la ficha: `Proy.puedeMover` es la regla y las
-   columnas a las que este rol no puede mover no se iluminan y soltar ahí no hace nada. Pagos no
-   levanta tarjetas: no mueve obra. Y quien decide de verdad es `moverEtapa`, que pregunta lo que
+   columnas a las que este rol no puede mover no se iluminan y soltar ahí no hace nada. Desde Q-05
+   (Elías, 2026-10-16) los tres roles mueven obra, así que los tres levantan tarjetas; las columnas son
+   etapas vivas y «No se dio» no es una. Y quien decide de verdad es `moverEtapa`, que pregunta lo que
    hay que preguntar —regresar la etapa, y ahora también cruzar «Cortado»— y escribe por
    `Proy.avanzarEtapa`, que vuelve a comprobar el rol. */
 const MS_LEVANTAR = 250;
@@ -1842,9 +1843,9 @@ const CORRE_MAX = 18;         // px por cuadro, como mucho
 let _arr = null;              // { id, tarjeta, fantasma, col, pid, desde, x, y, raf, tablero, snap, quitar[] }
 
 function puedeMoverA(etapa) {
-  /* La regla es la de la capa de datos y no una copia: `etapasDelRol()` sirve para pintar los
-     pasos de la ficha, pero a pagos no le quita ninguno —su ficha ni siquiera trae ese bloque—
-     y con ella pagos podía arrastrar tarjetas por un tablero que no le toca. */
+  /* La regla es la de la capa de datos y no una copia: `etapasDelRol()` solo sirve para pintar los
+     pasos de la ficha. Cuando la regla era por rol (hasta Q-05, 2026-10-16), copiarla aquí dejó a
+     pagos arrastrar tarjetas por un tablero que entonces no le tocaba. */
   return etapa !== 'cancelado' && Proy.puedeMover(Prefs.rol(), etapa);
 }
 
@@ -1885,7 +1886,7 @@ function cablearArrastre() {
   on(cont, 'pointerdown', ev => {
     if (!ANCHO.matches || !ev.isPrimary || ev.button > 0) return;
     if (enModoCliente()) return;      // con el cliente enfrente no se mueve obra por accidente
-    if (!COLUMNAS().some(puedeMoverA)) return;    // pagos: no mueve obra
+    if (!COLUMNAS().some(puedeMoverA)) return;    // un rol que no mueve obra no levanta tarjetas (hoy los tres la mueven)
     const tarjeta = ev.target.closest('.pj-tarj[data-abrir]');
     if (!tarjeta || !tarjeta.closest('.pj-tablero')) return;
 

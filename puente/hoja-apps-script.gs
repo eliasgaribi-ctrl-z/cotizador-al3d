@@ -2113,6 +2113,10 @@ var PUENTE_FORMULAS = {
 
 var ETAPAS_OBRA = ['Ganado', 'En diseño', 'Cortado', 'Armado', 'Listo para instalar',
                    'Instalado', 'En garantía', 'No se dio'];
+/* Cancelar una venta. Desde el 2026-10-16 (Q-05, decidida por Elías) los tres roles mueven la etapa de
+   obra, pero «No se dio» —ponerlo y quitarlo— sigue siendo solo de Dirección: armarCeldas no deja
+   escribirlo a otro rol y unaOperacion no deja a otro rol sacar de ahí una fila. */
+var ETAPA_CANCELADA = 'No se dio';
 
 var TIPOS_TRABAJO = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion',
                      'Letras 3D con iluminacion', 'Letras 3D sin iluminacion',
@@ -2134,8 +2138,10 @@ var PUENTE_ROLES = {
                 'Telefono', 'Entrega', 'Notas', 'Plazo taller'],
   /* Las notas, los tres (puente-sheets-14): son las mismas que cada rol ya escribía en la ficha. El
      plazo de taller, dirección y fabricación: lo decide quien hace el trabajo. */
+  /* La etapa de obra, los tres (Q-05, Elías, 2026-10-16): pagos también la mueve. «No se dio» sigue
+     siendo solo de dirección (ETAPA_CANCELADA). */
   pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
-          'Porcentaje comision', 'Telefono', 'Notas']
+          'Porcentaje comision', 'Telefono', 'Notas', 'Etapa de obra']
 };
 
 /* ── Lo que cada rol puede LEER ─────────────────────────────────────────────
@@ -2871,6 +2877,14 @@ function unaOperacion(h, op, rol, anotaciones) {
         por: 'esta fila ya está atada al folio de cotización ' + yaTiene + ', y ése no se cambia desde un teléfono' });
       return false;
     });
+    /* Sacar una venta de «No se dio» es deshacer que se canceló: solo dirección (Q-05, 2026-10-16). */
+    if (rol !== 'direccion' && String(h.getRange(fila, COL['Etapa de obra']).getValue()).trim() === ETAPA_CANCELADA) {
+      armado.celdas = armado.celdas.filter(function (c) {
+        if (c.col !== COL['Etapa de obra']) return true;
+        armado.rechazadas.push({ nombre: 'Etapa de obra', por: 'esta venta está en «' + ETAPA_CANCELADA + '» y solo dirección la regresa' });
+        return false;
+      });
+    }
   }
 
   /* El abono se revisa ANTES de escribir nada: sin pestaña de abonos, o con sus 1999 renglones
@@ -3002,6 +3016,7 @@ function armarCeldas(datos, rol) {
       celdas.push({ col: col, valor: valor });
     } else if (nombre === 'Etapa de obra') {
       if (ETAPAS_OBRA.indexOf(valor) === -1) { rechazadas.push({ nombre: nombre, por: '«' + valor + '» no es una etapa de obra' }); continue; }
+      if (valor === ETAPA_CANCELADA && rol !== 'direccion') { rechazadas.push({ nombre: nombre, por: 'solo dirección marca una venta como «' + ETAPA_CANCELADA + '»' }); continue; }
       celdas.push({ col: col, valor: valor });
     } else if (nombre === 'Tipo de trabajo') {
       var arr = (Object.prototype.toString.call(valor) === '[object Array]' ? valor : [valor])

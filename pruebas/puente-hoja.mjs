@@ -86,8 +86,8 @@ console.log('\nLOS TRES ROLES — cambiar de tablero no da permisos');
   eq('y el anticipo vuelve rechazado', r.rechazadas.map(x => x.nombre), ['Anticipo']);
 
   const p = api.armarCeldas({ 'Etapa de obra': 'Cortado', 'Liquidacion': 100 }, 'pagos');
-  eq('pagos cobra', p.celdas.map(c => c.col), [api.COL['Liquidacion']]);
-  eq('pero no mueve la obra', p.rechazadas.map(x => x.nombre), ['Etapa de obra']);
+  eq('pagos cobra, y desde el 2026-10-16 (Q-05) también mueve la obra', p.celdas.map(c => c.col), [api.COL['Etapa de obra'], api.COL['Liquidacion']]);
+  eq('  sin rechazar nada', p.rechazadas, []);
 
   const d = api.armarCeldas({ 'Anticipo': 1, 'Etapa de obra': 'Armado' }, 'direccion');
   eq('dirección puede las dos', d.celdas.length, 2);
@@ -639,6 +639,40 @@ console.log('\n«FOLIO COTIZACION» NO SE PISA EN UN CAMBIO (defecto 4, del lado
     datos: { 'Folio cotizacion': 'COT-0050@AAAA', 'Etapa de obra': 'Cortado' } }], 'direccion');
   eq('una llave que dice el folio de la propia fila no cuenta como llave', rep.resultados[0].ok, true);
   eq('y la de verdad la repara', H.celda('V-101', 'Folio cotizacion'), 'COT-0050@AAAA');
+}
+
+console.log('\nLA ETAPA DE OBRA: LOS TRES LA MUEVEN; «NO SE DIO» ES SOLO DE DIRECCIÓN (Q-05, Elías, 2026-10-16)');
+{
+  for (const rol of ['direccion', 'fabricacion', 'pagos']) {
+    cierto(rol + ' escribe la etapa de obra', api.PUENTE_ROLES[rol].indexOf('Etapa de obra') !== -1);
+    const todas = api.ETAPAS_OBRA.filter(e => e !== 'No se dio')
+      .map(e => api.armarCeldas({ 'Etapa de obra': e }, rol)).map(r => [r.celdas.length, r.rechazadas.length]);
+    eq('  ' + rol + ': las siete etapas que no son «No se dio» entran', todas, Array(7).fill([1, 0]));
+  }
+  for (const rol of ['fabricacion', 'pagos']) {
+    const r = api.armarCeldas({ 'Etapa de obra': 'No se dio', 'Notas': 'se canceló' }, rol);
+    eq(rol + ' NO marca «No se dio» (y la nota de la misma operación sí entra)', [r.celdas.map(c => c.col), r.rechazadas.map(x => x.nombre)],
+       [[api.COL['Notas']], ['Etapa de obra']]);
+    cierto('  y la razón dice que es de dirección', /solo dirección/.test(r.rechazadas[0].por));
+  }
+  eq('dirección sí', api.armarCeldas({ 'Etapa de obra': 'No se dio' }, 'direccion').celdas.map(c => c.valor), ['No se dio']);
+
+  /* Y al revés: sacar una venta de «No se dio» es deshacer la cancelación. */
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana - Cafe', 'Etapa de obra': 'No se dio' });
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto - Taller', 'Etapa de obra': 'Armado' });
+  for (const rol of ['fabricacion', 'pagos']) {
+    const r = H.empujar([{ id: 'r-' + rol, tipo: 'actualizar', id_notion: 'V-001', datos: { 'Etapa de obra': 'Ganado' } }], rol).resultados[0];
+    eq(rol + ' no saca una venta de «No se dio»: la etapa se queda y se dice por qué',
+       [H.celda('V-001', 'Etapa de obra'), (r.rechazadas || []).map(x => x.nombre), /solo dirección/.test(((r.rechazadas || [])[0] || {}).por)],
+       ['No se dio', ['Etapa de obra'], true]);
+  }
+  const pg = H.empujar([{ id: 'p1', tipo: 'actualizar', id_notion: 'V-002', datos: { 'Etapa de obra': 'Instalado' } }], 'pagos').resultados[0];
+  eq('pagos mueve una venta viva (Armado → Instalado)', [pg.ok, H.celda('V-002', 'Etapa de obra')], [true, 'Instalado']);
+  const fb = H.empujar([{ id: 'f1', tipo: 'actualizar', id_notion: 'V-002', datos: { 'Etapa de obra': 'En garantía' } }], 'fabricacion').resultados[0];
+  eq('fabricación también fuera de «Ganado…Listo» (Instalado → En garantía)', [fb.ok, H.celda('V-002', 'Etapa de obra')], [true, 'En garantía']);
+  const dr = H.empujar([{ id: 'd1', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Etapa de obra': 'Ganado' } }], 'direccion').resultados[0];
+  eq('dirección sí la regresa', [dr.ok, H.celda('V-001', 'Etapa de obra')], [true, 'Ganado']);
 }
 
 console.log('\nLO QUE VUELVE DE /EMPUJAR — el rol cierra también la respuesta (defecto 6)');

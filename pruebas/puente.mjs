@@ -1602,6 +1602,35 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('10 · con su cambio en la bandeja, la fila vieja no le regresa «Paquetería»', (await DB.obtener('proyectos', 'proy-E4')).entrega, 'recoleccion');
   await S.bombear();
   eq('10 · y el cambio sale', enviadaDe('V-1004').slice(-1).map(o => o.datos['Entrega']), ['Recolección en taller']);
+
+  /* 11 · Q-05 (Elías, 2026-10-16): los tres roles mueven la obra; «No se dio» es de Dirección, de ida y de
+     vuelta. Hasta ese día Pagos no movía nada y Fabricación llegaba a «Listo». */
+  H.filas.push(fila('V-1100', 'Q05 - Rotulo'));
+  await jalarTodo();
+  const etapa1100 = async () => (await DB.obtener('proyectos', 'proy-hoja-V-1100')).etapa;
+  guardado.al3d_pf_rol = 'pagos';
+  const q05a = await Proy.avanzarEtapa('proy-hoja-V-1100', 'armado');
+  eq('11 · pagos mueve la obra', [q05a.ok, await etapa1100()], [true, 'armado']);
+  await S.bombear();
+  eq('11 · y la etapa viaja a la hoja', enviadaDe('V-1100').slice(-1).map(o => o.datos['Etapa de obra']), ['Armado']);
+  guardado.al3d_pf_rol = 'fabricacion';
+  const q05b = await Proy.avanzarEtapa('proy-hoja-V-1100', 'instalado');
+  eq('11 · fabricación marca «Instalado» y «En garantía»', [q05b.ok, await etapa1100(), (await Proy.avanzarEtapa('proy-hoja-V-1100', 'garantia')).ok, await etapa1100()],
+     [true, 'instalado', true, 'garantia']);
+  for (const rol of ['fabricacion', 'pagos']) {
+    guardado.al3d_pf_rol = rol;
+    eq('11 · ' + rol + ' no cancela', [(await Proy.avanzarEtapa('proy-hoja-V-1100', 'cancelado')).codigo, await etapa1100()], ['ROL_SIN_PERMISO', 'garantia']);
+  }
+  guardado.al3d_pf_rol = 'direccion';
+  eq('11 · dirección sí', [(await Proy.avanzarEtapa('proy-hoja-V-1100', 'cancelado')).ok, await etapa1100()], [true, 'cancelado']);
+  for (const rol of ['fabricacion', 'pagos']) {
+    guardado.al3d_pf_rol = rol;
+    const q = await Proy.avanzarEtapa('proy-hoja-V-1100', 'ganado');
+    eq('11 · y solo ella la regresa: ' + rol + ' recibe ROL_SIN_PERMISO con la razón', [q.codigo, /Dirección/.test(q.mensaje), await etapa1100()], ['ROL_SIN_PERMISO', true, 'cancelado']);
+  }
+  guardado.al3d_pf_rol = 'direccion';
+  eq('11 · dirección la regresa', [(await Proy.avanzarEtapa('proy-hoja-V-1100', 'ganado')).ok, await etapa1100()], [true, 'ganado']);
+  await S.bombear();
 }
 
 /* ---------------------------------------------------------------------------

@@ -650,8 +650,8 @@ async function ejecutar(ac) {
     /* ----- Ya se instaló ----- */
     case 'marcar_hecha': {
       /* `marcar` pasa también el proyecto a «Instalado» cuando el rol puede (ver
-         `instalarProyecto` en js/datos/agenda.js); con el de fabricación se queda en «Listo»
-         y el aviso lo dice. */
+         `instalarProyecto` en js/datos/agenda.js; desde Q-05, 2026-10-16, Dirección y Fabricación),
+         y el aviso dice cuál de las dos pasó. */
       const r = await Agenda.marcar(dd.inst_id, 'hecha');
       if (avisarResultado(r, Proyectos.puedeMover(Prefs.rol(), 'instalado')
         ? 'Marcada como instalada, y el proyecto queda en «Instalado»'
