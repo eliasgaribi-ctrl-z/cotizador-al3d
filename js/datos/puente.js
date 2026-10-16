@@ -443,8 +443,9 @@ export function instalacionANotion(inst, viva) {
    El dinero no está aquí: de ése la hoja es la dueña y baja siempre (`deNotion`).
    ============================================================================ */
 
-/** La columna de la hoja de cada grupo de `proyecto.sellos`. */
-const COLUMNA_DEL_SELLO = {
+/** La columna de la hoja de cada grupo de `proyecto.sellos`. La lee también la lectura en vivo
+ *  (`datos/supa-vivo.js`), que arma con los sellos de Supabase la misma columna AI. */
+export const COLUMNA_DEL_SELLO = {
   etapa: P.etapa, notas: P.notas, plazo_k: P.plazo, tel: P.tel, dir_texto: P.direccion,
   ubicacion: P.ubicacion, entrega: P.entrega, instalacion: P.fechaInst,
 };
@@ -1089,6 +1090,26 @@ export function normalizarUrl(u) {
  * @param {{url:string, token:string}} cfg
  * @returns {Object} AdaptadorSync
  */
+/* ============================================================================
+   LA FUENTE DE LAS FILAS — la hoja, salvo con la lectura en vivo encendida (fase 4).
+
+   `bajar()` le pide a la hoja sus filas (/jalar) y su almacén (/jalar_almacen). Con el segundo
+   interruptor de Supabase encendido en este aparato, `datos/supa-enchufe.js` enchufa aquí OTRA
+   fuente que contesta lo mismo, con la misma forma, armado desde la base (`datos/supa-vivo.js`):
+   así todo lo que este archivo hace con una fila —el récord, el espejo del dinero, la regla de los
+   sellos, la cita, la revisión— corre igual, sin una segunda copia de esas reglas. Apagado vale
+   null (lo normal) y `bajar()` es exactamente el de siempre. Volver atrás es apagar el interruptor:
+   la siguiente bajada vuelve a ser de la hoja, que sigue completa.
+   La escritura NO cambia: sigue yendo a la hoja (y, con la sombra, también a la base).
+   ============================================================================ */
+let _fuente = null;
+/** @param {{filas:function(string|null):Promise<Object>, almacen?:function(number):Promise<Object>}|null} f */
+export function fuenteDeLectura(f) {
+  _fuente = (f && typeof f.filas === 'function') ? f : null;
+}
+/** Si las filas vienen de Supabase y no de la hoja (lo pinta Ajustes). */
+export function leeDeOtraFuente() { return !!_fuente; }
+
 export function crear(cfg0) {
   const cfg = { url: normalizarUrl(cfg0 && cfg0.url), token: String((cfg0 && cfg0.token) || '') };
   /* Basta la DIRECCIÓN. El token de dispositivo dejó de ser obligatorio aquí el 20 de
@@ -1275,14 +1296,19 @@ export function crear(cfg0) {
     let alguna = false, terminada = false;
     /* Veinte páginas de 1500 como tope: un teléfono nuevo contra años de libro. Lo que no
        alcance, sigue en la bajada siguiente desde donde se quedó. */
+    /* La lectura en vivo trae su propio almacén y lleva su propia marca: la de la hoja no se toca. */
+    const fuente = _fuente && typeof _fuente.almacen === 'function' ? _fuente : null;
     for (let vuelta = 0; vuelta < 20; vuelta++) {
       let r;
-      try { r = await pedir(cfg, '/jalar_almacen', { method: 'POST', body: JSON.stringify({ desde }) }); }
+      try {
+        r = fuente ? { cuerpo: await fuente.almacen(desde) }
+                   : await pedir(cfg, '/jalar_almacen', { method: 'POST', body: JSON.stringify({ desde }) });
+      }
       catch (_) { break; }
       const c = r.cuerpo || {};
-      if (c.ok !== true) { if (c.codigo === 'NO_ENCONTRADO') noSabe(); break; }
+      if (c.ok !== true) { if (c.codigo === 'NO_ENCONTRADO' && !fuente) noSabe(); break; }
       alguna = true;
-      hojaSabeAlmacen = true;
+      if (!fuente) hojaSabeAlmacen = true;
       for (const x of (Array.isArray(c.registros) ? c.registros : [])) {
         const alm = x && String(x.almacen || '');
         const d = x && x.datos;
@@ -1295,7 +1321,7 @@ export function crear(cfg0) {
       if (isFinite(hasta) && hasta > desde) desde = hasta;
       if (!c.hay_mas) { terminada = true; break; }
     }
-    if (alguna) {
+    if (alguna && !fuente) {
       almacenPorGuardar = { desde, completo_en: (entera && terminada) ? Date.now() : completoEn,
                             barriendo: entera && !terminada };
     }
@@ -1714,7 +1740,10 @@ export function crear(cfg0) {
      * del dinero sobre ese proyecto. Ver la cabecera del archivo.
      */
     async bajar(cursor) {
-      const r = await pedir(cfg, '/jalar' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+      const fuente = _fuente;
+      const r = fuente ? { cuerpo: await fuente.filas(cursor) }
+                       : await pedir(cfg, '/jalar' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+      if (!r.cuerpo || typeof r.cuerpo !== 'object') throw falla('DESCONOCIDO', 'La fuente de las filas no contestó.');
       if (r.cuerpo.ok === false) throw falla(r.cuerpo.codigo || 'SIN_RED', r.cuerpo.mensaje || 'El puente no pudo leer la hoja.');
 
       const filas = Array.isArray(r.cuerpo.registros) ? r.cuerpo.registros : [];
@@ -2028,7 +2057,7 @@ export function crear(cfg0) {
          Después de la venta y en su propio try: si la hoja no los tiene o no contesta, lo de la
          venta ya bajó igual, y la marca del almacén no se mueve. Solo en la última página de la
          venta, que hoy es la única. */
-      if (!r.cuerpo.hay_mas && sabeAlmacen() !== false) {
+      if (!r.cuerpo.hay_mas && (fuente ? typeof fuente.almacen === 'function' : sabeAlmacen() !== false)) {
         try { for (const x of await bajarAlmacen()) registros.push(x); } catch (_) { /* la venta ya bajó */ }
       }
 
