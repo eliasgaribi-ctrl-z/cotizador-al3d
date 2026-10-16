@@ -4,7 +4,9 @@
 // Sin esta subida, con acuse POR REGISTRO, el borrado local por revocación no se puede habilitar. Reglas que se prueban:
 //   · cualquier miembro sube lo SUYO; Dirección sube lo de cualquiera; Fabricación escribe y NUNCA lee de vuelta;
 //   · la unión es por (folio, disp), no por «folio» a secas; los conflictos NO se resuelven aquí: no se sobrescribe y se avisa en el acuse;
-//   · idempotente: por `folio_global` en las cotizaciones y por `op_id` («tel:<disp>:<id>») en la bitácora;
+//   · idempotente: por `folio_global` en las cotizaciones y por `op_id` («tel:<uid>:<disp>:<id>», 0013) en la bitácora;
+//   · (0013) una cotización del historial NO nace autorizada sin la fila vigente del servidor con su código (ver rls-y-dinero/huecos-revision.mjs);
+//     la bitácora la firma el servidor: quién (correo verificado), su área y la hora; la del teléfono queda en procedencia.ts_cliente;
 //   · las imágenes (data URLs, aiFile.url) NO entran a la base; el contador del aparato solo sube.
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
 import { sesionDe, llamar, una, sql, conCopia, como } from '../comun/semilla.js';
@@ -18,12 +20,13 @@ const estados = r => r.acuse.map(x => x.estado);
 
 describir('NO-22 cotizaciones del historial', () => {
   const LOTE = { disp: 'K7QM', letra_folio: 'B', folio_max: 42, cotizaciones: [entrada(42)], hitos: { 'COT-0042-B': { pdf: 111, wa: 222 } }, canva: { 'COT-0042-B': { primera: 1, ultima: 2, veces: 1 } } };
-  prueba('NO-22 crea: acuse «creada» por registro; la cotización queda autorizada, a nombre de quien sube, con hitos y propuesta, SIN data URL ni aiFile.url, y el contador del aparato en 42', () => conCopia(plantilla, async db => {
+  prueba('NO-22 crea: acuse «creada» por registro; la cotización (sin sello del servidor) queda RETIRADA (0013, H-2), a nombre de quien sube, con hitos y propuesta, SIN data URL ni aiFile.url, y el contador del aparato en 42', () => conCopia(plantilla, async db => {
     const r = await subir(db, 'pag', LOTE);
     igual([r.ok, estados(r), r.resumen], [true, ['creada'], { creadas: 1, ya_estaban: 0, conflictos: 0, rechazadas: 0 }]);
     igual(r.acuse[0], { tipo: 'cotizacion', id: 'COT-0042-B@K7QM', estado: 'creada' });
     const c = await una(db, `select estado, creado_por::text as por, datos, hitos, procedencia, folio, disp, proy from public.cotizaciones where folio_global = 'COT-0042-B@K7QM'`);
-    igual([c.estado, c.por, c.folio, c.disp, c.proy], ['autorizada', db.u.pag.uid, 'COT-0042-B', 'K7QM', 'Tacos 42']);
+    igual([c.estado, c.por, c.folio, c.disp, c.proy], ['retirada', db.u.pag.uid, 'COT-0042-B', 'K7QM', 'Tacos 42']);
+    igual(c.procedencia.sin_sello_valido, true);
     igual([c.hitos.pdf, c.hitos.wa, c.hitos.propuesta], [111, 222, { primera: 1, ultima: 2, veces: 1 }]);
     igual([c.procedencia.telefonos, c.procedencia.disp_inferido, typeof c.procedencia.subida_unica], [['K7QM'], false, 'string']);
     igual(['url' in c.datos.aiFile, c.datos.aiFile.name, JSON.stringify(c.datos).includes('data:')], [false, 'a.png', false]);
@@ -106,7 +109,7 @@ describir('NO-22 la cola de pendientes, cuadernos y bitácora', () => {
     igual(r.acuse.map(x => [x.tipo, x.id, x.estado]).sort(), [['bitacora', 'b1', 'ya_estaba'], ['bitacora', 'b2', 'ya_estaba'], ['cola', 'COT-0050-B@K7QM', 'ya_estaba'], ['cola', 'COT-0099-B', 'ya_estaba'],
                                                                   ['cuaderno', 'tel:123', 'rechazada'], ['cuaderno', 'tel:3312345678', 'ya_estaba']]);
     igual((await una(db, `select count(*)::int as n from public.solicitudes where folio_global = 'COT-0050-B@K7QM'`)).n, 1);
-    igual((await una(db, `select count(*)::int as n from public.bitacora where op_id like 'tel:K7QM:%'`)).n, 2, 'el op_id repetido no duplica');
+    igual((await una(db, `select count(*)::int as n from public.bitacora where op_id like $1`, ['tel:' + db.u.pag.uid + ':K7QM:%'])).n, 2, 'el op_id repetido no duplica');
     igual((await una(db, `select count(*)::int as n from public.cuaderno_notas`)).n, 1);
     igual(r.resumen, { creadas: 0, ya_estaban: 5, conflictos: 0, rechazadas: 1 });
   }));
@@ -128,22 +131,25 @@ describir('NO-22 la cola de pendientes, cuadernos y bitácora', () => {
     igual(estados(otraPersona), ['creada'], 'la nota es POR AUTOR');
     igual((await una(db, `select count(*)::int as n from public.cuaderno_notas where clave = 'tel:3312345678'`)).n, 2);
   }));
-  prueba('NO-22 bitácora local: nivel por LISTA BLANCA (etapa, agendo, reagendo, marco, cancelo → general; el resto → dinero); entidad desconocida → plataforma; op_id tel:<disp>:<id>; ts en ms o ISO; el autor es quien sube', () => conCopia(plantilla, async db => {
+  prueba('NO-22 bitácora local: nivel por LISTA BLANCA (etapa, agendo, reagendo, marco, cancelo → general; el resto → dinero); entidad desconocida → plataforma; op_id tel:<uid>:<disp>:<id>; la hora, el correo y el rol los pone el servidor (0013) y la del teléfono queda en procedencia.ts_cliente', () => conCopia(plantilla, async db => {
     const b = [{ id: 'e1', accion: 'etapa', titulo: 'A cortado' }, { id: 'e2', accion: 'agendo', titulo: 'Agendó' }, { id: 'e3', accion: 'ganar', titulo: 'Ganó con $5000.00' }, { id: 'e4', accion: 'actualizar', titulo: 'Cambió la cuenta' },
                { id: 'e5', accion: 'etapa', titulo: 'x', entidad: 'rara' }, { id: 'e6', accion: 'etapa', titulo: 'x', ts: '2026-09-01T10:00:00.000Z' }, { id: 'e7', accion: 'etapa', ts: 1760000000000, usuario: 'dir@al3d.test', rol: 'direccion' }];
     const r = await subir(db, 'fab', { disp: 'FAB1', bitacora: b });
     igual(estados(r), Array(7).fill('creada'));
-    const f = await sql(db, `select op_id, nivel, entidad, titulo, dispositivo, usuario_id::text as u, ts from public.bitacora where op_id like 'tel:FAB1:%' order by op_id`);
-    igual(f.map(x => [x.op_id, x.nivel, x.entidad]), [['tel:FAB1:e1', 'general', 'plataforma'], ['tel:FAB1:e2', 'general', 'plataforma'], ['tel:FAB1:e3', 'dinero', 'plataforma'], ['tel:FAB1:e4', 'dinero', 'plataforma'],
-                                                      ['tel:FAB1:e5', 'general', 'plataforma'], ['tel:FAB1:e6', 'general', 'plataforma'], ['tel:FAB1:e7', 'general', 'plataforma']]);
+    const P = 'tel:' + db.u.fab.uid + ':FAB1:';
+    const f = await sql(db, `select op_id, nivel, entidad, titulo, dispositivo, usuario_id::text as u, usuario_texto, rol, ts, procedencia -> 'ts_cliente' as tc from public.bitacora where op_id like $1 order by op_id`, [P + '%']);
+    igual(f.map(x => [x.op_id, x.nivel, x.entidad]), [[P + 'e1', 'general', 'plataforma'], [P + 'e2', 'general', 'plataforma'], [P + 'e3', 'dinero', 'plataforma'], [P + 'e4', 'dinero', 'plataforma'],
+                                                      [P + 'e5', 'general', 'plataforma'], [P + 'e6', 'general', 'plataforma'], [P + 'e7', 'general', 'plataforma']]);
     igual([f[0].dispositivo, f[0].u, f[6].titulo], ['FAB1', db.u.fab.uid, 'Evento de un teléfono']);
-    igual([f[5].ts.toISOString(), f[6].ts.toISOString()], ['2026-09-01T10:00:00.000Z', '2025-10-09T08:53:20.000Z']);
-    const fab = (await sesionDe(db, db.u.fab).query(`select op_id from public.bitacora where op_id like 'tel:FAB1:%' order by op_id`)).map(x => x.op_id);
-    igual(fab, ['tel:FAB1:e1', 'tel:FAB1:e2', 'tel:FAB1:e5', 'tel:FAB1:e6', 'tel:FAB1:e7'], 'Fabricación ve las «general» y NO las de dinero');
+    igual([f[6].usuario_texto, f[6].rol], [db.u.fab.correo, 'fabricacion'], 'el «usuario» y el «rol» que manda el teléfono se ignoran');
+    cierto(f.every(x => Math.abs(x.ts.getTime() - Date.now()) < 120_000), 'la hora es la del servidor');
+    igual([f[5].tc, f[6].tc, f[0].tc], ['2026-09-01T10:00:00+00:00', '2025-10-09T08:53:20+00:00', null]);
+    const fab = (await sesionDe(db, db.u.fab).query(`select op_id from public.bitacora where op_id like $1 order by op_id`, [P + '%'])).map(x => x.op_id);
+    igual(fab, [P + 'e1', P + 'e2', P + 'e5', P + 'e6', P + 'e7'], 'Fabricación ve las «general» y NO las de dinero');
   }));
   prueba('NO-22 la entidad conocida se respeta (proyecto, instalacion, material…) y los textos se recortan (titulo 200, detalle 600, accion 80)', () => conCopia(plantilla, async db => {
     await subir(db, 'dir', { disp: 'K7QM', bitacora: [{ id: 'z1', accion: 'etapa', entidad: 'proyecto', entidad_id: 'p1', titulo: 't'.repeat(300), detalle: 'd'.repeat(700), antes: { a: 1 }, despues: [1] }] });
-    const f = await una(db, `select entidad, entidad_id, length(titulo) as lt, length(detalle) as ld, antes, despues from public.bitacora where op_id = 'tel:K7QM:z1'`);
+    const f = await una(db, `select entidad, entidad_id, length(titulo) as lt, length(detalle) as ld, antes, despues from public.bitacora where op_id = $1`, ['tel:' + db.u.dir.uid + ':K7QM:z1']);
     igual([f.entidad, f.entidad_id, f.lt, f.ld, f.antes, f.despues], ['proyecto', 'p1', 200, 600, { a: 1 }, [1]]);
   }));
 });

@@ -54,8 +54,9 @@ function referencias(texto0) {
 }
 
 describir('referencias estáticas: todo lo que un archivo nombra existe y es de ese archivo o de uno anterior', () => {
-  prueba('hay doce archivos numerados del 0001 al 0012 sin huecos', () => {
-    igual(ARCHIVOS.map(NUM), Array.from({ length: 12 }, (_, i) => i + 1));
+  prueba('hay ' + ARCHIVOS.length + ' archivos numerados del 0001 en adelante, sin huecos (al menos los doce de la primera entrega)', () => {
+    cierto(ARCHIVOS.length >= 12, 'faltan migraciones: ' + ARCHIVOS.length);
+    igual(ARCHIVOS.map(NUM), Array.from({ length: ARCHIVOS.length }, (_, i) => i + 1));
     cierto(DEF.size > 100, 'se encontraron las definiciones: ' + DEF.size);
   });
   prueba('ningún archivo nombra un objeto que NO exista en ninguna migración (un nombre mal escrito en el cuerpo de una función solo truena al llamarla)', () => {
@@ -63,7 +64,7 @@ describir('referencias estáticas: todo lo que un archivo nombra existe y es de 
     for (const [f, t] of Object.entries(TEXTOS)) for (const r of referencias(t)) if (!DEF.has(r)) huerfanas.push(`${f}: ${r}`);
     igual(huerfanas, []);
   });
-  prueba('ningún archivo nombra un objeto que defina un archivo POSTERIOR (el orden 0001…0012 es suficiente y necesario)', () => {
+  prueba('ningún archivo nombra un objeto que defina un archivo POSTERIOR (el orden numérico es suficiente y necesario)', () => {
     const adelantadas = [];
     for (const [f, t] of Object.entries(TEXTOS)) for (const r of referencias(t)) if (DEF.has(r) && DEF.get(r) > NUM(f)) adelantadas.push(`${f} nombra ${r}, que define 000${DEF.get(r)}`.replace('000' + DEF.get(r), String(DEF.get(r)).padStart(4, '0')));
     igual(adelantadas, []);
@@ -98,7 +99,7 @@ describir('referencias estáticas: todo lo que un archivo nombra existe y es de 
 });
 
 describir('idempotencia dinámica: volver a aplicar todo sobre una base ya migrada y con datos', () => {
-  prueba('los doce archivos se aplican DOS veces más sin error, no tocan un solo dato, no cambian lo que cada rol ve ni lo que puede ejecutar, y la auditoría sigue limpia', async () => {
+  prueba('todos los archivos se aplican DOS veces más sin error, no tocan un solo dato, no cambian lo que cada rol ve ni lo que puede ejecutar, y la auditoría sigue limpia', async () => {
     const db = await crearBaseDePruebas();
     try {
       db.u = await sembrarUsuarios(db);
