@@ -9,7 +9,7 @@
              y, si se quiere, un cuerpo JSON de a lo más 1 KB: { "subir": false } exporta y cuenta SIN subir nada
              (prueba en seco: sirve para ver que la base contesta antes de dar acceso a Drive).
              Sin secreto, o con otro, o sin secreto configurado: 401, siempre igual, sin decir qué faltó.
-   SALIDA    200 { ok:true, archivo:{ id, nombre }, filas:{tabla:n}, bytes, sha256, creado }
+   SALIDA    200 { ok:true, archivo:{ id, nombre }, filas:{tabla:n}, bytes, sha256, creado, rotacion }
              200 { ok:true, subido:false, nombre, filas, bytes, sha256, creado }      (prueba en seco)
              503 CONFIGURACION      falta o no sirve una variable (se dice su NOMBRE, nunca su valor)
              502 BASE_NO_CONTESTA   la base no contestó o contestó un error (no se sube nada a medias)
@@ -21,7 +21,13 @@
    todas), página por página en el orden de su llave primaria. Es una FOTO aproximada: si alguien escribe a media
    exportación, una tabla puede quedar un momento por delante de otra (no hay una transacción que abarque las 17
    lecturas de PostgREST). Para el propósito —no perderlo todo— basta; el importador de la fase 2 sabe cuadrar.
-   NO se borra nada en Drive: la retención (cuántas semanas guardar) la decide Elías en la carpeta.
+   ROTACIÓN (decidida por Elías el 2026-10-16): en la carpeta se quedan los 8 respaldos más recientes (RESPALDO_CONSERVAR, opcional,
+   un entero de 1 a 520; sin ella, 8). Solo DESPUÉS de una subida que terminó bien —si la exportación, el token o la subida fallan, no
+   se toca nada— se lista la carpeta y lo que sobra va a la PAPELERA de Drive (se recupera ahí; una unidad compartida la vacía sola a los
+   30 días). Solo cuenta lo que esta función creó: el nombre con su patrón (al3d-respaldo-AAAA-MM-DDTHHMMSSZ.json) y la marca
+   appProperties.al3d = 'respaldo' que les pone al subirlos. El recién subido siempre se queda. Si la rotación falla (Drive no lista, no
+   deja mandar a la papelera, o RESPALDO_CONSERVAR no sirve), el respaldo YA está arriba: se contesta 200 igual y `rotacion` dice qué
+   pasó ({ conservar, a_la_papelera:[nombres], error? }). Con { "subir": false } no hay rotación.
 
    deps: { fetch, ahora, entorno, registrar? }   `fetch` solo sale hacia SUPABASE_URL y hacia Google.
    ============================================================================ */
@@ -31,6 +37,7 @@ import { esErrorDeEntorno, leerSupabaseServicio, secretosDelEntorno } from '../_
 import {
   TABLAS, MAX_PAGINAS_POR_TABLA, PAGINA, URL_TOKEN, URL_SUBIDA, ErrorDeRespaldo, esErrorDeRespaldo, secretoValido, leerCredenciales, leerCarpeta,
   importarLlave, asercion, consultaDePagina, nombreDeArchivo, armarArchivo, sha256Hex, direccionDeSubida,
+  MARCA, leerConservar, consultaDeLista, direccionDeArchivo, sobrantes,
 } from '../_shared/respaldo.js';
 
 /** Los nombres de las variables de esta función (los valores NUNCA salen). */
@@ -38,7 +45,9 @@ export const VARIABLES = Object.freeze({
   secretoFuncion: 'RESPALDO_SECRETO_FUNCION',
   credenciales: 'RESPALDO_GOOGLE_CREDENCIALES',
   carpeta: 'RESPALDO_CARPETA_DRIVE',
+  conservar: 'RESPALDO_CONSERVAR',          // opcional: cuántos respaldos se quedan en la carpeta (8 si no está)
 });
+export const MAX_PAGINAS_DE_LISTA = 10;
 export const CABECERA_SECRETO = 'x-respaldo-secreto';
 export const ESPERA_MS = 30_000;
 const MAX_CUERPO = 1024;
@@ -105,7 +114,7 @@ async function subirADrive(deps, { token, carpeta, nombre, contenido }) {
   let ini;
   try {
     ini = await pedir(deps, URL_SUBIDA, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nombre, parents: [carpeta], mimeType: 'application/json', description: 'Respaldo semanal de la base de AL3D (función respaldo de Supabase).' }) });
+      body: JSON.stringify({ name: nombre, parents: [carpeta], mimeType: 'application/json', appProperties: MARCA, description: 'Respaldo semanal de la base de AL3D (función respaldo de Supabase).' }) });
   } catch (e) { throw new ErrorDeRespaldo('drive', 'Drive no contestó al empezar la subida.', { detalle: textoDeError(e) }); }
   if (!ini.ok) throw await errorDeDrive(ini);
   const destino = direccionDeSubida(ini.headers.get('location'));
@@ -118,6 +127,35 @@ async function subirADrive(deps, { token, carpeta, nombre, contenido }) {
   try { d = JSON.parse(await fin.text()); } catch (_) { /* queda null */ }
   if (!d || typeof d.id !== 'string') throw new ErrorDeRespaldo('drive', 'Drive no devolvió el id del archivo.');
   return { id: d.id, nombre: typeof d.name === 'string' ? d.name : nombre };
+}
+
+/* La rotación, DESPUÉS de una subida que terminó bien. Nunca lanza: lo que falle se dice en la respuesta y el respaldo ya está arriba. */
+async function rotar(deps, { token, carpeta, nuevo, conservar }) {
+  const cab = { Authorization: 'Bearer ' + token };
+  const archivos = [];
+  let pagina = null;
+  for (let i = 0; ; i++) {
+    if (i >= MAX_PAGINAS_DE_LISTA) return { conservar, a_la_papelera: [], error: 'La carpeta tiene demasiados archivos para listarla: no se mandó nada a la papelera.' };
+    let res, d = null;
+    try { res = await pedir(deps, consultaDeLista(carpeta, pagina), { method: 'GET', headers: cab }); }
+    catch (e) { return { conservar, a_la_papelera: [], error: 'Drive no contestó al listar la carpeta: no se mandó nada a la papelera.' }; }
+    try { d = JSON.parse(await res.text()); } catch (_) { /* queda null */ }
+    if (!res.ok || !d || !Array.isArray(d.files)) return { conservar, a_la_papelera: [], error: 'Drive no dejó listar la carpeta (' + res.status + '): no se mandó nada a la papelera.' };
+    archivos.push(...d.files);
+    if (!d.nextPageToken) break;
+    pagina = String(d.nextPageToken);
+  }
+  const fuera = sobrantes(archivos, conservar, nuevo);
+  const hechos = [], fallos = [];
+  for (const a of fuera) {
+    const url = direccionDeArchivo(a.id);
+    if (!url) { fallos.push(a.name); continue; }
+    try {
+      const res = await pedir(deps, url, { method: 'PATCH', headers: { ...cab, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+      if (res.ok) hechos.push(a.name); else fallos.push(a.name);
+    } catch (_) { fallos.push(a.name); }
+  }
+  return { conservar, a_la_papelera: hechos, ...(fallos.length ? { error: 'Drive no dejó mandar a la papelera: ' + fallos.join(', ') + '.' } : {}) };
 }
 
 async function errorDeDrive(res) {
@@ -159,6 +197,9 @@ export async function manejar(peticion, deps) {
       try { cred = leerCredenciales(leerVar(deps.entorno, VARIABLES.credenciales)); } catch (e) { if (!esErrorDeRespaldo(e)) throw e; faltan.push(VARIABLES.credenciales); }
       try { carpeta = leerCarpeta(leerVar(deps.entorno, VARIABLES.carpeta)); } catch (e) { if (!esErrorDeRespaldo(e)) throw e; faltan.push(VARIABLES.carpeta); }
     }
+    /* La rotación no detiene el respaldo: un RESPALDO_CONSERVAR que no sirve solo apaga la rotación (y se dice). */
+    let conservar = null, errorConservar = null;
+    try { conservar = leerConservar(leerVar(deps.entorno, VARIABLES.conservar)); } catch (e) { if (!esErrorDeRespaldo(e)) throw e; errorConservar = e.message; }
     if (faltan.length) {
       registrar(deps, 'respaldo', 'error', 'configuracion', { variables: faltan }, secretos);
       return responder(503, sobreDeError('CONFIGURACION', 'Falta configurar o no sirve: ' + faltan.join(', ') + '.', { variables: faltan }));
@@ -177,7 +218,12 @@ export async function manejar(peticion, deps) {
     const token = await tokenDeGoogle(deps, cred);
     const archivo = await subirADrive(deps, { token, carpeta, nombre, contenido });
     registrar(deps, 'respaldo', 'info', 'subido', { archivo: archivo.id, bytes: resumen.bytes }, secretos);
-    return responder(200, { ok: true, archivo, ...resumen });
+
+    /* 6. La rotación: solo ahora, con el archivo nuevo ya en Drive. */
+    const rotacion = errorConservar ? { conservar: null, a_la_papelera: [], error: errorConservar + ' No se mandó nada a la papelera.' }
+      : await rotar(deps, { token, carpeta, nuevo: archivo, conservar });
+    registrar(deps, 'respaldo', rotacion.error ? 'error' : 'info', 'rotacion', { a_la_papelera: rotacion.a_la_papelera.length, error: rotacion.error || '' }, secretos);
+    return responder(200, { ok: true, archivo, ...resumen, rotacion });
   } catch (e) {
     if (esErrorDeRespaldo(e)) {
       registrar(deps, 'respaldo', 'error', e.clase, { detalle: e.detalle || e.message }, secretos);

@@ -62,7 +62,7 @@ Decisiones:
 - Alcance `drive` (no `drive.file`): la carpeta la crea Elías, no la aplicación; la cuenta solo ve lo que se comparte con ella.
 - La carpeta debe estar en una **unidad compartida** (las cuentas de servicio no tienen cuota propia); un 403 `storageQuotaExceeded` lo dice con esa pista. **No verificado contra Google.**
 - El token se pide siempre a `oauth2.googleapis.com` aunque el archivo traiga otra `token_uri`; la subida solo va a `www.googleapis.com`.
-- **No se borra nada en Drive**: la retención la decide Elías en la carpeta.
+- ~~**No se borra nada en Drive**: la retención la decide Elías en la carpeta.~~ **Cambió el 2026-10-16** (Elías decidió los plazos): después de cada subida buena se quedan los 8 más recientes (`RESPALDO_CONSERVAR`) y lo demás que creó la función va a la papelera de Drive. Ver `docs/DECISIONES-SUPABASE.md`, «Plazos de conservación».
 - Es una foto aproximada: PostgREST no da una transacción que abarque las 17 lecturas. Si la base falla a medias, **no se sube nada**.
 
 ## Secretos nuevos (solo nombres; ya están en `supabase/README.md`)
