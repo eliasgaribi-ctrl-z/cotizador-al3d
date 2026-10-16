@@ -27,6 +27,8 @@ const SELLOS = () => ({ notas: AHORA(), tel: AHORA(), dir_texto: AHORA(), ubicac
 
 /** La matriz tal como la fija el diseño (A.md §5.1). Las pruebas de abajo comparan COMPORTAMIENTO contra la tabla; esta fija la TABLA, para que un cambio de permisos sea un cambio visible aquí. */
 const ETAPAS_TODAS = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia', 'cancelado'];
+/* Q-05, decidida por Elías el 2026-10-16 (0017): Fabricación y Pagos mueven cualquier etapa menos «cancelado»; cancelar, solo Dirección. */
+const SIN_CANCELAR = ETAPAS_TODAS.filter(e => e !== 'cancelado');
 const MATRIZ_DEL_DISENO = {
   direccion: {
     proyecto_actualizar: ['notas', 'tel', 'dir_texto', 'lat', 'lng', 'maps_url', 'geo_fuente', 'entrega', 'plazo_k', 'entrecalles', 'ubicacion_pendiente', 'contacto', 'negocio', 'tipo_trabajo', 'compromiso_texto', 'fecha_anticipo', 'origen'],
@@ -35,16 +37,16 @@ const MATRIZ_DEL_DISENO = {
   },
   fabricacion: {
     proyecto_actualizar: ['notas', 'tel', 'dir_texto', 'lat', 'lng', 'maps_url', 'geo_fuente', 'entrega', 'plazo_k', 'entrecalles', 'ubicacion_pendiente'],
-    corregir_venta: [], etapas: { origen: ETAPAS_TODAS.slice(0, 5), destino: ETAPAS_TODAS.slice(0, 5) }, instalacion: 'propuesta', alta: { ganar_proyecto: false, descartar_cotizacion: false, alta_venta: false }, ve_dinero: false,
+    corregir_venta: [], etapas: { origen: SIN_CANCELAR, destino: SIN_CANCELAR }, instalacion: 'propuesta', alta: { ganar_proyecto: false, descartar_cotizacion: false, alta_venta: false }, ve_dinero: false,
   },
   pagos: {
     proyecto_actualizar: ['notas', 'tel'], corregir_venta: ['nombre', 'subtotal', 'anticipo', 'liquidacion', 'cuenta', 'estatus', 'fecha_liquidacion', 'pct_comision'],
-    etapas: { origen: [], destino: [] }, instalacion: null, alta: { ganar_proyecto: false, descartar_cotizacion: false, alta_venta: true }, ve_dinero: true,
+    etapas: { origen: SIN_CANCELAR, destino: SIN_CANCELAR }, instalacion: null, alta: { ganar_proyecto: false, descartar_cotizacion: false, alta_venta: true }, ve_dinero: true,
   },
 };
 
 describir('RL-20 la tabla misma', () => {
-  prueba('RL-20 interno.matriz_permisos() es EXACTAMENTE la del diseño (A.md §5.1): Dirección todo; Fabricación solo obra y el rango ganado…listo; Pagos solo notas, teléfono y las correcciones de venta sin IVA; Pagos no mueve etapas ni agenda', async () => {
+  prueba('RL-20 interno.matriz_permisos() es EXACTAMENTE la del diseño (A.md §5.1): Dirección todo; Fabricación solo obra; Pagos solo notas, teléfono y las correcciones de venta sin IVA, y no toca la agenda; las dos mueven cualquier etapa menos «cancelado» (0017)', async () => {
     const db = await plantilla();
     igual(await matriz(db), MATRIZ_DEL_DISENO);
   });

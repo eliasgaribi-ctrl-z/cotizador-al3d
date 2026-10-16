@@ -1,13 +1,16 @@
 // La etapa por rol, las salidas de material del corte y las dos transiciones automáticas (R5, Q-05) — A.md §5.6 y §10.6, casos ET-01..ET-24.
 //
-//   · Dirección mueve cualquier etapa a cualquier etapa; Fabricación solo dentro de «ganado…listo» en origen Y destino; Pagos, ninguna;
+//   · Q-05, decidida por Elías el 2026-10-16 (0017_decisiones_elias.sql): los TRES roles mueven cualquier etapa a cualquier etapa; SOLO
+//     Dirección cancela («No se dio») y solo ella saca un proyecto de `cancelado`. (Hasta 0016: Fabricación solo dentro de «ganado…listo» en
+//     origen Y destino, y Pagos ninguna.) ET-02, ET-04b, ET-05, ET-05c y ET-17 fallan sin 0017;
 //   · al ALCANZAR el corte (cortado o más) salen del almacén los materiales del proyecto, una vez, con id determinista `mov-salida:<req.id>`;
-//   · instalación `hecha` ⇒ `instalado` (solo si la marca Dirección) y cobro ⇒ `instalado` (solo en filas importadas).
+//   · instalación `hecha` ⇒ `instalado` (si la marca un área que puede marcar «instalado»: Dirección o Fabricación) y cobro ⇒ `instalado`
+//     (solo en filas importadas).
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, sesionDe, rpcT, una, sql, conCopia } from '../comun/semilla.js';
 
 const ETAPAS = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia', 'cancelado'];
-const TALLER = ETAPAS.slice(0, 5);
+const SIN_CANCELAR = ETAPAS.filter(e => e !== 'cancelado');          // las 7 que mueven Fabricación y Pagos (0017)
 const AHORA = () => Date.now();
 
 const plantilla = dato(async () => {
@@ -65,45 +68,82 @@ describir('ET-01 a ET-05 la tabla de permisos: Dirección, Fabricación y Pagos'
     igual(n, 64);
     await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
   });
-  prueba('ET-02 Fabricación: las 25 transiciones dentro de ganado…listo (incluso retroceder) se permiten', async () => {
-    const db = await plantilla(), F = sesionDe(db, db.u.fab);
+  /* Las 7 × 7 transiciones que no tocan «cancelado», para un área que no es Dirección (Fabricación y Pagos, 0017). */
+  async function sieteXSiete(db, quien) {
+    const S = sesionDe(db, db.u[quien]);
     let n = 0;
-    for (const o of TALLER) {
+    for (const o of SIN_CANCELAR) {
       await sql(db, `update public.proyectos set etapa = '${o}', sellos = '{}' where id = 'p4'`);
-      for (const d of TALLER) { igual((await F.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa.ok, true, `${o} → ${d}`); n++; }
-    }
-    igual(n, 25);
-    await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
-  });
-  prueba('ET-03 Fabricación: desde ganado…listo hacia instalado, garantia o cancelado → ROL_SIN_PERMISO (definitivo)', async () => {
-    const db = await plantilla(), F = sesionDe(db, db.u.fab);
-    for (const o of TALLER) {
-      await sql(db, `update public.proyectos set etapa = '${o}', sellos = '{}' where id = 'p4'`);
-      for (const d of ['instalado', 'garantia', 'cancelado']) {
-        const r = (await F.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa;
-        igual([r.ok, r.codigo, r.definitivo], [false, 'ROL_SIN_PERMISO', true], `${o} → ${d}`);
+      for (const d of SIN_CANCELAR) {
+        const r = (await S.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa;
+        igual([quien, o, d, r.ok, !!r.sin_cambio], [quien, o, d, true, o === d], JSON.stringify(r));
+        n++;
       }
     }
     await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
-  });
-  prueba('ET-04 Fabricación: desde instalado, garantia o cancelado hacia CUALQUIERA → ROL_SIN_PERMISO (endurece: hoy solo mira el destino)', async () => {
-    const db = await plantilla(), F = sesionDe(db, db.u.fab);
-    for (const o of ['instalado', 'garantia', 'cancelado']) {
+    return n;
+  }
+  /* Hacia «cancelado» desde cualquier etapa, y desde «cancelado» hacia cualquiera: ROL_SIN_PERMISO definitivo, con la razón. */
+  async function nuncaCancela(db, quien) {
+    const S = sesionDe(db, db.u[quien]);
+    for (const o of SIN_CANCELAR) {
       await sql(db, `update public.proyectos set etapa = '${o}', sellos = '{}' where id = 'p4'`);
-      for (const d of ETAPAS) {
-        const r = (await F.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa;
-        igual([r.ok, r.codigo], [false, 'ROL_SIN_PERMISO'], `${o} → ${d}`);
-      }
+      const r = (await S.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: 'cancelado', p_sello: AHORA() }))[0].mover_etapa;
+      igual([quien, o, r.ok, r.codigo, r.definitivo], [quien, o, false, 'ROL_SIN_PERMISO', true]);
+    }
+    await sql(db, `update public.proyectos set etapa = 'cancelado', sellos = '{}' where id = 'p4'`);
+    for (const d of ETAPAS) {
+      const r = (await S.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa;
+      igual([quien, 'cancelado', d, r.ok, r.codigo], [quien, 'cancelado', d, false, 'ROL_SIN_PERMISO']);
+    }
+    const e = (await sql(db, `select etapa from public.proyectos where id = 'p4'`))[0].etapa;
+    await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
+    return e;
+  }
+  prueba('ET-02 Fabricación (0017): las 49 transiciones entre las 7 etapas que no son «cancelado» se permiten (también fuera de ganado…listo, y retroceder)', async () => {
+    igual(await sieteXSiete(await plantilla(), 'fab'), 49);
+  });
+  prueba('ET-03 Fabricación NO cancela: hacia «cancelado» desde cualquier etapa → ROL_SIN_PERMISO (definitivo) y la razón dice que es de Dirección', async () => {
+    const db = await plantilla(), F = sesionDe(db, db.u.fab);
+    for (const o of SIN_CANCELAR) {
+      await sql(db, `update public.proyectos set etapa = '${o}', sellos = '{}' where id = 'p4'`);
+      const r = (await F.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: 'cancelado', p_sello: AHORA() }))[0].mover_etapa;
+      igual([r.ok, r.codigo, r.definitivo], [false, 'ROL_SIN_PERMISO', true], `${o} → cancelado`);
+      cierto(/Dirección/.test(r.mensaje), r.mensaje);
     }
     await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
   });
-  prueba('ET-05 Pagos: cualquier movimiento → ROL_SIN_PERMISO', async () => {
-    const db = await plantilla(), P = sesionDe(db, db.u.pag);
-    for (const d of ETAPAS) igual((await P.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa.codigo, 'ROL_SIN_PERMISO', d);
+  prueba('ET-04 Fabricación tampoco saca un proyecto de «cancelado» (deshacer el «No se dio» es de Dirección): ROL_SIN_PERMISO y se queda cancelado', async () => {
+    igual(await nuncaCancela(await plantilla(), 'fab'), 'cancelado');
   });
-  prueba('el permiso se decide antes de leer nada: un proyecto inexistente da el MISMO ROL_SIN_PERMISO a Pagos; y a Fabricación NO_ENCONTRADO (puede mover)', async () => {
+  prueba('ET-04b Fabricación (0017) marca «instalado» y «garantía», y desde ahí regresa al taller', async () => {
+    const db = await plantilla(), F = sesionDe(db, db.u.fab);
+    const paso = async d => (await F.rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: d, p_sello: AHORA() }))[0].mover_etapa;
+    const a = await paso('instalado'), b = await paso('garantia'), c = await paso('armado');
+    igual([a.ok, a.etapa, b.ok, b.etapa, c.ok, c.etapa], [true, 'instalado', true, 'garantia', true, 'armado']);
+    await sql(db, `update public.proyectos set etapa = 'ganado', sellos = '{}' where id = 'p4'`);
+  });
+  prueba('ET-05 Pagos (0017): las 49 transiciones entre las 7 etapas que no son «cancelado» se permiten', async () => {
+    igual(await sieteXSiete(await plantilla(), 'pag'), 49);
+  });
+  prueba('ET-05b Pagos NO cancela ni saca de «cancelado»: ROL_SIN_PERMISO (definitivo)', async () => {
+    igual(await nuncaCancela(await plantilla(), 'pag'), 'cancelado');
+  });
+  prueba('ET-05c lo que Pagos mueve queda como cualquier movimiento: bitácora general con su área y, al cruzar el corte, la salida de material firmada por Pagos; sin dinero en el remoto', async () => {
     const db = await plantilla();
-    igual((await sesionDe(db, db.u.pag).rpc('mover_etapa', { p_proyecto: 'no-existe', p_etapa: 'armado', p_sello: 1 }))[0].mover_etapa.codigo, 'ROL_SIN_PERMISO');
+    const x = await sesionDe(db, db.u.pag).transaccion(async t => {
+      const r = await rpcT(t, 'mover_etapa', { p_proyecto: 'e8', p_etapa: 'cortado', p_sello: AHORA() });
+      return { r, m: await movs(t, `proyecto_id = 'e8'`), b: await t.query(`select nivel, rol, titulo from public.bitacora where accion = 'etapa' and entidad_id = 'e8'`) };
+    });
+    igual([x.r.ok, x.r.etapa, x.r.salidas], [true, 'cortado', 1]);
+    igual(x.m.map(m => [m.id, m.cantidad, m.origen, m.rol]), [['mov-salida:e8:acr-3mm', '-1', 'manual', 'pagos']]);
+    igual(x.b.map(b => [b.nivel, b.rol, b.titulo]), [['general', 'pagos', 'Proyecto e8 pasó a Cortado']]);
+    for (const k of ['subtotal', 'anticipo', 'liquidacion', 'cuenta', 'neto', 'saldo']) cierto(!(k in x.r.remoto), k);
+  });
+  prueba('el permiso de área se decide antes de leer nada (alguien sin acceso: SIN_ACCESO); Fabricación y Pagos, que ya pueden mover, reciben NO_ENCONTRADO', async () => {
+    const db = await plantilla();
+    igual((await sesionDe(db, db.u.ext).rpc('mover_etapa', { p_proyecto: 'no-existe', p_etapa: 'armado', p_sello: 1 }))[0].mover_etapa.codigo, 'SIN_ACCESO');
+    igual((await sesionDe(db, db.u.pag).rpc('mover_etapa', { p_proyecto: 'no-existe', p_etapa: 'armado', p_sello: 1 }))[0].mover_etapa.codigo, 'NO_ENCONTRADO');
     igual((await sesionDe(db, db.u.fab).rpc('mover_etapa', { p_proyecto: 'no-existe', p_etapa: 'armado', p_sello: 1 }))[0].mover_etapa.codigo, 'NO_ENCONTRADO');
     igual((await sesionDe(db, db.u.dir).rpc('mover_etapa', { p_proyecto: 'p4', p_etapa: 'terminado', p_sello: 1 }))[0].mover_etapa.codigo, 'DATO_INVALIDO');
   });
@@ -274,7 +314,7 @@ describir('ET-14 y ET-15 la degradación: emitir_salidas_derivadas', () => {
   });
 });
 
-describir('ET-16 a ET-18 instalación hecha ⇒ instalado (solo si la marca Dirección)', () => {
+describir('ET-16 a ET-18 instalación hecha ⇒ instalado (si la marca un área que puede marcar «instalado»: Dirección o Fabricación)', () => {
   const hecha = (proyecto, id = 'ih') => ({ p_op: { id, proyecto_id: proyecto, fecha: '2026-10-15', hora: '09:30', ventana: 'dia', duracion_min: 180, estado: 'hecha', sello: AHORA() } });
   async function conProyecto(etapa, quien, fn) {
     return conCopia(plantilla, async db => {
@@ -292,12 +332,16 @@ describir('ET-16 a ET-18 instalación hecha ⇒ instalado (solo si la marca Dire
       igual(x, etapa);
     }
   });
-  prueba('ET-17 Fabricación marca hecha con etapa «listo»: la etapa SE QUEDA en listo', async () => {
+  prueba('ET-17 Fabricación (0017) marca hecha con etapa «listo»: pasa a instalado, a su nombre (antes se quedaba en listo); en garantía no cambia', async () => {
     const x = await conProyecto('listo', 'fab', async t => {
       const r = await rpcT(t, 'instalacion_guardar', hecha('h1'));
-      return { r, e: (await t.query(`select etapa from public.proyectos where id = 'h1'`))[0].etapa };
+      return { r, e: (await t.query(`select etapa from public.proyectos where id = 'h1'`))[0].etapa,
+               b: await t.query(`select rol, titulo from public.bitacora where accion = 'etapa' and entidad_id = 'h1'`) };
     });
-    igual([x.r.ok, x.e], [true, 'listo']);
+    igual([x.r.ok, x.r.instalacion.estado, x.e], [true, 'hecha', 'instalado']);
+    igual(x.b.map(b => [b.rol, b.titulo]), [['fabricacion', 'Con cita pasó a Instalado']]);
+    const z = await conProyecto('garantia', 'fab', async t => { await rpcT(t, 'instalacion_guardar', hecha('h1')); return (await t.query(`select etapa from public.proyectos where id = 'h1'`))[0].etapa; });
+    igual(z, 'garantia');
   });
   prueba('ET-18 Dirección marca hecha con etapa «ganado»: pasa a instalado Y emite (cruzó el corte)', async () => {
     const x = await conProyecto('ganado', 'dir', async t => {
@@ -381,9 +425,9 @@ describir('ET-23 y ET-24 cancelar y la lápida', () => {
     igual([x.g.ok, x.g.codigo, x.g.proyecto_id], [false, 'DUPLICADO', 'p5']);
     igual(x.e, { etapa: 'cancelado', folio_hoja: null });
   });
-  prueba('Fabricación tampoco mueve una lápida (su origen «cancelado» no está en el rango): ROL_SIN_PERMISO', async () => {
+  prueba('Fabricación y Pagos tampoco mueven una lápida (sacar algo de «cancelado» es solo de Dirección): ROL_SIN_PERMISO', async () => {
     const db = await plantilla();
-    igual((await sesionDe(db, db.u.fab).rpc('mover_etapa', { p_proyecto: 'p5', p_etapa: 'ganado', p_sello: AHORA() }))[0].mover_etapa.codigo, 'ROL_SIN_PERMISO');
+    for (const quien of ['fab', 'pag']) igual((await sesionDe(db, db.u[quien]).rpc('mover_etapa', { p_proyecto: 'p5', p_etapa: 'ganado', p_sello: AHORA() }))[0].mover_etapa.codigo, 'ROL_SIN_PERMISO', quien);
   });
 });
 

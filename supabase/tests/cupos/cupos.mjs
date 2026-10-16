@@ -1,12 +1,13 @@
 // Cupos sin estado (R11) — A.md §8 y §10.14, casos CU-01..CU-15.
 //
-//   · `ia_cuota`        el tope de 200 consultas de IA por persona y por DÍA DE MÉXICO (hoy es el día GMT: se reinicia a las 18:00 locales);
+//   · `ia_cuota`        el tope de 50 consultas de IA por persona y por DÍA DE MÉXICO (Q-19, Elías, 2026-10-16, en 0017; antes 200; el .gs
+//                       contaba el día GMT y se reiniciaba a las 18:00 locales); quien llama puede pedir menos, nunca más;
 //   · `ia_turno`        el turno de las llaves de IA (1, 2, … 0, 1);
 //   · `verificar_cupo`  30 por folio y 400 en total por ventana de 600 s, y 60 por IP; el folio se cuenta en MAYÚSCULAS;
 //   · `contador_sembrar` siembra V-###, P-### y la secuencia del almacén por ENCIMA de lo que ya tiene la hoja: solo sube;
 //   · todas SOLO para `service_role` (las llaman las Edge Functions); Dirección, Fabricación, Pagos y `anon` reciben «permission denied».
 //
-// Las llamadas de un mismo caso van en UNA petición (`transaccion`): cada petición se deshace al terminar, así que 200 llamadas
+// Las llamadas de un mismo caso van en UNA petición (`transaccion`): cada petición se deshace al terminar, así que 50 llamadas
 // por separado no se verían unas a otras.
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, rpcT, una, sql, conCopia, como } from '../comun/semilla.js';
@@ -25,23 +26,33 @@ const T0 = '2026-10-10T18:00:00Z';                              // 12:00 en Méx
 const T_VENT = '2026-10-10T12:00:00Z';                          // el segundo exacto en que empieza una ventana de 600 s
 const SEGS = (iso, s) => new Date(Date.parse(iso) + s * 1000).toISOString();
 
-describir('CU-01 y CU-02 ia_cuota: 200 por persona y día', () => {
-  prueba('CU-01 service_role: 200 consultas ok, la 201.ª CUPO_AGOTADO (transitorio:false) con el mensaje de hoy, y el contador NO pasa de 200', async () => {
+describir('CU-01 y CU-02 ia_cuota: 50 por persona y día (0017)', () => {
+  prueba('CU-01 service_role: 50 consultas ok, la 51.ª CUPO_AGOTADO (transitorio:false) con el mensaje de hoy, y el contador NO pasa de 50', async () => {
     const db = await plantilla();
     const x = await SR(db).transaccion(async t => {
       const ok = [];
-      for (let i = 1; i <= 200; i++) ok.push(await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 }));
+      for (let i = 1; i <= 50; i++) ok.push(await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 }));
       const extra = await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
       const otraMas = await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
       const fila = (await t.query(`select n::int as n from public.contadores where clave = 'ia:' || $1::text`, [U1]))[0];
       return { ok, extra, otraMas, n: fila.n };
     });
-    igual(x.ok.every(r => r.ok === true), true, 'las 200 primeras pasan');
-    igual([x.ok[0].usadas, x.ok[199].usadas, x.ok[199].limite, x.ok[0].dia], [1, 200, 200, '20261010']);
-    igual([x.extra.ok, x.extra.codigo, x.extra.transitorio, x.extra.definitivo, x.extra.limite, x.extra.dia], [false, 'CUPO_AGOTADO', false, false, 200, '20261010']);
-    igual(x.extra.mensaje, 'Llegaste al tope de 200 consultas de IA por hoy. Mañana se reinicia.');
+    igual(x.ok.every(r => r.ok === true), true, 'las 50 primeras pasan');
+    igual([x.ok[0].usadas, x.ok[49].usadas, x.ok[49].limite, x.ok[0].dia], [1, 50, 50, '20261010']);
+    igual([x.extra.ok, x.extra.codigo, x.extra.transitorio, x.extra.definitivo, x.extra.limite, x.extra.dia], [false, 'CUPO_AGOTADO', false, false, 50, '20261010']);
+    igual(x.extra.mensaje, 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.');
     igual(x.otraMas.codigo, 'CUPO_AGOTADO', 'y las siguientes también');
-    igual(x.n, 200, 'el contador nunca pasa del tope');
+    igual(x.n, 50, 'el contador nunca pasa del tope');
+  });
+  prueba('CU-01b la base manda: con p_limite 200 (la función `ia` de antes de 0017) el tope sigue siendo 50; la 51.ª se niega igual', async () => {
+    const db = await plantilla();
+    const x = await SR(db).transaccion(async t => {
+      const r = [];
+      for (let i = 0; i < 51; i++) r.push(await rpcT(t, 'ia_cuota', { p_usuario: U1, p_limite: 200, p_ahora: T0 }));
+      return r;
+    });
+    igual([x[49].ok, x[49].usadas, x[49].limite], [true, 50, 50]);
+    igual([x[50].ok, x[50].codigo, x[50].limite, x[50].mensaje], [false, 'CUPO_AGOTADO', 50, 'Llegaste al tope de 50 consultas de IA por hoy. Mañana se reinicia.']);
   });
   prueba('CU-01 el tope es parámetro: con p_limite 3 la 4.ª se rechaza; p_limite < 1 o usuario nulo es DATO_INVALIDO', async () => {
     const db = await plantilla();
@@ -57,7 +68,7 @@ describir('CU-01 y CU-02 ia_cuota: 200 por persona y día', () => {
   prueba('CU-02 otra persona tiene su PROPIO cupo (aunque la primera ya esté en el tope)', async () => {
     const db = await plantilla();
     const x = await SR(db).transaccion(async t => {
-      for (let i = 0; i < 200; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
+      for (let i = 0; i < 50; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
       return { u1: await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 }), u2: await rpcT(t, 'ia_cuota', { p_usuario: U2, p_ahora: T0 }) };
     });
     igual([x.u1.ok, x.u1.codigo], [false, 'CUPO_AGOTADO']);
@@ -81,7 +92,7 @@ describir('CU-03 a CU-05 el día es el de MÉXICO, no el GMT', () => {
     const db = await plantilla();
     igual((await sql(db, `select interno.dia_mx('2026-10-11T00:00:00Z'::timestamptz) as d`))[0].d, '20261010');
     const x = await SR(db).transaccion(async t => {
-      for (let i = 0; i < 200; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: '2026-10-10T17:59:00Z' });
+      for (let i = 0; i < 50; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: '2026-10-10T17:59:00Z' });
       return { despues: await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: '2026-10-11T00:00:00Z' }), manana: await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: '2026-10-11T06:00:00Z' }) };
     });
     igual([x.despues.ok, x.despues.codigo, x.despues.dia], [false, 'CUPO_AGOTADO', '20261010'], 'a las 18:00 de México sigue siendo el mismo día: sigue agotado');
@@ -90,7 +101,7 @@ describir('CU-03 a CU-05 el día es el de MÉXICO, no el GMT', () => {
   prueba('CU-05 ia_cuota con p_ahora el día siguiente: usadas = 1 (ventana nueva)', async () => {
     const db = await plantilla();
     const x = await SR(db).transaccion(async t => {
-      for (let i = 0; i < 200; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
+      for (let i = 0; i < 50; i++) await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
       const agotada = await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: T0 });
       const manana = await rpcT(t, 'ia_cuota', { p_usuario: U1, p_ahora: SEGS(T0, 86400) });
       return { agotada, manana };
