@@ -40,7 +40,7 @@ declare
   u_ext uuid := gen_random_uuid();
   u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz;
+  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text;
 begin
   -- 0) Siembra, como dueño de la base: cuatro cuentas de Auth y tres membresías (la cuarta persona no es del equipo).
   insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -418,6 +418,10 @@ begin
     inf := inf || jsonb_build_object('caso', 'C58 Storage: el bucket cotizacion-imagenes no existe (falta aplicar opcional/storage.sql): no aplica', 'ok', true,
                                      'det', 'aplica supabase/opcional/storage.sql y vuelve a correr esta prueba');
   else
+    -- La condición de la política de borrar, para evaluarla como cada rol en C65 y C67 (ver allí por qué no se usa DELETE).
+    select pg_get_expr(p.polqual, p.polrelid) into q_borrar from pg_policy p
+     where p.polrelid = 'storage.objects'::regclass and p.polname = 'cotizacion_imagenes_borrar';
+    q_borrar := coalesce(q_borrar, 'false');
     insert into public.cotizaciones (empresa_id, folio_global, folio, disp, creado_por, estado, datos) values
       ('al3d', 'COT-9300@HUMO', 'COT-9300', 'HUMO', u_pag, 'pendiente', '{"proy":"Humo: imágenes de Pagos"}'),
       ('al3d', 'COT-9301@HUMO', 'COT-9301', 'HUMO', u_dir, 'pendiente', '{"proy":"Humo: imágenes de Dirección"}');
@@ -487,8 +491,11 @@ begin
       update storage.objects set metadata = '{"humo": true}'::jsonb where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-9300@HUMO/%';
       get diagnostics n = row_count;
       t := n::text;
-      delete from storage.objects where bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-9300@HUMO/%';
-      get diagnostics n = row_count;
+      -- Borrar no se prueba con DELETE: en Supabase real `protect_objects_delete` es un disparador POR SENTENCIA que rechaza
+      -- cualquier DELETE por SQL antes de mirar la política (los borrados van por la API de Storage, que sí la aplica). Se evalúa
+      -- la condición de la política de borrar, tal cual, como este rol: las filas que deja son las que la API dejaría borrar.
+      execute format('select count(*) from storage.objects where bucket_id = %L and name like %L and (%s)',
+                     'cotizacion-imagenes', 'al3d/COT-9300@HUMO/%', q_borrar) into n;
       inf := inf || jsonb_build_object('caso', 'C65 Pagos NO cambia ni borra, ni lo de su cotización (0 y 0 filas)', 'ok', t = '0' and n = 0, 'det', t || ' / ' || n::text);
     exception when others then
       inf := inf || jsonb_build_object('caso', 'C64-C65 (Pagos y sus imágenes)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
@@ -509,16 +516,15 @@ begin
     end;
     inf := inf || jsonb_build_object('caso', 'C66 la persona ajena y anon NO ven ninguna imagen (0 / 0, o permission denied)', 'ok', t in ('0 / 0', '0 / 42501'), 'det', t);
     execute 'reset role';
-    -- Borrar: solo Dirección. Según la versión, Storage no deja borrar la fila con SQL («use the Storage API»); ese error solo sale de una fila que
-    -- la política DEJÓ pasar (las que no deja, ni llegan al disparador), así que también cuenta como «Dirección borra».
+    -- Borrar: solo Dirección. Igual que en C65 se evalúa la condición de la política de borrar (no un DELETE, que el disparador por
+    -- sentencia de Supabase rechaza para todos, sin decir nada de la política).
     perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
     begin
-      delete from storage.objects where bucket_id = 'cotizacion-imagenes' and name = 'al3d/COT-9302@HUMO/img-humo-3.jpg';
-      get diagnostics n = row_count;
+      execute format('select count(*) from storage.objects where bucket_id = %L and name = %L and (%s)',
+                     'cotizacion-imagenes', 'al3d/COT-9302@HUMO/img-humo-3.jpg', q_borrar) into n;
       inf := inf || jsonb_build_object('caso', 'C67 Dirección borra una imagen (la política la deja)', 'ok', n = 1, 'det', n::text || ' fila');
     exception when others then
-      inf := inf || jsonb_build_object('caso', 'C67 Dirección borra una imagen (la política la deja)', 'ok', sqlerrm ilike '%storage api%' or sqlerrm ilike '%direct deletion%',
-                                       'det', sqlstate || ' ' || sqlerrm);
+      inf := inf || jsonb_build_object('caso', 'C67 Dirección borra una imagen (la política la deja)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
     end;
     execute 'reset role';
     select bk.public = false and bk.file_size_limit = 2097152 and bk.allowed_mime_types @> array['image/jpeg']
