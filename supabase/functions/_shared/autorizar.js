@@ -46,7 +46,7 @@ export function prepararAutorizacion(cuerpo, correo) {
   const c = limpiarCotizacion(cuerpo.cotizacion);
   if (c.error) return invalido(c.error);
   const subCalc = subtotal(c.items);
-  if (!isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
+  if (!isFinite(subCalc) || !isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
   if (!(subCalc > 0)) return invalido('Una cotización en $0 no se autoriza.');
   const precioAuth = Number(cuerpo.precioAuth || 0);
   if (!isFinite(precioAuth) || precioAuth < 0 || precioAuth > 1e9) return invalido('El precio autorizado no es un importe válido.');

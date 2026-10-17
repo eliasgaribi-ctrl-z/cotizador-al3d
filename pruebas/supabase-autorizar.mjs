@@ -199,6 +199,19 @@ eq('los topes: 80 partidas, 45 000 caracteres por celda, 120 por renglón', [Pre
   }
   eq('4000 cotizaciones al azar (' + n + ' válidas): limpieza, ajustes por partida, cada partida y sus piezas, subtotal, huella, total final, precio final, renglones del papel', malos.slice(0, 10), []);
 }
+{
+  /* Medidas que no son número o son negativas: «abc» volvía NaN el subtotal y NaN pasa el cuadre
+     (`Math.abs(NaN - x) > 0.01` es falso); un negativo restaba a escondidas. Las dos limpiezas las
+     rechazan igual, y lo que manda el teléfono —números ≥ 0, vacíos, texto numérico— sigue pasando. */
+  const conCampo = (k, v) => ({ items: [{ id: 1, tipo: 'letras', material: 'al-paint', comp: 'recta', luz: true, altura: 40, n: 8, [k]: v }] });
+  const rechaza = c => { const a = Precio.limpiarCotizacion(plano(c)), b = plano(GS.api.limpiarCotizacion(plano(c))); return [!!a.error, !!b.error]; };
+  eq('«abc», -50, "-3" y "1e999" en una medida: las dos lo rechazan',
+    [rechaza(conCampo('altura', 'abc')), rechaza(conCampo('altura', -50)), rechaza(conCampo('n', '-3')), rechaza(conCampo('pu', '1e999'))],
+    [[true, true], [true, true], [true, true], [true, true]]);
+  eq('0, "", null, "40" y 12.5: pasan en las dos',
+    [rechaza(conCampo('altura', 0)), rechaza(conCampo('ancho', '')), rechaza(conCampo('alto', null)), rechaza(conCampo('altura', '40')), rechaza(conCampo('altura', 12.5))],
+    [[false, false], [false, false], [false, false], [false, false], [false, false]]);
+}
 
 /* ============================================================================
    2. La ruta entera

@@ -169,6 +169,7 @@ export function renglonesDeTexto(s) {
 }
 
 /* ----- Lo que llega del teléfono, limpio (limpiarCotizacion, folioValido, limpiarItemsAuth) ----- */
+const CAMPOS_NUM = { altura: 1, n: 1, ancho: 1, alto: 1, tarifa: 1, pz: 1, pu: 1 };
 export function limpiarCotizacion(c) {
   if (!c || typeof c !== 'object') return { error: 'Falta la cotización.' };
   const items = Object.prototype.toString.call(c.items) === '[object Array]' ? c.items : null;
@@ -190,6 +191,11 @@ export function limpiarCotizacion(c) {
       if (v !== null && typeof v !== 'number' && typeof v !== 'string' && typeof v !== 'boolean') return { error: 'La partida ' + id + ' trae un dato raro en «' + k + '».' };
       if (typeof v === 'number' && !isFinite(v)) return { error: 'La partida ' + id + ' trae un número inválido en «' + k + '».' };
       if (typeof v === 'string' && v.length > 60) return { error: 'La partida ' + id + ' trae un texto demasiado largo en «' + k + '».' };
+      // Medidas y precios: números ≥ 0 o vacíos, igual que la hoja (COT_CAMPOS_NUM). Un «abc» volvía NaN el subtotal y pasaba el cuadre.
+      if (CAMPOS_NUM[k] && v !== null && v !== '' && typeof v !== 'boolean') {
+        const x = Number(v);
+        if (!isFinite(x) || x < 0) return { error: 'La partida ' + id + ' trae un número inválido en «' + k + '».' };
+      }
       o[k] = v;
     }
     o.desc = String(it.desc == null ? '' : it.desc).slice(0, 300);
