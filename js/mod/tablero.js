@@ -192,6 +192,12 @@ function globo(d) {
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
+  /* El marco de la mesa se va al salir. El router NO vacía la sección que se abandona —la vacía el
+     próximo montaje—, y con el despeje la salida normal de la mesa es «‹ Volver a <proyecto>», que
+     cambia de pantalla: sin esto el anidador seguía vivo y escondido, con sus Web Workers
+     calculando, hasta la siguiente visita al Tablero. Quitar el <iframe> los mata. */
+  const marco = $('pf-anid-marco');
+  if (marco) { const caja = marco.closest('.pf-marco-caja'); (caja || marco).remove(); }
   if (_cont && _oyendo) _cont.removeEventListener('click', _alClic);
   const capa = $('pf-pide');
   if (capa) capa.removeEventListener('click', alClicPide);

@@ -563,6 +563,9 @@ const abrirLaFicha = async id => {
   await p.waitForTimeout(700);
   return p.evaluate(() => {
     const f = document.getElementById('pf-ficha');
+    // La comisión y los datos viven en «Más detalles» desde el despeje de la ficha: se abre para
+    // leerlos (innerText no cuenta lo de un <details> cerrado).
+    const mas = f && f.querySelector('.pj-mas'); if (mas) mas.open = true;
     return { txt: (f && f.innerText) || '', alta: !!(f && f.querySelector('[data-hoja-alta]')),
              fuera: !!(f && f.querySelector('[data-hoja-fuera]')), quitar: !!(f && f.querySelector('[data-hoja-quitar]')) };
   });
