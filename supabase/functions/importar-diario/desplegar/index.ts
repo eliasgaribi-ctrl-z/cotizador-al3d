@@ -20,14 +20,14 @@
 //   ccaec6cbf5ffb350  js/nucleo/ingreso.js
 //   c1f6d87ded802660  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
-//   dfdd7dea32aa9f4b  scripts/importador/plan.mjs
+//   559ef3c3ff521020  scripts/importador/plan.mjs
 //   4965cf5bcce597a1  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   39675dc691bfa25c  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
-//   179c9765c8c13212  supabase/functions/importar-diario/copia.js
-//   6f9bb4b90f35e4cb  supabase/functions/importar-diario/handler.js
+//   daa0b3a4ec434855  supabase/functions/importar-diario/copia.js
+//   a7368b323502954e  supabase/functions/importar-diario/handler.js
 //   f258da7bfe7dfd34  supabase/functions/importar-diario/index.ts
 // ============================================================================
 // supabase/functions/importar-diario/index.ts
@@ -1295,6 +1295,37 @@ async function verificar(fila, clave, opciones) {
 
 // scripts/importador/plan.mjs
 var EMPRESA = "al3d";
+var MOTIVOS_AUTORIZACION = Object.freeze([
+  "firma_no_coincide",
+  "codigo_no_coincide",
+  "no_se_pudo_comprobar",
+  "sin_veredicto",
+  "veredicto_invalido",
+  "texto_distinto",
+  "fila_mal_formada",
+  "dos_vigentes",
+  "sin_comprobacion",
+  "sin_clave_en_la_hoja",
+  "sin_codigo_gs"
+]);
+function leerVeredictos(x) {
+  const no = (motivo, por) => ({ ok: false, motivo, por });
+  if (!objeto(x) || x.version !== 1) {
+    return no("sin_comprobacion", "la hoja no mandó su comprobación de firmas (puente/copia-diaria.gs de antes del 2026-10-17): se pegan los archivos nuevos y entran solas");
+  }
+  if (x.sin === "clave") return no("sin_clave_en_la_hoja", "la hoja no tiene la clave del sello en sus propiedades (SELLO_AUTORIZACION): no pudo comprobar ninguna");
+  if (x.sin === "codigo") return no("sin_codigo_gs", "la hoja no encontró las funciones del sello de Código.gs: no comprobó ninguna");
+  if (!Array.isArray(x.filas)) return no("sin_comprobacion", "la comprobación de firmas de la hoja no trae sus filas");
+  const porFila = /* @__PURE__ */ new Map();
+  const repetidas = /* @__PURE__ */ new Set();
+  for (const v of x.filas) {
+    if (!objeto(v) || !Number.isInteger(v.fila) || v.fila < 2) continue;
+    if (porFila.has(v.fila)) repetidas.add(v.fila);
+    porFila.set(v.fila, v);
+  }
+  for (const f of repetidas) porFila.delete(f);
+  return { ok: true, porFila };
+}
 var ESTATUS = ["FABRICACION", "REPARANDO", "COBRANDO", "LIQUIDADO"];
 var CUENTAS = ["Elias BBVA", "Constru BNT", "Moni MPago", "Rul HSBC", "Tatis BNT"];
 var TIPOS = [
@@ -2290,8 +2321,17 @@ async function planear(entrada) {
   const auts = [];
   const pestAut = P2["Autorizaciones"];
   const filasAut = filas(pestAut).filter((x) => !vacia(x.celdas[1]));
-  if (filasAut.length && !entrada.clave) {
+  const conVeredicto = !entrada.clave && entrada.aceptarVeredictosDeLaHoja === true;
+  const veredictos = conVeredicto ? leerVeredictos(vol.autorizaciones_comprobadas) : null;
+  const fuera = [];
+  const noEntra = (fila, folio, motivo, por) => {
+    if (conVeredicto) fuera.push({ fila, folio, motivo, por });
+    else rep.rechazar("Autorizaciones", fila, folio, por + ": no entra y se queda en la hoja congelada");
+  };
+  if (filasAut.length && !entrada.clave && !conVeredicto) {
     rep.no_importado.push({ que: "Autorizaciones", n: filasAut.length, por: "falta la clave del sello (AL3D_SELLO_CLAVE): sin ella no se puede comprobar que cada fila sea lo que se firmó" });
+  } else if (filasAut.length && conVeredicto && !veredictos.ok) {
+    rep.no_importado.push({ que: "Autorizaciones", n: filasAut.length, por: veredictos.por, motivos: { [veredictos.motivo]: filasAut.length } });
   } else {
     for (const { fila, celdas } of filasAut) {
       const t = (i) => texto(celdas[i]);
@@ -2328,44 +2368,86 @@ async function planear(entrada) {
       }
       const malo = !RE_FOLIO_GLOBAL.test(reg.folio_global) ? "folio sin aparato" : !RE_TS_ISO.test(reg.ts_iso) ? "la hora no es ISO" : !/^[0-9a-f]{64}$/.test(reg.firma) ? "firma mal formada" : reg.codigo.replace(/-/g, "") !== reg.firma.slice(0, 12).toUpperCase() ? "el código no es el inicio de la firma" : !reg.autorizo ? "falta quién autorizó" : null;
       if (malo) {
-        rep.rechazar("Autorizaciones", fila, reg.folio_global, malo + ": no entra y se queda en la hoja congelada");
+        noEntra(fila, reg.folio_global, "fila_mal_formada", malo);
         continue;
       }
-      let r;
+      const filaFirmada = {
+        folio_global: reg.folio_global,
+        ts_iso: reg.ts_iso,
+        proyecto: reg.proyecto,
+        sub_calc: reg.sub_calc_txt,
+        precio_auth: reg.precio_auth_txt,
+        total: reg.total_txt,
+        items_auth: reg.items_auth,
+        huella: reg.huella,
+        autorizo: reg.autorizo,
+        renglones: reg.renglones,
+        codigo: reg.codigo,
+        firma: reg.firma,
+        estado: reg.estado
+      };
+      if (!conVeredicto) {
+        let r;
+        try {
+          r = await verificar(filaFirmada, entrada.clave);
+        } catch (e) {
+          r = { valida: false, motivo: e.message };
+        }
+        if (!r.valida) {
+          rep.rechazar("Autorizaciones", fila, reg.folio_global, `la firma no cuadra (${r.motivo}): no entra y se queda en la hoja congelada`);
+          continue;
+        }
+        reg.codificacion = r.codificacion === "ascii" ? "utf-8" : r.codificacion;
+        auts.push(reg);
+        continue;
+      }
+      const v = veredictos.porFila.get(fila);
+      let canon2 = null;
       try {
-        r = await verificar({
-          folio_global: reg.folio_global,
-          ts_iso: reg.ts_iso,
-          proyecto: reg.proyecto,
-          sub_calc: reg.sub_calc_txt,
-          precio_auth: reg.precio_auth_txt,
-          total: reg.total_txt,
-          items_auth: reg.items_auth,
-          huella: reg.huella,
-          autorizo: reg.autorizo,
-          renglones: reg.renglones,
-          codigo: reg.codigo,
-          firma: reg.firma,
-          estado: reg.estado
-        }, entrada.clave);
-      } catch (e) {
-        r = { valida: false, motivo: e.message };
+        canon2 = canonDe(registroDeFila(filaFirmada));
+      } catch (_) {
+        canon2 = null;
       }
-      if (!r.valida) {
-        rep.rechazar("Autorizaciones", fila, reg.folio_global, `la firma no cuadra (${r.motivo}): no entra y se queda en la hoja congelada`);
+      if (!v) {
+        noEntra(fila, reg.folio_global, "sin_veredicto", "la hoja no dijo si su firma cuadra");
         continue;
       }
-      reg.codificacion = r.codificacion === "ascii" ? "utf-8" : r.codificacion;
+      if (v.firma_ok !== true) {
+        const m = MOTIVOS_AUTORIZACION.includes(v.motivo) ? v.motivo : "firma_no_coincide";
+        noEntra(fila, reg.folio_global, m, `la hoja dice que su firma no cuadra (${m})`);
+        continue;
+      }
+      if (!CODIFICACIONES.includes(v.codificacion) || typeof v.canon !== "string") {
+        noEntra(fila, reg.folio_global, "veredicto_invalido", "el veredicto de la hoja no tiene la forma esperada");
+        continue;
+      }
+      if (canon2 === null || v.canon !== canon2) {
+        noEntra(fila, reg.folio_global, "texto_distinto", "lo que se guardaría no es EXACTAMENTE el texto que la hoja comprobó (se firmaría una cosa y se guardaría otra)");
+        continue;
+      }
+      reg.codificacion = v.codificacion;
       auts.push(reg);
     }
     const porFolio2 = /* @__PURE__ */ new Map();
     for (const a of auts) (porFolio2.get(a.folio_global) || porFolio2.set(a.folio_global, []).get(a.folio_global)).push(a);
     for (const [fg, lista] of porFolio2) {
       const vig = lista.filter((a) => a.estado === "vigente");
-      if (vig.length > 1) {
-        rep.conflicto("dos autorizaciones vigentes", fg, `filas ${vig.map((a) => a.fila_hoja).join(", ")}: queda vigente la ${vig.at(-1).fila_hoja}, las demás como superadas`);
-        for (const a of vig.slice(0, -1)) a.estado = "superada";
+      if (vig.length <= 1) continue;
+      if (conVeredicto) {
+        for (const a of lista) {
+          noEntra(a.fila_hoja, fg, "dos_vigentes", "su folio tiene dos autorizaciones vigentes en la hoja: se decide en la hoja");
+          auts.splice(auts.indexOf(a), 1);
+        }
+        continue;
       }
+      rep.conflicto("dos autorizaciones vigentes", fg, `filas ${vig.map((a) => a.fila_hoja).join(", ")}: queda vigente la ${vig.at(-1).fila_hoja}, las demás como superadas`);
+      for (const a of vig.slice(0, -1)) a.estado = "superada";
+    }
+    if (fuera.length) {
+      fuera.sort((a, b) => a.fila - b.fila);
+      const motivos = {};
+      for (const x of fuera) motivos[x.motivo] = (motivos[x.motivo] || 0) + 1;
+      rep.no_importado.push({ que: "Autorizaciones", n: fuera.length, por: "la copia diaria no las importa y se quedan en la hoja (no frenan la copia): " + Object.entries(motivos).map(([k, n]) => k + " " + n).join(", "), filas: fuera.map((x) => x.fila), motivos, detalle: fuera });
     }
     T.autorizaciones.push(...auts.map((a) => ({ empresa_id: empresa2, ...a, origen: "importada_hoja", clave_id: "k1" })));
   }
@@ -3164,10 +3246,22 @@ function resumenDelPlan(plan, volcado) {
     },
     plan: Object.fromEntries([...TABLAS_PLAN, "filas_de_ventas_leidas", "historicas", "con_cotizacion"].map((k) => [k, entero(res[k])])),
     avisos: Array.isArray(rep.avisos) ? rep.avisos.length : 0,
-    no_importado: (rep.no_importado || []).map((x) => ({ que: RE_TEMA.test(String(x.que)) ? x.que : "otro", n: entero(x.n) })),
+    no_importado: (rep.no_importado || []).map(noImportado),
     conflictos_plan: contar(rep.conflictos || [], (c) => ({ tema: RE_TEMA.test(String(c.tema)) ? c.tema : "otro" }), "folios", (c) => RE_FOLIO.test(String(c.que)) ? c.que : null),
     rechazos: contar(rep.rechazos || [], (r) => ({ donde: RE_TEMA.test(String(r.donde)) || r.donde === "almacen_movimientos" ? r.donde : "otro" }), "filas", filaDeRechazo)
   };
+}
+function noImportado(x) {
+  const o = { que: RE_TEMA.test(String(x.que)) ? x.que : "otro", n: entero(x.n) };
+  if (Array.isArray(x.filas)) o.filas = x.filas.filter((f) => Number.isInteger(f) && f > 0).slice(0, TOPE_LISTA);
+  if (x.motivos && typeof x.motivos === "object") {
+    o.motivos = {};
+    for (const [k, n] of Object.entries(x.motivos)) {
+      const m = MOTIVOS_AUTORIZACION.includes(k) ? k : "otro";
+      o.motivos[m] = (o.motivos[m] || 0) + entero(n);
+    }
+  }
+  return o;
 }
 function filaDeRechazo(r) {
   if (Number.isInteger(r.fila) && r.fila > 0) return r.fila;
@@ -3388,12 +3482,13 @@ async function manejar(peticion, deps) {
     if (malo) return responder(400, sobreDeError("DATO_INVALIDO", malo));
     let plan;
     try {
-      plan = await planear({ volcado, telefonos: [], clave: null, semilla: deps.semilla });
+      plan = await planear({ volcado, telefonos: [], clave: null, semilla: deps.semilla, aceptarVeredictosDeLaHoja: true });
     } catch (_) {
       return responder(400, sobreDeError("DATO_INVALIDO", "El importador no pudo leer el volcado."));
     }
     base = deps.abrirBase(url);
     const r = await copiar({ base, plan, volcado, ahora: deps.ahora, inicio });
+    const sinAut = (plan.reporte.no_importado || []).find((x) => x.que === "Autorizaciones");
     const res = {
       id: r.id,
       fecha: r.fecha,
@@ -3403,7 +3498,8 @@ async function manejar(peticion, deps) {
       conflictos: r.conflictos,
       rechazos: r.rechazos,
       ventas: (plan.reporte.resumen || {}).filas_de_ventas_leidas || 0,
-      duracion_ms: r.duracion_ms
+      duracion_ms: r.duracion_ms,
+      autorizaciones: { comprobadas: plan.tablas.autorizaciones.length, no_entran: sinAut ? Number(sinAut.n) || 0 : 0 }
     };
     registrar(deps, FUNCION, r.error ? "error" : "info", "copia", { ...res, ...r.error ? { error: r.error } : {} }, secretos);
     if (r.error) {

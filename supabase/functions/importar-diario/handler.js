@@ -10,7 +10,8 @@
    ENTRADA   POST con el secreto en la cabecera  x-importar-secreto  (IMPORTAR_SECRETO, 32+ caracteres)
              y, de cuerpo, el volcado de la hoja en el formato de puente/volcado-para-importar.gs
              («al3d-volcado» v1), que arma y manda puente/copia-diaria.gs. Hasta 15 MB.
-   SALIDA    200 { ok:true, id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, ventas, duracion_ms, motivo }
+   SALIDA    200 { ok:true, id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, ventas, duracion_ms, motivo,
+                   autorizaciones:{ comprobadas, no_entran } }
                  aplicado:false cuando el plan trae conflictos o filas que no entran (no se escribe nada; se anota igual)
              502 { ok:false, codigo:'BASE_RECHAZO', … , error:{codigo, tabla?, restriccion?} }  la copia tronó en la base y se
                  deshizo ENTERA; el fallo quedó anotado en cuadre_diario
@@ -22,8 +23,15 @@
 
    Lo que NUNCA sale, ni en la respuesta ni en el registro: un nombre, un teléfono o un importe de un
    cliente (solo cuentas, folios V-### y columnas), el secreto y la dirección de la base (que lleva la
-   contraseña). Las autorizaciones NO se importan aquí (la copia no usa la clave del sello): siguen como
-   en la importación del 2026-10-16, esperando la clave (scripts/importador/LEEME.md).
+   contraseña).
+
+   LAS AUTORIZACIONES (decidido 2026-10-17 para que Elías no tenga que mover secretos): la clave del sello
+   no sale de las propiedades del script de la hoja. La hoja comprueba cada fila de «Autorizaciones» con
+   ella (copia-diaria.gs, con las funciones de Código.gs que usa /verificar) y el volcado trae por fila
+   { firma_ok, codificacion, canon }. Esta función —y solo ella, ya con el secreto comprobado— le pide al
+   importador que crea ese veredicto (aceptarVeredictosDeLaHoja). Entran las firma_ok:true cuyo texto
+   firmado es EXACTAMENTE el que se guarda; las demás se cuentan en `autorizaciones.no_entran` y en el
+   renglón de cuadre_diario (número de fila y motivo), sin frenar la copia.
 
    deps: { ahora, entorno, semilla, abrirBase(url) → { transaccion, cerrar }, registrar? }
    ============================================================================ */
@@ -103,16 +111,20 @@ export async function manejar(peticion, deps) {
     const malo = problemaDelVolcado(volcado, inicio);
     if (malo) return responder(400, sobreDeError('DATO_INVALIDO', malo));
 
-    /* 3. El plan: el MISMO del importador de la fase 2, sin teléfonos y sin la clave del sello (como el 2026-10-16). */
+    /* 3. El plan: el MISMO del importador de la fase 2, sin teléfonos y sin la clave del sello. Las autorizaciones entran con el
+          veredicto que la hoja calculó con SU clave (copia-diaria.gs): esta función es la única que lo acepta, y solo después de
+          comprobar el secreto (decidido 2026-10-17 para que Elías no tenga que mover secretos). */
     let plan;
-    try { plan = await planear({ volcado, telefonos: [], clave: null, semilla: deps.semilla }); }
+    try { plan = await planear({ volcado, telefonos: [], clave: null, semilla: deps.semilla, aceptarVeredictosDeLaHoja: true }); }
     catch (_) { return responder(400, sobreDeError('DATO_INVALIDO', 'El importador no pudo leer el volcado.')); }
 
     /* 4. La copia y su cuadre, en la base. */
     base = deps.abrirBase(url);
     const r = await copiar({ base, plan, volcado, ahora: deps.ahora, inicio });
+    const sinAut = (plan.reporte.no_importado || []).find(x => x.que === 'Autorizaciones');
     const res = { id: r.id, fecha: r.fecha, aplicado: r.aplicado, cuadra: r.cuadra, diferencias: r.diferencias, conflictos: r.conflictos,
-      rechazos: r.rechazos, ventas: (plan.reporte.resumen || {}).filas_de_ventas_leidas || 0, duracion_ms: r.duracion_ms };
+      rechazos: r.rechazos, ventas: (plan.reporte.resumen || {}).filas_de_ventas_leidas || 0, duracion_ms: r.duracion_ms,
+      autorizaciones: { comprobadas: plan.tablas.autorizaciones.length, no_entran: sinAut ? Number(sinAut.n) || 0 : 0 } };
     registrar(deps, FUNCION, r.error ? 'error' : 'info', 'copia', { ...res, ...(r.error ? { error: r.error } : {}) }, secretos);
     if (r.error) {
       return responder(502, { ...sobreDeError('BASE_RECHAZO', 'La base rechazó la copia y se deshizo entera: no se escribió nada. El fallo quedó anotado en cuadre_diario.'),

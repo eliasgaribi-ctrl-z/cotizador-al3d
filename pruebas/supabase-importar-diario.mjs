@@ -22,7 +22,7 @@ import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'no
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { register } from 'node:module';
 import vm from 'node:vm';
@@ -406,7 +406,7 @@ function formatear(d, tz, patron) {
   return String(patron).replace('yyyy', p.year).replace('MM', p.month).replace('dd', p.day).replace('HH', p.hour).replace('mm', p.minute);
 }
 /** La hoja de mentiras para el .gs: pestañas como matrices; escribir en ellas truena. */
-function libroFalso() {
+function libroFalso(extra = {}) {
   const fecha = (s, h = '00:00') => new Date(s + 'T' + h + ':00-06:00');
   const tabs = {
     'Ventas': [['Folio', 'Proyecto', 'Estatus', 'Cuenta', 'Tipo', 'IVA', 'Subtotal'], ['V-001', 'PersonaGs - NegocioGs', 'COBRANDO', 'Elias BBVA', 'Rotulacion de vinil', 'No', 1500.5],
@@ -415,6 +415,7 @@ function libroFalso() {
     'Accesos': [['Correo', 'Rol', 'Nota'], ['dir@al3d.test', 'direccion', ''], ['x', true, new Date(NaN)]],
     'Bitácora del puente': [['Cuándo', 'Rol', 'Folio'], [fecha('2026-09-01'), 'direccion', 'V-002']],
     'Pestaña que no se manda': [['nada'], ['secreto']],
+    ...extra,
   };
   const escribir = () => { throw new Error('la copia NO escribe en la hoja'); };
   const hoja = (nombre, m) => {
@@ -425,30 +426,68 @@ function libroFalso() {
       appendRow: escribir, deleteRow: escribir, insertRowsAfter: escribir };
   };
   const leidas = [];
-  return { leidas, getSheetByName: n => (tabs[n] ? (leidas.push(n), hoja(n, tabs[n])) : null), getSpreadsheetTimeZone: () => 'America/Mexico_City', getName: () => 'Finanzas AL3D (de mentiras)',
+  return { tabs, leidas, getSheetByName: n => (tabs[n] ? (leidas.push(n), hoja(n, tabs[n])) : null), getSpreadsheetTimeZone: () => 'America/Mexico_City', getName: () => 'Finanzas AL3D (de mentiras)',
     insertSheet: escribir };
 }
-function cargarGs(fuente, { props = {}, respuesta = { status: 200, texto: '{}' }, conPuenteVersion = true, falloFetch = null } = {}) {
-  const reg = { logs: [], fetch: [], orden: [], drive: [] };
+/* El Utilities de Apps Script que hace falta: computeHmacSha256Signature como el de VERDAD (US-ASCII con un «?» por cada carácter
+   que no lo sea, bytes con signo; comprobado el 2026-10-10, pruebas/datos/hmac-apps-script-real.json y pruebas/supabase-sello.mjs),
+   computeDigest sobre bytes (con signo, como getContent()) y newBlob. */
+const asciiInterr = s => Uint8Array.from([...String(s)].map(c => (c.codePointAt(0) < 128 ? c.codePointAt(0) : 63)));
+const aSigno = buf => Array.from(buf, b => (b > 127 ? b - 256 : b));
+const sinSigno = a => Buffer.from(Array.from(a, b => (b + 256) % 256));
+const UTILITIES = {
+  formatDate: formatear,
+  DigestAlgorithm: { SHA_256: 'sha256' },
+  Charset: { UTF_8: 'utf8' },
+  computeHmacSha256Signature: (valor, clave) => aSigno(createHmac('sha256', asciiInterr(clave)).update(asciiInterr(valor)).digest()),
+  computeDigest: (alg, valor) => { if (!Array.isArray(valor)) throw new Error('el doble solo sabe digerir bytes'); return aSigno(createHash(alg).update(sinSigno(valor)).digest()); },
+  newBlob: (bytes, tipo, nombre) => ({ bytes, tipo, nombre, getBytes: () => bytes }),
+};
+/** Una respuesta de UrlFetchApp: status, texto o bytes (con signo, como getContent()) y cabeceras. */
+function respuestaFalsa({ status = 200, texto = '', bytes = null, cabeceras = {} } = {}) {
+  const b = bytes || aSigno(Buffer.from(texto, 'utf8'));
+  return { getResponseCode: () => status, getContentText: () => (bytes ? sinSigno(bytes).toString('utf8') : texto), getContent: () => b, getHeaders: () => ({ ...cabeceras }) };
+}
+/**
+ * Un .gs (o varios, en orden, en el MISMO contexto: así comparten el ámbito global como los archivos de un proyecto de Apps
+ * Script) con los servicios de mentiras. `rutas(u, o)` contesta lo que no es la función (Drive); `drive` es el DriveApp.
+ */
+function cargarGs(fuente, { props = {}, respuesta = { status: 200, texto: '{}' }, conPuenteVersion = true, falloFetch = null, tabs = {}, rutas = null, drive = null } = {}) {
+  const reg = { logs: [], fetch: [], orden: [], drive: [], permisos: [] };
   const triggers = [{ fn: 'enviarResumen' }, { fn: 'alEditar' }];
-  const libro = libroFalso();
+  const libro = libroFalso(tabs);
+  const driveQueAnota = new Proxy({}, { get: (_, metodo) => (...args) => {
+    if (metodo === 'createFile') { reg.drive.push({ nombre: args[0], contenido: args[1] }); return { getUrl: () => 'https://drive.falso/archivo' }; }
+    reg.drive.push({ metodo }); throw new Error('no hay Drive en esta prueba');
+  } });
   const ctx = vm.createContext({
     SpreadsheetApp: { getActive: () => libro },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: () => { throw new Error('no escribe propiedades'); } }) },
-    Utilities: { formatDate: formatear },
+    Utilities: UTILITIES,
     Logger: { log: x => reg.logs.push(String(x)) },
+    console: { log: x => reg.logs.push(String(x)), error: x => reg.logs.push(String(x)) },
     LockService: { getScriptLock: () => ({ waitLock: () => reg.orden.push('candado'), tryLock: () => (reg.orden.push('candado'), true), releaseLock: () => reg.orden.push('soltar') }) },
-    UrlFetchApp: { fetch: (u, o) => { reg.orden.push('mandar'); reg.fetch.push({ u, o }); if (falloFetch) throw falloFetch; return { getResponseCode: () => respuesta.status, getContentText: () => respuesta.texto }; } },
+    UrlFetchApp: { fetch: (u, o) => {
+      reg.orden.push('mandar'); reg.fetch.push({ u, o });
+      if (falloFetch) throw falloFetch;
+      const otra = rutas ? rutas(u, o || {}) : null;
+      if (otra) return otra;
+      return respuesta.getResponseCode ? respuesta : respuestaFalsa(respuesta);
+    } },
     ScriptApp: {
+      AuthMode: { FULL: 'FULL' }, WeekDay: { SUNDAY: 'SUNDAY' },
+      getOAuthToken: () => 'token-FALSO-de-la-hoja',
+      requireScopes: (modo, alcances) => { reg.permisos.push(alcances.slice()); },
       getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn, _t: t })),
       deleteTrigger: x => { const i = triggers.indexOf(x._t); if (i >= 0) triggers.splice(i, 1); },
       newTrigger: fn => { const t = { fn, cadena: [] }; const b = { timeBased: () => (t.cadena.push('timeBased'), b), atHour: h => (t.cadena.push('atHour:' + h), b),
-        everyDays: n => (t.cadena.push('everyDays:' + n), b), inTimezone: z => (t.cadena.push('inTimezone:' + z), b), create: () => { triggers.push(t); return {}; } }; return b; },
+        everyDays: n => (t.cadena.push('everyDays:' + n), b), onWeekDay: d => (t.cadena.push('onWeekDay:' + d), b), inTimezone: z => (t.cadena.push('inTimezone:' + z), b),
+        create: () => { triggers.push(t); return {}; } }; return b; },
     },
-    DriveApp: { createFile: (nombre, contenido) => { reg.drive.push({ nombre, contenido }); return { getUrl: () => 'https://drive.falso/archivo' }; } },
+    DriveApp: drive || driveQueAnota,
     ...(conPuenteVersion ? { PUENTE_VERSION: 'puente-sheets-14' } : {}),
   });
-  vm.runInContext(fuente, ctx, { filename: 'gs' });
+  for (const f of [].concat(fuente)) vm.runInContext(f, ctx, { filename: 'gs' });
   return { ctx, reg, triggers, libro };
 }
 const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/functions/v1/importar-diario', IMPORTAR_SECRETO: SECRETO };
@@ -475,8 +514,9 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   const v = cargarGs(VOL_GS, {});
   v.ctx.volcarParaImportar();
   const deDrive = JSON.parse(v.reg.drive[0].contenido);
-  const sinHora = x => ({ ...x, hecho: 'x' });
-  eq('lo que manda es EXACTAMENTE el volcado de volcado-para-importar.gs (salvo la hora en que se hizo)', sinHora(mandado), sinHora(deDrive));
+  const sinHora = x => { const { autorizaciones_comprobadas: _, ...resto } = x; return { ...resto, hecho: 'x' }; };
+  eq('lo que manda es EXACTAMENTE el volcado de volcado-para-importar.gs (salvo la hora en que se hizo y la comprobación de las firmas)', sinHora(mandado), sinHora(deDrive));
+  eq('sin Código.gs junto (aquí está solo): no comprueba ninguna firma y lo dice', mandado.autorizaciones_comprobadas, { version: 1, filas: [], sin: 'codigo' });
   eq('las mismas pestañas en los dos archivos', /var COPIA_PESTANAS = (\[[\s\S]*?\]);/.exec(GS)[1].replace(/\s+/g, ' '), /var VOLCADO_PESTANAS = (\[[\s\S]*?\]);/.exec(VOL_GS)[1].replace(/\s+/g, ' '));
   eq('con fechas como {$fecha,$hora,$ms} en la zona de la hoja, y una fecha inválida como celda vacía', [mandado.pestanas['Abonos comisión'][1][3].$fecha, mandado.pestanas['Abonos comisión'][1][3].$hora, mandado.pestanas['Accesos'][2][2]],
     ['2026-09-15', '10:30', '']);
@@ -515,6 +555,127 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   eq('y todos llevan su prefijo (o son las tres que se eligen en el editor)', [...propios].filter(n => !/^(copia|Copia|COPIA_)/.test(n) && !['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].includes(n)), []);
   cierto('las tres que se eligen en el editor no terminan en _ (Apps Script esconde esas)', ['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].every(n => propios.has(n)));
   cierto('y no usa nada que escriba: ni setValue(s), ni appendRow, ni DriveApp, ni setProperty', !/setValues?\(|appendRow|DriveApp|setProperty|deleteProperty/.test(GS.replace(/\/\*[\s\S]*?\*\//g, '')));
+}
+
+/* ============================================================================ */
+seccion('9 bis. LAS FIRMAS DE «AUTORIZACIONES», COMPROBADAS DENTRO DE LA HOJA — Código.gs real + copia-diaria.gs en el mismo vm, clave FALSA');
+{
+  const CLAVE = 'CLAVE-FALSA-SOLO-PARA-PRUEBAS-0000';
+  const PROPS_SELLO = { ...PROPS, SELLO_AUTORIZACION: CLAVE };
+  /* Las filas como las deja autorizar() de Código.gs (17 columnas, getValues()), firmadas con SU firmar() en el mismo contexto. */
+  const base = (o) => {
+    const v = new Array(17).fill('');
+    Object.assign(v, { 0: o.ts, 1: o.folio, 2: o.proyecto, 3: 'Cliente de mentiras', 4: o.sub ?? 12500, 5: o.precio ?? 0, 6: o.total ?? 14500, 7: 0, 8: o.items ?? '',
+      9: o.huella ?? 'c|1:Letras~acrilico', 10: 'dir@al3d.test', 11: 'pag@al3d.test', 14: o.estado ?? 'vigente', 15: '', 16: o.renglones ?? '' });
+    return v;
+  };
+  const especies = [
+    { folio: 'COT-0101@K7QM', ts: '2026-09-01T16:00:00.000Z', proyecto: 'Tacos Ana' },                                                  // 2: v1, todo ASCII
+    { folio: 'COT-0102@K7QM', ts: '2026-09-02T16:00:00.000Z', proyecto: 'Taquería «El Güero»', items: '1:500.00',
+      renglones: '[["Letras 3D · 8 × 40 cm «Acrílico»",8,12500]]' },                                                                     // 3: v2 con acentos, ·, × y «»
+    { folio: 'COT-0103@K7QM', ts: '2026-09-03T16:00:00.000Z', proyecto: 'Óptica Luz', estado: 'superada' },                              // 4: superada, buena
+    { folio: 'COT-0104@K7QM', ts: '2026-09-04T16:00:00.000Z', proyecto: 'Total movido', alterar: v => { v[6] = 15500; } },               // 5: el total, a mano
+    { folio: 'COT-0105@K7QM', ts: '2026-09-05T16:00:00.000Z', proyecto: 'Nombre', alterar: v => { v[2] = 'Nombre cambiado'; } },          // 6: el negocio, a mano
+    { folio: 'COT-0106@K7QM', ts: '2026-09-06T16:00:00.000Z', proyecto: 'Código', alterar: v => { v[12] = 'AAAA-BBBB-CCCC'; } },          // 7: el código impreso
+    { folio: 'COT-0107@K7QM', ts: '2026-09-07T16:00:00.000Z', proyecto: 'Hora hecha fecha', alterar: v => { v[0] = new Date(v[0]); } },   // 8: la hoja la volvió fecha
+  ];
+  const conCodigo = (props = PROPS_SELLO, o = {}, mas = []) => {
+    const g = cargarGs([PUENTE_GS, GS], { props, ...o });
+    const filasAut = especies.concat(mas).map(e => {
+      const v = base(e);
+      const firma = g.ctx.firmar(g.ctx.registroDeFila(v), CLAVE);
+      v[13] = firma; v[12] = g.ctx.codigoDe(firma);
+      if (e.alterar) e.alterar(v);
+      return v;
+    });
+    filasAut.push(base({ folio: '', ts: '', proyecto: 'renglón a medias, sin folio' }));                                                 // 9: no es una autorización
+    g.libro.tabs['Autorizaciones'] = [['Cuándo (ISO)', 'Folio', 'Proyecto', 'Cliente', 'Subtotal calculado', 'Precio autorizado (neto)', 'Total', 'Ajuste %',
+      'Ajustes por partida', 'Huella', 'Autorizó', 'Solicitó', 'Código', 'Firma', 'Estado', 'Nota', 'Renglones'], ...filasAut];
+    return g;
+  };
+
+  const g = conCodigo();
+  g.ctx.copiarHojaASupabase();
+  const textoMandado = g.reg.fetch[0].o.payload;
+  const mandado = JSON.parse(textoMandado);
+  const ver = mandado.autorizaciones_comprobadas;
+  eq('un veredicto por fila con folio (la 9 no lo tiene): buenas la 2, 3 y 4; las alteradas a mano, no, con su motivo',
+    ver.filas.map(f => [f.fila, f.firma_ok, f.firma_ok ? f.codificacion : f.motivo]),
+    [[2, true, 'ascii-?'], [3, true, 'ascii-?'], [4, true, 'ascii-?'], [5, false, 'firma_no_coincide'], [6, false, 'firma_no_coincide'], [7, false, 'codigo_no_coincide'], [8, false, 'firma_no_coincide']]);
+  eq('las buenas llevan el texto que se firmó (canon de Código.gs); las malas, nada más que su motivo',
+    [ver.filas.filter(f => f.firma_ok).every(f => typeof f.canon === 'string' && f.canon.startsWith('AL3D-AUTH-v')), ver.filas.filter(f => !f.firma_ok).every(f => Object.keys(f).sort().join() === 'fila,firma_ok,motivo')],
+    [true, true]);
+  eq('NUNCA la clave: ni en lo que se manda (tal cual o escapada), ni en el registro, ni una firma recalculada de las malas',
+    [textoMandado.includes(CLAVE), textoMandado.includes(JSON.stringify(CLAVE).slice(1, -1)), g.reg.logs.join('\n').includes(CLAVE),
+      ver.filas.some(f => 'firma' in f || 'clave' in f || 'secreto' in f)], [false, false, false, false]);
+  eq('y la comprobación se hizo con el candado puesto, antes de mandar (lee una sola vez)', g.reg.orden, ['candado', 'soltar', 'mandar']);
+  const cg = vm.runInContext('copiaHayNotario_()', g.ctx);
+  cierto('copiaHayNotario_ ve las funciones de Código.gs desde el otro archivo (ámbito global compartido)', cg === true);
+
+  /* Lo que mandó la hoja, a la función (con un volcado de 220 ventas que cuadra, para ver que lo de las firmas no frena nada). */
+  const vol = { ...VOLCADO, pestanas: { ...VOLCADO.pestanas, 'Autorizaciones': mandado.pestanas['Autorizaciones'] }, autorizaciones_comprobadas: ver };
+  const b = baseFalsa();
+  const r = await llamar({ base: b, cuerpo: JSON.stringify(vol) });
+  eq('la función: aplicada y CUADRA; entran las 3 buenas, 4 no entran y NO frenan la copia (ni rechazos ni conflictos)',
+    [r.status, r.c.aplicado, r.c.cuadra, r.c.rechazos, r.c.conflictos, r.c.autorizaciones], [200, true, true, 0, 0, { comprobadas: 3, no_entran: 4 }]);
+  const sqlCopia = b.tx[0].find(x => x.e && clase(x.e) === 'importador').e;
+  const firmaDe = n => mandado.pestanas['Autorizaciones'][n - 1][13];
+  eq('al SQL van las firmas de las filas 2, 3 y 4, y ninguna de las otras', [2, 3, 4, 5, 6, 7, 8].map(n => sqlCopia.includes(firmaDe(n))), [true, true, true, false, false, false, false]);
+  const res = JSON.parse(b.insertados[0][6]);
+  eq('el renglón de cuadre_diario dice qué filas no entraron y por qué (lista cerrada), sin folios ni nombres; la 7 (código cambiado) ya la para el importador antes',
+    res.no_importado.find(x => x.que === 'Autorizaciones'), { que: 'Autorizaciones', n: 4, filas: [5, 6, 7, 8], motivos: { firma_no_coincide: 3, fila_mal_formada: 1 } });
+  eq('ni el renglón, ni la respuesta, ni el registro llevan nombres, importes, el secreto ni la clave',
+    [fugas(b.insertados[0][6] + r.texto + r.reg.join('\n')), (b.insertados[0][6] + r.texto + r.reg.join('')).includes(CLAVE), /COT-01/.test(b.insertados[0][6])], [[], false, false]);
+  const linea = g.ctx.copiaLinea_(200, r.c, 220, 4.2);
+  cierto('la línea del registro de la hoja lo cuenta: «3 autorizaciones con firma buena (4 no entran…)»', /3 autorizaciones con firma buena \(4 no entran/.test(linea));
+
+  /* Lo que se guardaría es lo que se firmó: sello.js (otra implementación, WebCrypto) lo recalcula con la clave desde la fila del plan. */
+  const plan = await planear({ volcado: vol, semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  const S = await import(url('supabase/functions/_shared/sello.js'));
+  const comoBase = a => ({ ...a, sub_calc: a.sub_calc_txt, precio_auth: a.precio_auth_txt, total: a.total_txt });
+  const v = [];
+  for (const a of plan.tablas.autorizaciones) v.push([a.fila_hoja, a.codificacion, (await S.verificar(comoBase(a), CLAVE)).valida]);
+  eq('cada autorización que entra se verifica después con la clave, desde lo que guardaría la base, con SU codificación (ascii-?)', v,
+    [[2, 'ascii-?', true], [3, 'ascii-?', true], [4, 'ascii-?', true]]);
+
+  /* El importador de línea de comandos NO cree el veredicto: sin la clave, ninguna entra. */
+  const cli = await planear({ volcado: vol, semilla: SEMILLA });
+  eq('planear sin aceptarVeredictosDeLaHoja (como scripts/importar-hoja.mjs): ninguna entra; «falta la clave»', [cli.tablas.autorizaciones.length, cli.reporte.no_importado.find(x => x.que === 'Autorizaciones').n,
+    /falta la clave/.test(cli.reporte.no_importado.find(x => x.que === 'Autorizaciones').por)], [0, 7, true]);
+  cierto('y scripts/importar-hoja.mjs llama planear solo con volcado, teléfonos y la clave del entorno', /planear\(\{ volcado, telefonos, clave: env\.AL3D_SELLO_CLAVE \|\| null \}\)/.test(leer('scripts/importar-hoja.mjs')));
+  const conClave = await planear({ volcado: vol, semilla: SEMILLA, clave: CLAVE, aceptarVeredictosDeLaHoja: true });
+  eq('con la clave a la mano, manda la clave (se recalcula aquí; el veredicto no se usa): entra también la 8, cuya hora la hoja volvió fecha y aquí se reconstruye ' +
+    '(la hoja dice que no porque su /verificar ya no la reconoce)', conClave.tablas.autorizaciones.map(a => a.fila_hoja), [2, 3, 4, 8]);
+
+  /* Un veredicto que no cuadra con la fila que llegó: no se le cree. */
+  const t = JSON.parse(JSON.stringify(vol));
+  t.pestanas['Autorizaciones'][1][2] = 'Tacos Ana y Asociados';                                                // la 2 dice otra cosa que lo que se comprobó
+  t.autorizaciones_comprobadas.filas.find(f => f.fila === 3).codificacion = 'utf-16';                           // la 3, con una codificación que no existe
+  t.autorizaciones_comprobadas.filas.push({ ...t.autorizaciones_comprobadas.filas.find(f => f.fila === 4) });    // la 4, dos veces
+  const p2 = await planear({ volcado: t, semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  eq('texto distinto del comprobado, codificación inventada, veredicto repetido: ninguna entra, cada una con su motivo',
+    [p2.tablas.autorizaciones.length, p2.reporte.no_importado.find(x => x.que === 'Autorizaciones').detalle.filter(x => x.fila <= 4).map(x => x.fila + ':' + x.motivo)],
+    [0, ['2:texto_distinto', '3:veredicto_invalido', '4:sin_veredicto']]);
+  const gDos = conCodigo(PROPS_SELLO, {}, [{ folio: 'COT-0101@K7QM', ts: '2026-09-09T16:00:00.000Z', proyecto: 'Tacos Ana', total: 15000 }]);   // fila 9: otra vigente de la 2
+  gDos.ctx.copiarHojaASupabase();
+  const p3 = await planear({ volcado: { ...VOLCADO, ...JSON.parse(gDos.reg.fetch[0].o.payload), pestanas: { ...VOLCADO.pestanas, 'Autorizaciones': JSON.parse(gDos.reg.fetch[0].o.payload).pestanas['Autorizaciones'] } },
+    semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  eq('dos vigentes del mismo folio (las dos con firma buena): en la copia diaria no se decide; las dos esperan en la hoja, sin conflicto que frene',
+    [p3.tablas.autorizaciones.map(a => a.fila_hoja), p3.reporte.conflictos.length, p3.reporte.no_importado.find(x => x.que === 'Autorizaciones').detalle.filter(x => x.motivo === 'dos_vigentes').map(x => x.fila)],
+    [[3, 4], 0, [2, 9]]);
+
+  /* Sin clave en la hoja, sin Código.gs, o con la hoja vieja (sin comprobación): no entra ninguna, se dice y la copia sigue. */
+  const sinClave = conCodigo(PROPS);
+  sinClave.ctx.copiarHojaASupabase();
+  const mSin = JSON.parse(sinClave.reg.fetch[0].o.payload);
+  eq('sin SELLO_AUTORIZACION en las propiedades: { sin: clave } y NO crea una (setProperty truena en el doble)', mSin.autorizaciones_comprobadas, { version: 1, filas: [], sin: 'clave' });
+  for (const [que, comp, motivo] of [['la hoja sin clave', mSin.autorizaciones_comprobadas, 'sin_clave_en_la_hoja'], ['sin Código.gs', { version: 1, filas: [], sin: 'codigo' }, 'sin_codigo_gs'],
+    ['un volcado de antes (sin comprobación)', undefined, 'sin_comprobacion']]) {
+    const b2 = baseFalsa();
+    const r2 = await llamar({ base: b2, cuerpo: JSON.stringify({ ...vol, autorizaciones_comprobadas: comp }) });
+    eq(que + ': aplicada y cuadra; las 7 no entran, con su motivo', [r2.c.aplicado, r2.c.cuadra, r2.c.autorizaciones, JSON.parse(b2.insertados[0][6]).no_importado.find(x => x.que === 'Autorizaciones').motivos],
+      [true, true, { comprobadas: 0, no_entran: 7 }, { [motivo]: 7 }]);
+  }
 }
 
 /* ============================================================================ */

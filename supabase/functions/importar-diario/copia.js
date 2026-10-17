@@ -26,6 +26,7 @@
    ============================================================================ */
 
 import { sqlDeImportacion, sqlDeDiferencias } from '../../../scripts/importador/sql.mjs';
+import { MOTIVOS_AUTORIZACION } from '../../../scripts/importador/plan.mjs';
 
 /** El candado de la copia (pg_try_advisory_xact_lock): dos corridas a la vez no se pisan; la segunda se va. */
 export const LLAVE_CANDADO = 7316250418;
@@ -90,10 +91,22 @@ export function resumenDelPlan(plan, volcado) {
     },
     plan: Object.fromEntries([...TABLAS_PLAN, 'filas_de_ventas_leidas', 'historicas', 'con_cotizacion'].map(k => [k, entero(res[k])])),
     avisos: Array.isArray(rep.avisos) ? rep.avisos.length : 0,
-    no_importado: (rep.no_importado || []).map(x => ({ que: RE_TEMA.test(String(x.que)) ? x.que : 'otro', n: entero(x.n) })),
+    no_importado: (rep.no_importado || []).map(noImportado),
     conflictos_plan: contar(rep.conflictos || [], c => ({ tema: RE_TEMA.test(String(c.tema)) ? c.tema : 'otro' }), 'folios', c => (RE_FOLIO.test(String(c.que)) ? c.que : null)),
     rechazos: contar(rep.rechazos || [], r => ({ donde: RE_TEMA.test(String(r.donde)) || r.donde === 'almacen_movimientos' ? r.donde : 'otro' }), 'filas', filaDeRechazo),
   };
+}
+
+/* Lo que no se importó: qué y cuántas; y, cuando el plan lo dice (las autorizaciones de la copia diaria), los números de fila y
+   cuántas por cada motivo de MOTIVOS_AUTORIZACION. Nunca el folio ni lo que decía la fila. */
+function noImportado(x) {
+  const o = { que: RE_TEMA.test(String(x.que)) ? x.que : 'otro', n: entero(x.n) };
+  if (Array.isArray(x.filas)) o.filas = x.filas.filter(f => Number.isInteger(f) && f > 0).slice(0, TOPE_LISTA);
+  if (x.motivos && typeof x.motivos === 'object') {
+    o.motivos = {};
+    for (const [k, n] of Object.entries(x.motivos)) { const m = MOTIVOS_AUTORIZACION.includes(k) ? k : 'otro'; o.motivos[m] = (o.motivos[m] || 0) + entero(n); }
+  }
+  return o;
 }
 
 /* El número de fila de un rechazo, si lo hay: `fila` cuando es número (las pestañas), o el «!12» de `que` (el catálogo). Nada más. */
