@@ -54,15 +54,9 @@
      mira el reloj: se para a los 5 s sin mejorar, y a más tardar 15 s después del primer acomodo
      aunque siga mejorando. Con `intentos: 0` no cuenta intentos; con `topeMs: 0` no hay tope. */
   var BUSQUEDA = {
-    rapido: { intentos: 0, ms: 5000, topeMs: 15000, hojaMenosMs: 45000 },
+    rapido: { intentos: 0, ms: 5000, topeMs: 15000 },
     fondo:  { intentos: 25, ms: 40000, topeMs: 0 }
   };
-  /* …salvo cuando la última hoja lleva casi nada (AVIDA, 17/10/2026: 30 piezas en una hoja y 2 en
-     otra, y «A fondo» las metía todas en una a los 15 s). Abrir una hoja para dos letras es lo
-     más caro que puede pasar, así que «Rápido» no se para mientras la última hoja tenga 3 piezas o
-     menos, o menos del 15 % de su área: sigue buscando hasta 45 s desde el primer acomodo, y si
-     la quita lo dice. */
-  var HOJA_CASI_VACIA = { piezas: 3, uso: 0.15 };
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
   /* Lo que se le pide de más a SVGnest sobre la separación. Su polígono de cada pieza se queda corto
      de la curva (cuerdas a 0.3 mm, vértices que limpia, el redondeo del engorde): medido con AVIDA, las
@@ -1113,28 +1107,14 @@
   function mostrarDe(mia) {
     return function (svglist, eficiencia, colocadas, total) {
       if (mia !== corrida || !T.corriendo) return;
-      if (svglist) igualarOrilla(svglist);
       alMostrar(svglist, eficiencia, colocadas, total);
     };
   }
-  /* La orilla de la hoja. SVGnest encoge la hoja media separación por lado y entrega las posiciones
-     contra la hoja encogida: las piezas quedaban a MEDIA separación de la orilla de arriba y de la
-     izquierda, y a una y media de las otras dos. Se corre todo media separación y quedan a la
-     separación completa de las cuatro, con la misma área útil; así lo que dice la interfaz
-     —la separación es entre piezas y con la orilla— es verdad. (Un motor que entrega por colocar()
-     ya trae sus posiciones finales: esto es solo del de SVGnest.) */
-  function igualarOrilla(svglist) {
-    var m = T.material ? (T.material.sep + MARGEN_MOTOR_MM) / 2 : 0;
-    if (!m) return;
-    svglist.forEach(function (svg) {
-      hijos(svg).forEach(function (g) {
-        if (g.tagName !== 'g') return;
-        var t = leerTransform(g);
-        escribirTransform(g, { x: t.x + m, y: t.y + m, r: t.r });
-      });
-    });
-  }
-
+  /* La orilla de la hoja: SVGnest encoge la hoja media separación por lado y entrega las posiciones
+     contra la hoja encogida, así que con la orilla deja al menos MEDIA separación (arriba y a la
+     izquierda; abajo y a la derecha, una y media). La interfaz lo dice tal cual, y cabe() y
+     revisarSeparacion() piden eso con la orilla. Un motor que entrega por colocar() pone sus
+     posiciones finales. */
   /* ---------- Acomodar ---------- */
   function iniciar() {
     if (T.corriendo) { detener(false); return; }
@@ -1226,9 +1206,8 @@
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
     if (!T.mejor) { mensaje('Detenido antes del primer acomodo.', ''); return; }
     var s = 'Descarga el resultado o sigue buscando.', L = limites();
-    var menos = T.hojasPrimero && T.mejor.svglist.length < T.hojasPrimero ? 'Cupo en ' + (T.hojasPrimero - T.mejor.svglist.length === 1 ? 'una hoja menos' : (T.hojasPrimero - T.mejor.svglist.length) + ' hojas menos') + '. ' : '';
     mensaje(!solo ? 'Detenido. ' + s
-      : !L.intentos ? menos + 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
+      : !L.intentos ? 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
       : 'Se detuvo solo: ' + L.intentos + ' intentos y ' + Math.round(L.ms / 1000) + ' s seguidos sin mejorar. ' + s, 'ok');
     revisarVibracion();
   }
@@ -1335,15 +1314,8 @@
   }
   /* ¿Ya toca pararse solo? Lo que decide de verdad el paro: lo usan alMostrar() en cada intento y
      pintarParo() cada segundo —el reloj de «Rápido» no puede esperar a que el motor conteste—. */
-  function ultimaCasiVacia() {
-    if (!T.mejor || T.mejor.svglist.length < 2) return false;
-    var s = T.mejor.svglist[T.mejor.svglist.length - 1];
-    var n = hijos(s).filter(function (g) { return g.tagName === 'g'; }).length, uso = usoDeHoja(s, dimsDeHoja(s));
-    return n <= HOJA_CASI_VACIA.piezas || (uso === uso && uso < HOJA_CASI_VACIA.uso);
-  }
   function tocaParar() {
     var L = limites(), ahora = Date.now();
-    if (L.hojaMenosMs && T.primer && ultimaCasiVacia()) return ahora - T.primer >= L.hojaMenosMs;
     if (L.topeMs && T.primer && ahora - T.primer >= L.topeMs) return true;
     return T.sinMejora >= L.intentos && ahora - T.ultimaMejora >= L.ms;
   }
@@ -1351,12 +1323,8 @@
     var t = $('an-paro-t');
     if (!t || !T.corriendo || !T.mejor) return;
     if (tocaParar()) { detener(true); return; }
-    var ahora = Date.now(), L = limites();
+    var ahora = Date.now();
     var frase = textoParo(ahora - T.ultimaMejora, T.sinMejora, T.primer ? ahora - T.primer : -1);
-    if (L.hojaMenosMs && T.primer && ultimaCasiVacia()) {
-      var P = window.Piezas, falta = Math.max(0, L.hojaMenosMs - (ahora - T.primer));
-      frase = 'La hoja ' + T.mejor.svglist.length + ' lleva casi nada: sigo buscando para acomodarla en las demás · ' + (P && P.reloj ? P.reloj(falta, { falta: true }) : Math.ceil(falta / 1000) + ' s');
-    }
     if (t.textContent !== frase) t.textContent = frase;
   }
   /* Hay un acomodo del que contar: se enseña el bloque y arranca (o vuelve a empezar) la mecha. */
@@ -1387,7 +1355,7 @@
       var habia = !!T.mejor;
       T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total };
       T.sinMejora = 0; T.ultimaMejora = Date.now();
-      if (!T.primer) { T.primer = T.ultimaMejora; T.hojasPrimero = svglist.length; }   // desde aquí cuenta el tope de «Rápido»
+      if (!T.primer) T.primer = T.ultimaMejora;   // desde aquí cuenta el tope de «Rápido»
       pintarResultado(habia);
       encenderParo();   // la primera mejora la arranca; las demás la rellenan de golpe
     } else if (T.corriendo && T.mejor) {
@@ -2287,7 +2255,7 @@
     var svg = g.ownerSVGElement, d = dimsDeHoja(svg), sep = (T.material && T.material.sep > 0) ? T.material.sep : 0;
     var propia = poligonosLocales(g).map(function (p) { return aHoja(p, t); });
     if (!propia.length || !window.ClipperLib) return '';
-    var caja = cajaDe(propia), margen = Math.max(0, sep - HOLGURA_MM), eps = 0.02;   // la separación completa también con la orilla (igualarOrilla)
+    var caja = cajaDe(propia), margen = Math.max(0, sep / 2 - HOLGURA_MM), eps = 0.02;
     if (caja.x0 < margen - eps || caja.y0 < margen - eps || caja.x1 > d.w - margen + eps || caja.y1 > d.h - margen + eps) return 'orilla';
     var mitad = Math.max(0, sep / 2 - HOLGURA_MM / 2), mia = null;
     var otras = lista(svg.querySelectorAll(':scope>g[id]'));
@@ -2309,7 +2277,7 @@
   }
   function textoRechazo(razon) {
     var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, mm = fmtMm(sep) + ' mm';
-    if (razon === 'orilla') return sep > 0 ? 'No cabe ahí: queda a menos de ' + fmtMm(sep) + ' mm de la orilla de la hoja.' : 'No cabe ahí: se sale de la hoja.';
+    if (razon === 'orilla') return sep > 0 ? 'No cabe ahí: queda a menos de ' + fmtMm(sep / 2) + ' mm de la orilla de la hoja.' : 'No cabe ahí: se sale de la hoja.';
     return sep > 0 ? 'No cabe ahí: queda a menos de ' + mm + ' de otra pieza.' : 'No cabe ahí: se encima con otra pieza.';
   }
   function rechazar(g, razon) {
@@ -2584,8 +2552,8 @@
      Lo que el taller pidió (17/10/2026): las piezas nunca encimadas ni más juntas que la separación
      pedida, venga el acomodo de SVGnest, de otro motor (colocar) o de la mano. cabe() decide si una
      pieza se puede SOLTAR en un lugar (con la holgura de redondeo de la curva); esto revisa el
-     acomodo entero con la curva fina (TOLERANCIA_DXF_MM) y marca en rojo cada par —o cada pieza
-     contra la orilla— que quede a menos de la separación, menos SEP_GRACIA_MM. Es la red: si un motor
+     acomodo entero con la curva fina (TOLERANCIA_DXF_MM) y marca en rojo cada par que quede a menos
+     de la separación —o cada pieza a menos de media separación de la orilla—, menos SEP_GRACIA_MM. Es la red: si un motor
      entrega algo mal, la mesa lo dice en vez de que lo descubra la máquina. */
   var SEP_GRACIA_MM = 0.1;
   var _juntas = [];      // { hoja, a, b } o { hoja, a, orilla: true }
@@ -2628,7 +2596,7 @@
           return { g: g, t: t, r: r, caja: caja, reg: null };
         }).filter(Boolean);
         pzs.forEach(function (p) {
-          var b = p.caja, lim = sep - SEP_GRACIA_MM;
+          var b = p.caja, lim = sep / 2 - SEP_GRACIA_MM;   // con la orilla, media separación (ver «La orilla de la hoja»)
           if (b.x0 < lim || b.y0 < lim || d.w - b.x1 < lim || d.h - b.y1 < lim) _juntas.push({ hoja: i, a: p.g.id, orilla: true });
         });
         for (var a = 0; a < pzs.length; a++) {
@@ -2650,7 +2618,7 @@
     if (t) {
       var num = function (id) { var g = document.getElementById(id); return (g && numeroDe(g)) || '?'; };
       var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0;
-      var dichos = _juntas.slice(0, 4).map(function (j) { return j.orilla ? num(j.a) + ' con la orilla' : num(j.a) + ' y ' + num(j.b); }).join(' · ') + (n > 4 ? ' · …' : '');
+      var dichos = _juntas.slice(0, 4).map(function (j) { return j.orilla ? num(j.a) + ' con la orilla, a menos de ' + fmtMm(sep / 2) + ' mm' : num(j.a) + ' y ' + num(j.b); }).join(' · ') + (n > 4 ? ' · …' : '');
       t.innerHTML = n ? '<b>Más juntas que la separación:</b> ' + (n === 1 ? '1 lugar' : n + ' lugares') + ' a menos de ' + esc(fmtMm(sep)) + ' mm (piezas ' + esc(dichos) +
         '). Muévelas antes de cortar, o vuelve a acomodar.' : '';
     }

@@ -57,9 +57,9 @@ lleva el aprovechamiento en una aguja con su calificación, la merma, las coloca
 hojas. Con «reducir movimiento» en el sistema, nada se mueve.
 
 **La separación** se elige a la vista: 3 mm, 6 mm o 1 cm de un toque, o cualquier número en el
-campo. Es la distancia mínima entre pieza y pieza **y con la orilla de la hoja** (SVGnest dejaba
-media separación arriba y a la izquierda; `igualarOrilla()` corre el acomodo y quedan las cuatro
-igual). Se recuerda en el aparato, sale en el pie de cada hoja y en el nombre del archivo
+campo. Es la distancia mínima entre pieza y pieza; con la orilla de la hoja SVGnest deja al menos
+la mitad (media separación arriba y a la izquierda, una y media abajo y a la derecha), y así lo
+dice la interfaz y lo revisan `cabe()` y `revisarSeparacion()`. Se recuerda en el aparato, sale en el pie de cada hoja y en el nombre del archivo
 descargado (`…-sep6mm-acomodado.dxf`). «Se corta con» ya no se deduce de la separación: la broca
 elegida se queda y la marca de vibración la sigue usando. A SVGnest se le pide 1 mm de más
 (`MARGEN_MOTOR_MM`): su polígono de cada pieza se queda corto de la curva y, medido con AVIDA a
@@ -156,7 +156,7 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 
 - La medida que se pide es la del **diseño** —el letrero de orilla a orilla—, no la del
   lienzo o el artboard. Con el ancho o el alto basta.
-- La separación es la distancia mínima entre piezas **y** con la orilla de la hoja.
+- La separación es la distancia mínima entre piezas; con la orilla queda al menos la mitad.
 - «Se corta con» la escribe con un toque, con los números del taller: **láser 2 mm**, y en
   router el diámetro de la broca más un poco de aire —**1/8″ 4.5 mm, 3/16″ 6 mm, 1/4″ 7.5 mm**—.
   Con 3 mm, la de omisión, no pasa ni la broca más chica.
@@ -183,5 +183,3 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`.
   Los `line` y trazos abiertos se juntan antes en contornos (`juntarSueltas()`). Un texto sin
   convertir se queda fuera y la app lo avisa al cargar.
-- «Rápido» no se para mientras la última hoja lleve 3 piezas o menos, o menos del 15 % (hasta 45 s
-  desde el primer acomodo), y si la quita dice «Cupo en una hoja menos».
