@@ -66,9 +66,13 @@
   }
 
   /* La entrada del motor (ExtSPInstance de jagua-rs): la tira de `ancho` y una pieza por
-     contorno, cada una con su lista de giros. */
+     contorno, cada una con su lista de giros. Con la hoja parada la tira entra a la hoja girada
+     90° (ver colocaciones): un giro θ en la tira es θ + 90 en la hoja. Los giros se piden en la
+     HOJA —con veta, 0° y 180° respecto al dibujo—, así que a la tira van 90° antes (270 y 90);
+     si no, las piezas saldrían atravesadas a la veta. Con giro libre no hay lista. */
   function entrada(preparadas, opc) {
     var giros = girosDe(opc.giros);
+    if (giros && opc.parada) giros = giros.map(function (g) { return Math.round(((g + 270) % 360) * 1000) / 1000; });
     return JSON.stringify({
       name: 'mesa-de-corte',
       strip_height: opc.ancho,

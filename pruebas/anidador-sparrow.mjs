@@ -46,6 +46,13 @@ console.log('\nLA ENTRADA DEL MOTOR');
   cierto(e.strip_height === 1200 && e.items.length === 2 && e.items.every(i => i.demand === 1 && i.shape.type === 'simple_polygon'), 'la tira es del ancho de la hoja y va una pieza por contorno', e);
   igual(e.items[1].allowed_orientations, [0, 180], 'con los giros pedidos');
   cierto(!('allowed_orientations' in JSON.parse(S.entrada(prep, { ancho: 1200, giros: 'libre' })).items[0]), 'con giro libre no se manda lista: el motor gira a cualquier ángulo');
+  /* Con la hoja parada la tira entra girada 90°: para que la veta quede a 0° y 180° EN LA HOJA,
+     a la tira se piden 270° y 90°. */
+  igual(JSON.parse(S.entrada(prep, { ancho: 1200, giros: '2', parada: true })).items[0].allowed_orientations, [270, 90], 'hoja parada con veta: a la tira van 270° y 90°');
+  igual(JSON.parse(S.entrada(prep, { ancho: 1200, giros: '1', parada: true })).items[0].allowed_orientations, [270], 'hoja parada sin giros: 270°');
+  const hp = S.geometriaDeHoja(1200, 2400);
+  const finales = [270, 90].map(th => S.colocaciones({ layout: { placed_items: [{ item_id: 0, transformation: { rotation: th, translation: [10, 10] } }] } }, prep, hp)[0].r);
+  cierto(finales.every(r => Math.abs(((r % 180) + 180) % 180) < 1e-9), 'y en la hoja salen a 0° y 180°, con la veta (' + finales.join('°, ') + '°)', finales);
 }
 
 console.log('\nDEL MOTOR A LA HOJA: UN GIRO, NUNCA UN ESPEJO');
@@ -125,6 +132,18 @@ console.log('\nEL MOTOR DE VERDAD, EN NODE');
       cierto(encimadas === 0, 'ninguna pieza encima de otra');
       cierto(minD >= SEP - 0.05, `ninguna a menos de la separación: la más cercana a ${minD.toFixed(2)} mm (se pidieron ${SEP})`);
       cierto(col.every(c => { const p = piezas.find(q => q.id === c.id).contorno; return Math.sign(areaFirmada(p.map(P => rot(c.r, P)))) === Math.sign(areaFirmada(p)); }), 'y ninguna salió de espejo');
+    }
+    /* Con veta y la hoja parada (la de siempre, 1.22 × 2.44 de pie): todas a 0° o 180° en la hoja. */
+    {
+      const pz = [0, 1, 2, 3].map(i => ({ id: 'V' + i, contorno: L(i * 200, 0) }));
+      const pr = S.preparar(pz), hoja = S.geometriaDeHoja(300, 1000);
+      let m2 = null;
+      motor.run(S.entrada(pr, { ancho: hoja.anchoTira, giros: '2', parada: hoja.parada }), 10, '7', 6, 'standard', json => {
+        const m = JSON.parse(json); if (m.type === 'candidate' && (!m2 || m.solution.strip_width < m2.strip_width)) m2 = m.solution;
+      }, undefined);
+      const rs = m2 ? S.colocaciones(m2, pr, hoja).map(c => Math.round(c.r * 1000) / 1000) : [];
+      cierto(rs.length === 4 && rs.every(r => Math.abs(((r % 180) + 180) % 180) < 1e-6 || Math.abs(((r % 180) + 180) % 180 - 180) < 1e-6),
+        'con veta en la hoja parada, el motor de verdad deja todas a 0° o 180° (' + rs.join('°, ') + '°)', rs);
     }
   }
 }

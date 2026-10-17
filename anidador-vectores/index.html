@@ -7,7 +7,7 @@
      evalúa código, pero un worker cargado desde su propia URL trae SU política —la de la
      respuesta de ese archivo—, no la de esta página, así que aquí no hace falta abrir
      'unsafe-eval'. Ver pruebas/csp.mjs. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Anidador de vectores · AL3D</title>
 <meta name="description" content="Acomoda las piezas de un SVG en la hoja de material para gastar lo menos posible antes de mandarlas al láser o al CNC.">
@@ -269,8 +269,9 @@ document.documentElement.classList.add('arrancando');
               <select id="an-rot">
                 <option value="1">Ninguno — como vienen</option>
                 <option value="2">2 — 0° y 180°</option>
-                <option value="4" selected>4 — cada 90°</option>
+                <option value="4">4 — cada 90°</option>
                 <option value="8">8 — cada 45°</option>
+                <option value="libre" selected>Libre — cualquier ángulo</option>
               </select>
             </div>
             <button type="button" class="switch" role="switch" aria-checked="false" id="an-huecos"><span class="tg" aria-hidden="true"></span> Meter piezas chicas en los huecos grandes</button>
@@ -285,14 +286,15 @@ document.documentElement.classList.add('arrancando');
     </section>
 
     <div class="an-acciones">
-      <!-- Cuánto busca (audio del taller, 16/10/2026): el acomodo de los primeros segundos y el de
-           dos minutos se llevan unos 3 cm de material, y para el router se retoca a mano de
-           todos modos. «Rápido» entrega en segundos; «A fondo» es el paro de siempre. -->
+      <!-- Cuánto busca. Elías (17/10/2026): «quiero que todo sea a fondo»; ya no hay «Rápido». El motor
+           (sparrow, js/motor-sparrow*.js) busca durante el tiempo elegido con varias búsquedas a la
+           vez y se queda con la que gasta menos material; «Detener» se queda con lo mejor que lleve. -->
       <div class="an-opcion">
-        <div class="fld-lab" id="lab-busca">Cuánto busca</div>
-        <div class="chips an-busca" id="an-busca" role="radiogroup" aria-labelledby="lab-busca">
-          <button type="button" class="chip on" role="radio" aria-checked="true" data-busca="rapido">Rápido <small>segundos</small></button>
-          <button type="button" class="chip" role="radio" aria-checked="false" data-busca="fondo">A fondo <small>minutos, ahorra unos cm</small></button>
+        <div class="fld-lab" id="lab-tiempo">Cuánto busca</div>
+        <div class="chips an-tiempo" id="an-tiempo" role="radiogroup" aria-labelledby="lab-tiempo">
+          <button type="button" class="chip on" role="radio" aria-checked="true" data-seg="120">2 min</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-seg="300">5 min</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-seg="600">10 min <small>lo más apretado</small></button>
         </div>
       </div>
       <button type="button" class="btn btn-pri" id="an-ir" disabled>Acomodar las piezas</button>
@@ -342,7 +344,7 @@ document.documentElement.classList.add('arrancando');
           <div class="an-ficha"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
           <div class="an-ficha" id="an-ficha-hojas"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
           <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span><span class="sub" id="an-st-merma-m2"></span></div>
-          <div class="an-ficha"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
+          <div class="an-ficha"><span class="k" id="an-st-int-k">Intentos</span><span class="v" id="an-st-int">—</span></div>
         </div>
       </div>
 
@@ -414,6 +416,8 @@ document.documentElement.classList.add('arrancando');
 <script src="js/medidas.js"></script>
 <script src="js/dxf.js"></script>
 <script src="js/vibracion.js"></script>
+<script src="js/motor-sparrow.js"></script>
+<script src="js/motor-sparrow-mesa.js"></script>
 <!-- Las piezas compartidas con el cotizador y la plataforma. -->
 <script src="../js/piezas.js"></script>
 <script src="js/app.js"></script>

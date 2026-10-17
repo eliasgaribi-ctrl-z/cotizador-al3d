@@ -53,8 +53,11 @@
      ya solo se mueven cuatro letras en vez de veinticinco. Así que «Rápido», el de omisión, solo
      mira el reloj: se para a los 5 s sin mejorar, y a más tardar 15 s después del primer acomodo
      aunque siga mejorando. Con `intentos: 0` no cuenta intentos; con `topeMs: 0` no hay tope. */
+  /* Elías (17/10/2026): «A mí no me funciona que sea rápido si a final de cuentas termino
+     desperdiciando material. Quiero que todo sea a fondo». «Rápido» se fue; el motor de omisión es
+     sparrow (js/motor-sparrow*.js), que busca el tiempo elegido en «Cuánto busca». Este paro queda
+     solo para el motor viejo (SVGnest), que se usa de respaldo donde el nuevo no puede correr. */
   var BUSQUEDA = {
-    rapido: { intentos: 0, ms: 5000, topeMs: 15000 },
     fondo:  { intentos: 25, ms: 40000, topeMs: 0 }
   };
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
@@ -294,10 +297,17 @@
       c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false');
     });
   }
-  function busqueda() { return chipElegido('an-busca', 'data-busca', 'rapido'); }
-  function limites() { return BUSQUEDA[busqueda()] || BUSQUEDA.rapido; }
+  function busqueda() { return 'fondo'; }
+  function limites() { return BUSQUEDA.fondo; }
+  /* Cuántos segundos busca el motor nuevo: los chips de «Cuánto busca» (2, 5 o 10 min). Las
+     pruebas de navegador lo acortan con window.__anidadorSegundos. */
+  function segundosBusqueda() {
+    var prueba = Number(window.__anidadorSegundos);
+    if (prueba > 0) return prueba;
+    return parseInt(chipElegido('an-tiempo', 'data-seg', '120'), 10) || 120;
+  }
   function formatoArchivo() { return chipElegido('an-formato', 'data-formato', 'dxf') === 'svg' ? 'svg' : 'dxf'; }
-  function elegirBusqueda(v) { elegirChip('an-busca', 'data-busca', BUSQUEDA[v] ? v : 'rapido'); }
+  function elegirTiempo(v) { elegirChip('an-tiempo', 'data-seg', ['120', '300', '600'].indexOf(String(v)) >= 0 ? String(v) : '120'); }
   function elegirFormato(v) {
     elegirChip('an-formato', 'data-formato', v === 'svg' ? 'svg' : 'dxf');
     var t = $('an-dl-t'); if (t) t.textContent = 'Descargar ' + formatoArchivo().toUpperCase();
@@ -309,7 +319,8 @@
     if (!(ancho > 0) || !(alto > 0)) ok = false;
     if (!(sep >= 0)) { sep = 0; $('an-sep').value = '0'; }
     if (!ok) { if (avisar) { mensaje('Falta el ancho o el alto de la hoja, en milímetros.', 'mal'); (ancho > 0 ? $('an-alto') : $('an-ancho')).focus(); } return null; }
-    return { ancho: ancho, alto: alto, sep: sep, rot: parseInt($('an-rot').value, 10) || 4,
+    var rv = $('an-rot').value;
+    return { ancho: ancho, alto: alto, sep: sep, rot: rv === 'libre' ? 'libre' : (parseInt(rv, 10) || 4),
              huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
              mat: materialElegido(), hoja: hojaElegida() };
   }
@@ -317,20 +328,23 @@
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
       huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
-      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo(), minimo: $('an-minimo').value })); } catch (_) {}
+      mat: materialElegido(), sinVeta: !_veta.lleva, tiempo: chipElegido('an-tiempo', 'data-seg', '120'), giros2: true,
+      formato: formatoArchivo(), minimo: $('an-minimo').value })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
     if (!g) { marcarCorte(); sincronizarHoja(true); return; }
-    if (g.busca) elegirBusqueda(g.busca);
+    if (g.tiempo) elegirTiempo(g.tiempo);
     if (g.minimo !== undefined && g.minimo !== '') $('an-minimo').value = g.minimo;
     if (g.formato) elegirFormato(g.formato);
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
     marcarCorte();
-    if (g.rot) $('an-rot').value = String(g.rot);
+    /* «4» era la omisión hasta el 17/10/2026; desde entonces lo es «libre» (sin veta). Lo guardado
+       antes de ese cambio (sin `giros2`) se toma como la omisión vieja, no como una elección. */
+    if (g.rot) $('an-rot').value = (!g.giros2 && String(g.rot) === '4') ? 'libre' : String(g.rot);
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
     if (typeof g.concavas === 'boolean' && g.concavas !== interruptor('an-concavas')) alternar('an-concavas');
     if (typeof g.contorno === 'boolean' && g.contorno !== interruptor('an-contorno')) alternar('an-contorno');
@@ -380,14 +394,8 @@
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); habilitar(); });
   $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); habilitar(); });
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
-  lista(document.querySelectorAll('#an-busca .chip')).forEach(function (c) {
-    c.addEventListener('click', function () {
-      elegirBusqueda(c.getAttribute('data-busca')); guardarMaterial();
-      /* Con el motor corriendo, el paro nuevo vale desde ya: la mecha vuelve a empezar con la
-         duración nueva y pintarParo() —que encenderParo() llama al final— lo para en el acto si
-         con los números nuevos ya tocaba (de «A fondo» a «Rápido» con 7 s sin mejorar). */
-      if (T.corriendo && T.mejor) encenderParo();
-    });
+  lista(document.querySelectorAll('#an-tiempo .chip')).forEach(function (c) {
+    c.addEventListener('click', function () { elegirTiempo(c.getAttribute('data-seg')); guardarMaterial(); });
   });
   lista(document.querySelectorAll('#an-formato .chip')).forEach(function (c) {
     c.addEventListener('click', function () { elegirFormato(c.getAttribute('data-formato')); guardarMaterial(); actualizarDescarga(); });
@@ -429,8 +437,8 @@
       return;
     }
     _veta.lleva = true;
-    var giros = parseInt(rot.value, 10);
-    if (giros === 4 || giros === 8) {
+    var giros = rot.value;
+    if (giros === '4' || giros === '8' || giros === 'libre') {
       _veta.rotPrevia = giros; rot.value = '2';
       habilitar();
       preguntarVeta(chip);
@@ -451,7 +459,7 @@
         contenido: '<span class="vistazo-t">¿Lleva veta?</span>' +
           '<p>El aluminio cepillado y el MDF la tienen. Con 0° y 180° queda igual; girada 90°, queda atravesada. Quedaron solo esos dos giros.</p>' +
           '<p class="an-veta-nota">El aluminio blanco, negro o pintado no tiene veta.</p>' +
-          '<div class="vistazo-acciones"><button type="button" class="btn btn-gho" data-veta="no">Sin veta: cada 90°</button>' +
+          '<div class="vistazo-acciones"><button type="button" class="btn btn-gho" data-veta="no">Sin veta: giro libre</button>' +
           '<button type="button" class="btn btn-gho" data-veta="si">Dejar así</button></div>',
         alAbrir: function (pop) {
           lista(pop.querySelectorAll('[data-veta]')).forEach(function (b) {
@@ -465,9 +473,9 @@
   function responderVeta(lleva) {
     _veta.lleva = lleva;
     if (!lleva) {
-      $('an-rot').value = String(_veta.rotPrevia || 4); _veta.rotPrevia = null;
+      $('an-rot').value = String(_veta.rotPrevia || 'libre'); _veta.rotPrevia = null;
       habilitar();
-      toast('Giros cada 90°: ese material no tiene veta', '', 2600);
+      toast('Giro libre: ese material no tiene veta', '', 2600);
     }
     pintarVeta(); guardarMaterial();
     if (_veta.globo) _veta.globo.cerrar('codigo');
@@ -822,7 +830,7 @@
        separación. Con otra hoja, otra separación o otra medida del diseño ya no hay nada que
        seguir, y ofrecerlo entregaba piezas a 3 mm cuando el campo decía 20. Queda «Volver a
        acomodar desde cero», que sí las lee. */
-    $('an-seguir').hidden = T.corriendo || !T.mejor || !puede || huellaMotor(mat) !== T.huella;
+    $('an-seguir').hidden = T.corriendo || !T.mejor || !puede || huellaMotor(mat) !== T.huella || T.motor === 'sparrow';
   }
   /* Lo que el motor usó para acomodar: si algo de esto cambia, el acomodo ya es de otra hoja. */
   function huellaMotor(mat) {
@@ -848,7 +856,10 @@
     /* exploreConcave es «Explore concave areas» del demo original: sin él, el hueco abierto
        de una «C» cuenta como lleno y nada se acomoda dentro. Tarda bastante más, por eso
        nace apagado, igual que allá. */
-    SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
+    /* El motor viejo no gira libre: para él, «libre» son los 4 giros de siempre (con 8, sus piezas a
+       45° quedaban pegadas a la orilla más de lo que la mesa acepta). */
+    var rotNum = mat.rot === 'libre' ? 4 : mat.rot;
+    SN.config({ spacing: mat.sep, rotations: rotNum, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
     /* config() y parsesvg() ya borraron del motor el cálculo anterior (su GA, su mejor y la
        hoja): si de aquí en adelante algo frena el arranque —no cabe ninguna pieza, el SVG no
        se lee—, ya no hay qué «seguir». El acomodo en pantalla se queda para descargarlo. */
@@ -866,13 +877,15 @@
     if (!partes.length) { mensaje('No encontré contornos que acomodar en este archivo.', 'mal'); return; }
     var sinCabida = partes.filter(function (p) {
       var b = window.GeometryUtil.getPolygonBounds(p);
-      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * mat.sep, alto: mat.alto - 2 * mat.sep }, mat.rot);
+      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * mat.sep, alto: mat.alto - 2 * mat.sep }, rotNum);
     });
     var fuera = sinCabida.length;
     if (fuera === partes.length) {
       mensaje('Ninguna de las ' + partes.length + ' piezas cabe en una hoja de ' + mat.ancho + ' × ' + mat.alto + ' mm. Revisa la medida del diseño o la de la hoja.', 'mal');
       return;
     }
+
+    if (usarSparrow()) { iniciarSparrow(mat, svg, hs, partes, sinCabida); return; }
 
     var bin = svg.ownerDocument.createElementNS(svg.namespaceURI, 'rect');
     bin.setAttribute('x', '0'); bin.setAttribute('y', '0');
@@ -909,15 +922,171 @@
     actualizarDescarga();
     pintarEstadoTrabajo();
     if (previo) ofrecerRecuperar(previo);
-    mensaje((fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la hoja ni girada' + (fuera === 1 ? '' : 's') + ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '') +
-      (busqueda() === 'rapido'
-        ? 'Acomodo rápido: queda en unos segundos. Si quieres exprimir unos centímetros más, elige «A fondo».'
-        : 'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.'), fuera ? 'av' : '');
+    mensaje(textoFuera(fuera) +
+      'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.', fuera ? 'av' : '');
     /* En pantalla angosta la mesa queda debajo de los controles: se baja a verla. */
     if (window.matchMedia('(max-width:900px)').matches) $('an-mesa').scrollIntoView({ behavior: QUIETO ? 'auto' : 'smooth', block: 'start' });
   }
 
+  /* ---------- El motor nuevo: sparrow (17/10/2026) ----------
+     Elías: «quiero que me optimices bien los espacios»; el motor de SVGnest no lo lograba ni con
+     más tiempo. sparrow (KU Leuven, MIT; ver js/motor-sparrow.js) acomoda con colisiones exactas,
+     giro libre, la separación pedida y buscando el menor gasto de hoja; js/motor-sparrow-mesa.js lo
+     corre en varios Web Workers a la vez y reparte en hojas. Aquí se conecta a la mesa: entra lo
+     mismo que al motor viejo (las piezas que lee SvgNest.parsesvg/getParts, ya en mm) y sale lo
+     mismo (hojas SVG con un <g transform="translate rotate"> por pieza), así que la descarga, el
+     DXF, la marca de vibración y mover a mano no cambian. El motor viejo queda de respaldo donde
+     el nuevo no puede correr (sin Web Workers de módulo o sin WebAssembly). */
+  var _sp = { ctl: null, pend: null, reloj: 0, ctx: null, tPintar: 0 };
+  function usarSparrow() {
+    return !!(window.AnidadorSparrowMesa && window.AnidadorSparrowMesa.disponible() && !window.__anidadorMotorViejo);
+  }
+  function textoFuera(fuera) {
+    return fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la hoja ni girada' + (fuera === 1 ? '' : 's') +
+      ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '';
+  }
+  function duracion(seg) { return seg < 60 ? Math.round(seg) + ' s' : Math.round(seg / 60) + ' min'; }
+  function minSeg(seg) { var t = Math.ceil(seg), m = Math.floor(t / 60), s = t % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+  function iniciarSparrow(mat, svg, hs, partes, sinCabida) {
+    var fueraSet = {}; sinCabida.forEach(function (p) { fueraSet[p.id] = true; });
+    var dentro = partes.filter(function (p) { return !fueraSet[p.id]; });
+    var GU = window.GeometryUtil;
+    var area = dentro.reduce(function (s, p) {
+      var a = Math.abs(GU.polygonArea(p));
+      (p.children || []).forEach(function (h) { a -= Math.abs(GU.polygonArea(h)); });
+      return s + Math.max(0, a);
+    }, 0);
+    var piezas = dentro.map(function (p) { return { id: p.id, contorno: p.map(function (q) { return { x: q.x, y: q.y }; }) }; });
+    var previo = T.mejor ? { mejor: T.mejor, material: T.material, k: T.k, intentos: T.intentos, archivo: A } : null;
+    var mia = ++corrida, seg = segundosBusqueda();
+    T = { corriendo: true, motor: 'sparrow', intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false,
+          material: mat, k: A.k, huella: null, fuera: sinCabida.length, fueraIds: idsDe(hs, sinCabida), total: partes.length,
+          anterior: previo, inicio: Date.now(), segundos: seg, yaPinto: false, areaUsada: 0, retazoTxt: '' };
+    A.numeros = numerarPartes(hs, partes);
+    _sp.ctx = { svg: svg, hs: hs, partes: partes, mat: mat, area: area, mia: mia };
+    _sp.pend = null;
+    /* La separación que se le pide al motor lleva 2 × TOLERANCIA_MM de más: las curvas le llegan
+       enderezadas con esa fineza (cada tramo recto va por dentro de la curva hasta 0.3 mm), así que
+       dos curvas frente a frente podrían quedar 0.6 mm más cerca que lo pedido en el corte de
+       verdad. El taller pidió que nunca queden a menos de la separación. */
+    _sp.ctl = window.AnidadorSparrowMesa.acomodar(piezas, { ancho: mat.ancho, alto: mat.alto, sep: (mat.sep > 0 ? mat.sep : 0) + 2 * TOLERANCIA_MM, giros: mat.rot, segundos: seg,
+      alMejorar: function (est) {
+        if (mia !== corrida || !T.corriendo) return;
+        T.busquedas = est.busquedas || T.busquedas;
+        /* El motor avisa cientos de mejoras: la mesa se repinta a lo más cada 400 ms con la última. */
+        _sp.pend = est.hojas;
+        if (!_sp.tPintar) _sp.tPintar = setTimeout(pintarPendienteSparrow, 400);
+      } });
+    _sp.ctl.promesa.then(function (res) {
+      if (mia !== corrida) return;
+      if (res.hojas && res.hojas.length) { _sp.pend = res.hojas; pintarPendienteSparrow(); }
+      if (res.error && !T.mejor) { detener(false); mensaje(res.error, 'mal'); return; }
+      detener(true);
+    });
+    $('an-prog').hidden = false;
+    ['an-st-uso', 'an-st-col', 'an-st-hojas', 'an-st-merma', 'an-st-int'].forEach(function (id) { $(id).textContent = '—'; $(id).removeAttribute('data-v'); });
+    $('an-st-col').textContent = '0/' + partes.length; $('an-st-int-k').textContent = 'Retazo';
+    $('an-st-uso-lbl').textContent = 'buscando…';
+    $('an-gauge-fg').style.strokeDashoffset = '326.73'; $('an-gauge-fg').className.baseVal = 'an-gauge-fg';
+    empezarCalculo();
+    $('an-mesa').classList.add('corriendo');
+    $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
+    $('an-vista-tab').textContent = 'Acomodando…';
+    actualizarDescarga();
+    pintarEstadoTrabajo();
+    if (previo) ofrecerRecuperar(previo);
+    encenderRelojSparrow();
+    mensaje(textoFuera(sinCabida.length) + 'Buscando el acomodo que gaste menos material durante ' + duracion(seg) + ', con varias búsquedas a la vez. ' +
+      'Puedes detenerlo cuando quieras: se queda el mejor que lleve.', sinCabida.length ? 'av' : '');
+    if (window.matchMedia('(max-width:900px)').matches) $('an-mesa').scrollIntoView({ behavior: QUIETO ? 'auto' : 'smooth', block: 'start' });
+  }
+  function pintarPendienteSparrow() {
+    clearTimeout(_sp.tPintar); _sp.tPintar = 0;
+    var hojas = _sp.pend; _sp.pend = null;
+    if (!hojas || !hojas.length || !_sp.ctx || _sp.ctx.mia !== corrida) return;
+    var ctx = _sp.ctx, mat = ctx.mat;
+    var colocadas = hojas.reduce(function (s, h) { return s + h.colocaciones.length; }, 0);
+    var n = hojas.length, u = hojas[n - 1], hojaArea = mat.ancho * mat.alto;
+    /* Lo que se gasta: las hojas llenas enteras y, de la última, el rectángulo que de verdad se usó.
+       Lo demás de esa hoja es retazo, no merma. */
+    var usado = (n - 1) * hojaArea + u.anchoUsado * u.largoUsado;
+    T.areaUsada = usado;
+    var r = retazoDeHojas(mat, u);
+    T.retazoTxt = r ? (r.ancho / 1000).toFixed(2) + ' × ' + (r.alto / 1000).toFixed(2) + ' m' : 'no queda';
+    T.retazo = r;
+    alMostrar(armarHojasSparrow(hojas, ctx), usado > 0 ? Math.min(1, ctx.area / usado) : 0, colocadas, T.total);
+  }
+  /* El rectángulo libre más grande de la última hoja: lo que la franja no usó a lo largo (de lado
+     a lado) o, con una franja angosta, lo que quedó junto a ella (de punta a punta). */
+  function retazoDeHojas(mat, u) {
+    var parada = mat.alto > mat.ancho, anchoT = parada ? mat.ancho : mat.alto, largoT = parada ? mat.alto : mat.ancho;
+    var aLoLargo = { a: anchoT, l: largoT - u.largoUsado }, aLoAncho = { a: anchoT - u.anchoUsado, l: largoT };
+    var g = aLoLargo.a * aLoLargo.l >= aLoAncho.a * aLoAncho.l ? aLoLargo : aLoAncho;
+    if (!(g.a > 1 && g.l > 1)) return null;
+    return parada ? { ancho: g.a, alto: g.l } : { ancho: g.l, alto: g.a };
+  }
+  /* Las hojas en el formato del motor viejo (lo que entrega SvgNest.applyPlacement): un SVG por hoja,
+     la hoja como <rect class="bin">, y por pieza un <g> con su contorno y sus huecos (class «hole»). */
+  function armarHojasSparrow(hojas, ctx) {
+    var ns = ctx.svg.namespaceURI, porId = {};
+    ctx.partes.forEach(function (p) { porId[p.id] = p; });
+    function aplanar(hijosP, hueco, sal) {
+      (hijosP || []).forEach(function (h) { sal.push({ n: h, hueco: hueco }); aplanar(h.children, !hueco, sal); });
+      return sal;
+    }
+    return hojas.map(function (h) {
+      var s = ctx.svg.cloneNode(false);
+      s.setAttribute('viewBox', '0 0 ' + ctx.mat.ancho + ' ' + ctx.mat.alto);
+      s.setAttribute('width', ctx.mat.ancho + 'px'); s.setAttribute('height', ctx.mat.alto + 'px');
+      var bin = document.createElementNS(ns, 'rect');
+      bin.setAttribute('class', 'bin'); bin.setAttribute('x', '0'); bin.setAttribute('y', '0');
+      bin.setAttribute('width', String(ctx.mat.ancho)); bin.setAttribute('height', String(ctx.mat.alto));
+      bin.setAttribute('transform', 'translate(0 0)');
+      s.appendChild(bin);
+      h.colocaciones.forEach(function (c) {
+        var parte = porId[c.id]; if (!parte) return;
+        var g = document.createElementNS(ns, 'g');
+        g.setAttribute('transform', 'translate(' + fmt(c.x) + ' ' + fmt(c.y) + ') rotate(' + fmt(c.r) + ')');
+        g.appendChild(ctx.hs[parte.source].cloneNode(false));
+        aplanar(parte.children, true, []).forEach(function (x) {
+          var e = ctx.hs[x.n.source].cloneNode(false);
+          if (x.hueco) e.setAttribute('class', ((e.getAttribute('class') || '') + ' hole').trim());
+          g.appendChild(e);
+        });
+        s.appendChild(g);
+      });
+      return s;
+    });
+  }
+  /* El reloj de la búsqueda, bajo «Detener»: cuánto falta y con cuántas búsquedas a la vez. */
+  function encenderRelojSparrow() {
+    var bloque = $('an-paro'); if (!bloque) return;
+    bloque.hidden = false;
+    var hilo = bloque.querySelector('.an-paro-hilo'); if (hilo) hilo.hidden = true;
+    clearInterval(_sp.reloj);
+    var pintar = function () {
+      if (!T.corriendo || T.motor !== 'sparrow') return;
+      var falta = Math.max(0, T.segundos - (Date.now() - T.inicio) / 1000);
+      $('an-paro-t').textContent = 'Buscando el acomodo más apretado · faltan ' + minSeg(falta) +
+        (T.busquedas ? ' · ' + T.busquedas + ' búsquedas a la vez' : '');
+    };
+    pintar(); _sp.reloj = setInterval(pintar, 1000);
+  }
+  function detenerSparrow() {
+    if (_sp.pend) pintarPendienteSparrow();
+    clearInterval(_sp.reloj); _sp.reloj = 0;
+    var hilo = document.querySelector('#an-paro .an-paro-hilo'); if (hilo) hilo.hidden = false;
+    if (_sp.ctl) { try { _sp.ctl.detener(); } catch (_) {} _sp.ctl = null; }
+  }
+  function textoFinSparrow(solo) {
+    var r = T.retazo ? ' Te queda un retazo de ' + T.retazoTxt + '.' : '';
+    var m = T.mejor ? Math.round((T.mejor.eficiencia || 0) * 100) : 0;
+    return (solo ? 'Listo: el acomodo más apretado que encontró en ' + duracion(T.segundos) + '.' : 'Detenido: quedó el mejor acomodo que llevaba.') +
+      ' Las piezas ocupan el ' + m + ' % de lo que gastan de hoja.' + r + ' Descárgalo, o elige más tiempo en «Cuánto busca» y vuelve a acomodar.';
+  }
+
   function detener(solo) {
+    if (T.motor === 'sparrow') detenerSparrow();
     corrida++;   // el intento que siga en los workers ya no se enseña
     window.SvgNest.stop();
     T.corriendo = false; T.detenidoSolo = !!solo;
@@ -928,8 +1097,8 @@
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
     if (!T.mejor) { mensaje('Detenido antes del primer acomodo.', ''); return; }
     var s = 'Descarga el resultado o sigue buscando.', L = limites();
-    mensaje(!solo ? 'Detenido. ' + s
-      : !L.intentos ? 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
+    if (T.motor === 'sparrow') mensaje(textoFinSparrow(solo), 'ok');
+    else mensaje(!solo ? 'Detenido. ' + s
       : 'Se detuvo solo: ' + L.intentos + ' intentos y ' + Math.round(L.ms / 1000) + ' s seguidos sin mejorar. ' + s, 'ok');
     revisarVibracion();
   }
@@ -1072,6 +1241,8 @@
   /* El motor llama esto por cada intento evaluado: con resultado cuando mejoró, sin nada
      cuando no. Ahí se cuenta cuánto lleva sin mejorar, que es lo que decide el paro solo. */
   function alMostrar(svglist, eficiencia, colocadas, total) {
+    if (T.motor === 'sparrow') { T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total, editado: false };
+      pintarResultado(T.yaPinto); T.yaPinto = true; pintarStats(); return; }
     T.intentos++;
     if (svglist && svglist.length) {
       var habia = !!T.mejor;
@@ -1412,13 +1583,16 @@
   /* Los números de la merma (A11): lo que se tira, en metros cuadrados. Es el porcentaje que ya
      estaba por lo que mide el material que se compra: ancho × alto × hojas × merma. */
   function pintarStats() {
-    $('an-st-int').textContent = T.intentos;
+    if (T.motor !== 'sparrow') $('an-st-int').textContent = T.intentos;
     if (!T.mejor) return;
     var ef = T.mejor.eficiencia || 0;
     contar($('an-st-uso'), ef * 100, function (v) { return Math.round(v) + ' %'; });
     contar($('an-st-merma'), (1 - ef) * 100, function (v) { return Math.round(v) + ' %'; });
     var n = T.mejor.svglist.length, d = dimsDeHoja(T.mejor.svglist[0]);
-    contar($('an-st-merma-m2'), (1 - ef) * n * d.w * d.h / 1e6, function (v) { return v.toFixed(2) + ' m²'; });
+    var usada = T.motor === 'sparrow' && T.areaUsada > 0 ? T.areaUsada : n * d.w * d.h;
+    contar($('an-st-merma-m2'), (1 - ef) * usada / 1e6, function (v) { return v.toFixed(2) + ' m²'; });
+    $('an-st-int-k').textContent = T.motor === 'sparrow' ? 'Retazo' : 'Intentos';
+    if (T.motor === 'sparrow') $('an-st-int').textContent = T.retazoTxt || '—';
     $('an-st-col').textContent = T.mejor.colocadas + '/' + T.mejor.total;
     $('an-st-hojas').textContent = n;
     var cal = calificar(ef);
@@ -2713,7 +2887,7 @@
     estado: function () {
       return { archivo: A ? { nombre: A.nombre, piezas: A.piezas, k: A.k, origen: A.escala && A.escala.origen, bbox: A.bbox, avisos: A.avisos.slice() } : null,
                corriendo: T.corriendo, intentos: T.intentos, sinMejora: T.sinMejora, detenidoSolo: T.detenidoSolo,
-               busca: busqueda(), formato: formatoArchivo(),
+               busca: busqueda(), formato: formatoArchivo(), motor: T.motor || 'svgnest', retazo: T.retazo || null, areaUsada: T.areaUsada || 0,
                anterior: !!T.anterior, paro: !!_paro, veta: conVeta(),
                hoja: hojaElegida(), material: materialElegido(), retazos: R.slice(),
                mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };

@@ -17,16 +17,31 @@ y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— 
    ancho o el alto real del diseño, igual que hace el vectorizador.
 3. Dice lo que se va a quedar fuera antes de empezar: textos sin convertir en contornos,
    símbolos `<use>`, imágenes, y las piezas que no caben en la hoja ni giradas.
-4. Acomoda las piezas con el motor de código abierto [SVGnest](https://github.com/Jack000/SVGnest)
-   (algoritmo genético + *no-fit polygon*), probando giros, y va enseñando el mejor
-   acomodo encontrado. Si no caben en una hoja, abre las que hagan falta.
-5. **Se detiene solo**, porque el algoritmo genético nunca termina por su cuenta. En
-   **Rápido**, el de omisión, a los 5 s sin mejorar o a los 15 s del primer acomodo aunque
-   siga mejorando; en **A fondo**, cuando lleva 25 intentos y 40 segundos seguidos sin
-   mejorar. «Seguir buscando» continúa desde donde iba; «Detener» para cuando el resultado
-   ya convence. (Rápido es el de omisión desde el 16/10/2026, por un audio del taller: el
-   acomodo de dos minutos ahorraba unos 3 cm, y para el router se retoca a mano de todos
-   modos —entre dos cortes rectos muy juntos tiene que quedar material o la pieza vibra—.)
+4. Acomoda las piezas con **sparrow** ([repositorio](https://github.com/JeroenGar/sparrow),
+   KU Leuven 2025, MIT), lo más avanzado que hay en código abierto para piezas irregulares, a
+   través del puente WebAssembly de [sparrow-studio](https://github.com/JeroenGar/sparrow-studio)
+   (MIT). Desde el 17/10/2026 es el motor de omisión: Elías dijo que el de SVGnest «no está bien
+   optimizado» y era cierto —con su letrero de AVIDA, 2.37 m de hoja contra 2.04 de sparrow, y a
+   1 cm de separación dos hojas contra una—. Lo que hace:
+   - colisiones exactas con la **separación** pedida, de pieza a pieza y con la orilla;
+   - **giro libre** de omisión (cualquier ángulo); con veta, solo 0° y 180°;
+   - acomoda en una franja del ancho de la hoja buscando el **menor largo**, así que lo que
+     sobra queda junto, como **retazo** rectangular de lado a lado; en los trabajos chicos prueba
+     también franjas más angostas y se queda con la que gasta menos superficie (las piezas
+     quedan en una esquina);
+   - corre **varias búsquedas a la vez** (una por núcleo, menos uno) con distinta semilla y se
+     queda con la mejor; si no cabe en una hoja, lo que cabe entero en el primer largo es la
+     hoja 1 y lo demás vuelve al motor para la siguiente;
+   - no mete piezas dentro del hueco de otra (reserva la huella de fuera entera).
+   El código: `js/motor-sparrow.js` (la traducción, pura y probada en node),
+   `js/motor-sparrow-mesa.js` (los Web Workers, las semillas, los anchos y el reparto en hojas),
+   `js/motor-sparrow-trabajador.js` (el Worker) y `motor/` (el paquete compilado, con sus
+   licencias y SHA256SUMS; ver «El motor compilado» abajo). Donde no hay Web Workers de módulo o
+   WebAssembly, se usa el motor viejo, [SVGnest](https://github.com/Jack000/SVGnest).
+5. **Cuánto busca**: 2, 5 o 10 minutos (Elías, 17/10/2026: «quiero que todo sea a fondo»; el modo
+   «Rápido» se quitó). «Detener» se queda con el mejor acomodo que lleve. El marcador dice el
+   aprovechamiento de lo que se gasta de hoja (las hojas llenas y, de la última, el rectángulo
+   usado) y el retazo que queda.
 6. Descarga el acomodo **a escala real**, con una capa por hoja —todas en un archivo, o una
    hoja sola— y el contorno de la hoja en azul en su propia capa, para colocar el archivo en
    la cama y ponerlo en «no cortar». En **DXF**, el de omisión y el del router: R12, en mm,

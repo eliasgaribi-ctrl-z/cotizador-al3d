@@ -87,9 +87,9 @@ async function abrir({ ancho = 1100, alto = 900, tema = 'claro', reducido = fals
   const ctx = await nav.newContext({ viewport: { width: ancho, height: alto }, locale: 'es-MX', serviceWorkers: 'block',
     hasTouch: tactil, isMobile: tactil, deviceScaleFactor: 1, reducedMotion: reducido ? 'reduce' : 'no-preference' });
   await ctx.addInitScript(t => { try { if (!localStorage.getItem('al3d_tema')) localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
-  /* «A fondo»: con «Rápido», el de omisión desde el 16/10/2026, el motor falso que se deja corriendo
-     se pararía solo a los 5 s de reloj, a media ronda. Estas rondas prueban la mesa, no el paro. */
-  await ctx.addInitScript(() => { try { if (!localStorage.getItem('al3d_anidador_material')) localStorage.setItem('al3d_anidador_material', JSON.stringify({ busca: 'fondo' })); } catch (_) {} });
+  /* El motor falso se monta sobre el de SVGnest, que desde el 17/10/2026 es el de respaldo (el de
+     omisión es sparrow, que prueba pruebas/navegador/an-sparrow.mjs). Estas rondas prueban la mesa. */
+  await ctx.addInitScript(() => { window.__anidadorMotorViejo = true; });
   const p = await ctx.newPage();
   p.setDefaultTimeout(8000);
   const errs = []; p.on('pageerror', e => errs.push(e.message));
