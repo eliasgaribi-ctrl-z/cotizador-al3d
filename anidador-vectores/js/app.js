@@ -1255,9 +1255,11 @@
     var fueraSet = {}; sinCabida.forEach(function (p) { fueraSet[p.id] = true; });
     var dentro = partes.filter(function (p) { return !fueraSet[p.id]; });
     var GU = window.GeometryUtil;
+    var areaPorId = {};
     var area = dentro.reduce(function (s, p) {
       var a = Math.abs(GU.polygonArea(p));
       (p.children || []).forEach(function (h) { a -= Math.abs(GU.polygonArea(h)); });
+      areaPorId[p.id] = Math.max(0, a);
       return s + Math.max(0, a);
     }, 0);
     var piezas = dentro.map(function (p) { return { id: p.id, contorno: p.map(function (q) { return { x: q.x, y: q.y }; }) }; });
@@ -1267,7 +1269,7 @@
           material: mat, k: A.k, huella: null, fuera: sinCabida.length, fueraIds: idsDe(hs, sinCabida), total: partes.length,
           anterior: previo, inicio: Date.now(), segundos: seg, yaPinto: false, areaUsada: 0 };
     A.numeros = numerarPartes(hs, partes);
-    _sp.ctx = { svg: svg, hs: hs, partes: partes, mat: mat, area: area, mia: mia };
+    _sp.ctx = { svg: svg, hs: hs, partes: partes, mat: mat, area: area, areaPorId: areaPorId, mia: mia };
     _sp.pend = null;
     /* La separación que se le pide al motor lleva 2 × TOLERANCIA_MM de más: las curvas le llegan
        enderezadas con esa fineza (cada tramo recto va por dentro de la curva hasta 0.3 mm), así que
@@ -1315,6 +1317,13 @@
        Lo demás de esa hoja es retazo, no merma. */
     var usado = (n - 1) * hojaArea + u.anchoUsado * u.largoUsado;
     T.areaUsada = usado;
+    /* El % de cada hoja, con la misma cuenta: sus piezas entre la hoja entera, o entre el
+       rectángulo usado en la última (usoDeHoja lo lee de aquí). */
+    T.usoHojas = hojas.map(function (h, i) {
+      var a = h.colocaciones.reduce(function (s, c) { return s + (ctx.areaPorId[c.id] || 0); }, 0);
+      var den = i < n - 1 ? hojaArea : h.anchoUsado * h.largoUsado;
+      return den > 0 ? Math.min(1, a / den) : NaN;
+    });
     alMostrar(armarHojasSparrow(hojas, ctx), usado > 0 ? Math.min(1, ctx.area / usado) : 0, colocadas, T.total);
   }
   /* Las hojas en el formato del motor viejo (lo que entrega SvgNest.applyPlacement): un SVG por hoja,
@@ -1533,7 +1542,7 @@
   /* El motor llama esto por cada intento evaluado: con resultado cuando mejoró, sin nada
      cuando no. Ahí se cuenta cuánto lleva sin mejorar, que es lo que decide el paro solo. */
   function alMostrar(svglist, eficiencia, colocadas, total) {
-    if (T.motor === 'sparrow') { T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total, editado: false };
+    if (T.motor === 'sparrow') { T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total, editado: false, usoHojas: T.usoHojas };
       pintarResultado(T.yaPinto); T.yaPinto = true; pintarStats(); return; }
     T.intentos++;
     if (svglist && svglist.length) {
@@ -1855,8 +1864,14 @@
     _cacheArea[llave] = area;
     return area;
   }
-  function usoDeHoja(svg, d) {
-    var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, suma = 0, hay = false;
+  function usoDeHoja(svg, d, i) {
+    /* Con sparrow, la cuenta de su marcador (ver pintarPendienteSparrow); viaja con el acomodo,
+       así que «Recuperar» trae la suya. */
+    if (T.mejor && T.mejor.usoHojas) return T.mejor.usoHojas[i] >= 0 ? T.mejor.usoHojas[i] : NaN;
+    /* Con el motor viejo, la suya: cada pieza engordada media separación y la hoja adelgazada otro
+       tanto, con la separación que de verdad se le pidió —la de la hoja más MARGEN_MOTOR_MM—. Con
+       la de la hoja sola, el promedio de las hojas no cuadraba con el marcador (63.5 contra 65.3). */
+    var sep = ((T.material && T.material.sep > 0) ? T.material.sep : 0) + MARGEN_MOTOR_MM, suma = 0, hay = false;
     hijos(svg).forEach(function (g) {
       if (!g.tagName || g.tagName !== 'g') return;
       var a = areaDelMotor(g, sep);
@@ -1935,7 +1950,7 @@
         (T.material ? ' · separación ' + esc(fmtMm(T.material.sep)) + ' mm' : '');
       cap.appendChild(t);
       if (n > 1) {
-        var uso = usoDeHoja(s, d);
+        var uso = usoDeHoja(s, d, i);
         if (uso === uso) {
           var fila = document.createElement('span'); fila.className = 'an-cap-uso';
           var barra = document.createElement('span'); barra.className = 'an-cap-barra'; barra.setAttribute('aria-hidden', 'true');
