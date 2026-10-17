@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 125;
+const APP_VERSION = 126;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -177,6 +177,9 @@ const APP_FILES = [
   './anidador-vectores/js/medidas.js',
   './anidador-vectores/js/dxf.js',
   './anidador-vectores/js/vibracion.js',
+  './anidador-vectores/js/contornos.js',
+  './anidador-vectores/js/dxf-entrada.js',
+  './anidador-vectores/js/sobrante.js',
   './anidador-vectores/js/svgnest.js',
   './anidador-vectores/js/svgparser.js',
   './anidador-vectores/js/lib/pathsegpolyfill.js',

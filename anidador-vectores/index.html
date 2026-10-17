@@ -151,10 +151,10 @@ document.documentElement.classList.add('arrancando');
       <div class="card-b">
         <label class="ai-drop" id="an-drop" for="an-file">
           <span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-subir"/></svg></span>
-          <span class="t" id="an-drop-t">Arrastra el SVG aquí, pégalo con Ctrl+V o toca para elegirlo</span>
-          <span class="s">El que exporta Illustrator o Inkscape, o el que baja el vectorizador del cotizador. Solo contornos: los textos se convierten en trazos antes.</span>
+          <span class="t" id="an-drop-t">Arrastra el SVG o el DXF aquí, pégalo con Ctrl+V o toca para elegirlo</span>
+          <span class="s">El SVG de Illustrator o Inkscape, el DXF de AutoCAD o Corel, o el que baja el vectorizador del cotizador. Las líneas sueltas se juntan solas; los textos se convierten en trazos antes.</span>
         </label>
-        <input type="file" id="an-file" class="solo-voz" accept=".svg,image/svg+xml" aria-label="Elegir el archivo SVG">
+        <input type="file" id="an-file" class="solo-voz" accept=".svg,image/svg+xml,.dxf,application/dxf,image/vnd.dxf" aria-label="Elegir el archivo SVG o DXF">
 
         <!-- Para quien llega por primera vez y no tiene un archivo a la mano (A31). Se esconde
              en cuanto hay uno cargado: el de abajo, en la mesa vacía, es el mismo botón. -->
@@ -223,17 +223,31 @@ document.documentElement.classList.add('arrancando');
           </button>
         </div>
 
-        <div class="grid3 an-medidas">
+        <div class="grid2 an-medidas">
           <div class="fld" id="fld-ancho"><label for="an-ancho">Ancho (mm)</label><input id="an-ancho" type="number" inputmode="decimal" min="1" step="any" value="1200"></div>
           <div class="fld" id="fld-alto"><label for="an-alto">Alto (mm)</label><input id="an-alto" type="number" inputmode="decimal" min="1" step="any" value="2400"></div>
-          <div class="fld" id="fld-sep"><label for="an-sep">Separación (mm)</label><input id="an-sep" type="number" inputmode="decimal" min="0" step="any" value="3"></div>
         </div>
         <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la hoja"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la hoja</button>
 
-        <!-- Con qué se corta decide la separación, y no al revés: el router tiene que pasar la
-             broca entera entre dos piezas, más un poco de aire; el láser corta fino y pide de
-             1.5 a 2 mm. Los números son los del taller (Leonel, 1/10/2026). Cada chip solo
-             escribe la separación: el campo sigue mandando y se puede poner otra. -->
+        <!-- La separación la elige quien corta, según el trabajo (taller, 17/10/2026): a veces 1 cm, a
+             veces 6 mm, a veces 3 mm. Antes era un campo escondido junto al ancho y al alto; ahora va a
+             la vista, con las tres de siempre a un toque y el campo para cualquier otra. Se recuerda en
+             el aparato y sale en el pie de cada hoja y en el nombre del archivo descargado. -->
+        <div class="fld-lab" id="lab-sep">Separación entre piezas</div>
+        <div class="an-sep-fila">
+          <div class="chips an-sepchips" id="an-sepchips" role="group" aria-labelledby="lab-sep">
+            <button type="button" class="chip" aria-pressed="false" data-sep="3">3 mm</button>
+            <button type="button" class="chip" aria-pressed="false" data-sep="6">6 mm</button>
+            <button type="button" class="chip" aria-pressed="false" data-sep="10">1 cm</button>
+          </div>
+          <div class="fld an-sep-campo" id="fld-sep"><label for="an-sep">Separación (mm)</label><input id="an-sep" type="number" inputmode="decimal" min="0" step="any" value="3"></div>
+        </div>
+        <div class="hintnote an-hint">La distancia mínima entre pieza y pieza, y entre cada pieza y la orilla de la hoja. Cualquier número vale.</div>
+
+        <!-- Con qué se corta: el router tiene que pasar la broca entera entre dos piezas, más un poco
+             de aire; el láser corta fino y pide de 1.5 a 2 mm. Los números son los del taller (Leonel,
+             1/10/2026). Elegir la herramienta pone su separación, pero la herramienta se queda elegida
+             aunque luego se escriba otra separación: la marca de vibración sigue usando su broca. -->
         <div class="fld-lab" id="lab-corte">Se corta con</div>
         <div class="chips an-corte" id="an-corte" role="group" aria-labelledby="lab-corte">
           <button type="button" class="chip" aria-pressed="false" data-sep="2">Láser <small>2 mm</small></button>
@@ -343,6 +357,9 @@ document.documentElement.classList.add('arrancando');
           <div class="an-ficha" id="an-ficha-hojas"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
           <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span><span class="sub" id="an-st-merma-m2"></span></div>
           <div class="an-ficha"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
+          <!-- El retazo útil: el rectángulo libre más grande de la última hoja (js/sobrante.js). -->
+          <div class="an-ficha an-ficha-sobra" id="an-ficha-sobra"><span class="k">Te queda un retazo de</span><span class="v" id="an-st-sobra">—</span><span class="sub" id="an-st-sobra-sub"></span>
+            <button type="button" class="an-btn-mesa an-sobra-guardar" id="an-sobra-guardar" hidden>Guardar como retazo</button></div>
         </div>
       </div>
 
@@ -363,7 +380,7 @@ document.documentElement.classList.add('arrancando');
            (la de resultados encima) para que el haz pueda destapar una con la otra. Abajo, el pie
            de la mesa: lo que se hace con lo que se ve (zoom, hojas, la pieza elegida). -->
       <div class="an-mesa" id="an-mesa" data-mat="acrilico">
-        <div class="an-lienzo" id="an-orig"><div class="an-vacio"><p>Sube un SVG para verlo aquí, sobre la mesa.</p><button type="button" class="btn btn-gho an-ejemplo" data-an-ejemplo>Probar con un ejemplo</button></div></div>
+        <div class="an-lienzo" id="an-orig"><div class="an-vacio"><p>Sube un SVG o un DXF para verlo aquí, sobre la mesa.</p><button type="button" class="btn btn-gho an-ejemplo" data-an-ejemplo>Probar con un ejemplo</button></div></div>
         <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
         <p class="solo-voz" id="an-mesa-ayuda">Con la hoja enfocada: más y menos acercan y alejan, cero regresa a la hoja entera y las flechas la desplazan. Enter pasa a las piezas, las flechas cambian de pieza y Enter abre su ficha. Con el cálculo detenido, Mayús y una flecha empuja la pieza 5 milímetros y la tecla R la gira 90 grados, o 180 si el material tiene veta.</p>
         <i class="an-haz" id="an-haz" aria-hidden="true"></i>
@@ -388,6 +405,9 @@ document.documentElement.classList.add('arrancando');
           <div class="an-pie-fila an-vibra" id="an-vibra" hidden>
             <p class="an-vibra-t" id="an-vibra-t"></p>
           </div>
+          <div class="an-pie-fila an-vibra" id="an-juntas" hidden>
+            <p class="an-vibra-t" id="an-juntas-t"></p>
+          </div>
         </div>
       </div>
     </section>
@@ -410,10 +430,14 @@ document.documentElement.classList.add('arrancando');
 <script src="js/lib/placementworker.js"></script>
 <script src="js/svgparser.js"></script>
 <script src="js/svgnest.js"></script>
-<!-- Lo nuestro: la aritmética de unidades (probada en node) y la interfaz. -->
+<!-- Lo nuestro: unidades, DXF de salida y de entrada, cortes que vibran, contornos y sobrante
+     (todo probado en node) y la interfaz. -->
 <script src="js/medidas.js"></script>
 <script src="js/dxf.js"></script>
 <script src="js/vibracion.js"></script>
+<script src="js/contornos.js"></script>
+<script src="js/dxf-entrada.js"></script>
+<script src="js/sobrante.js"></script>
 <!-- Las piezas compartidas con el cotizador y la plataforma. -->
 <script src="../js/piezas.js"></script>
 <script src="js/app.js"></script>

@@ -54,10 +54,22 @@
      mira el reloj: se para a los 5 s sin mejorar, y a más tardar 15 s después del primer acomodo
      aunque siga mejorando. Con `intentos: 0` no cuenta intentos; con `topeMs: 0` no hay tope. */
   var BUSQUEDA = {
-    rapido: { intentos: 0, ms: 5000, topeMs: 15000 },
+    rapido: { intentos: 0, ms: 5000, topeMs: 15000, hojaMenosMs: 45000 },
     fondo:  { intentos: 25, ms: 40000, topeMs: 0 }
   };
+  /* …salvo cuando la última hoja lleva casi nada (AVIDA, 17/10/2026: 30 piezas en una hoja y 2 en
+     otra, y «A fondo» las metía todas en una a los 15 s). Abrir una hoja para dos letras es lo
+     más caro que puede pasar, así que «Rápido» no se para mientras la última hoja tenga 3 piezas o
+     menos, o menos del 15 % de su área: sigue buscando hasta 45 s desde el primer acomodo, y si
+     la quita lo dice. */
+  var HOJA_CASI_VACIA = { piezas: 3, uso: 0.15 };
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
+  /* Lo que se le pide de más a SVGnest sobre la separación. Su polígono de cada pieza se queda corto
+     de la curva (cuerdas a 0.3 mm, vértices que limpia, el redondeo del engorde): medido con AVIDA, las
+     piezas quedaban más juntas que lo pedido (17 lugares a 6 mm), y revisarSeparacion() las marcaba en rojo.
+     Con esto de más, lo que entrega respeta la separación; la mesa sigue revisando de todos modos. Un
+     motor que entrega por colocar() no pasa por aquí. */
+  var MARGEN_MOTOR_MM = 1;   // medido (17/10/2026): con 1 mm, AVIDA a 3, 6 y 10 mm y 24 letras curvas, cero lugares en rojo
   var TOLERANCIA_DXF_MM = 0.05;                 // …y para el DXF, que va a la máquina: más fina
   var HUECO_ENTRE_HOJAS_MM = 25;                // en el SVG de salida, una hoja debajo de otra
   var COLORES_PIEZA = 6;                        // cuántos tonos se turnan en la mesa
@@ -270,16 +282,28 @@
       tarjetas.classList.remove('sin-giro');
     } else tarjetas.classList.toggle('acostada', acostada);
   }
-  /* El chip de «Se corta con» que coincide con la separación escrita queda marcado; con otra
-     separación a mano no se marca ninguno, que es la verdad: no es ninguno de los cuatro. */
+  /* La separación a un toque (3 mm, 6 mm, 1 cm): queda marcado el que coincide con el campo; con
+     otro número no se marca ninguno, que es la verdad. La herramienta de «Se corta con» ya no se
+     deduce de la separación (eligeHerramienta): con la broca de 1/8″ elegida y 1 cm de separación,
+     la marca de vibración sigue sabiendo qué broca es. */
   function marcarCorte() {
     var v = parseFloat($('an-sep').value);
-    lista(document.querySelectorAll('#an-corte .chip')).forEach(function (c) {
+    lista(document.querySelectorAll('#an-sepchips .chip')).forEach(function (c) {
       var en = parseFloat(c.getAttribute('data-sep')) === v;
       c.classList.toggle('on', en); c.setAttribute('aria-pressed', en ? 'true' : 'false');
     });
     var f = $('fld-minimo'); if (f) f.hidden = !brocaElegida();
   }
+  /* «Se corta con»: una herramienta o ninguna. Elegirla escribe su separación; volver a tocarla la suelta. */
+  function eligeHerramienta(c) {
+    var ya = c && c.classList.contains('on');
+    lista(document.querySelectorAll('#an-corte .chip')).forEach(function (x) {
+      var en = !ya && x === c;
+      x.classList.toggle('on', en); x.setAttribute('aria-pressed', en ? 'true' : 'false');
+    });
+    if (c && !ya) $('an-sep').value = c.getAttribute('data-sep');
+  }
+  function herramientaElegida() { var on = document.querySelector('#an-corte .chip.on'); return on ? on.getAttribute('data-sep') : ''; }
   /* «Cuánto busca» (Rápido / A fondo) y el formato del archivo (DXF / SVG): dos grupos de chips
      de una sola opción, como el material. Ninguno cambia lo que el motor calcula —uno decide
      cuándo se para y el otro cómo se escribe la descarga—, así que no entran en huellaMotor():
@@ -317,7 +341,8 @@
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
       huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
-      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo(), minimo: $('an-minimo').value })); } catch (_) {}
+      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo(), minimo: $('an-minimo').value,
+      herramienta: herramientaElegida() })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
@@ -329,6 +354,11 @@
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
+    /* La herramienta: la guardada; en lo guardado antes de que se separaran, la que coincidía con la
+       separación. */
+    var h = g.herramienta !== undefined ? g.herramienta : g.sep;
+    var ch = h ? document.querySelector('#an-corte .chip[data-sep="' + String(h).replace(/"/g, '') + '"]') : null;
+    if (ch) eligeHerramienta(ch);
     marcarCorte();
     if (g.rot) $('an-rot').value = String(g.rot);
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
@@ -370,10 +400,17 @@
   });
   lista(document.querySelectorAll('#an-corte .chip')).forEach(function (c) {
     c.addEventListener('click', function () {
+      eligeHerramienta(c);
+      marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); revisarVibracion();
+    });
+  });
+  lista(document.querySelectorAll('#an-sepchips .chip')).forEach(function (c) {
+    c.addEventListener('click', function () {
       $('an-sep').value = c.getAttribute('data-sep');
       marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); revisarVibracion();
     });
   });
+  $('an-sobra-guardar').addEventListener('click', function () { guardarSobrante(); });
   $('an-minimo').addEventListener('input', function () { guardarMaterial(); revisarVibracion(); });
   /* Los tres cambian lo que el motor calcula: habilitar() decide si «Seguir buscando» vale. */
   $('an-rot').addEventListener('change', function () { _veta.rotPrevia = null; guardarMaterial(); habilitar(); });
@@ -545,13 +582,62 @@
   $('an-retazo-nombre').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('an-retazo-guardar').click(); } });
 
   /* ---------- Cargar el archivo ---------- */
+  function esDxfDeNombre(file) { return /\.dxf$/i.test(file.name || '') || /dxf/i.test(file.type || ''); }
   function leerArchivo(file) {
-    var esSvg = /\.svg$/i.test(file.name) || (file.type && file.type.indexOf('svg') >= 0);
-    if (!esSvg) { toast('«' + file.name + '» no es un SVG. Exporta el diseño como SVG y vuelve a intentar.', 'err', 4200); return; }
+    var esSvg = /\.svg$/i.test(file.name) || (file.type && file.type.indexOf('svg') >= 0), esDxf = esDxfDeNombre(file);
+    if (!esSvg && !esDxf) { toast('«' + file.name + '» no es un SVG ni un DXF. Exporta el diseño en alguno de los dos y vuelve a intentar.', 'err', 4200); return; }
     var lector = new FileReader();
-    lector.onload = function (e) { cargarTexto(e.target.result, file.name, { peso: file.size }); };
+    lector.onload = function (e) {
+      var t = e.target.result;
+      if (esDxf || (window.AnidadorDxfEntrada && window.AnidadorDxfEntrada.esDxf(t))) cargarDxf(t, file.name, { peso: file.size });
+      else cargarTexto(t, file.name, { peso: file.size });
+    };
     lector.onerror = function () { toast('No se pudo leer «' + file.name + '».', 'err'); };
     lector.readAsText(file);
+  }
+
+  /* ---------- El DXF (js/dxf-entrada.js y js/contornos.js) ----------
+     Se lee, se juntan sus tramos sueltos por los extremos y se vuelve un SVG en mm que entra por
+     cargarTexto() como cualquier otro: la misma vista previa, la misma medida, el mismo motor. Lo
+     que la lectura tiene que decir —unidades, lo que no se corta, tramos repetidos— viaja como
+     avisos del archivo. Lo que no cerró va en el SVG como trazo abierto y lo avisa la limpieza de
+     líneas sueltas de cargarTexto(), igual que en un SVG. */
+  function cargarDxf(texto, nombre, opts) {
+    opts = opts || {};
+    var D = window.AnidadorDxfEntrada, K = window.AnidadorContornos;
+    if (!D || !K) { toast('No se pudo abrir el DXF: falta el lector.', 'err'); return false; }
+    if (/^AutoCAD Binary DXF/.test(String(texto).slice(0, 22))) { toast('«' + nombre + '» es un DXF binario. Guárdalo como DXF de texto (ASCII) y vuelve a intentar.', 'err', 5200); return false; }
+    var r = null;
+    try { r = D.leer(texto); } catch (e) { r = { error: (e && e.message) || String(e) }; }
+    if (!r || r.error) { toast('No se pudo leer «' + (nombre || 'el DXF') + '»: no parece un DXF de dibujo.', 'err', 4200); return false; }
+    var u = K.unir(r.trazos), sinArea = 0;
+    /* Lo que se juntó y no encierra nada (dos líneas encimadas que van y vuelven) no es una pieza. */
+    u.cerrados = u.cerrados.filter(function (c) { if (Math.abs(K.area(c.puntos)) < 0.01) { sinArea += c.trazos; return false; } return true; });
+    /* Los contornos repetidos se quitan aquí (no hay nada que conservar de un contorno dos veces) y
+       las figuras se agrupan con sus huecos —lo que queda estrictamente dentro—, salvo la de dentro
+       de una línea doble, que no es un hueco sino la pieza de verdad (ver analizarContornos). */
+    var cs = u.cerrados.map(function (c, i) { return { id: i, puntos: c.puntos }; });
+    var limpia = K.limpiar(cs), rep = {};
+    limpia.repetidos.forEach(function (i) { rep[i] = true; });
+    var fueraDoble = {};
+    limpia.dobles.forEach(function (d) { fueraDoble[d.id] = true; });
+    /* El de fuera de cada línea doble va solo; lo demás se agrupa sin él (lo que quedó dentro de
+       un hueco es otra pieza: K.piezas() ya la da aparte). */
+    var grupos = limpia.dobles.map(function (d) { return [d.id]; });
+    K.piezas(cs.filter(function (c) { return !rep[c.id] && !fueraDoble[c.id]; })).forEach(function (pz) {
+      grupos.push([pz.id].concat(pz.huecos.map(function (h) { return h.id; })));
+    });
+    var svg = D.aSvg(u.cerrados, u.abiertos, grupos);
+    if (!svg) { toast('«' + nombre + '» no trae nada que cortar: ni líneas, ni arcos, ni curvas.', 'err', 4200); return false; }
+    var avisos = r.avisos.slice(), juntados = u.cerrados.filter(function (c) { return c.trazos > 1; });
+    if (juntados.length) {
+      var n = juntados.reduce(function (s, c) { return s + c.trazos; }, 0);
+      avisos.push('Se juntaron ' + n + ' tramos sueltos en ' + juntados.length + (juntados.length === 1 ? ' contorno cerrado' : ' contornos cerrados') + ', por sus extremos, como «Reparar problema».');
+    }
+    if (u.repetidos || u.encimados) avisos.push((u.repetidos + u.encimados === 1 ? 'Se quitó un tramo repetido o encimado' : 'Se quitaron ' + (u.repetidos + u.encimados) + ' tramos repetidos o encimados') + ' (se habría cortado dos veces).');
+    if (sinArea) avisos.push(sinArea === 1 ? 'Se quitó una línea suelta sin área: no encierra nada que cortar.' : 'Se quitaron ' + sinArea + ' líneas sueltas sin área: no encierran nada que cortar.');
+    if (limpia.repetidos.length) avisos.push('Se ' + (limpia.repetidos.length === 1 ? 'quitó un contorno repetido' : 'quitaron ' + limpia.repetidos.length + ' contornos repetidos') + ': el mismo contorno dos veces, encimado, se cortaría dos veces.');
+    return cargarTexto(svg, nombre || 'diseño.dxf', { peso: opts.peso, origen: 'dxf', avisos: avisos, unidad: r.unidad });
   }
 
   /* El corazón de la carga. Recibe el SVG como texto —del disco, del portapapeles o del
@@ -577,7 +663,9 @@
     }
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
-          bbox: null, escala: null, k: null, piezas: 0, avisos: [], avisoSel: {}, numeros: {}, origen: opts.origen || null };
+          bbox: null, escala: null, k: null, piezas: 0, avisos: [], avisoSel: {}, avisoAccion: {}, numeros: {}, origen: opts.origen || null,
+          unidad: opts.unidad || null, limpieza: null, conservar: { guias: false, dobles: false } };
+    (opts.avisos || []).forEach(function (t) { A.avisos.push(t); });
     T = { corriendo: false, intentos: 0, sinMejora: 0, ultimaMejora: 0, mejor: null, detenidoSolo: false };
     /* La medida es de ESTE archivo: la del anterior no puede quedarse en los campos, porque
        un 280 heredado se leería como que este archivo mide 280. */
@@ -597,10 +685,13 @@
        lo que viene abajo —la vista previa, el motor, la salida— copia la raíz ya limpia. */
     sanear(raiz);
 
-    pintarOriginal();
     A.escala = M.escalaDelArchivo({ width: raiz.getAttribute('width'), height: raiz.getAttribute('height'), viewBox: raiz.getAttribute('viewBox') });
     A.k = A.escala.mmPorUnidad;
+    juntarSueltas();
     if (A.escala.noUniforme) A.avisos.push('El ancho y el alto del archivo no cuadran entre sí (escala distinta en cada eje). Se usó la del ancho; revisa la medida.');
+    A.nAvisos = A.avisos.length;   // los de la limpieza van después y se rehacen solos
+    analizarContornos();
+    pintarOriginal();
     A.piezas = contarPiezas(A.k || 1);
     if (A.piezas === 0) A.avisos.push('No encontré contornos que acomodar. Revisa que el diseño sean trazos y no una imagen o texto.');
 
@@ -613,6 +704,181 @@
     else if (A.piezas > 0) mensaje('Falta la medida real del diseño: escribe su ancho o su alto en milímetros.', 'av');
     else mensaje('');
     return true;
+  }
+
+  /* ---------- Las líneas sueltas de un SVG ----------
+     Un <line>, una <polyline> o un trazo sin cerrar no es una pieza: el motor cerraba cada uno
+     con una recta de su punta a su inicio (una «C» de tres arcos sueltos salía como tres
+     rebanadas) o lo tiraba. Es lo que el equipo arreglaba a mano con «Reparar problema»: aquí se
+     juntan por sus extremos (js/contornos.js, con tolerancia creciente) y se ponen en el archivo
+     como trazos cerrados, en el lugar de los sueltos. Lo que no cierra con nada se queda en la
+     vista previa en ámbar (class="an-suelta"), no va al motor y se avisa con «Ver cuáles». */
+  function juntarSueltas() {
+    var K = window.AnidadorContornos, SP = window.SvgParser;
+    if (!K || !SP || !A) return;
+    var clon = A.raiz.cloneNode(true);
+    rotular(clon, 'id'); quitarEtiquetas(clon, NO_SE_CORTAN);
+    ['width', 'height', 'transform'].forEach(function (a) { clon.removeAttribute(a); });
+    var raiz = null, k = A.k > 0 ? A.k : 1;
+    try {
+      SP.config({ tolerance: A.k > 0 ? TOLERANCIA_DXF_MM / A.k : TOLERANCIA_MM });
+      SP.load(new XMLSerializer().serializeToString(clon));
+      raiz = SP.clean();
+    } catch (_) { raiz = null; }
+    finally { try { SP.config({ tolerance: TOLERANCIA_MM }); } catch (_) {} }
+    if (!raiz) return;
+    /* Por elemento del archivo (un trazo compuesto llega partido en sus subtrazos, con el mismo id):
+       suelto solo si TODOS sus pedazos están abiertos. */
+    var porId = {}, orden = [];
+    hijos(raiz).forEach(function (e) {
+      var id = e.getAttribute && e.getAttribute('id'); if (!id) return;
+      var tag = e.tagName, pts = null, abierto = false;
+      if (/\ban-suelta\b/.test(e.getAttribute('class') || '')) return;
+      if (tag === 'line') {
+        pts = [{ x: parseFloat(e.getAttribute('x1')) || 0, y: parseFloat(e.getAttribute('y1')) || 0 }, { x: parseFloat(e.getAttribute('x2')) || 0, y: parseFloat(e.getAttribute('y2')) || 0 }];
+        abierto = true;
+      } else if (tag === 'polyline' || tag === 'path') {
+        try { pts = SP.polygonify(e); } catch (_) { pts = null; }
+        if (!pts || pts.length < 2) return;
+        if (tag === 'polyline') abierto = true;
+        else {
+          var l = e.pathSegList, ult = l && l.numberOfItems ? l.getItem(l.numberOfItems - 1).pathSegTypeAsLetter : 'Z';
+          abierto = !/[zZ]/.test(ult);
+        }
+        var a0 = pts[0], a1 = pts[pts.length - 1];
+        if (abierto && Math.abs(a0.x - a1.x) < 1e-9 && Math.abs(a0.y - a1.y) < 1e-9) abierto = false;
+      } else return;
+      if (!porId[id]) { porId[id] = []; orden.push(id); }
+      porId[id].push({ puntos: pts, abierto: abierto });
+    });
+    var sueltos = orden.filter(function (id) { return porId[id].every(function (x) { return x.abierto; }); });
+    if (!sueltos.length) return;
+    var trazos = [];
+    sueltos.forEach(function (id) { porId[id].forEach(function (x) { trazos.push({ puntos: x.puntos.map(function (q) { return { x: q.x * k, y: q.y * k }; }), cerrado: false }); }); });
+    var u = K.unir(trazos);
+    /* Fuera los sueltos, y en su lugar lo juntado. */
+    var todos = lista(A.raiz.getElementsByTagName('*'));
+    sueltos.forEach(function (id) { var e = todos[parseInt(id.replace('an-e', ''), 10)]; if (e && e.parentNode) e.parentNode.removeChild(e); });
+    var ns = 'http://www.w3.org/2000/svg', f = function (v) { return fmt(v / k); };
+    var poner = function (t, cerrado) {
+      var e = A.raiz.ownerDocument.createElementNS(ns, 'path');
+      e.setAttribute('d', 'M' + t.puntos.map(function (q) { return f(q.x) + ' ' + f(q.y); }).join('L') + (cerrado ? 'Z' : ''));
+      if (!cerrado) { e.setAttribute('class', 'an-suelta'); e.setAttribute('fill', 'none'); }
+      A.raiz.appendChild(e);
+    };
+    var vacios = 0;
+    u.cerrados.forEach(function (c) { if (Math.abs(K.area(c.puntos)) < 0.01 * k * k) vacios += c.trazos; else poner(c, true); });
+    u.abiertos.forEach(function (c) { poner(c, false); });
+    var juntados = u.cerrados.filter(function (c) { return Math.abs(K.area(c.puntos)) >= 0.01 * k * k; });
+    if (juntados.length) {
+      var n = juntados.reduce(function (s2, c) { return s2 + c.trazos; }, 0);
+      A.avisos.push('Se juntaron ' + n + (n === 1 ? ' línea suelta' : ' líneas sueltas') + ' en ' + juntados.length + (juntados.length === 1 ? ' contorno cerrado' : ' contornos cerrados') + ', por sus extremos, como «Reparar problema».');
+    }
+    if (vacios) A.avisos.push(vacios === 1 ? 'Se quitó una línea suelta sin área: no encierra nada que cortar.' : 'Se quitaron ' + vacios + ' líneas sueltas sin área: no encierran nada que cortar.');
+  }
+  /* Lo que no cerró con nada: lo diga el DXF o un SVG, se avisa con su «Ver cuáles». */
+  function avisarSueltas() {
+    var n = A ? A.raiz.querySelectorAll('.an-suelta').length : 0;
+    if (!n) return;
+    A.avisos.push((n === 1 ? 'Un tramo no cierra' : n + ' tramos no cierran') + ' con nada: se ' + (n === 1 ? 'queda' : 'quedan') + ' fuera del acomodo. Revisa esa parte del dibujo.');
+    A.avisoSel[A.avisos.length - 1] = '.an-suelta';
+  }
+
+  /* ---------- Lo que no se corta aunque cierre (js/contornos.js) ----------
+     Con la medida en mm: los contornos repetidos (el mismo dos veces, encimado), el CONTORNO
+     COMPLETO DE GUÍA (una letra dibujada entera y además partida en sus piezas: se cortan las
+     piezas) y la LÍNEA DOBLE (un contorno casi igual alrededor de otro, a 3 mm o menos: se
+     cortaría una tira). Se quitan por omisión —svgParaMotor() los deja fuera y la vista previa los
+     pinta punteados— y el aviso de los dos últimos deja conservarlos con un toque. Sin la medida
+     real no se sabe qué son 3 mm: se analiza en cuanto llega (escalaDiseno). */
+  function analizarContornos() {
+    if (!A) return;
+    A.avisos = A.avisos.slice(0, A.nAvisos);
+    Object.keys(A.avisoSel).forEach(function (i) { if (+i >= A.nAvisos) delete A.avisoSel[i]; });
+    Object.keys(A.avisoAccion).forEach(function (i) { if (+i >= A.nAvisos) delete A.avisoAccion[i]; });
+    A.limpieza = null;
+    avisarSueltas();
+    var K = window.AnidadorContornos, SP = window.SvgParser;
+    if (!K || !SP || !(A.k > 0)) return;
+    var raiz = null;
+    try { SP.config({ tolerance: TOLERANCIA_MM }); SP.load(svgParaMotor(A.k, true)); raiz = SP.clean(); } catch (_) { raiz = null; }
+    if (!raiz) return;
+    var contornos = [];
+    hijos(raiz).forEach(function (e, i) {
+      var pts = null;
+      try { pts = e.tagName ? SP.polygonify(e) : null; } catch (_) { pts = null; }
+      if (pts && pts.length > 2) contornos.push({ id: i, elem: e.getAttribute('id') || '', puntos: pts });
+    });
+    var r = K.limpiar(contornos);
+    /* De contornos a elementos del archivo: un elemento sale solo si salen TODOS sus contornos. */
+    var porElem = {};
+    contornos.forEach(function (c) { if (c.elem) (porElem[c.elem] = porElem[c.elem] || []).push(c.id); });
+    var elems = function (ids) {
+      var en = {}; ids.forEach(function (i) { en[i] = true; });
+      return Object.keys(porElem).filter(function (el) { return porElem[el].every(function (i) { return en[i]; }); });
+    };
+    var guias = r.guias.filter(function (g) { return elems([g.id].concat(g.huecos)).length; });
+    A.limpieza = {
+      repetidos: elems(r.repetidos.concat(r.sinArea)),
+      guias: elems([].concat.apply([], guias.map(function (g) { return [g.id].concat(g.huecos); }))),
+      nGuias: guias.length,
+      dobles: elems(r.dobles.map(function (d) { return d.id; })),
+      mmDoble: r.dobles.reduce(function (m, d) { return Math.max(m, d.mm); }, 0)
+    };
+    var L = A.limpieza, sel = function (ids) { return ids.map(function (id) { return '[data-e="' + id.replace('an-e', '') + '"]'; }).join(','); };
+    if (L.repetidos.length) {
+      A.avisos.push('Se ' + (L.repetidos.length === 1 ? 'quitó un contorno repetido' : 'quitaron ' + L.repetidos.length + ' contornos repetidos') + ': el mismo contorno dos veces, encimado, se cortaría dos veces.');
+      A.avisoSel[A.avisos.length - 1] = sel(L.repetidos);
+    }
+    if (L.nGuias) {
+      var ng = L.nGuias, de = ng === 1 ? 'el contorno completo' : 'los ' + ng + ' contornos completos';
+      if (!A.conservar.guias) {
+        A.avisos.push((ng === 1 ? 'Una letra trae' : ng + ' letras traen') + ' su contorno completo y además sus partes encimadas: se cortan las partes y se quit' + (ng === 1 ? 'ó' : 'aron') + ' ' + de + ' (con sus huecos).');
+        A.avisoAccion[A.avisos.length - 1] = { label: 'Conservar los contornos completos', fn: function () { A.conservar.guias = true; rehacerLimpieza(); } };
+      } else {
+        A.avisos.push('Se conserva' + (ng === 1 ? '' : 'n') + ' ' + de + ' de guía: se cortan además de sus partes encimadas.');
+        A.avisoAccion[A.avisos.length - 1] = { label: 'Quitarlos', fn: function () { A.conservar.guias = false; rehacerLimpieza(); } };
+      }
+      A.avisoSel[A.avisos.length - 1] = sel(L.guias);
+    }
+    if (L.dobles.length) {
+      var nd = L.dobles.length, mm = M.formatoMm(L.mmDoble);
+      if (!A.conservar.dobles) {
+        A.avisos.push((nd === 1 ? 'Una línea doble' : nd + ' líneas dobles') + ' a ' + mm + ': un contorno casi igual alrededor de otro. Se cortaría una tira de ' + mm + '; se quit' + (nd === 1 ? 'ó el de fuera.' : 'aron los de fuera.'));
+        A.avisoAccion[A.avisos.length - 1] = { label: 'Conservar la línea doble', fn: function () { A.conservar.dobles = true; rehacerLimpieza(); } };
+      } else {
+        A.avisos.push('Se conserva' + (nd === 1 ? ' la línea doble' : 'n las ' + nd + ' líneas dobles') + ' a ' + mm + ': se corta la tira.');
+        A.avisoAccion[A.avisos.length - 1] = { label: 'Quitarla', fn: function () { A.conservar.dobles = false; rehacerLimpieza(); } };
+      }
+      A.avisoSel[A.avisos.length - 1] = sel(L.dobles);
+    }
+  }
+  /* Lo que la limpieza dejó fuera del acomodo se ve punteado en la vista previa. */
+  function marcarQuitados(svg) {
+    svg = svg || $('an-orig').querySelector('svg'); if (!svg) return;
+    lista(svg.querySelectorAll('.an-quitado')).forEach(function (e) { e.classList.remove('an-quitado'); });
+    idsQuitados().forEach(function (id) {
+      var e = svg.querySelector('[data-e="' + id.replace('an-e', '') + '"]');
+      if (e) e.classList.add('an-quitado');
+    });
+  }
+  /* Los ids (an-eN) que no van al motor. */
+  function idsQuitados() {
+    var L = A && A.limpieza; if (!L) return [];
+    return L.repetidos.concat(A.conservar.guias ? [] : L.guias, A.conservar.dobles ? [] : L.dobles);
+  }
+  /* Conservar o quitar cambia las piezas: lo calculado ya no vale, como al cargar otro archivo. */
+  function rehacerLimpieza() {
+    if (!A) return;
+    if (T.corriendo) detener(false);
+    corrida++;
+    T = { corriendo: false, intentos: 0, sinMejora: 0, ultimaMejora: 0, mejor: null, detenidoSolo: false };
+    analizarContornos();
+    A.piezas = contarPiezas(A.k || 1);
+    pintarOriginal(); pintarArchivo(); pintarMedida(); pintarEstadoTrabajo(); habilitar(); actualizarDescarga();
+    $('an-prog').hidden = true; $('an-mesa').classList.remove('corriendo');
+    $('an-vista-tab').textContent = 'Las piezas, como vienen';
+    mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la hoja y toca «Acomodar las piezas».', 'ok');
   }
 
   /* Por nombre local y en minúsculas, como sanear(): getElementsByTagName compara el nombre
@@ -634,6 +900,7 @@
     var clon = document.importNode(A.raiz, true);
     rotular(clon, 'data-e');   // el mismo número que el id que verá el motor (svgParaMotor)
     quitarEtiquetas(clon, ['style']);
+    marcarQuitados(clon);
     clon.removeAttribute('width'); clon.removeAttribute('height');
     clon.setAttribute('role', 'img'); clon.setAttribute('aria-label', 'Las piezas del archivo, sin acomodar');
     /* Sin viewBox, el lienzo es el width/height pasado a px —las unidades del dibujo, según
@@ -666,10 +933,14 @@
 
   /* El SVG que se le da al motor: sin lo que no se corta y ya en milímetros. La escala va
      como transform en la raíz; el parser del motor la aplica a cada elemento y la quita. */
-  function svgParaMotor(k) {
+  function svgParaMotor(k, sinQuitar) {
     var clon = A.raiz.cloneNode(true);
     rotular(clon, 'id');   // la mesa necesita saber qué pieza es cuál: ver «La mesa de corte»
     quitarEtiquetas(clon, NO_SE_CORTAN);
+    /* Lo que no se corta: los tramos que no cerraron y lo que la limpieza quitó (ver
+       analizarContornos). `sinQuitar` es para la limpieza misma, que tiene que verlo todo. */
+    lista(clon.querySelectorAll('.an-suelta')).forEach(function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
+    if (!sinQuitar) idsQuitados().forEach(function (id) { var e = clon.querySelector('#' + id); if (e && e.parentNode) e.parentNode.removeChild(e); });
     clon.removeAttribute('width'); clon.removeAttribute('height');
     if (k && Math.abs(k - 1) > 1e-12) clon.setAttribute('transform', 'scale(' + k + ')');
     else clon.removeAttribute('transform');
@@ -766,6 +1037,9 @@
     if (falta) {
       var u = A.escala.unidad ? 'viene en «' + A.escala.unidad + '»' : 'no declara unidades';
       txt.textContent = 'El archivo no dice cuánto mide de verdad (' + u + '). Escribe el ancho o el alto real del diseño y todo lo demás se calcula.';
+    } else if (A.escala.origen === 'archivo' && A.unidad) {
+      txt.textContent = 'El DXF viene en ' + A.unidad + ': el diseño mide ' +
+        M.formatoMm(A.bbox.w * A.k) + ' × ' + M.formatoMm(A.bbox.h * A.k) + '. Si no cuadra con lo real, corrígelo aquí.';
     } else if (A.escala.origen === 'archivo') {
       txt.textContent = 'El archivo dice sus medidas en ' + A.escala.unidad + ': el diseño mide ' +
         M.formatoMm(A.bbox.w * A.k) + ' × ' + M.formatoMm(A.bbox.h * A.k) + '. Si no cuadra con lo real, corrígelo aquí.';
@@ -791,6 +1065,10 @@
       A.escala.origen = 'mano';
       (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = fmtMm((campo === 'ancho' ? A.bbox.h : A.bbox.w) * A.k);
     }
+    /* Con otra escala, otros milímetros: lo que es una línea doble a 2 mm puede dejar de serlo. */
+    var antes = idsQuitados().join(','), nAv = A.avisos.length;
+    analizarContornos();
+    if (idsQuitados().join(',') !== antes || A.avisos.length !== nAv) { A.piezas = contarPiezas(A.k || 1); marcarQuitados(); pintarArchivo(); }
     pintarMedida(); habilitar();
     if (A.k > 0 && A.piezas > 0) mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la hoja y toca «Acomodar las piezas».', 'ok');
   }
@@ -803,13 +1081,15 @@
     if (!A) return;
     $('an-nombre').textContent = A.nombre;
     $('an-peso').textContent = peso(A.peso);
-    $('an-drop-t').textContent = 'Cambiar de archivo: arrastra otro SVG, pégalo o toca aquí';
+    $('an-drop-t').textContent = 'Cambiar de archivo: arrastra otro SVG o DXF, pégalo o toca aquí';
     $('an-st-piezas').textContent = A.piezas;
     $('an-avisos').innerHTML = A.avisos.map(function (a, i) {
       /* «Ver cuáles» solo sale si en la vista previa queda algo que señalar (A15). */
       var ver = elementosDeAviso(i).length
         ? '<button type="button" class="btn btn-gho an-aviso-ver" data-aviso="' + i + '" aria-pressed="false">Ver cuáles</button>' : '';
-      return '<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg><span>' + esc(a) + '</span>' + ver + '</div>';
+      var acc = A.avisoAccion && A.avisoAccion[i]
+        ? '<button type="button" class="btn btn-gho an-aviso-ver" data-aviso-accion="' + i + '">' + esc(A.avisoAccion[i].label) + '</button>' : '';
+      return '<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg><span>' + esc(a) + '</span>' + ver + acc + '</div>';
     }).join('');
   }
 
@@ -833,8 +1113,26 @@
   function mostrarDe(mia) {
     return function (svglist, eficiencia, colocadas, total) {
       if (mia !== corrida || !T.corriendo) return;
+      if (svglist) igualarOrilla(svglist);
       alMostrar(svglist, eficiencia, colocadas, total);
     };
+  }
+  /* La orilla de la hoja. SVGnest encoge la hoja media separación por lado y entrega las posiciones
+     contra la hoja encogida: las piezas quedaban a MEDIA separación de la orilla de arriba y de la
+     izquierda, y a una y media de las otras dos. Se corre todo media separación y quedan a la
+     separación completa de las cuatro, con la misma área útil; así lo que dice la interfaz
+     —la separación es entre piezas y con la orilla— es verdad. (Un motor que entrega por colocar()
+     ya trae sus posiciones finales: esto es solo del de SVGnest.) */
+  function igualarOrilla(svglist) {
+    var m = T.material ? (T.material.sep + MARGEN_MOTOR_MM) / 2 : 0;
+    if (!m) return;
+    svglist.forEach(function (svg) {
+      hijos(svg).forEach(function (g) {
+        if (g.tagName !== 'g') return;
+        var t = leerTransform(g);
+        escribirTransform(g, { x: t.x + m, y: t.y + m, r: t.r });
+      });
+    });
   }
 
   /* ---------- Acomodar ---------- */
@@ -848,7 +1146,7 @@
     /* exploreConcave es «Explore concave areas» del demo original: sin él, el hueco abierto
        de una «C» cuenta como lleno y nada se acomoda dentro. Tarda bastante más, por eso
        nace apagado, igual que allá. */
-    SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
+    SN.config({ spacing: mat.sep + MARGEN_MOTOR_MM, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
     /* config() y parsesvg() ya borraron del motor el cálculo anterior (su GA, su mejor y la
        hoja): si de aquí en adelante algo frena el arranque —no cabe ninguna pieza, el SVG no
        se lee—, ya no hay qué «seguir». El acomodo en pantalla se queda para descargarlo. */
@@ -866,7 +1164,7 @@
     if (!partes.length) { mensaje('No encontré contornos que acomodar en este archivo.', 'mal'); return; }
     var sinCabida = partes.filter(function (p) {
       var b = window.GeometryUtil.getPolygonBounds(p);
-      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * mat.sep, alto: mat.alto - 2 * mat.sep }, mat.rot);
+      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * (mat.sep + MARGEN_MOTOR_MM), alto: mat.alto - 2 * (mat.sep + MARGEN_MOTOR_MM) }, mat.rot);
     });
     var fuera = sinCabida.length;
     if (fuera === partes.length) {
@@ -928,8 +1226,9 @@
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
     if (!T.mejor) { mensaje('Detenido antes del primer acomodo.', ''); return; }
     var s = 'Descarga el resultado o sigue buscando.', L = limites();
+    var menos = T.hojasPrimero && T.mejor.svglist.length < T.hojasPrimero ? 'Cupo en ' + (T.hojasPrimero - T.mejor.svglist.length === 1 ? 'una hoja menos' : (T.hojasPrimero - T.mejor.svglist.length) + ' hojas menos') + '. ' : '';
     mensaje(!solo ? 'Detenido. ' + s
-      : !L.intentos ? 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
+      : !L.intentos ? menos + 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
       : 'Se detuvo solo: ' + L.intentos + ' intentos y ' + Math.round(L.ms / 1000) + ' s seguidos sin mejorar. ' + s, 'ok');
     revisarVibracion();
   }
@@ -1036,8 +1335,15 @@
   }
   /* ¿Ya toca pararse solo? Lo que decide de verdad el paro: lo usan alMostrar() en cada intento y
      pintarParo() cada segundo —el reloj de «Rápido» no puede esperar a que el motor conteste—. */
+  function ultimaCasiVacia() {
+    if (!T.mejor || T.mejor.svglist.length < 2) return false;
+    var s = T.mejor.svglist[T.mejor.svglist.length - 1];
+    var n = hijos(s).filter(function (g) { return g.tagName === 'g'; }).length, uso = usoDeHoja(s, dimsDeHoja(s));
+    return n <= HOJA_CASI_VACIA.piezas || (uso === uso && uso < HOJA_CASI_VACIA.uso);
+  }
   function tocaParar() {
     var L = limites(), ahora = Date.now();
+    if (L.hojaMenosMs && T.primer && ultimaCasiVacia()) return ahora - T.primer >= L.hojaMenosMs;
     if (L.topeMs && T.primer && ahora - T.primer >= L.topeMs) return true;
     return T.sinMejora >= L.intentos && ahora - T.ultimaMejora >= L.ms;
   }
@@ -1045,8 +1351,12 @@
     var t = $('an-paro-t');
     if (!t || !T.corriendo || !T.mejor) return;
     if (tocaParar()) { detener(true); return; }
-    var ahora = Date.now();
+    var ahora = Date.now(), L = limites();
     var frase = textoParo(ahora - T.ultimaMejora, T.sinMejora, T.primer ? ahora - T.primer : -1);
+    if (L.hojaMenosMs && T.primer && ultimaCasiVacia()) {
+      var P = window.Piezas, falta = Math.max(0, L.hojaMenosMs - (ahora - T.primer));
+      frase = 'La hoja ' + T.mejor.svglist.length + ' lleva casi nada: sigo buscando para acomodarla en las demás · ' + (P && P.reloj ? P.reloj(falta, { falta: true }) : Math.ceil(falta / 1000) + ' s');
+    }
     if (t.textContent !== frase) t.textContent = frase;
   }
   /* Hay un acomodo del que contar: se enseña el bloque y arranca (o vuelve a empezar) la mecha. */
@@ -1077,7 +1387,7 @@
       var habia = !!T.mejor;
       T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total };
       T.sinMejora = 0; T.ultimaMejora = Date.now();
-      if (!T.primer) T.primer = T.ultimaMejora;   // desde aquí cuenta el tope de «Rápido»
+      if (!T.primer) { T.primer = T.ultimaMejora; T.hojasPrimero = svglist.length; }   // desde aquí cuenta el tope de «Rápido»
       pintarResultado(habia);
       encenderParo();   // la primera mejora la arranca; las demás la rellenan de golpe
     } else if (T.corriendo && T.mejor) {
@@ -1332,7 +1642,8 @@
       $('an-pieza-devolver').hidden = !(g && fueMovida(g));
     }
     $('an-vibra').hidden = !(enHojas && _vibra.length);
-    pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && $('an-vibra').hidden && !(tienePags && !$('an-pags').hidden);
+    $('an-juntas').hidden = !(enHojas && _juntas.length);
+    pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && $('an-vibra').hidden && $('an-juntas').hidden && !(tienePags && !$('an-pags').hidden);
     if (tieneZoom) actualizarZoomUI();
   }
 
@@ -1463,7 +1774,8 @@
       var cap = document.createElement('figcaption');
       var t = document.createElement('span'); t.className = 'an-cap-t';
       t.innerHTML = '<b>Hoja ' + (i + 1) + '</b>' + (n > 1 ? ' de ' + n : '') + ' · ' + piezas + (piezas === 1 ? ' pieza' : ' piezas') +
-        (d.w > 0 ? ' · ' + esc(M.formatoMm(d.w)) + ' × ' + esc(M.formatoMm(d.h)) : '');
+        (d.w > 0 ? ' · ' + esc(M.formatoMm(d.w)) + ' × ' + esc(M.formatoMm(d.h)) : '') +
+        (T.material ? ' · separación ' + esc(fmtMm(T.material.sep)) + ' mm' : '');
       cap.appendChild(t);
       if (n > 1) {
         var uso = usoDeHoja(s, d);
@@ -1975,7 +2287,7 @@
     var svg = g.ownerSVGElement, d = dimsDeHoja(svg), sep = (T.material && T.material.sep > 0) ? T.material.sep : 0;
     var propia = poligonosLocales(g).map(function (p) { return aHoja(p, t); });
     if (!propia.length || !window.ClipperLib) return '';
-    var caja = cajaDe(propia), margen = Math.max(0, sep / 2 - HOLGURA_MM), eps = 0.02;
+    var caja = cajaDe(propia), margen = Math.max(0, sep - HOLGURA_MM), eps = 0.02;   // la separación completa también con la orilla (igualarOrilla)
     if (caja.x0 < margen - eps || caja.y0 < margen - eps || caja.x1 > d.w - margen + eps || caja.y1 > d.h - margen + eps) return 'orilla';
     var mitad = Math.max(0, sep / 2 - HOLGURA_MM / 2), mia = null;
     var otras = lista(svg.querySelectorAll(':scope>g[id]'));
@@ -1997,7 +2309,7 @@
   }
   function textoRechazo(razon) {
     var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, mm = fmtMm(sep) + ' mm';
-    if (razon === 'orilla') return sep > 0 ? 'No cabe ahí: queda a menos de ' + fmtMm(sep / 2) + ' mm de la orilla de la hoja.' : 'No cabe ahí: se sale de la hoja.';
+    if (razon === 'orilla') return sep > 0 ? 'No cabe ahí: queda a menos de ' + fmtMm(sep) + ' mm de la orilla de la hoja.' : 'No cabe ahí: se sale de la hoja.';
     return sep > 0 ? 'No cabe ahí: queda a menos de ' + mm + ' de otra pieza.' : 'No cabe ahí: se encima con otra pieza.';
   }
   function rechazar(g, razon) {
@@ -2194,6 +2506,8 @@
     if (_vista !== 'vienen') cambiarVista('vienen').then(poner); else poner();
   }
   $('an-avisos').addEventListener('click', function (e) {
+    var ac = sobreMesa(e, '[data-aviso-accion]');
+    if (ac) { var k = parseInt(ac.getAttribute('data-aviso-accion'), 10); if (A && A.avisoAccion[k]) A.avisoAccion[k].fn(); return; }
     var b = sobreMesa(e, '[data-aviso]'); if (!b) return;
     var i = parseInt(b.getAttribute('data-aviso'), 10);
     senalarElementos('aviso:' + i, b, function () { return elementosDeAviso(i); }, 'av');
@@ -2262,6 +2576,127 @@
       });
     }
     pintarVibra();
+    revisarSeparacion();
+    pintarSobrante();
+  }
+
+  /* ---------- Ninguna pieza a menos de la separación ----------
+     Lo que el taller pidió (17/10/2026): las piezas nunca encimadas ni más juntas que la separación
+     pedida, venga el acomodo de SVGnest, de otro motor (colocar) o de la mano. cabe() decide si una
+     pieza se puede SOLTAR en un lugar (con la holgura de redondeo de la curva); esto revisa el
+     acomodo entero con la curva fina (TOLERANCIA_DXF_MM) y marca en rojo cada par —o cada pieza
+     contra la orilla— que quede a menos de la separación, menos SEP_GRACIA_MM. Es la red: si un motor
+     entrega algo mal, la mesa lo dice en vez de que lo descubra la máquina. */
+  var SEP_GRACIA_MM = 0.1;
+  var _juntas = [];      // { hoja, a, b } o { hoja, a, orilla: true }
+  var _cacheFino = {};   // por pieza y separación: su región engordada, en coordenadas locales
+  function regionFina(g, mitad) {
+    var c0 = g.firstElementChild; if (!c0) return null;
+    var llave = c0.id + '|' + mitad + '|' + (T.k || (A && A.k) || 1);
+    if (llave in _cacheFino) return _cacheFino[llave];
+    var SP = window.SvgParser, C = window.ClipperLib, polis = [];
+    if (!SP || !C) return null;
+    try {
+      SP.config({ tolerance: TOLERANCIA_DXF_MM });
+      hijos(g).forEach(function (e) { if (!e.tagName) return; var q = null; try { q = SP.polygonify(e); } catch (_) {} if (q && q.length > 2) polis.push(q); });
+    } finally { try { SP.config({ tolerance: TOLERANCIA_MM }); } catch (_) {} }
+    var rutas = C.Clipper.SimplifyPolygons(polis.map(function (pl) { return pl.map(function (q) { return { X: Math.round(q.x * ESC_CLIP), Y: Math.round(q.y * ESC_CLIP) }; }); }), C.PolyFillType.pftEvenOdd);
+    if (mitad > 0) {
+      var co = new C.ClipperOffset(2, 0.01 * ESC_CLIP), fuera = new C.Paths();
+      co.AddPaths(rutas, C.JoinType.jtRound, C.EndType.etClosedPolygon);
+      co.Execute(fuera, mitad * ESC_CLIP);
+      rutas = fuera;
+    }
+    var r = { rutas: rutas, polis: polis };
+    _cacheFino[llave] = r;
+    return r;
+  }
+  function moverRutas(rutas, t) {
+    var a = t.r * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a), dx = t.x * ESC_CLIP, dy = t.y * ESC_CLIP;
+    return rutas.map(function (ru) { return ru.map(function (q) { return { X: Math.round(dx + q.X * c - q.Y * s2), Y: Math.round(dy + q.X * s2 + q.Y * c) }; }); });
+  }
+  function revisarSeparacion() {
+    lista(document.querySelectorAll('#an-res .an-hoja>svg>g.junta')).forEach(function (g) { g.classList.remove('junta'); });
+    _juntas = [];
+    if (T.mejor && !T.corriendo && hayResultado() && window.ClipperLib) {
+      var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, mitad = Math.max(0, (sep - SEP_GRACIA_MM) / 2);
+      T.mejor.svglist.forEach(function (svg, i) {
+        var d = dimsDeHoja(svg);
+        var pzs = lista(svg.querySelectorAll(':scope>g[id]')).map(function (g) {
+          var t = leerTransform(g), r = regionFina(g, mitad); if (!r) return null;
+          var caja = cajaDe(r.polis.map(function (p) { return aHoja(p, t); }));
+          return { g: g, t: t, r: r, caja: caja, reg: null };
+        }).filter(Boolean);
+        pzs.forEach(function (p) {
+          var b = p.caja, lim = sep - SEP_GRACIA_MM;
+          if (b.x0 < lim || b.y0 < lim || d.w - b.x1 < lim || d.h - b.y1 < lim) _juntas.push({ hoja: i, a: p.g.id, orilla: true });
+        });
+        for (var a = 0; a < pzs.length; a++) {
+          for (var b = a + 1; b < pzs.length; b++) {
+            var A1 = pzs[a].caja, B1 = pzs[b].caja;
+            if (A1.x1 + sep < B1.x0 || B1.x1 + sep < A1.x0 || A1.y1 + sep < B1.y0 || B1.y1 + sep < A1.y0) continue;
+            if (!pzs[a].reg) pzs[a].reg = moverRutas(pzs[a].r.rutas, pzs[a].t);
+            if (!pzs[b].reg) pzs[b].reg = moverRutas(pzs[b].r.rutas, pzs[b].t);
+            if (areaDeChoque(pzs[a].reg, pzs[b].reg) > 0.01) _juntas.push({ hoja: i, a: pzs[a].g.id, b: pzs[b].g.id });
+          }
+        }
+      });
+      _juntas.forEach(function (j) { [j.a, j.b].forEach(function (id) { var g = id && document.getElementById(id); if (g) g.classList.add('junta'); }); });
+    }
+    pintarJuntas();
+  }
+  function pintarJuntas() {
+    var t = $('an-juntas-t'), n = _juntas.length;
+    if (t) {
+      var num = function (id) { var g = document.getElementById(id); return (g && numeroDe(g)) || '?'; };
+      var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0;
+      var dichos = _juntas.slice(0, 4).map(function (j) { return j.orilla ? num(j.a) + ' con la orilla' : num(j.a) + ' y ' + num(j.b); }).join(' · ') + (n > 4 ? ' · …' : '');
+      t.innerHTML = n ? '<b>Más juntas que la separación:</b> ' + (n === 1 ? '1 lugar' : n + ' lugares') + ' a menos de ' + esc(fmtMm(sep)) + ' mm (piezas ' + esc(dichos) +
+        '). Muévelas antes de cortar, o vuelve a acomodar.' : '';
+    }
+    actualizarPie();
+  }
+
+  /* ---------- El retazo útil: el rectángulo libre más grande de la última hoja (js/sobrante.js) ----------
+     El aprovechamiento no cambia mientras el trabajo quepa en las mismas hojas; lo que sí cambia es
+     cuánto material queda entero para la próxima vez. Se mide en la última hoja (las demás quedan
+     llenas o casi), a la separación de las piezas, y se dibuja punteado sobre la mesa (una marca de
+     la mesa: no va al archivo de corte). «Guardar» lo vuelve un retazo de la lista. */
+  var SOBRANTE_MIN_MM = 100;   // un rectángulo más angosto que esto no es un retazo
+  var _sobrante = null;        // { hoja, x, y, w, h }
+  function pintarSobrante() {
+    lista(document.querySelectorAll('#an-res [data-mesa="sobrante"]')).forEach(function (n) { n.parentNode.removeChild(n); });
+    _sobrante = null;
+    var S = window.AnidadorSobrante, v = $('an-st-sobra'), sub = $('an-st-sobra-sub'), b = $('an-sobra-guardar');
+    if (T.mejor && S && hayResultado()) {
+      var i = T.mejor.svglist.length - 1, svg = T.mejor.svglist[i], d = dimsDeHoja(svg);
+      var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, polis = [];
+      lista(svg.querySelectorAll(':scope>g[id]')).forEach(function (g) {
+        var t = leerTransform(g);
+        poligonosLocales(g).forEach(function (p) { polis.push(aHoja(p, t)); });
+      });
+      var r = S.mayorRectangulo({ w: d.w, h: d.h }, polis, { margen: sep });
+      if (r && r.w >= SOBRANTE_MIN_MM && r.h >= SOBRANTE_MIN_MM) {
+        _sobrante = { hoja: i, x: r.x, y: r.y, w: r.w, h: r.h };
+        var ns = 'http://www.w3.org/2000/svg', m = document.createElementNS(ns, 'rect');
+        m.setAttribute('x', fmt(r.x)); m.setAttribute('y', fmt(r.y)); m.setAttribute('width', fmt(r.w)); m.setAttribute('height', fmt(r.h));
+        m.setAttribute('class', 'an-sobra-marca'); m.setAttribute('data-mesa', 'sobrante'); m.setAttribute('aria-hidden', 'true');
+        svg.insertBefore(m, svg.firstChild ? svg.firstChild.nextSibling : null);   // encima de la hoja, debajo de las piezas
+      }
+    }
+    if (v) v.textContent = _sobrante ? S.texto(_sobrante) : (T.mejor ? 'sin retazo' : '—');
+    if (sub) sub.textContent = _sobrante ? (T.mejor.svglist.length > 1 ? 'en la hoja ' + (_sobrante.hoja + 1) : 'queda entero') : '';
+    if (b) b.hidden = !_sobrante || T.corriendo;
+    var f = $('an-ficha-sobra'); if (f) f.setAttribute('aria-label', _sobrante ? 'Te queda un retazo de ' + S.texto(_sobrante) : 'Sin retazo útil');
+  }
+  function guardarSobrante() {
+    if (!_sobrante) return;
+    var w = Math.floor(_sobrante.w), h = Math.floor(_sobrante.h), mat = materialElegido();
+    if (R.some(function (r) { return r.ancho === w && r.alto === h && r.mat === mat; })) { mensaje('Ese retazo ya está guardado con esas medidas.', 'av'); return; }
+    var nombre = 'Sobrante de ' + MAT_TXT[mat] + ' ' + window.AnidadorSobrante.texto(_sobrante);
+    R.push({ id: Date.now(), nombre: nombre.slice(0, 40), ancho: w, alto: h, mat: mat });
+    guardarRetazos(); pintarRetazos();
+    toast('Retazo guardado: ' + nombre + ' · ' + w + ' × ' + h + ' mm', 'ok', 3200);
   }
   function pintarVibra() {
     var t = $('an-vibra-t'), n = _vibra.length;
@@ -2321,7 +2756,8 @@
     out.setAttribute('width', fmt(W) + 'mm'); out.setAttribute('height', fmt(totalH) + 'mm');
     var titulo = document.createElementNS(ns, 'title');
     titulo.textContent = (A ? A.nombre.replace(/\.svg$/i, '') : 'diseño') + ' · acomodado en ' + hojas.length + (hojas.length === 1 ? ' hoja' : ' hojas') +
-      ' de ' + MAT_TXT[materialElegido()] + ' de ' + fmt(W) + ' × ' + fmt(H) + ' mm · AL3D';
+      ' de ' + MAT_TXT[materialElegido()] + ' de ' + fmt(W) + ' × ' + fmt(H) + ' mm' +
+      (T.material ? ' · separación ' + fmtMm(T.material.sep) + ' mm' : '') + ' · AL3D';
     out.appendChild(titulo);
     if (window.SvgNest.style) out.appendChild(window.SvgNest.style.cloneNode(true));
 
@@ -2411,7 +2847,8 @@
   /* El nombre del archivo, el mismo para bajarlo y para compartirlo. */
   function nombreDeArchivo(indice, ext) {
     var base = (A ? A.nombre : 'diseño').replace(/\.(svg|dxf)$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
-    return base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.' + (ext || formatoArchivo());
+    var sep = T.material ? '-sep' + fmtMm(T.material.sep) + 'mm' : '';
+    return base + '-' + materialElegido() + sep + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.' + (ext || formatoArchivo());
   }
   function descargar(indice) {
     var arch = armarArchivo(indice);
@@ -2556,16 +2993,18 @@
     if (f) { leerArchivo(f); return; }
     var txt = e.dataTransfer && e.dataTransfer.getData('text/plain');
     if (txt && /<svg[\s>]/i.test(txt)) cargarTexto(txt, 'arrastrado.svg');
-    else toast('Arrastra un archivo .svg, no una carpeta ni una imagen de otra página.', 'err', 3600);
+    else if (txt && window.AnidadorDxfEntrada && window.AnidadorDxfEntrada.esDxf(txt)) cargarDxf(txt, 'arrastrado.dxf');
+    else toast('Arrastra un archivo .svg o .dxf, no una carpeta ni una imagen de otra página.', 'err', 3600);
   });
   document.addEventListener('paste', function (e) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;   // pegar en un campo es pegar en el campo
     var cd = e.clipboardData; if (!cd) return;
     for (var i = 0; i < cd.files.length; i++) {
-      if (/svg/i.test(cd.files[i].type) || /\.svg$/i.test(cd.files[i].name)) { e.preventDefault(); leerArchivo(cd.files[i]); return; }
+      if (/svg/i.test(cd.files[i].type) || /\.svg$/i.test(cd.files[i].name) || esDxfDeNombre(cd.files[i])) { e.preventDefault(); leerArchivo(cd.files[i]); return; }
     }
     var txt = cd.getData('text/plain');
     if (txt && /<svg[\s>]/i.test(txt)) { e.preventDefault(); cargarTexto(txt, 'pegado.svg'); toast('SVG pegado del portapapeles', 'ok', 2200); }
+    else if (txt && window.AnidadorDxfEntrada && window.AnidadorDxfEntrada.esDxf(txt)) { e.preventDefault(); if (cargarDxf(txt, 'pegado.dxf')) toast('DXF pegado del portapapeles', 'ok', 2200); }
   });
 
   /* ---------- Lo que deja el vectorizador del cotizador ----------
@@ -2704,10 +3143,108 @@
     mascara.src = '../logo-al3d.svg';
   })();
 
+  /* ---------- Para conectar otro motor sin tocar la interfaz ----------
+     La mesa no depende de SVGnest más que en iniciar()/seguir(). Lo demás —pintar las hojas, mover a
+     mano, la vibración, la separación, el retazo, descargar DXF y SVG— trabaja sobre `T.mejor.svglist`,
+     una lista de <svg> por hoja con un <g transform="translate(x y) rotate(giro)"> por pieza que
+     envuelve los elementos de la pieza en mm. Estas dos funciones son la puerta para otro motor:
+
+     · piezasLimpias(): lo que hay que acomodar, ya limpio (sin sueltas, repetidos, guías ni líneas
+       dobles) y en mm: [{ id, numero, contorno:[{x,y}], huecos:[[{x,y}]], origen:{x,y} }]. Contorno y
+       huecos van trasladados a la esquina mínima de la pieza (su caja empieza en 0,0); `origen` es
+       dónde estaba esa esquina en el archivo. Las curvas, a `tolerancia` mm (0.3 si no se dice).
+     · colocar(posiciones, opciones): [{ id, x, y, giro, hoja }] —la pieza, en su esquina mínima, se
+       gira `giro` grados alrededor de (0,0), se lleva a (x, y) y va en la hoja `hoja` (0, 1…)— y arma
+       las hojas como si las hubiera entregado SVGnest. La hoja es la de la interfaz (ancho, alto y
+       separación). opciones.intentos y opciones.mensaje, para lo que diga la mesa.
+     · posiciones(): lo que hay en la mesa, en el mismo formato (para comparar o volver a colocar). */
+  function partesDelMotor() {
+    var SP = window.SvgParser, SN = window.SvgNest;
+    try { SP.config({ tolerance: TOLERANCIA_MM }); SP.load(svgParaMotor(A.k)); } catch (_) { return null; }
+    var raiz = SP.clean(), hs = hijos(raiz);
+    return { raiz: raiz, hs: hs, partes: SN.getParts(hs) };
+  }
+  function contornoDe(e, tol) {
+    var SP = window.SvgParser, p = null;
+    try { SP.config({ tolerance: tol }); p = SP.polygonify(e); } catch (_) { p = null; }
+    finally { try { SP.config({ tolerance: TOLERANCIA_MM }); } catch (_) {} }
+    return p && p.length > 2 ? p : null;
+  }
+  function piezasLimpias(tolerancia) {
+    if (!A || !(A.k > 0)) return [];
+    var d = partesDelMotor(); if (!d) return [];
+    var tol = tolerancia > 0 ? tolerancia : TOLERANCIA_MM, numeros = numerarPartes(d.hs, d.partes);
+    return d.partes.map(function (p) {
+      var e = d.hs[p.source], c = contornoDe(e, tol); if (!c) return null;
+      var o = cajaDe([c]), mover = function (pl) { return pl.map(function (q) { return { x: q.x - o.x0, y: q.y - o.y0 }; }); };
+      var huecos = (p.children || []).map(function (h) { return contornoDe(d.hs[h.source], tol); }).filter(Boolean).map(mover);
+      return { id: e.getAttribute('id'), numero: numeros[e.getAttribute('id')] || 0, contorno: mover(c), huecos: huecos, origen: { x: o.x0, y: o.y0 } };
+    }).filter(Boolean);
+  }
+  /* La esquina mínima de cada pieza, con la misma cuenta que piezasLimpias(). */
+  function origenDe(e) { var c = contornoDe(e, TOLERANCIA_MM); var o = c ? cajaDe([c]) : { x0: 0, y0: 0 }; return { x: o.x0, y: o.y0 }; }
+  function colocar(posiciones, opciones) {
+    opciones = opciones || {};
+    if (!A || !(A.k > 0)) return false;
+    var mat = leerMaterial(true); if (!mat) return false;
+    if (T.corriendo) detener(false);
+    var d = partesDelMotor(); if (!d || !d.partes.length) return false;
+    var ns = 'http://www.w3.org/2000/svg', porId = {};
+    d.partes.forEach(function (p) { porId[d.hs[p.source].getAttribute('id')] = p; });
+    var hojas = [], area = 0, colocadas = 0;
+    (posiciones || []).forEach(function (q) {
+      var p = porId[q.id]; if (!p) return;
+      var i = Math.max(0, parseInt(q.hoja, 10) || 0);
+      while (hojas.length <= i) {
+        var s = d.raiz.cloneNode(false);
+        s.setAttribute('viewBox', '0 0 ' + mat.ancho + ' ' + mat.alto);
+        s.setAttribute('width', mat.ancho + 'px'); s.setAttribute('height', mat.alto + 'px');
+        var bin = document.createElementNS(ns, 'rect');
+        bin.setAttribute('x', '0'); bin.setAttribute('y', '0'); bin.setAttribute('width', String(mat.ancho)); bin.setAttribute('height', String(mat.alto));
+        bin.setAttribute('class', 'bin');
+        s.appendChild(bin);
+        hojas.push(s);
+      }
+      var e = d.hs[p.source], o = origenDe(e), giro = +q.giro || 0, a = giro * Math.PI / 180;
+      var g = document.createElementNS(ns, 'g');
+      escribirTransform(g, { x: (+q.x || 0) - (o.x * Math.cos(a) - o.y * Math.sin(a)), y: (+q.y || 0) - (o.x * Math.sin(a) + o.y * Math.cos(a)), r: giro });
+      g.appendChild(e.cloneNode(false));
+      (p.children || []).forEach(function (h) { var c = d.hs[h.source].cloneNode(false); c.setAttribute('class', ((c.getAttribute('class') || '') + ' hole').trim()); g.appendChild(c); });
+      hojas[i].appendChild(g);
+      area += Math.abs(window.GeometryUtil.polygonArea(p)); colocadas++;
+    });
+    if (!hojas.length) return false;
+    var previo = T.mejor ? { mejor: T.mejor, material: T.material, k: T.k, intentos: T.intentos, archivo: A } : null;
+    var noPuestas = d.partes.filter(function (p) { return !(posiciones || []).some(function (q) { return q.id === d.hs[p.source].getAttribute('id'); }); });
+    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, k: A.k, huella: null,
+          fuera: noPuestas.length, fueraIds: idsDe(d.hs, noPuestas), total: d.partes.length, anterior: previo };
+    A.numeros = numerarPartes(d.hs, d.partes);
+    corrida++;
+    $('an-prog').hidden = false;
+    alMostrar(hojas, area / (hojas.length * mat.ancho * mat.alto), colocadas, d.partes.length);
+    T.intentos = +opciones.intentos || T.intentos;
+    detener(true);
+    mensaje(opciones.mensaje || ('Acomodo listo: ' + colocadas + ' de ' + d.partes.length + ' piezas en ' + hojas.length + (hojas.length === 1 ? ' hoja' : ' hojas') + '.'), 'ok');
+    return true;
+  }
+  function posicionesActuales() {
+    if (!T.mejor) return [];
+    var out = [];
+    T.mejor.svglist.forEach(function (svg, i) {
+      lista(svg.querySelectorAll(':scope>g[id]')).forEach(function (g) {
+        var e = g.firstElementChild; if (!e) return;
+        var t = leerTransform(g), o = origenDe(e), a = t.r * Math.PI / 180;
+        out.push({ id: e.getAttribute('id'), hoja: i, giro: t.r, x: t.x + o.x * Math.cos(a) - o.y * Math.sin(a), y: t.y + o.x * Math.sin(a) + o.y * Math.cos(a) });
+      });
+    });
+    return out;
+  }
+
   /* Para las pruebas de navegador y para quien quiera automatizar: la misma API que usa
      esta interfaz, sin pasar por el ratón. */
   window.Anidador = {
-    cargarTexto: cargarTexto, iniciar: iniciar, detener: function () { detener(false); }, seguir: seguir,
+    cargarTexto: cargarTexto, cargarDxf: cargarDxf, iniciar: iniciar, detener: function () { detener(false); }, seguir: seguir,
+    piezasLimpias: piezasLimpias, colocar: colocar, posiciones: posicionesActuales,
     armarSalida: armarSalida, armarDxf: function (i) { var d = armarDxf(i); return d ? d.texto : null; },
     probarEjemplo: probarEjemplo, textoParo: textoParo,
     estado: function () {
@@ -2715,6 +3252,7 @@
                corriendo: T.corriendo, intentos: T.intentos, sinMejora: T.sinMejora, detenidoSolo: T.detenidoSolo,
                busca: busqueda(), formato: formatoArchivo(),
                anterior: !!T.anterior, paro: !!_paro, veta: conVeta(),
+               limpieza: A && A.limpieza ? { repetidos: A.limpieza.repetidos.length, guias: A.limpieza.nGuias, dobles: A.limpieza.dobles.length, quitados: idsQuitados().length } : null,
                hoja: hojaElegida(), material: materialElegido(), retazos: R.slice(),
                mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
     }
@@ -2725,7 +3263,9 @@
     return { vista: _vista, zoom: _zoom.map(function (v) { return v ? { z: v.z, cx: v.cx, cy: v.cy } : null; }),
              eleccion: _sel, senal: _senal ? _senal.quien : '', carrusel: !!_pags, editable: editable(),
              editado: !!(T.mejor && T.mejor.editado), numeros: A ? Object.assign({}, A.numeros) : {}, fuera: (T.fueraIds || []).slice(),
-             vibra: _vibra.map(function (v) { return { hoja: v.hoja, a: v.a, b: v.b, material: v.material }; }) };
+             vibra: _vibra.map(function (v) { return { hoja: v.hoja, a: v.a, b: v.b, material: v.material }; }),
+             juntas: _juntas.map(function (j) { return { hoja: j.hoja, a: j.a, b: j.b || null, orilla: !!j.orilla }; }),
+             sobrante: _sobrante ? { hoja: _sobrante.hoja, x: _sobrante.x, y: _sobrante.y, w: _sobrante.w, h: _sobrante.h } : null };
   };
   /* ¿Cabe la pieza `id` donde está? '' si sí. Las posiciones que da el motor tienen que caber siempre:
      si no, la cuenta del choque no es la del motor y mover una pieza sería imposible. */

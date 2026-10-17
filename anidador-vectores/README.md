@@ -10,8 +10,17 @@ y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— 
 
 ## Qué hace
 
-1. Recibe el SVG de las piezas: arrastrado, pegado con Ctrl+V, elegido del disco, o
-   directo del vectorizador del cotizador sin pasar por el disco.
+1. Recibe el SVG **o el DXF** de las piezas: arrastrado, pegado con Ctrl+V, elegido del disco,
+   o directo del vectorizador del cotizador sin pasar por el disco. El DXF se lee aquí mismo
+   (`js/dxf-entrada.js`: LINE, LWPOLYLINE/POLYLINE con bulge, ARC, CIRCLE, ELLIPSE, SPLINE,
+   bloques INSERT; unidades de `$INSUNITS`, mm si no lo dice y se avisa) y entra como un SVG en mm.
+   **Limpieza antes de acomodar** (`js/contornos.js`), lo que antes se hacía con «Reparar
+   problema»: las líneas sueltas —de un DXF o un `<line>`/trazo abierto de un SVG— se juntan por
+   sus extremos con tolerancia creciente (de 1 micra a 0.5 mm); lo que no cierra se pinta en ámbar
+   y se avisa; los contornos repetidos y lo que no tiene área se quitan; el **contorno completo de
+   guía** (una letra dibujada entera y además en sus partes encimadas, como venía AVIDA) y la
+   **línea doble** (un contorno casi igual a ≤3 mm alrededor de otro) se quitan por omisión, se
+   pintan punteados y el aviso deja conservarlos.
 2. Lo pasa a **milímetros**. Si el archivo declara sus medidas (mm, cm, in, pt) se
    convierte solo; si viene en px o sin unidades —que en SVG no es una medida— pide el
    ancho o el alto real del diseño, igual que hace el vectorizador.
@@ -47,6 +56,31 @@ Las piezas caen en su lugar, cada una de su color, cada vez que el motor mejora;
 lleva el aprovechamiento en una aguja con su calificación, la merma, las colocadas y las
 hojas. Con «reducir movimiento» en el sistema, nada se mueve.
 
+**La separación** se elige a la vista: 3 mm, 6 mm o 1 cm de un toque, o cualquier número en el
+campo. Es la distancia mínima entre pieza y pieza **y con la orilla de la hoja** (SVGnest dejaba
+media separación arriba y a la izquierda; `igualarOrilla()` corre el acomodo y quedan las cuatro
+igual). Se recuerda en el aparato, sale en el pie de cada hoja y en el nombre del archivo
+descargado (`…-sep6mm-acomodado.dxf`). «Se corta con» ya no se deduce de la separación: la broca
+elegida se queda y la marca de vibración la sigue usando. A SVGnest se le pide 1 mm de más
+(`MARGEN_MOTOR_MM`): su polígono de cada pieza se queda corto de la curva y, medido con AVIDA a
+6 mm, dejaba 17 lugares más juntos que lo pedido; con el milímetro de más, cero.
+
+**Nada a menos de la separación.** Con el acomodo quieto (del motor, de `colocar()` o movido a
+mano), `revisarSeparacion()` revisa cada par con la curva fina y marca en rosa punteado las piezas
+que queden a menos de la separación (0.1 mm de gracia), o a menos de ella de la orilla, y el pie
+dice cuáles.
+
+**El retazo útil.** Junto al aprovechamiento, «Te queda un retazo de 1.20 × 1.55 m»: el rectángulo
+libre más grande de la última hoja, a la separación de las piezas (`js/sobrante.js`), dibujado
+punteado sobre la mesa y con «Guardar como retazo».
+
+**Para conectar otro motor** sin tocar la interfaz (`window.Anidador`):
+`piezasLimpias(tolerancia)` → `[{id, numero, contorno:[{x,y}], huecos:[[{x,y}]], origen:{x,y}}]` en
+mm, cada pieza trasladada a su esquina mínima; `colocar([{id, x, y, giro, hoja}], {mensaje})` arma
+las hojas de la mesa (la pieza en su esquina mínima se gira `giro`° alrededor de (0,0) y se lleva a
+(x, y) de la hoja `hoja`), y de ahí salen igual la mesa, mover a mano, la vibración, la separación,
+el retazo y el DXF/SVG; `posiciones()` devuelve lo que hay en la mesa en ese mismo formato.
+
 ## Cómo correrla en local
 
 El cálculo corre en Web Workers, y los navegadores no dejan crear Web Workers desde un
@@ -74,6 +108,9 @@ anidador-vectores/
     ├── medidas.js           unidades del archivo → milímetros; puro, probado en node
     ├── dxf.js               el acomodo en DXF R12, polilíneas cerradas; puro, probado en node
     ├── vibracion.js         cortes rectos muy juntos (el router vibra); puro, probado en node
+    ├── dxf-entrada.js       abrir un DXF: entidades, curvas, bloques, unidades; puro, en node
+    ├── contornos.js         juntar líneas sueltas, quitar repetidos/guías/líneas dobles; puro, en node
+    ├── sobrante.js          el rectángulo libre más grande de una hoja; puro, en node
     ├── svgnest.js           motor de anidamiento (genético + NFP)       ┐
     ├── svgparser.js         formas SVG → polígonos                       │ vendorizados de
     ├── SVGNEST-LICENSE.txt  licencia MIT del motor                       │ SVGnest (MIT),
@@ -105,6 +142,10 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - `pruebas/anidador-medidas.mjs` — la aritmética de unidades, en node y nada más.
 - `pruebas/anidador-dxf.mjs` — el DXF, leído de vuelta par por par: cerrado, sin puntos
   repetidos, en su capa, a escala y sin espejo.
+- `pruebas/anidador-contornos.mjs` — juntar líneas sueltas (huecos de dibujo, tramos repetidos y
+  encimados), y quitar el contorno de guía, la línea doble y lo repetido sin tocar un hueco de verdad.
+- `pruebas/anidador-dxf-entrada.mjs` — un DXF armado a mano: unidades, LINE sueltas, bulge, ARC,
+  CIRCLE, ELLIPSE, SPLINE racional, bloques girados y escalados, extrusión al revés; y el retazo útil.
 - `pruebas/anidador-vibracion.mjs` — los cortes rectos muy juntos: qué es tramo recto, qué par
   se marca y cuál no (esquinas, piezas giradas, la misma letra, una pieza dentro de un hueco).
 - `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
@@ -139,5 +180,8 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
   población y mutación del genético— van con sus valores por omisión (0.3, 10 y 10 %),
   porque en mm la tolerancia de 0.3 ya es fina para rotulación y los otros dos no cambian
   el resultado en trabajos de este tamaño.
-- El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`,
-  `line`. Un texto sin convertir se queda fuera y la app lo avisa al cargar.
+- El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`.
+  Los `line` y trazos abiertos se juntan antes en contornos (`juntarSueltas()`). Un texto sin
+  convertir se queda fuera y la app lo avisa al cargar.
+- «Rápido» no se para mientras la última hoja lleve 3 piezas o menos, o menos del 15 % (hasta 45 s
+  desde el primer acomodo), y si la quita dice «Cupo en una hoja menos».
