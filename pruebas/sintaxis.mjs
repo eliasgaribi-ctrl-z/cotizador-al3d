@@ -50,6 +50,8 @@ const modulos = [
   ...archivos(join(RAIZ, 'js'), ['.js']),
   ...archivos(join(RAIZ, 'herramientas'), ['.mjs']),
   ...archivos(join(RAIZ, 'pruebas'), ['.mjs']),
+  /* El motor sparrow compilado (17/10/2026): lo carga un Worker de módulo con import. */
+  ...archivos(join(RAIZ, 'anidador-vectores', 'motor'), ['.js']),
 ];
 const rotos = [];
 for (const p of modulos) {
@@ -81,8 +83,9 @@ if (guionClasico('sw.js', readFileSync(join(RAIZ, 'sw.js'), 'utf8'))) bien('sw.j
 /* El anidador de vectores son guiones clásicos también —el motor vendorizado, sus
    dependencias y nuestra interfaz— cargados con <script src> en orden. Ninguno es un
    módulo, así que van por aquí y no por `node --check` con --input-type=module, donde el
-   `var JSON;` del polyfill y compañía darían errores que el navegador no da. */
-const guionesAnidador = archivos(join(RAIZ, 'anidador-vectores'), ['.js']);
+   `var JSON;` del polyfill y compañía darían errores que el navegador no da. La excepción es
+   anidador-vectores/motor/, el motor sparrow compilado, que sí es módulo y va arriba. */
+const guionesAnidador = archivos(join(RAIZ, 'anidador-vectores'), ['.js']).filter(p => !relative(join(RAIZ, 'anidador-vectores'), p).startsWith('motor'));
 const anidadorRotos = guionesAnidador.filter(p => !guionClasico(relative(RAIZ, p), readFileSync(p, 'utf8')));
 if (!guionesAnidador.length) mal('no encontré los guiones del anidador en anidador-vectores/');
 else if (!anidadorRotos.length) bien('los ' + guionesAnidador.length + ' guiones del anidador parsean');
