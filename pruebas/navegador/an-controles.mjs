@@ -16,8 +16,8 @@
  *         hoja y la escala con las que se calculó, y no ofrece «Seguir buscando» (el motor ya no
  *         lo tiene). Quitar un retazo ya se deshacía con el mismo aviso.
  *   · A16 DESCARGAR POR HOJA DESDE UN MENÚ, y mandar el archivo con navigator.share si existe.
- *   · RÁPIDO, el paro de omisión desde el audio del taller (16/10/2026): solo reloj, 5 s sin mejorar
- *         o 15 s desde el primer acomodo, aunque el motor no conteste; y cambiar de búsqueda corriendo.
+ *   · CUÁNTO BUSCA (Elías, 17/10/2026: «quiero que todo sea a fondo»): ya no hay «Rápido»; el
+ *         motor nuevo busca 2, 5 o 10 minutos, lo elegido se recuerda y los giros nacen libres.
  *   · DXF, la descarga de omisión: cada contorno, una polilínea cerrada; bajarlo y compartirlo.
  *   · A21 LA ORIENTACIÓN DE LA HOJA: la hojita de cada tarjeta gira con «Girar la hoja», y al abrir
  *         la página ya acostada nace girada, sin verse girar.
@@ -31,7 +31,10 @@
  * El motor de verdad tarda minutos en dar un segundo acomodo y su paro tarda 40 s; para lo que no
  * es del motor se le sustituye el start() por uno que solo guarda la función de pantalla, y la
  * prueba la llama a mano con hojas de mentira: así cada caso es exacto y dura milisegundos. (El
- * motor de verdad ya lo prueba pruebas/navegador/anidador.mjs.)
+ * motor de verdad ya lo prueba pruebas/navegador/anidador.mjs.) Desde el 17/10/2026 el motor de
+ * omisión es sparrow (js/motor-sparrow*.js); el de SVGnest queda de respaldo y estas rondas lo
+ * piden con window.__anidadorMotorViejo para seguir probando la pantalla con el motor falso. El
+ * nuevo, de verdad, lo prueba pruebas/navegador/an-sparrow.mjs.
  *
  * Ocho rondas —360 y 420 px, claro y oscuro, con y sin movimiento reducido— con el dedo: sin
  * errores de página, sin desborde de lado, sin nada girando en reposo, con zonas de 44 px y el
@@ -70,11 +73,13 @@ async function abrir({ ancho = 1100, alto = 900, tema = 'claro', reducido = fals
   const ctx = await nav.newContext({ viewport: { width: ancho, height: alto }, locale: 'es-MX', serviceWorkers: 'block',
     hasTouch: tactil, isMobile: tactil, deviceScaleFactor: 1, acceptDownloads: true, reducedMotion: reducido ? 'reduce' : 'no-preference' });
   await ctx.addInitScript(t => { try { if (!localStorage.getItem('al3d_tema')) localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
-  /* Estas rondas se escribieron cuando el paro era solo «A fondo» y la descarga solo SVG. Desde el
-     audio del taller (16/10/2026) la página nace en «Rápido» y DXF, que paran y descargan distinto:
-     se siembran los de antes para que cada ronda siga probando lo suyo. Las de «Rápido» y el DXF
-     piden `deSiempre: false` y ven la página como la abre el taller. */
-  if (deSiempre) await ctx.addInitScript(() => { try { if (!localStorage.getItem('al3d_anidador_material')) localStorage.setItem('al3d_anidador_material', JSON.stringify({ busca: 'fondo', formato: 'svg' })); } catch (_) {} });
+  /* El motor falso se monta sobre el de SVGnest, que desde el 17/10/2026 es el de respaldo. */
+  await ctx.addInitScript(() => { window.__anidadorMotorViejo = true; });
+  /* Estas rondas se escribieron cuando la descarga era solo SVG. Desde el audio del taller
+     (16/10/2026) la página nace en DXF: se siembra el SVG para que cada ronda siga probando lo
+     suyo. Las de «Cuánto busca» y el DXF piden `deSiempre: false` y ven la página como la abre
+     el taller. */
+  if (deSiempre) await ctx.addInitScript(() => { try { if (!localStorage.getItem('al3d_anidador_material')) localStorage.setItem('al3d_anidador_material', JSON.stringify({ formato: 'svg' })); } catch (_) {} });
   if (antes) await ctx.addInitScript(antes);
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -219,67 +224,36 @@ console.log('\nA4 · LA MECHA DEL PARO');
   await ctx.close();
 }
 
-// ═══ RÁPIDO · EL PARO DE OMISIÓN (audio del taller, 16/10/2026) ═══════════════════════════════
-/* El taller: «entre el primero que te da, que dura tres segundos, y el último, que son como dos
-   minutos, se van a ahorrar tres centímetros de material». Para el router el acomodo se retoca a
-   mano de todos modos, así que la página nace en «Rápido»: solo mira el reloj —5 s sin mejorar, o
-   15 s desde el primer acomodo aunque siga mejorando— y se para sola aunque el motor no conteste. */
-console.log('\nRÁPIDO · EL PARO DE OMISIÓN');
+// ═══ CUÁNTO BUSCA · SIN «RÁPIDO» (Elías, 17/10/2026) ═════════════════════════════════════════
+/* «A mí no me funciona que sea rápido si a final de cuentas termino desperdiciando material.
+   Quiero que todo sea a fondo». El selector «Rápido / A fondo» se fue; queda cuánto busca el motor
+   nuevo (2, 5 o 10 minutos) y los giros nacen libres, a cualquier ángulo («para acrílico, sin veta,
+   deja de omisión el giro libre»). */
+console.log('\nCUÁNTO BUSCA · SIN «RÁPIDO»');
 {
   const { ctx, p, errs } = await abrir({ deSiempre: false });
   const e0 = await estado(p);
-  cierto(e0.busca === 'rapido' && e0.formato === 'dxf', 'la página nace en «Rápido» y DXF', { busca: e0.busca, formato: e0.formato });
-  const tp = (ms, n, d) => p.evaluate(([a, b, c]) => window.Anidador.textoParo(a, b, c), [ms, n, d]);
-  cierto(await tp(2000, 7, 3000) === 'Sin mejora hace 2 s · listo en 3 s', 'la frase cuenta segundos y no intentos: «' + await tp(2000, 7, 3000) + '»');
-  cierto(await tp(2000, 0, 14000) === 'Sin mejora hace 2 s · listo en 1 s', 'con el tope de 15 s más cerca, manda el tope', await tp(2000, 0, 14000));
-  cierto(/ · se detiene ya$/.test(await tp(5000, 0, 5000)), 'a los 5 s sin mejorar: «se detiene ya»');
-
-  await cargar(p, SVG_MM); await motorFalso(p);
-  await p.evaluate(() => window.Anidador.iniciar());
-  cierto(/^Acomodo rápido/.test(await texto(p, '#an-msg')), 'al arrancar lo dice: «' + await texto(p, '#an-msg') + '»');
-  await mejora(p, 1, 0.5, 6, 6);
-  const duracion = () => p.evaluate(() => { const m = document.querySelector('#an-mecha-paro .mecha'); const a = m && m.getAnimations()[0]; return a ? a.effect.getComputedTiming().duration : null; });
-  cierto(await duracion() === 5000, 'la mecha dura los 5 s de «Rápido»', await duracion());
-  await sinMejora(p); await sinMejora(p);
-  cierto((await estado(p)).corriendo, 'dos intentos sin mejorar no lo paran: cuenta el reloj');
-  /* Pasan 6 s y el motor no contesta: el reloj de cada segundo lo para, sin esperar otro intento. */
-  await p.evaluate(() => { const real = Date.now.bind(Date); window.__salto = 6000; Date.now = () => real() + window.__salto; });
-  await dormir(1300);
-  let e = await estado(p);
-  cierto(!e.corriendo && e.detenidoSolo, 'a los 5 s sin mejorar se detiene solo, aunque el motor no conteste', { corriendo: e.corriendo, detenidoSolo: e.detenidoSolo });
-  cierto(/^Listo: acomodo rápido/.test(await texto(p, '#an-msg')), 'y lo dice: «' + await texto(p, '#an-msg') + '»');
-  cierto(await p.evaluate(() => !document.getElementById('an-seguir').hidden), '«Seguir buscando» queda a la mano');
-
-  /* El tope: mejorando cada 3 s, a los 15 s del primer acomodo se para igual. */
-  await p.evaluate(() => { window.__salto = 0; });
-  await p.evaluate(() => window.Anidador.iniciar());
-  await mejora(p, 1, 0.5, 6, 6);
-  for (const s of [3000, 6000, 9000, 12000]) { await p.evaluate(x => { window.__salto = x; }, s); await mejora(p, 1, 0.5 + s / 100000, 6, 6); }
-  cierto((await estado(p)).corriendo, 'a los 12 s, mejorando cada 3, sigue');
-  await p.evaluate(() => { window.__salto = 15500; });
-  await mejora(p, 1, 0.7, 6, 6);
-  e = await estado(p);
-  cierto(!e.corriendo && e.detenidoSolo && Math.abs(e.mejor.eficiencia - 0.7) < 1e-9, 'a los 15 s del primer acomodo se para aunque siga mejorando, con la última mejora puesta', e.mejor);
-
-  /* Cambiar de búsqueda con el motor corriendo vale desde ya. */
-  await p.evaluate(() => { window.__salto = 0; });
-  await p.evaluate(() => window.Anidador.iniciar()); await mejora(p, 1, 0.5, 6, 6);
-  await p.click('#an-busca [data-busca="fondo"]');
-  cierto(await duracion() === 40000 && /faltan 25 intentos y 40 s$/.test(await texto(p, '#an-paro-t')), 'pasar a «A fondo» pone la mecha de 40 s y la frase de siempre: «' + await texto(p, '#an-paro-t') + '»');
-  await p.evaluate(() => { window.__salto = 7000; }); await dormir(1300);
-  cierto((await estado(p)).corriendo, 'en «A fondo», 7 s sin mejorar no lo paran');
-  await p.evaluate(() => { window.__paros = 0; const s = window.SvgNest.stop; window.SvgNest.stop = function () { window.__paros++; return s.apply(this, arguments); }; });
-  await p.click('#an-busca [data-busca="rapido"]');
-  e = await estado(p);
-  cierto(!e.corriendo && e.detenidoSolo, 'y volver a «Rápido» con 7 s sin mejorar lo para en el acto');
-  cierto(await p.evaluate(() => window.__paros) === 1 && /^Listo: acomodo rápido/.test(await texto(p, '#an-msg')), 'una sola vez, con su mensaje', await p.evaluate(() => window.__paros));
-  await p.evaluate(() => { window.__salto = 0; });
-
-  /* Se recuerda en el aparato, con lo demás de la hoja. */
-  await p.click('#an-busca [data-busca="fondo"]');
+  cierto(await p.evaluate(() => !document.getElementById('an-busca') && !document.querySelector('[data-busca]')), 'ya no hay «Rápido» ni «A fondo» que elegir');
+  cierto(e0.busca === 'fondo' && e0.formato === 'dxf', 'todo es a fondo y la descarga nace en DXF', { busca: e0.busca, formato: e0.formato });
+  const chips = () => p.evaluate(() => [...document.querySelectorAll('#an-tiempo .chip')].map(c => ({ s: c.getAttribute('data-seg'), on: c.getAttribute('aria-checked') === 'true' })));
+  let c = await chips();
+  cierto(c.map(x => x.s).join(',') === '120,300,600' && c[0].on && !c[1].on && !c[2].on, 'tres tiempos —2, 5 y 10 min— y nace en 2', c);
+  cierto(await p.inputValue('#an-rot') === 'libre', 'los giros nacen libres, a cualquier ángulo');
+  await p.click('#an-tiempo [data-seg="600"]');
+  c = await chips();
+  cierto(c[2].on && !c[0].on && !c[1].on, 'tocar «10 min» lo elige', c);
   await p.reload({ waitUntil: 'load' }); await p.waitForFunction(() => window.Anidador && !document.getElementById('an-arranque'));
-  cierto((await estado(p)).busca === 'fondo' && await p.evaluate(() => document.querySelector('#an-busca [data-busca="fondo"]').getAttribute('aria-checked')) === 'true', 'la búsqueda elegida se recuerda al volver a abrir');
+  c = await chips();
+  cierto(c[2].on && !c[0].on, 'y se recuerda al volver a abrir', c);
   cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+}
+/* Lo guardado antes del 17/10/2026 traía «4» porque era la omisión, no porque alguien lo eligiera:
+   se toma como libre. Lo elegido a mano (8, o 4 después del cambio) se respeta. */
+for (const [g, esp, que] of [[{ rot: '4' }, 'libre', '«4» de antes del cambio → libre'], [{ rot: '8' }, '8', '«8» elegido a mano se respeta'],
+                              [{ rot: '4', giros2: true }, '4', '«4» elegido después del cambio se respeta']]) {
+  const { ctx, p, errs } = await abrir({ deSiempre: false, antes: `try { localStorage.setItem('al3d_anidador_material', ${JSON.stringify(JSON.stringify(g))}); } catch (_) {}` });
+  cierto(await p.inputValue('#an-rot') === esp && errs.length === 0, 'giros guardados: ' + que, await p.inputValue('#an-rot'));
   await ctx.close();
 }
 
@@ -297,7 +271,7 @@ console.log('\nEL DXF · LO QUE LEE EL ROUTER');
   await p.evaluate(() => window.Anidador.detener());
   let [d] = await Promise.all([p.waitForEvent('download'), p.click('#an-dl')]);
   const dxf = fs.readFileSync(await d.path(), 'utf8');
-  cierto(/-acrilico-acomodado\.dxf$/.test(d.suggestedFilename()), 'un clic baja «' + d.suggestedFilename() + '»');
+  cierto(/-acrilico-sep[\d.]+mm-acomodado\.dxf$/.test(d.suggestedFilename()), 'un clic baja «' + d.suggestedFilename() + '»');
   const l = dxf.split('\r\n'), pares = [];
   for (let i = 0; i + 1 < l.length; i += 2) pares.push([l[i].trim(), l[i + 1]]);
   const polis = []; let cur = null;
@@ -314,7 +288,7 @@ console.log('\nEL DXF · LO QUE LEE EL ROUTER');
   await p.click('#an-formato [data-formato="svg"]');
   cierto(await texto(p, '#an-dl-t') === 'Descargar SVG', 'eligiendo SVG el botón lo dice');
   [d] = await Promise.all([p.waitForEvent('download'), p.click('#an-dl')]);
-  cierto(/-acrilico-acomodado\.svg$/.test(d.suggestedFilename()) && /<svg/.test(fs.readFileSync(await d.path(), 'utf8')), 'y baja el SVG de siempre: «' + d.suggestedFilename() + '»');
+  cierto(/-acrilico-sep[\d.]+mm-acomodado\.svg$/.test(d.suggestedFilename()) && /<svg/.test(fs.readFileSync(await d.path(), 'utf8')), 'y baja el SVG de siempre: «' + d.suggestedFilename() + '»');
   cierto(errs.length === 0, 'sin errores de página', errs);
   await ctx.close();
 }
@@ -329,7 +303,7 @@ console.log('\nEL DXF · LO QUE LEE EL ROUTER');
   cierto(t.join('|') === 'Descargar DXF|Compartir WhatsApp, correo…', 'el menú: Descargar DXF y Compartir', t);
   await p.click('.an-menu-dl [data-descarga="compartir"]'); await dormir(150);
   const cp = await p.evaluate(() => window.__compartidos);
-  cierto(cp.length === 1 && /-acrilico-acomodado\.dxf$/.test(cp[0].n) && cp[0].t === 'text/plain' && cp[0].tam > 200, 'comparte «' + (cp[0] && cp[0].n) + '» como texto', cp);
+  cierto(cp.length === 1 && /-acrilico-sep[\d.]+mm-acomodado\.dxf$/.test(cp[0].n) && cp[0].t === 'text/plain' && cp[0].tam > 200, 'comparte «' + (cp[0] && cp[0].n) + '» como texto', cp);
   cierto(errs.length === 0, 'sin errores de página', errs);
   await ctx.close();
 }
@@ -340,10 +314,10 @@ console.log('\nA5 · LA VETA');
   const { ctx, p, errs } = await abrir();
   await cargar(p, SVG_MM);
   const rot = () => p.inputValue('#an-rot');
-  cierto(await rot() === '4', 'de entrada: cada 90° (como siempre)');
+  cierto(await rot() === 'libre', 'de entrada: giro libre (sin veta, desde el 17/10/2026)');
   for (const mat of ['acrilico', 'galvanizada', 'alucobond']) {
     await p.click(`#an-mats [data-mat="${mat}"]`);
-    cierto(await rot() === '4' && !(await abierto(p, '.an-pregunta-veta')), `${mat}: no tiene veta, no pregunta y no toca los giros`);
+    cierto(await rot() === 'libre' && !(await abierto(p, '.an-pregunta-veta')), `${mat}: no tiene veta, no pregunta y no toca los giros`);
   }
   await p.click('#an-mats [data-mat="aluminio"]');
   cierto(await rot() === '2', 'aluminio: por omisión quedan solo 0° y 180°');
@@ -362,17 +336,18 @@ console.log('\nA5 · LA VETA');
   cierto(!(await abierto(p, '.an-pregunta-veta')) && await rot() === '2', 'volver a tocar aluminio no repite la pregunta');
   /* De aluminio a un material sin veta: si los quitó la veta y nadie los tocó, vuelven. */
   await p.click('#an-mats [data-mat="acrilico"]');
-  cierto(await rot() === '4', 'de aluminio a acrílico los 4 giros vuelven (los había quitado la veta)');
-  /* MDF pregunta igual; «Sin veta» devuelve los 4 giros y lo recuerda. */
+  cierto(await rot() === 'libre', 'de aluminio a acrílico vuelve el giro libre (lo había quitado la veta)');
+  /* MDF pregunta igual; «Sin veta» devuelve el giro libre y lo recuerda. */
   await p.click('#an-mats [data-mat="mdf"]');
   cierto(await abierto(p, '.an-pregunta-veta') && await rot() === '2', 'MDF también pregunta');
+  cierto(await texto(p, '.an-pregunta-veta [data-veta="no"]') === 'Sin veta: giro libre', 'el botón dice «Sin veta: giro libre»', await texto(p, '.an-pregunta-veta [data-veta="no"]'));
   await p.click('.an-pregunta-veta [data-veta="no"]');
-  cierto(await rot() === '4' && !(await abierto(p, '.an-pregunta-veta')), '«Sin veta: cada 90°» devuelve los 4 giros y cierra');
+  cierto(await rot() === 'libre' && !(await abierto(p, '.an-pregunta-veta')), '«Sin veta: giro libre» lo devuelve y cierra');
   cierto(!(await estado(p)).veta && !(await p.evaluate(() => document.getElementById('an-mesa').classList.contains('con-veta'))), 'y la mesa deja de rayar');
   cierto((await aviso(p)).some(a => /no tiene veta/.test(a.msg)), 'con un aviso que lo dice');
   await p.reload({ waitUntil: 'load' }); await p.waitForFunction(() => window.Anidador && !document.getElementById('an-arranque'));
-  cierto(await rot() === '4' && (await estado(p)).material === 'mdf' && !(await abierto(p, '.an-pregunta-veta')) && !(await estado(p)).veta,
-    'al abrir la página otra vez: MDF, 4 giros, sin preguntar y sin rayar (la respuesta se guardó)');
+  cierto(await rot() === 'libre' && (await estado(p)).material === 'mdf' && !(await abierto(p, '.an-pregunta-veta')) && !(await estado(p)).veta,
+    'al abrir la página otra vez: MDF, giro libre, sin preguntar y sin rayar (la respuesta se guardó)');
   /* Elegir OTRO material con veta vuelve a preguntar. */
   await p.click('#an-mats [data-mat="aluminio"]');
   cierto(await abierto(p, '.an-pregunta-veta') && await rot() === '2', 'elegir otro material con veta vuelve a preguntar');
@@ -651,7 +626,7 @@ console.log('\nA16 · DESCARGAR POR HOJA DESDE UN MENÚ');
   await mejora(p, 1, 0.5, 6, 6);
   cierto(await p.evaluate(() => { const b = document.getElementById('an-dl'); return !b.disabled && document.getElementById('an-dl-flecha').hidden && !b.hasAttribute('aria-haspopup'); }), 'con una hoja y sin compartir: sin flecha y sin aria-haspopup');
   let [d] = await Promise.all([p.waitForEvent('download'), p.click('#an-dl')]);
-  cierto(/-acrilico-acomodado\.svg$/.test(d.suggestedFilename()) && !(await abierto(p, '.an-menu-dl')), 'y un clic descarga directo: ' + d.suggestedFilename());
+  cierto(/-acrilico-sep[\d.]+mm-acomodado\.svg$/.test(d.suggestedFilename()) && !(await abierto(p, '.an-menu-dl')), 'y un clic descarga directo: ' + d.suggestedFilename());
   /* Tres hojas: el menú. */
   await mejora(p, 3, 0.6, 6, 6);
   cierto(await p.evaluate(() => !document.getElementById('an-dl-flecha').hidden && document.getElementById('an-dl').getAttribute('aria-haspopup') === 'menu'), 'con tres hojas: flecha y aria-haspopup="menu"');
@@ -681,7 +656,7 @@ console.log('\nA16 · DESCARGAR POR HOJA DESDE UN MENÚ');
   cierto(await p.evaluate(() => getComputedStyle(document.querySelector('.an-menu-dl [role="menuitem"]:nth-of-type(2)')).backgroundColor === 'rgba(0, 0, 0, 0)'), 'el :hover del sistema no pinta un segundo resaltado');
   /* Hoja 2: baja SOLO la hoja 2, y el foco vuelve al botón. */
   [d] = await Promise.all([p.waitForEvent('download'), p.click('.an-menu-dl [role="menuitem"]:nth-of-type(3)')]);
-  cierto(/-acrilico-acomodado-hoja-2\.svg$/.test(d.suggestedFilename()), 'Hoja 2 baja «' + d.suggestedFilename() + '»');
+  cierto(/-acrilico-sep[\d.]+mm-acomodado-hoja-2\.svg$/.test(d.suggestedFilename()), 'Hoja 2 baja «' + d.suggestedFilename() + '»');
   let svg = fs.readFileSync(await d.path(), 'utf8');
   cierto((svg.match(/<g id="hoja-\d+"/g) || []).length === 1, 'con una sola capa de hoja');
   cierto(!(await abierto(p, '.an-menu-dl')) && await p.evaluate(() => document.activeElement.id) === 'an-dl', 'el menú se cierra y el foco vuelve a «Descargar SVG»');
@@ -689,7 +664,7 @@ console.log('\nA16 · DESCARGAR POR HOJA DESDE UN MENÚ');
   await p.click('#an-dl');
   [d] = await Promise.all([p.waitForEvent('download'), p.click('.an-menu-dl [role="menuitem"]:nth-of-type(1)')]);
   svg = fs.readFileSync(await d.path(), 'utf8');
-  cierto(/-acrilico-acomodado\.svg$/.test(d.suggestedFilename()) && (svg.match(/<g id="hoja-\d+"/g) || []).length === 3, 'Todas baja el archivo completo: una capa por hoja (3)');
+  cierto(/-acrilico-sep[\d.]+mm-acomodado\.svg$/.test(d.suggestedFilename()) && (svg.match(/<g id="hoja-\d+"/g) || []).length === 3, 'Todas baja el archivo completo: una capa por hoja (3)');
   /* Escape y Tab. */
   await p.click('#an-dl'); await p.keyboard.press('Escape');
   cierto(!(await abierto(p, '.an-menu-dl')) && await p.evaluate(() => document.activeElement.id) === 'an-dl', 'Escape cierra y el foco vuelve al botón');
@@ -716,7 +691,7 @@ console.log('\nA16 · DESCARGAR POR HOJA DESDE UN MENÚ');
     cierto(t.join('|') === 'Descargar SVG|Compartir WhatsApp, correo…', 'el menú: Descargar SVG y Compartir', t);
     await p.click('.an-menu-dl [data-descarga="compartir"]'); await dormir(150);
     const cp = await p.evaluate(() => window.__compartidos);
-    cierto(cp.length === 1 && /-acrilico-acomodado\.svg$/.test(cp[0].n) && cp[0].t === esperado && cp[0].tam > 200, 'comparte «' + (cp[0] && cp[0].n) + '» como ' + esperado + (esperado === 'text/plain' ? ' (Chrome de Android no deja SVG)' : ''), cp);
+    cierto(cp.length === 1 && /-acrilico-sep[\d.]+mm-acomodado\.svg$/.test(cp[0].n) && cp[0].t === esperado && cp[0].tam > 200, 'comparte «' + (cp[0] && cp[0].n) + '» como ' + esperado + (esperado === 'text/plain' ? ' (Chrome de Android no deja SVG)' : ''), cp);
     cierto(await p.evaluate(() => document.activeElement.id) === 'an-dl', 'y el foco vuelve al botón');
     await p.evaluate(() => window.Anidador.detener());
     cierto(errs.length === 0, 'sin errores de página', errs);
