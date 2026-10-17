@@ -569,6 +569,11 @@ html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(-
 .an-escala{display:flex;align-items:flex-end;gap:8px;margin-left:auto;min-width:0;font:700 var(--t1)/1 var(--f-cifra);color:#c9cef0;white-space:nowrap}
 .an-escala>i{display:block;flex:none;height:8px;width:var(--w,28px);border:2px solid #c9cef0;border-top:0}
 .an-pieza-t{font-weight:700;font-size:var(--t2);color:#fff;margin-right:var(--e1)}
+/* El aviso de la vibración va sobre la mesa oscura: rojo claro con su palabra («puede vibrar»). */
+.an-vibra-t{margin:0;font-size:var(--t2);line-height:1.4;color:#ffd2ce}
+.an-vibra-t b{color:#ff8a80}
+.an-minimo{margin-top:var(--e3)}
+.an-minimo[hidden]{display:none}
 /* Los puntos y las flechas del carrusel (sistema.css) están pensados para una tarjeta clara; la mesa es
    oscura en los dos temas. */
 .an-pags.paginas-barra{margin-top:0;justify-content:center}
@@ -590,6 +595,10 @@ html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(-
 .an-hoja svg>g:focus-visible>*:not(.hole){stroke:#14162b;stroke-width:2.6px}
 .an-hoja svg>g.levantada>*:not(.hole){stroke:#14162b;stroke-width:3px;stroke-dasharray:7 4}
 .an-hoja svg>g.rechazada>*:not(.hole){stroke:#c8261c;stroke-width:3px}
+/* Cortes rectos muy juntos (js/vibracion.js): las dos piezas con orilla roja y, entre ellas, la tira
+   de material que vibra. La marca es de la mesa: armarSalida() no la copia al archivo de corte. */
+.an-hoja svg>g.vibra>*:not(.hole){stroke:#ff5a4e;stroke-width:2px;vector-effect:non-scaling-stroke}
+.an-hoja svg>.an-vibra-marca{fill:rgba(255,90,78,.55);stroke:#ff5a4e;stroke-width:2px;vector-effect:non-scaling-stroke;pointer-events:none}
 /* La ficha de la pieza es una nota que solo se lee: si queda encima de otra pieza, el toque pasa de largo
    hasta ella (con el dedo, la ficha de una pieza tapaba a su vecina). */
 .vistazo[role="note"]{pointer-events:none}

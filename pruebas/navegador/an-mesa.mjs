@@ -1105,6 +1105,55 @@ await seccion(async () => {
   await ctx.close();
 });
 
+// ═══ CORTES RECTOS MUY JUNTOS: DONDE EL ROUTER VIBRA (audio del taller, 16/10/2026) ═══════════
+/* «No puedo poner dos L a la par»: con una broca elegida, la mesa marca las piezas cuyas orillas
+   rectas quedan paralelas y tan juntas que la tira de en medio vibra. La geometría la prueba
+   pruebas/anidador-vibracion.mjs; aquí, lo que se ve y lo que NO llega al archivo de corte. */
+cab('\nCORTES RECTOS MUY JUNTOS: DONDE EL ROUTER VIBRA');
+await seccion(async () => {
+  const { ctx, p, errs } = await abrir();
+  /* La 5 (60 × 200) y la 1 (150 × 150) a 4.5 mm: corren juntas 150 mm. La 0, lejos. */
+  const PEGADAS = [hoja([{ n: 5, x: 10, y: 10 }, { n: 1, x: 74.5, y: 10 }, { n: 0, x: 300, y: 300 }])];
+  await preparar(p, { spec: PEGADAS });
+  const campo = () => p.evaluate(() => !document.getElementById('fld-minimo').hidden);
+  const fila = () => visible(p, '#an-vibra');
+  cierto((await mesa(p)).vibra.length === 0 && !(await campo()), 'con la separación de omisión (3 mm, ningún chip) no se revisa nada ni se pide el mínimo');
+  await p.click('#an-corte [data-broca="3.175"]'); await dormir(150);
+  let v = (await mesa(p)).vibra;
+  cierto(await campo(), 'eligiendo «Broca 1/8″» aparece «Material mínimo entre dos cortes rectos»');
+  cierto(v.length === 1 && [v[0].a, v[0].b].sort().join() === 'pz-an-e1,pz-an-e5' && Math.abs(v[0].material - 1.325) < 1e-6, 'marca el par 5–1: 4.5 − 3.175 = 1.325 mm de material', v);
+  cierto(await fila() && /^Puede vibrar en el router: 1 lugar con menos de 3 mm de material entre dos cortes rectos \(piezas \d+ y \d+\)\. Gira o mueve una pieza de cada par\.$/.test(await texto(p, '#an-vibra-t')), 'el pie lo dice con sus piezas: «' + await texto(p, '#an-vibra-t') + '»');
+  cierto(await p.evaluate(() => document.querySelectorAll('#an-res g.vibra').length === 2 && document.querySelectorAll('#an-res [data-mesa="vibra"]').length === 1), 'las dos piezas en rojo y la tira de en medio marcada');
+  const tc = await contraste(p, '#an-vibra-t', { fondo: [38, 42, 62] });
+  cierto(tc >= 4.5, 'el aviso se lee sobre la mesa: ' + tc + ':1', tc);
+  const svg = await p.evaluate(() => window.Anidador.armarSalida()), dxf = await p.evaluate(() => window.Anidador.armarDxf(null));
+  cierto(!/data-mesa|an-vibra|vibra/.test(svg), 'la marca NO llega al SVG de corte');
+  cierto((dxf.match(/\r\n0\r\nPOLYLINE\r\n/g) || []).length === 3 + 1, 'ni al DXF: tres piezas y el contorno de la hoja', (dxf.match(/\r\n0\r\nPOLYLINE\r\n/g) || []).length);
+  /* El número es del taller. */
+  await p.fill('#an-minimo', '1'); await dormir(150);
+  cierto((await mesa(p)).vibra.length === 0 && !(await fila()), 'con un mínimo de 1 mm, 1.325 alcanza: no se marca');
+  await p.fill('#an-minimo', '3'); await dormir(150);
+  cierto((await mesa(p)).vibra.length === 1, 'y con 3 vuelve');
+  /* Mover a mano la que estorba lo arregla: la 1, 20 mm a la derecha (cuatro empujones de 5). */
+  await p.evaluate(() => { const g = document.getElementById('pz-an-e1'); g.focus(); for (let i = 0; i < 4; i++) g.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true })); });
+  await dormir(600);
+  cierto((await mesa(p)).editado && (await mesa(p)).vibra.length === 0 && !(await fila()), 'moverla a mano 20 mm quita la marca en el acto');
+  /* Con láser no se revisa. */
+  await p.click('#an-corte [data-sep="2"]'); await dormir(150);
+  cierto((await mesa(p)).vibra.length === 0 && !(await campo()), 'con «Láser» no se revisa ni se pide el mínimo');
+  /* Mientras el motor corre, no se marca: es el acomodo quieto el que se corta. */
+  await p.click('#an-corte [data-broca="3.175"]');
+  await p.evaluate(() => window.Anidador.iniciar()); await mejora(p, PEGADAS);
+  cierto((await estado(p)).corriendo && (await mesa(p)).vibra.length === 0 && !(await fila()), 'con el motor corriendo no hay marcas');
+  await p.evaluate(() => window.Anidador.detener()); await dormir(150);
+  cierto((await mesa(p)).vibra.length === 1 && await fila(), 'al detenerse, aparecen');
+  /* Se recuerda el mínimo. */
+  await p.fill('#an-minimo', '4.5'); await p.reload({ waitUntil: 'load' }); await p.waitForFunction(() => window.Anidador && !document.getElementById('an-arranque'));
+  cierto(await p.inputValue('#an-minimo') === '4.5' && await campo(), 'el mínimo y la broca se recuerdan en el aparato');
+  cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+});
+
 // ═══ LAS OCHO RONDAS ══════════════════════════════════════════════════════════════════════════
 cab('\nLAS OCHO RONDAS: 360 y 420 px × claro y oscuro × con y sin movimiento reducido, con el dedo');
 for (const ancho of [360, 420]) for (const tema of ['claro', 'oscuro']) for (const reducido of [false, true]) {

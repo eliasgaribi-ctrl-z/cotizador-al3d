@@ -73,6 +73,7 @@ anidador-vectores/
     ├── app.js               la interfaz: cargar, medir, acomodar, descargar
     ├── medidas.js           unidades del archivo → milímetros; puro, probado en node
     ├── dxf.js               el acomodo en DXF R12, polilíneas cerradas; puro, probado en node
+    ├── vibracion.js         cortes rectos muy juntos (el router vibra); puro, probado en node
     ├── svgnest.js           motor de anidamiento (genético + NFP)       ┐
     ├── svgparser.js         formas SVG → polígonos                       │ vendorizados de
     ├── SVGNEST-LICENSE.txt  licencia MIT del motor                       │ SVGnest (MIT),
@@ -104,6 +105,8 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - `pruebas/anidador-medidas.mjs` — la aritmética de unidades, en node y nada más.
 - `pruebas/anidador-dxf.mjs` — el DXF, leído de vuelta par por par: cerrado, sin puntos
   repetidos, en su capa, a escala y sin espejo.
+- `pruebas/anidador-vibracion.mjs` — los cortes rectos muy juntos: qué es tramo recto, qué par
+  se marca y cuál no (esquinas, piezas giradas, la misma letra, una pieza dentro de un hueco).
 - `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
   comprueba las piezas colocadas y que el SVG de salida esté en milímetros; y que el trazo
   que deja el cotizador se recoge y se borra. Pide Chromium: `pruebas/correr.sh --navegador`.
@@ -116,6 +119,14 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - «Se corta con» la escribe con un toque, con los números del taller: **láser 2 mm**, y en
   router el diámetro de la broca más un poco de aire —**1/8″ 4.5 mm, 3/16″ 6 mm, 1/4″ 7.5 mm**—.
   Con 3 mm, la de omisión, no pasa ni la broca más chica.
+- **Donde el router vibra.** Con una broca elegida en «Se corta con», la mesa marca en rojo las
+  piezas cuyas orillas rectas quedan paralelas y tan juntas que la tira de material de en medio
+  vibra (audio del taller, 16/10/2026: «no puedo poner dos L a la par»), y el pie dice cuáles son
+  para mover solo esas. Cuenta lo que queda entre los dos cortes —la distancia entre las orillas
+  menos el ancho de la broca— contra «Material mínimo entre dos cortes rectos» (3 mm de omisión;
+  el número es del taller). Solo tramos rectos de 15 mm o más que corran juntos 15 mm o más, con
+  hasta 5° de diferencia, y entre piezas distintas. Se revisa con el acomodo quieto y al mover
+  piezas a mano; la marca es de la mesa y no llega al archivo de corte.
 - «Meter piezas chicas en los huecos grandes» sirve cuando hay una «O» o una «D» lo bastante
   grande para recibir otra pieza dentro. Tarda más en calcular.
 - «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)
