@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 126;
+const APP_VERSION = 127;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -177,6 +177,9 @@ const APP_FILES = [
   './anidador-vectores/js/medidas.js',
   './anidador-vectores/js/dxf.js',
   './anidador-vectores/js/vibracion.js',
+  './anidador-vectores/js/contornos.js',
+  './anidador-vectores/js/dxf-entrada.js',
+  './anidador-vectores/js/sobrante.js',
   /* El motor de acomodo sparrow (MIT; anidador-vectores/motor/, compilado en CI por
      .github/workflows/motor-sparrow.yml). La variante SIMD entera, para que la mesa acomode sin
      señal; de la de respaldo (aparatos sin SIMD, raros) solo el guion: su .wasm se baja si hace

@@ -794,7 +794,9 @@ await seccion(async () => {
   const t1 = await transformDe(p, 'pz-an-e2');
   const m1 = /translate\(([\d.-]+) ([\d.-]+)\) rotate\(0\)/.exec(t1);
   cierto(m1 && Math.abs(+m1[1] - 40) < 3 && Math.abs(+m1[2] - 280) < 3, 'soltada en un lugar libre se queda (' + t1 + ')', t1);
-  cierto(await p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].map(e => e.id || e.getAttribute('class')).join()) === 'bin,pz-an-e0,pz-an-e1,pz-an-e5,pz-an-e2,pz-an-e3,pz-an-e4', 'y vuelve a su lugar en el orden del dibujo', await p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].map(e => e.id || e.getAttribute('class')).join()));
+  /* Las marcas de la mesa (data-mesa: el retazo útil, la vibración) no son piezas: no cuentan en el orden. */
+  const orden = () => p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].filter(e => !e.hasAttribute('data-mesa')).map(e => e.id || e.getAttribute('class')).join());
+  cierto(await orden() === 'bin,pz-an-e0,pz-an-e1,pz-an-e5,pz-an-e2,pz-an-e3,pz-an-e4', 'y vuelve a su lugar en el orden del dibujo', await orden());
   const mm = await mesa(p);
   cierto(mm.editado === true, 'el acomodo queda marcado como editado a mano', mm.editado);
   cierto(await texto(p, '#an-vista-tab') === 'Acomodo editado a mano', 'la mesa lo dice: «Acomodo editado a mano»');
