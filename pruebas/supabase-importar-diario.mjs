@@ -338,7 +338,7 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
   eq('cada fuente de su cabecera tiene la huella de hoy (si falla: node supabase/functions/importar-diario/desplegar/armar.mjs)',
     fuentes.filter(x => !existsSync(join(RAIZ, x.f)) || huella(readFileSync(join(RAIZ, x.f), 'utf8')) !== x.h).map(x => x.f), []);
   const deben = ['supabase/functions/importar-diario/index.ts', 'supabase/functions/importar-diario/handler.js', 'supabase/functions/importar-diario/copia.js',
-    'supabase/functions/importar-diario/base.js', 'scripts/importador/plan.mjs', 'scripts/importador/sql.mjs', 'scripts/importador/celdas.mjs',
+    'supabase/functions/importar-diario/base.js', 'supabase/functions/importar-diario/respaldo.js', 'scripts/importador/plan.mjs', 'scripts/importador/sql.mjs', 'scripts/importador/celdas.mjs',
     'supabase/functions/_shared/http.js', 'supabase/functions/_shared/respaldo.js', 'datos/semilla.json'];
   eq('y lleva las fuentes que tiene que llevar', deben.filter(f => !fuentes.some(x => x.f === f)), []);
   eq('lo único de fuera: el driver de Postgres fijado por versión y lo de Node que Deno trae', [...new Set([...txt.matchAll(/^import .* from "([^"]+)";$/gm)].map(m => m[1]))].sort(),
@@ -359,6 +359,7 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
         pg.sentencias.push(t);
         if (/pg_try_advisory_xact_lock/.test(t)) return [{ ok: true }];
         if (/insert into public\.cuadre_diario/.test(t)) return [{ id: '1', fecha: '2026-10-17', cuadra: p[2] }];
+        if (/json_agg/.test(t)) return [{ filas: '[{"id":1}]', n: 1 }];
         return [];
       } }),
       end: async () => { pg.terminado = true; },
@@ -385,6 +386,12 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
     eq('con el secreto y un volcado de hoy: 200, aplicada, por el driver con prepare:false y cerrando la conexión', [si.status, cuerpo.aplicado, cuerpo.ventas, pg.opciones.prepare, pg.terminado, pg.url === URL_BD],
       [200, true, 220, false, true, true]);
     eq('y por el driver pasaron: candado, tiempo, importador, cambios, limpiar, cuadre, anotar', pg.sentencias.map(clase), ['candado', 'tiempo', 'importador', 'cambios', 'limpiar', 'cuadre', 'anotar']);
+    const pr = await pedir(SECRETO, JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }));
+    const prTexto = await pr.text();
+    const pg2 = globalThis.__al3dUltimoPg;
+    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (18 tablas), en una transacción de solo lectura, cerrando la conexión',
+      [pr.status, JSON.parse(prTexto).formato, Object.keys(JSON.parse(prTexto).tablas).length, pg2.sentencias[0], pg2.sentencias.filter(t => /json_agg/.test(t)).length, pg2.terminado],
+      [200, 'al3d-respaldo-1', 18, 'set transaction isolation level repeatable read, read only', 18, true]);
     delete envB.IMPORTAR_SECRETO;
     const sinSec = await pedir(SECRETO, JSON.stringify(v));
     eq('y sin el secreto en el entorno: 503', sinSec.status, 503);
@@ -552,9 +559,14 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   const propios = nombres(GS);
   eq('ningún nombre de copia-diaria.gs existe en Código.gs (hoja-apps-script.gs) ni en volcado-para-importar.gs: pegado junto, no pisa nada',
     [...propios].filter(n => nombres(PUENTE_GS).has(n) || nombres(VOL_GS).has(n)), []);
-  eq('y todos llevan su prefijo (o son las tres que se eligen en el editor)', [...propios].filter(n => !/^(copia|Copia|COPIA_)/.test(n) && !['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].includes(n)), []);
-  cierto('las tres que se eligen en el editor no terminan en _ (Apps Script esconde esas)', ['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].every(n => propios.has(n)));
-  cierto('y no usa nada que escriba: ni setValue(s), ni appendRow, ni DriveApp, ni setProperty', !/setValues?\(|appendRow|DriveApp|setProperty|deleteProperty/.test(GS.replace(/\/\*[\s\S]*?\*\//g, '')));
+  const EDITOR = ['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria', 'respaldarSemanal', 'instalarRespaldoSemanal', 'quitarRespaldoSemanal'];
+  eq('y todos llevan su prefijo (o son las seis que se eligen en el editor)', [...propios].filter(n => !/^(copia|Copia|COPIA_)/.test(n) && !EDITOR.includes(n)), []);
+  cierto('las seis que se eligen en el editor no terminan en _ (Apps Script esconde esas)', EDITOR.every(n => propios.has(n)));
+  const sinComentarios = GS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const corte = GS.lastIndexOf('/*', GS.indexOf('EL RESPALDO SEMANAL DE LA BASE'));
+  cierto('no usa nada que escriba la hoja ni las propiedades: ni setValue(s), ni appendRow, ni setProperty', !/setValues?\(|appendRow|setProperty|deleteProperty|insertSheet|deleteRow/.test(sinComentarios));
+  cierto('y la COPIA no toca Drive: DriveApp solo aparece en el bloque del respaldo, que va después y no lee la hoja',
+    corte > 0 && !/DriveApp/.test(GS.slice(0, corte).replace(/\/\*[\s\S]*?\*\//g, '')) && !/SpreadsheetApp/.test(GS.slice(corte).replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 
 /* ============================================================================ */
@@ -708,6 +720,218 @@ seccion('10. AJUSTES — la racha de la copia diaria, y apagado no cambia nada')
   const sw = leer('sw.js');
   cierto('sw.js: APP_VERSION subió (los teléfonos bajan el Ajustes nuevo) y lleva los tres archivos que cambiaron', Number((/const APP_VERSION = (\d+);/.exec(sw) || [])[1]) >= 122 &&
     ['js/mod/ajustes.js', 'js/datos/supa-enchufe.js', 'js/datos/supa-cuadre.js'].every(a => sw.includes("'./" + a + "'")));
+}
+
+/* ============================================================================ */
+seccion('11. EL RESPALDO SEMANAL, POR importar-diario — con el MISMO secreto, la base entera en un JSON, de solo lectura');
+const R = await import(url('supabase/functions/_shared/respaldo.js'));
+const RD = await import(url('supabase/functions/importar-diario/respaldo.js'));
+const PEDIDO = JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 });
+/** La base de mentiras para el respaldo: contesta cada json_agg con las filas de su tabla (texto, como Postgres). */
+function baseDeRespaldo(o = {}) {
+  const m = { tx: [], abiertas: 0, cerradas: 0 };
+  m.base = {
+    transaccion: async fn => {
+      const log = ['begin']; m.tx.push(log);
+      try {
+        const r = await fn({
+          ejecutar: async t => { log.push({ e: t }); },
+          consultar: async t => {
+            log.push({ q: t });
+            if (o.falla) throw o.falla;
+            const tabla = /from public\.([a-z_]+) x$/.exec(t)[1];
+            if (o.texto && o.texto[tabla]) return [{ filas: o.texto[tabla], n: 1 }];
+            const filas = (o.tablas || {})[tabla] || [];
+            return [{ filas: filas.length ? '[' + filas.map(f => JSON.stringify(f)).join(', \n ') + ']' : '[]', n: filas.length }];
+          },
+        });
+        log.push('commit'); return r;
+      } catch (e) { log.push('rollback'); throw e; }
+    },
+    cerrar: async () => { m.cerradas++; },
+  };
+  m.abrir = () => { m.abiertas++; return m.base; };
+  return m;
+}
+/** La respuesta de la función, cruda (bytes y cabeceras): es lo que recibe UrlFetchApp. */
+async function pedirRespaldo({ secreto = SECRETO, entorno = {}, base = baseDeRespaldo(), cuerpo = PEDIDO } = {}) {
+  const env = { IMPORTAR_SECRETO: SECRETO, SUPABASE_DB_URL: URL_BD, SUPABASE_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co', ...entorno };
+  const reg = [];
+  const h = { 'content-type': 'application/json' };
+  if (secreto !== null) h['x-importar-secreto'] = secreto;
+  const res = await H.manejar(new Request('https://falso.supabase.co/functions/v1/importar-diario', { method: 'POST', headers: h, body: cuerpo }),
+    { ahora: () => AHORA, entorno: n => env[n], semilla: SEMILLA, abrirBase: base.abrir, registrar: (n, l) => reg.push(n + ' ' + l) });
+  const bytes = Buffer.from(await res.arrayBuffer());
+  return { status: res.status, bytes, texto: bytes.toString('utf8'), cab: Object.fromEntries(res.headers.entries()), reg, base };
+}
+/* Unas tablas de mentiras con datos de clientes (para ver que no salen al registro) y caracteres que no son ASCII. */
+const TABLAS_FALSAS = {
+  empresas: [{ id: 'al3d', nombre: 'AL3D' }],
+  proyectos: [{ id: 'p1', nombre: 'PersonaRespaldo - Taquería «Ñandú»', tel: '33 41234567' }, { id: 'p2', nombre: 'Otra 😀', tel: '' }],
+  abonos: [{ id: 1, importe: 1500.5, nota: 'abono de mentiras' }],
+  autorizaciones: [{ id: 7, folio_global: 'COT-0101@K7QM', renglones: '[["Letras 3D · 8 × 40 cm",8,12500]]' }],
+};
+{
+  const b = baseDeRespaldo({ tablas: TABLAS_FALSAS });
+  const r = await pedirRespaldo({ base: b });
+  const sha = createHash('sha256').update(r.bytes).digest('hex');
+  eq('200, JSON, sin caché, con nombre, huella, bytes y filas en las cabeceras (y la huella y los bytes son los del cuerpo)',
+    [r.status, r.cab['content-type'], r.cab['cache-control'], R.PATRON_NOMBRE.test(r.cab['x-respaldo-nombre']), r.cab['x-respaldo-sha256'] === sha, r.cab['x-respaldo-bytes'] === String(r.bytes.length), r.cab['x-respaldo-filas']],
+    [200, 'application/json; charset=utf-8', 'no-store', true, true, true, '5']);
+  const j = JSON.parse(r.texto);
+  const tablas = Object.fromEntries(R.TABLAS.map(t => [t.nombre, TABLAS_FALSAS[t.nombre] || []]));
+  eq('el archivo es EXACTAMENTE el de la función respaldo (armarArchivo, «al3d-respaldo-1»): mismas llaves, mismo orden, mismas filas', j,
+    JSON.parse(R.armarArchivo({ tablas, ahoraMs: AHORA, origen: 'gwzfdprdrdudfakjsdxf.supabase.co' })));
+  eq('con las 18 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
+  eq('UNA transacción de solo lectura (repeatable read: una foto exacta), con tope de tiempo y una consulta por tabla; ni candado ni escritura',
+    b.tx.map(log => log.map(x => (typeof x === 'string' ? x : x.e !== undefined ? 'E:' + x.e : 'Q'))).map(l => [l.slice(0, 4), l.length]),
+    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 18 + 1]]);
+  cierto('cada tabla con su orden de llave primaria, nombres solo de TABLAS', R.TABLAS.every(t => b.tx[0].some(x => x.q === RD.consultaDeTabla(t))) &&
+    RD.consultaDeTabla({ nombre: 'contadores', orden: 'empresa_id,clave,ventana' }).includes('json_agg(x order by x.empresa_id, x.clave, x.ventana)'));
+  let lanzo = false; try { RD.consultaDeTabla({ nombre: 'x; drop table y', orden: 'id' }); } catch (_) { lanzo = true; }
+  cierto('un nombre de tabla raro no se arma', lanzo);
+  eq('al registro: una línea de info con bytes y filas; ni un dato de cliente, ni el secreto, ni la base', [r.reg.length, /"evento":"respaldo"/.test(r.reg[0]),
+    /PersonaRespaldo|Ñandú|33 41|abono de mentiras|1500/.test(r.reg.join('')), fugas(r.reg.join(''))], [1, true, false, []]);
+  eq('se cerró la conexión', [b.abiertas, b.cerradas], [1, 1]);
+
+  const otro = await pedirRespaldo({ secreto: SECRETO.slice(0, -1) + 'Z' });
+  const sinSec = await pedirRespaldo({ entorno: { IMPORTAR_SECRETO: undefined } });
+  eq('con otro secreto: 401 y la base ni se abre; sin IMPORTAR_SECRETO en la función: 503 y nada', [otro.status, otro.base.abiertas, sinSec.status, sinSec.base.abiertas], [401, 0, 503, 0]);
+  const malPedido = await pedirRespaldo({ cuerpo: JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 2 }) });
+  eq('un pedido de otra versión no es respaldo (ni volcado): 400 y la base ni se abre', [malPedido.status, malPedido.base.abiertas], [400, 0]);
+  const grande = await pedirRespaldo({ base: baseDeRespaldo({ texto: { proyectos: '["' + 'x'.repeat(RD.TOPE_RESPALDO) + '"]' } }) });
+  eq('más de 45 MB: 413 RESPALDO_GRANDE, sin mandar nada (UrlFetchApp no recibe más de 50)', [grande.status, JSON.parse(grande.texto).codigo, grande.bytes.length < 2000], [413, 'RESPALDO_GRANDE', true]);
+  const err = Object.assign(new Error('could not read: PersonaRespaldo ' + URL_BD), { code: '57014' });
+  const caida = await pedirRespaldo({ base: baseDeRespaldo({ falla: err }) });
+  eq('la base no contesta: 502 BASE_NO_CONTESTA; al registro, el código y nunca el mensaje', [caida.status, JSON.parse(caida.texto).codigo, /57014/.test(caida.reg.join('')),
+    /PersonaRespaldo|could not/.test(caida.reg.join('') + caida.texto), fugas(caida.reg.join('') + caida.texto)], [502, 'BASE_NO_CONTESTA', true, false, []]);
+  /* El CPU: unas 5 000 filas de proyectos (~2 MB). La función solo pega el texto de Postgres: no lo parsea ni lo vuelve a escribir. */
+  const muchas = { proyectos: Array.from({ length: 5000 }, (_, i) => ({ id: 'p' + i, nombre: 'PersonaRespaldo' + i + ' - Negocio', notas: 'n'.repeat(300) })) };
+  const bm = baseDeRespaldo({ tablas: muchas });
+  const c0 = process.cpuUsage();
+  const rm = await pedirRespaldo({ base: bm });
+  const cpu = (d => (d.user + d.system) / 1000)(process.cpuUsage(c0));
+  console.log(`  ·    respaldo de ${Math.round(rm.bytes.length / 1024)} KB: ${cpu.toFixed(0)} ms de CPU en node (con la base de mentiras armando el texto)`);
+  cierto('y gasta poco CPU (menos de 500 ms con 2 MB; el límite es 2 s)', rm.status === 200 && cpu < 500);
+}
+
+/* ============================================================================ */
+seccion('12. EL RESPALDO SEMANAL EN LA HOJA (copia-diaria.gs, respaldarSemanal), EN vm — lo pide, lo comprueba, lo guarda en «AL3D Respaldos» y deja 8');
+/** Drive de mentiras: unidades compartidas y carpetas (lo que contestaría la API v3) y los archivos de cada carpeta (DriveApp). */
+function driveFalso({ unidades = [{ id: 'unidadAL3DRespaldos01', name: 'AL3D Respaldos' }], carpetas = [], archivos = [], fallaBusqueda = null } = {}) {
+  const d = { creados: [], papelera: [], carpetasCreadas: [], abiertas: [], busquedas: [], archivos };
+  const archivo = o => ({ getId: () => o.id, getName: () => o.name, getDescription: () => o.desc || '', isTrashed: () => !!o.trashed,
+    setTrashed: v => { o.trashed = v; d.papelera.push(o.name); }, setDescription: x => { o.desc = x; } });
+  const carpeta = id => ({
+    getFiles: () => { const l = archivos.filter(a => a.carpeta === id).map(archivo); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; },
+    createFile: blob => { const o = { id: 'archivoNuevo' + (d.creados.length + 1) + 'xxxx', name: blob.nombre, tipo: blob.tipo, bytes: blob.bytes, carpeta: id }; archivos.push(o); d.creados.push(o); return archivo(o); },
+  });
+  d.DriveApp = { getFolderById: id => { d.abiertas.push(id); return carpeta(id); }, createFolder: n => { d.carpetasCreadas.push(n); return carpeta('carpetaCreadaMiUnidad1'); } };
+  d.rutas = (u, o) => {
+    if (!u.startsWith('https://www.googleapis.com/drive/v3/')) return null;
+    d.busquedas.push({ u, auth: o.headers && o.headers.Authorization, q: new URL(u).searchParams.get('q') });
+    if (fallaBusqueda) return respuestaFalsa({ status: fallaBusqueda, texto: '{"error":{"code":' + fallaBusqueda + '}}' });
+    if (u.includes('/drive/v3/drives?')) return respuestaFalsa({ texto: JSON.stringify({ drives: unidades }) });
+    return respuestaFalsa({ texto: JSON.stringify({ files: carpetas }) });
+  };
+  return d;
+}
+/** Lo que contesta la función de verdad (handler.js) a un pedido de respaldo, como respuesta de UrlFetchApp. */
+async function respuestaDeLaFuncion(cambiar) {
+  const r = await pedirRespaldo({ base: baseDeRespaldo({ tablas: TABLAS_FALSAS }) });
+  const x = { status: r.status, bytes: aSigno(r.bytes), cabeceras: { 'X-Respaldo-Nombre': r.cab['x-respaldo-nombre'], 'X-Respaldo-Sha256': r.cab['x-respaldo-sha256'],
+    'X-Respaldo-Bytes': r.cab['x-respaldo-bytes'], 'X-Respaldo-Filas': r.cab['x-respaldo-filas'], 'Content-Type': r.cab['content-type'] } };
+  if (cambiar) cambiar(x);
+  return respuestaFalsa(x);
+}
+const MARCA = /var COPIA_RESPALDO_MARCA = '([^']+)';/.exec(GS)[1];
+/* Lo que ya había en la carpeta: 9 respaldos de este script (uno ya en la papelera), uno que se llama igual pero sin la marca (alguien lo dejó
+   a mano) y otro archivo cualquiera. */
+const yaHabia = id => [
+  ...Array.from({ length: 9 }, (_, i) => ({ id: 'viejo' + i + 'xxxxxxxxxx', name: `al3d-respaldo-2026-08-${String(10 + i)}T112300Z.json`, desc: MARCA, carpeta: id })),
+  { id: 'enPapelera0xxxxxxx', name: 'al3d-respaldo-2026-07-01T112300Z.json', desc: MARCA, carpeta: id, trashed: true },
+  { id: 'ajeno0xxxxxxxxxxx', name: 'al3d-respaldo-2026-01-01T000000Z.json', desc: '', carpeta: id },
+  { id: 'otro0xxxxxxxxxxxx', name: 'notas.txt', desc: MARCA, carpeta: id },
+];
+{
+  const d = driveFalso({ archivos: yaHabia('unidadAL3DRespaldos01') });
+  const resp = await respuestaDeLaFuncion();
+  const g = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: resp, rutas: d.rutas, drive: d.DriveApp });
+  const linea = g.ctx.respaldarSemanal();
+  eq('pide el respaldo a la función: POST, con el secreto en la cabecera, sin seguir redirecciones, cuerpo «al3d-pedir-respaldo»', [g.reg.fetch[0].u, g.reg.fetch[0].o.method,
+    g.reg.fetch[0].o.headers['x-importar-secreto'] === SECRETO, g.reg.fetch[0].o.followRedirects, g.reg.fetch[0].o.payload], [PROPS.IMPORTAR_URL, 'post', true, false, PEDIDO]);
+  eq('busca la unidad compartida «AL3D Respaldos» por nombre, con el permiso de la hoja (su token), y guarda AHÍ',
+    [d.busquedas.map(b => b.q), d.busquedas[0].auth, d.abiertas, d.carpetasCreadas], [["name = 'AL3D Respaldos'"], 'Bearer token-FALSO-de-la-hoja', ['unidadAL3DRespaldos01'], []]);
+  const nuevo = d.creados[0];
+  eq('UN archivo, con el nombre que dio la función, JSON, con los MISMOS bytes que llegaron y la marca del script',
+    [d.creados.length, nuevo.name, nuevo.tipo, Buffer.compare(sinSigno(nuevo.bytes), sinSigno(resp.getContent())) === 0, nuevo.desc === MARCA, R.PATRON_NOMBRE.test(nuevo.name)],
+    [1, resp.getHeaders()['X-Respaldo-Nombre'], 'application/json', true, true, true]);
+  eq('se quedan 8 (el nuevo y los 7 más recientes); los 2 más viejos de los SUYOS van a la papelera; el ajeno, el de otro nombre y el que ya estaba en la papelera no se tocan',
+    d.papelera.sort(), ['al3d-respaldo-2026-08-10T112300Z.json', 'al3d-respaldo-2026-08-11T112300Z.json']);
+  cierto('la línea del registro: nombre, dónde, KB, filas y cuántos a la papelera', /guardado al3d-respaldo-2026-10-17T090500Z\.json en «AL3D Respaldos» \(unidad compartida\) · \d+ KB · 5 filas · se quedan 8 respaldos; a la papelera: 2\./.test(linea));
+  eq('y NADA del contenido al registro (nombres, teléfonos, importes), ni el secreto, ni el token', [/PersonaRespaldo|Ñandú|33 41|abono|1500|Letras/.test(g.reg.logs.join('')),
+    g.reg.logs.join('').includes(SECRETO), /token-FALSO/.test(g.reg.logs.join(''))], [false, false, false]);
+  cierto('la hoja ni se leyó', g.libro.leidas.length === 0);
+
+  // otra semana: con lo de la anterior ya rotado, sigue dejando 8
+  const g2 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(x => { x.cabeceras['X-Respaldo-Nombre'] = 'al3d-respaldo-2026-10-24T110000Z.json'; }), rutas: d.rutas, drive: d.DriveApp });
+  g2.ctx.respaldarSemanal();
+  eq('a la semana siguiente: 8 de los suyos vivos, el más viejo a la papelera', [d.archivos.filter(a => a.desc === MARCA && !a.trashed && R.PATRON_NOMBRE.test(a.name)).length, d.papelera.length], [8, 3]);
+
+  // lo que llega mal no se guarda
+  for (const [que, cambiar, patron] of [
+    ['bytes de menos (se cortó)', x => { x.bytes = x.bytes.slice(0, -10); }, /no llegó entero/],
+    ['otra huella', x => { x.cabeceras['X-Respaldo-Sha256'] = '0'.repeat(64); }, /huella sha256 no coincide/],
+    ['algo que no es un respaldo', x => { const t = Buffer.from('{"formato":"otra-cosa"}'); x.bytes = aSigno(t); x.cabeceras['X-Respaldo-Bytes'] = String(t.length);
+      x.cabeceras['X-Respaldo-Sha256'] = createHash('sha256').update(t).digest('hex'); }, /no es un respaldo/],
+  ]) {
+    const dm = driveFalso();
+    const gm = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(cambiar), rutas: dm.rutas, drive: dm.DriveApp });
+    const l = gm.ctx.respaldarSemanal();
+    eq('con ' + que + ': no guarda nada, ni busca la carpeta, y lo dice', [dm.creados.length, dm.busquedas.length, patron.test(l)], [0, 0, true]);
+  }
+  for (const [status, codigo, patron] of [[401, 'SIN_SESION', /secreto no coincide/], [400, 'DATO_INVALIDO', /versión de importar-diario que sabe dar el respaldo/],
+    [413, 'RESPALDO_GRANDE', /45 MB/], [502, 'BASE_NO_CONTESTA', /502 BASE_NO_CONTESTA/]]) {
+    const dm = driveFalso();
+    const gm = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: { status, texto: JSON.stringify({ ok: false, codigo, mensaje: 'PersonaRespaldo' }) }, rutas: dm.rutas, drive: dm.DriveApp });
+    const l = gm.ctx.respaldarSemanal();
+    eq('la función contesta ' + status + ': nada se guarda, la línea da el código y la pista, sin copiar el cuerpo', [dm.creados.length, patron.test(l), /PersonaRespaldo/.test(gm.reg.logs.join(''))], [0, true, false]);
+  }
+
+  // la carpeta: sin unidad compartida, una carpeta con ese nombre; sin nada, se crea en Mi unidad; si Drive no deja buscar, no se crea nada
+  const d1 = driveFalso({ unidades: [], carpetas: [{ id: 'carpetaMiUnidad0001', name: 'AL3D Respaldos' }] });
+  const g3 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d1.rutas, drive: d1.DriveApp });
+  const l3 = g3.ctx.respaldarSemanal();
+  eq('sin unidad compartida: la carpeta con ese nombre (buscada en todas las unidades, sin las de la papelera)', [d1.abiertas, d1.creados.length, d1.carpetasCreadas, /carpeta de Mi unidad/.test(l3),
+    /mimeType = 'application\/vnd\.google-apps\.folder' and trashed = false/.test(d1.busquedas[1].q), /corpora=allDrives/.test(d1.busquedas[1].u)],
+    [['carpetaMiUnidad0001'], 1, [], true, true, true]);
+  const d2 = driveFalso({ unidades: [], carpetas: [] });
+  const g4 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d2.rutas, drive: d2.DriveApp });
+  const l4 = g4.ctx.respaldarSemanal();
+  eq('sin nada que se llame así: se crea «AL3D Respaldos» en Mi unidad, y la línea lo dice', [d2.carpetasCreadas, d2.creados.length, /se creó/.test(l4)], [['AL3D Respaldos'], 1, true]);
+  const d3 = driveFalso({ fallaBusqueda: 403 });
+  const g5 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d3.rutas, drive: d3.DriveApp });
+  const l5 = g5.ctx.respaldarSemanal();
+  eq('si Drive no deja buscar (403): no crea ninguna carpeta (una búsqueda que falla no es «no existe») ni guarda nada', [d3.carpetasCreadas, d3.creados.length, /permiso de Drive/.test(l5)], [[], 0, true]);
+
+  // instalar y quitar
+  const d4 = driveFalso();
+  const g6 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d4.rutas, drive: d4.DriveApp });
+  g6.ctx.instalarCopiaDiaria();
+  const li = g6.ctx.instalarRespaldoSemanal(); g6.ctx.instalarRespaldoSemanal();
+  eq('instalar (dos veces): UN disparador de respaldarSemanal, los domingos de 5 a 6 en hora de México; el de la copia y los de la hoja siguen',
+    g6.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ['copiarHojaASupabase', 'timeBased,atHour:3,everyDays:1,inTimezone:America/Mexico_City'],
+      ['respaldarSemanal', 'timeBased,onWeekDay:SUNDAY,atHour:5,inTimezone:America/Mexico_City']]);
+  eq('pide los permisos de Drive y de conectarse afuera (por si quedaron desmarcados) y hace el primer respaldo en ese momento',
+    [g6.reg.permisos[0], d4.creados.length >= 1, /programado: los domingos entre las 5 y las 6/.test(li) && /guardado al3d-respaldo-/.test(li)],
+    [['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/script.external_request'], true, true]);
+  const lq = g6.ctx.quitarRespaldoSemanal();
+  eq('quitar: solo el suyo', [g6.triggers.map(t => t.fn), /1 disparador quitado/.test(lq)], [['enviarResumen', 'alEditar', 'copiarHojaASupabase'], true]);
+  const g7 = cargarGs([PUENTE_GS, GS], { props: {}, rutas: d4.rutas, drive: d4.DriveApp });
+  const l7 = g7.ctx.instalarRespaldoSemanal();
+  eq('sin IMPORTAR_URL / IMPORTAR_SECRETO: ni programa ni pide nada', [g7.triggers.map(t => t.fn), g7.reg.fetch.length, /no se programó/.test(l7)], [['enviarResumen', 'alEditar'], 0, true]);
+  const g8 = cargarGs([PUENTE_GS, GS], { props: PROPS, falloFetch: new Error('Timeout') });
+  eq('la función no contesta: lo dice y no truena', /no contestó \(Timeout\)/.test(g8.ctx.respaldarSemanal()), true);
 }
 
 console.log('\n' + (mal ? mal + ' FALLA(S) de ' + (bien + mal) + '.' : 'Todo pasa. ' + bien + ' comprobaciones.') +

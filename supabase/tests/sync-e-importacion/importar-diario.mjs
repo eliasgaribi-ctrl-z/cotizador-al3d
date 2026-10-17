@@ -14,9 +14,13 @@
 //   CD-06  si algo truena a media copia, se deshace ENTERA y el fallo se anota sin el mensaje de la base
 //   CD-07  las autorizaciones con el veredicto de la hoja (2026-10-17): entran solo las de firma buena, verbatim, y se verifican después
 //          con la clave desde la base; las demás no frenan la copia; la revocación llega; sin el permiso explícito no entra ninguna
+//   CD-08  el respaldo semanal por la misma función (2026-10-17): las 18 tablas en una transacción de solo lectura, JSON válido, cuentas
+//          iguales a count(*), el texto firmado verbatim; y Postgres no deja escribir dentro de ella
 import { describir, prueba, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sesionDe, como, sql, una, CLAVE_SELLO_FALSA } from '../comun/semilla.js';
 import { firmar, codigoDe, canonDe, verificar } from '../../functions/_shared/sello.js';
+import { exportar, paquete, MODO_LECTURA } from '../../functions/importar-diario/respaldo.js';
+import { TABLAS } from '../../functions/_shared/respaldo.js';
 import { volcado, filaVentas, dia } from '../comun/hoja-de-mentiras.js';
 import { cincuentaFilas } from '../comun/escenarios-importador.js';
 import { planear } from '../../../scripts/importador/plan.mjs';
@@ -310,6 +314,39 @@ describir('CD-07 las autorizaciones entran con el veredicto de la hoja: solo las
     const { v } = await hojaConAutorizaciones();
     const plan = await planear({ volcado: v });
     igual([plan.tablas.autorizaciones.length, plan.reporte.no_importado.map(x => x.que + ':' + x.n)], [0, ['Autorizaciones:4']]);
+  });
+});
+
+/* ============================================================================
+   CD-08 — el respaldo semanal por importar-diario (2026-10-17): el SQL de verdad sobre las 18 tablas
+   ============================================================================ */
+describir('CD-08 el respaldo: una foto de solo lectura de las 18 tablas, en JSON válido, con todas sus filas', () => {
+  prueba('después de una copia con autorizaciones: cada tabla con sus filas (las cuentas cuadran con count(*)), el archivo se parsea y es «al3d-respaldo-1»', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await correConVeredictos(db, (await hojaConAutorizaciones()).v);
+      const { partes, filas } = await exportar(basePGlite(db));
+      const p = await paquete({ partes, filas, ahoraMs: Date.parse('2026-10-18T11:05:00.000Z'), origen: 'gwzfdprdrdudfakjsdxf.supabase.co' });
+      const j = JSON.parse(new TextDecoder().decode(p.bytes));
+      igual([j.formato, j.origen, Object.keys(j.tablas)], ['al3d-respaldo-1', 'gwzfdprdrdudfakjsdxf.supabase.co', TABLAS.map(t => t.nombre)], 'el formato, el origen y las 18 tablas en orden');
+      for (const t of TABLAS) {
+        const n = (await una(db, `select count(*)::int as n from public.${t.nombre}`)).n;
+        igual([j.filas[t.nombre], j.tablas[t.nombre].length], [n, n], `${t.nombre}: ${n} filas`);
+      }
+      cierto(j.filas.proyectos === 50 && j.filas.autorizaciones === 3 && j.filas.cuadre_diario === 1, 'con datos de verdad: 50 proyectos, 3 autorizaciones, el renglón de la copia');
+      const a = j.tablas.autorizaciones.find(x => x.folio_global === 'COT-0102@K7QM');
+      igual([a.renglones, a.codificacion], ['[["Letras 3D · 8 × 40 cm «Acrílico»",8,12500]]', 'ascii-?'], 'el texto firmado viaja verbatim (acentos, ·, × y «»)');
+      igual(p.nombre, 'al3d-respaldo-2026-10-18T110500Z.json');
+    } finally { await cerrar(db); }
+  });
+  prueba('es de solo lectura de verdad: dentro de esa transacción, Postgres no deja escribir (25006)', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await esperarError(db.transaction(async tx => {
+        await tx.exec(MODO_LECTURA);
+        await tx.exec(`insert into public.cuadre_diario (empresa_id, aplicado, cuadra, diferencias, conflictos, duracion_ms) values ('al3d', true, true, 0, 0, 1)`);
+      }), '25006', 'cannot execute INSERT in a read-only transaction');
+    } finally { await cerrar(db); }
   });
 });
 

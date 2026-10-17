@@ -27,8 +27,9 @@
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
 //   daa0b3a4ec434855  supabase/functions/importar-diario/copia.js
-//   a7368b323502954e  supabase/functions/importar-diario/handler.js
+//   3effd9bd054b80dd  supabase/functions/importar-diario/handler.js
 //   f258da7bfe7dfd34  supabase/functions/importar-diario/index.ts
+//   ecf62467e71da5fa  supabase/functions/importar-diario/respaldo.js
 // ============================================================================
 // supabase/functions/importar-diario/index.ts
 import postgres from "npm:postgres@3.4.5";
@@ -763,6 +764,7 @@ var TABLAS = Object.freeze([
   ["cuaderno_notas", "empresa_id,clave,autor_id"],
   ["cuadre_diario", "id"]
 ].map(([nombre, orden]) => Object.freeze({ nombre, orden })));
+var FORMATO = "al3d-respaldo-1";
 var SECRETO_MINIMO = 32;
 function secretoValido(dado, esperado) {
   const a = String(esperado ?? ""), b = String(dado ?? "");
@@ -770,6 +772,9 @@ function secretoValido(dado, esperado) {
   const n = Math.max(a.length, b.length);
   for (let i = 0; i < n; i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return d === 0 && a.length >= SECRETO_MINIMO;
+}
+function nombreDeArchivo(ahoraMs) {
+  return "al3d-respaldo-" + new Date(ahoraMs).toISOString().replace(/\.\d{3}Z$/, "Z").replace(/:/g, "") + ".json";
 }
 var MARCA = Object.freeze({ al3d: "respaldo" });
 
@@ -3397,9 +3402,68 @@ async function copiar({ base, plan, volcado, ahora, inicio }) {
   }
 }
 
+// supabase/functions/importar-diario/respaldo.js
+var PEDIDO = "al3d-pedir-respaldo";
+var TOPE_RESPALDO = 45 * 1024 * 1024;
+var TIEMPO_RESPALDO = "60s";
+var MODO_LECTURA = "set transaction isolation level repeatable read, read only";
+var RespaldoGrande = class extends Error {
+  constructor() {
+    super("El respaldo pasa del tope.");
+    this.name = "RespaldoGrande";
+  }
+};
+var esPedidoDeRespaldo = (v) => !!v && typeof v === "object" && !Array.isArray(v) && v.formato === PEDIDO && v.version === 1;
+var RE_IDENT = /^[a-z_][a-z0-9_]{0,62}$/;
+function consultaDeTabla(t) {
+  const cols = t.orden.split(",");
+  if (!RE_IDENT.test(t.nombre) || !cols.every((c) => RE_IDENT.test(c))) throw new Error("nombre de tabla o columna no válido");
+  return `select coalesce(json_agg(x order by ${cols.map((c) => "x." + c).join(", ")}), '[]'::json)::text as filas, count(*)::int as n from public.${t.nombre} x`;
+}
+async function exportar(base, { tope = TOPE_RESPALDO } = {}) {
+  return base.transaccion(async (tx) => {
+    await tx.ejecutar(MODO_LECTURA);
+    await tx.ejecutar(`set local statement_timeout = '${TIEMPO_RESPALDO}'`);
+    const partes = [], filas2 = {};
+    let largo = 0;
+    for (const t of TABLAS) {
+      const r = await tx.consultar(consultaDeTabla(t));
+      const texto2 = String(r && r[0] && r[0].filas || "[]");
+      filas2[t.nombre] = Number(r && r[0] && r[0].n) || 0;
+      largo += texto2.length;
+      if (largo > tope) throw new RespaldoGrande();
+      partes.push(JSON.stringify(t.nombre) + ":" + texto2);
+    }
+    return { partes, filas: filas2 };
+  });
+}
+function armarContenido({ partes, filas: filas2, ahoraMs, origen }) {
+  return '{"formato":' + JSON.stringify(FORMATO) + ',"creado":' + JSON.stringify(new Date(ahoraMs).toISOString()) + ',"origen":' + JSON.stringify(origen ?? null) + ',"filas":' + JSON.stringify(filas2) + ',"tablas":{' + partes.join(",") + "}}";
+}
+function origenDe2(urlProyecto) {
+  try {
+    const h = new URL(String(urlProyecto || "")).hostname;
+    return /^[a-z0-9-]{1,63}\.supabase\.co$/.test(h) ? h : null;
+  } catch (_) {
+    return null;
+  }
+}
+async function paquete({ partes, filas: filas2, ahoraMs, origen, tope = TOPE_RESPALDO }) {
+  const bytes = new TextEncoder().encode(armarContenido({ partes, filas: filas2, ahoraMs, origen }));
+  if (bytes.byteLength > tope) throw new RespaldoGrande();
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return {
+    bytes,
+    sha256: Array.from(h, (b) => b.toString(16).padStart(2, "0")).join(""),
+    nombre: nombreDeArchivo(ahoraMs),
+    filas: Object.values(filas2).reduce((a, n) => a + n, 0)
+  };
+}
+
 // supabase/functions/importar-diario/handler.js
 var VARIABLES = Object.freeze({ secreto: "IMPORTAR_SECRETO", base: "SUPABASE_DB_URL" });
 var CABECERA_SECRETO = "x-importar-secreto";
+var CABECERAS_RESPALDO = Object.freeze({ nombre: "x-respaldo-nombre", sha256: "x-respaldo-sha256", bytes: "x-respaldo-bytes", filas: "x-respaldo-filas" });
 var SECRETO_MINIMO2 = 32;
 var MAX_CUERPO = 15 * 1024 * 1024;
 var VIGENCIA_MS = 36 * 3600 * 1e3;
@@ -3477,6 +3541,30 @@ async function manejar(peticion, deps) {
       volcado = JSON.parse(t.texto);
     } catch (_) {
       return responder(400, sobreDeError("DATO_INVALIDO", "El cuerpo no es JSON."));
+    }
+    if (esPedidoDeRespaldo(volcado)) {
+      base = deps.abrirBase(url);
+      let p;
+      try {
+        p = await paquete({ ...await exportar(base), ahoraMs: inicio, origen: origenDe2(leerVar(deps.entorno, "SUPABASE_URL")) });
+      } catch (e) {
+        if (e instanceof RespaldoGrande) {
+          registrar(deps, FUNCION, "error", "respaldo_grande", { tope_mb: TOPE_RESPALDO / 1048576 }, secretos);
+          return responder(413, sobreDeError("RESPALDO_GRANDE", "El respaldo pasa de " + TOPE_RESPALDO / 1048576 + " MB y UrlFetchApp no lo recibe: no se mandó nada. Toca la alternativa de la función respaldo (supabase/README.md)."));
+        }
+        registrar(deps, FUNCION, "error", "respaldo_base", { error: errorSinDatos(e) }, secretos);
+        return responder(502, sobreDeError("BASE_NO_CONTESTA", "La base no contestó al leer el respaldo: no se mandó nada.", { transitorio: true }));
+      }
+      registrar(deps, FUNCION, "info", "respaldo", { bytes: p.bytes.byteLength, filas: p.filas, duracion_ms: Math.max(0, Number(deps.ahora()) - inicio) }, secretos);
+      return new Response(p.bytes, { status: 200, headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        [CABECERAS_RESPALDO.nombre]: p.nombre,
+        [CABECERAS_RESPALDO.sha256]: p.sha256,
+        [CABECERAS_RESPALDO.bytes]: String(p.bytes.byteLength),
+        [CABECERAS_RESPALDO.filas]: String(p.filas)
+      } });
     }
     const malo = problemaDelVolcado(volcado, inicio);
     if (malo) return responder(400, sobreDeError("DATO_INVALIDO", malo));

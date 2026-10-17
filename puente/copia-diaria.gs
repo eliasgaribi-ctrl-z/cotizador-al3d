@@ -31,8 +31,11 @@
         a un servicio externo). El registro dice cómo salió.
      4. Elige instalarCopiaDiaria y «Ejecutar»: queda programada todos los días entre 3 y 4 de la
         mañana, hora de México. quitarCopiaDiaria la quita.
-   Si falta una propiedad, no hace nada y lo dice. Los nombres de aquí empiezan con «copia» o
-   «Copia» para no chocar con nada de Código.gs (pruebas/supabase-importar-diario.mjs lo vigila).
+     5. Elige instalarRespaldoSemanal y «Ejecutar» una vez: el respaldo semanal de la base a Drive (abajo, «EL
+        RESPALDO SEMANAL»). Hace el primero en ese momento; si Google pide permiso de Drive, aceptarlo.
+   Si falta una propiedad, no hace nada y lo dice. Los nombres de aquí empiezan con «copia» o «Copia» (o son las
+   seis que se eligen en el editor) para no chocar con nada de Código.gs (pruebas/supabase-importar-diario.mjs lo
+   vigila). Las funciones del sello sí son las de Código.gs, a propósito (ver «las firmas, comprobadas aquí»).
    ========================================================================================= */
 
 var COPIA_PROP_SECRETO = 'IMPORTAR_SECRETO';
@@ -227,10 +230,202 @@ function copiaAnotar_(texto) {
   return linea;
 }
 
-function copiaQuitarDisparadores_() {
-  var n = 0;
+function copiaQuitarDisparadores_(funcion) {
+  var n = 0, cual = funcion || COPIA_FUNCION;
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === COPIA_FUNCION) { ScriptApp.deleteTrigger(t); n++; }
+    if (t.getHandlerFunction() === cual) { ScriptApp.deleteTrigger(t); n++; }
   });
   return n;
+}
+
+/* =========================================================================================
+   EL RESPALDO SEMANAL DE LA BASE → DRIVE (decidido el 2026-10-17 para que Elías no tenga que mover secretos)
+
+   Lo de arriba solo LEE la hoja y no toca Drive. Esto es otra cosa: no lee la hoja; le pide a la función
+   `importar-diario` la base entera de Supabase y la guarda como un archivo JSON en Drive. Antes lo iba a subir
+   la función `respaldo` con una cuenta de servicio de Google, que Elías tendría que crear y cargar; así, con el
+   MISMO secreto de la copia (IMPORTAR_URL e IMPORTAR_SECRETO, ya puestos) y el permiso de Drive que la hoja ya
+   tiene (Código.gs ya usa DriveApp para «Trabajos Pendientes»), no hay que crear nada.
+
+   respaldarSemanal(): pide el respaldo (POST con el secreto en la cabecera y { formato: 'al3d-pedir-respaldo' }),
+   comprueba que llegó entero (los bytes y la huella sha256 que manda la función, y que empieza como un respaldo),
+   lo guarda en la carpeta «AL3D Respaldos» y deja ahí los 8 más recientes: los demás que ESTE script creó (nombre
+   al3d-respaldo-AAAA-MM-DDTHHMMSSZ.json Y la descripción COPIA_RESPALDO_MARCA) van a la PAPELERA de Drive (se
+   recuperan ahí; en una unidad compartida se vacía sola a los 30 días). Un archivo que alguien dejó a mano en la
+   carpeta, aunque se llame igual, no se toca.
+
+   La carpeta, por nombre (no hay que pegar ningún id): primero una UNIDAD COMPARTIDA que se llame «AL3D Respaldos»
+   (la que creó Elías; se busca con la API de Drive y el permiso de la hoja), si no, una carpeta con ese nombre en
+   cualquier unidad, y si no hay ninguna, se crea una carpeta «AL3D Respaldos» en Mi unidad (y el registro lo dice).
+
+   El respaldo lleva datos de clientes: NUNCA va al registro. Al registro va una línea con el nombre del archivo,
+   cuántos KB y filas, dónde quedó y cuántos fueron a la papelera.
+   Tamaño: UrlFetchApp no recibe más de 50 MB y un Blob tampoco pasa de ahí; la función se niega arriba de 45 MB
+   (RESPALDO_GRANDE) y ese día toca la alternativa de la cuenta de servicio (supabase/README.md). Hoy son KB.
+
+   CÓMO SE INSTALA: elegir instalarRespaldoSemanal y «Ejecutar» una vez. Programa el respaldo los domingos entre
+   5 y 6 de la mañana (hora de México; la copia diaria corre de 3 a 4) y hace el primero en ese momento, para ver
+   que funciona. Si Google pide permiso de Drive, aceptarlo. quitarRespaldoSemanal lo quita (solo el suyo).
+   ========================================================================================= */
+
+var COPIA_RESPALDO_FUNCION = 'respaldarSemanal';
+var COPIA_RESPALDO_HORA = 5;                  // de 5 a 6 de la mañana, los domingos (la copia diaria es de 3 a 4)
+var COPIA_RESPALDO_CARPETA = 'AL3D Respaldos';
+var COPIA_RESPALDO_CONSERVAR = 8;             // decidido por Elías el 2026-10-16: los 8 más recientes
+var COPIA_RESPALDO_PATRON = /^al3d-respaldo-\d{4}-\d{2}-\d{2}T\d{6}Z\.json$/;
+var COPIA_RESPALDO_MARCA = 'al3d-respaldo-semanal: lo creó puente/copia-diaria.gs (respaldarSemanal); la rotación solo toca los que llevan esta marca';
+var COPIA_RESPALDO_TOPE = 45 * 1024 * 1024;
+var COPIA_RESPALDO_INICIO = '{"formato":"al3d-respaldo-1"';
+var COPIA_RESPALDO_PERMISOS = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/script.external_request'];
+var COPIA_DRIVE_API = 'https://www.googleapis.com/drive/v3/';
+
+/** El respaldo de la semana. Lo llama el disparador de los domingos y se puede correr a mano. */
+function respaldarSemanal() {
+  return copiaRespaldar_();
+}
+
+/** Programa el respaldo los domingos de 5 a 6 de la mañana (hora de México) y hace el primero ahora. */
+function instalarRespaldoSemanal() {
+  var conf = copiaConfiguracion_();
+  if (!conf.ok) return copiaRespaldoAnotar_('no se programó: ' + conf.mensaje + ' Ponlas primero y vuelve a correr esto.');
+  /* Con la pantalla de permisos por casillas, Google solo vuelve a preguntar si se lo piden (como autorizarDrive de Código.gs). */
+  try { if (typeof ScriptApp.requireScopes === 'function') ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, COPIA_RESPALDO_PERMISOS); } catch (e) { /* lo dirá el primer respaldo */ }
+  copiaQuitarDisparadores_(COPIA_RESPALDO_FUNCION);
+  ScriptApp.newTrigger(COPIA_RESPALDO_FUNCION).timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(COPIA_RESPALDO_HORA).inTimezone(COPIA_ZONA).create();
+  var primero = copiaRespaldar_();
+  return copiaRespaldoAnotar_('programado: los domingos entre las ' + COPIA_RESPALDO_HORA + ' y las ' + (COPIA_RESPALDO_HORA + 1) +
+    ' de la mañana (hora de México). El de hoy: ' + primero.replace(/^Respaldo semanal \([^)]*\): /, ''));
+}
+
+/** Quita el respaldo programado (solo el suyo). */
+function quitarRespaldoSemanal() {
+  var n = copiaQuitarDisparadores_(COPIA_RESPALDO_FUNCION);
+  return copiaRespaldoAnotar_(n ? 'ya no está programado (' + n + ' disparador' + (n === 1 ? '' : 'es') + ' quitado' + (n === 1 ? '' : 's') + ').' : 'no estaba programado.');
+}
+
+/* ---------------------------------------------------------------- ayudantes del respaldo */
+
+function copiaRespaldar_() {
+  var conf = copiaConfiguracion_();
+  if (!conf.ok) return copiaRespaldoAnotar_('no se hizo: ' + conf.mensaje);
+  var cab = {};
+  cab[COPIA_CABECERA] = conf.secreto;
+  var r;
+  try {
+    r = UrlFetchApp.fetch(conf.url, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }),
+      headers: cab, muteHttpExceptions: true, followRedirects: false });
+  } catch (e) {
+    return copiaRespaldoAnotar_('la función no contestó (' + String((e && e.message) || e).slice(0, 80) + '). Se vuelve a intentar el domingo, o córrelo a mano.');
+  }
+  var codigo = r.getResponseCode();
+  if (codigo !== 200) {
+    var c = null;
+    try { c = JSON.parse(r.getContentText()); } catch (e) { c = null; }
+    var cod = (c && typeof c.codigo === 'string' && /^[A-Z_]{2,40}$/.test(c.codigo)) ? ' ' + c.codigo : '';
+    var pista = codigo === 401 ? ' El secreto no coincide con el de la función.'
+      : codigo === 400 ? ' ¿Ya se pegó en el panel la versión de importar-diario que sabe dar el respaldo (2026-10-17)?'
+      : codigo === 413 ? ' La base pasa de 45 MB: toca la alternativa de la función respaldo (supabase/README.md).'
+      : codigo === 503 ? ' A la función le falta su configuración.' : '';
+    return copiaRespaldoAnotar_('la función contestó ' + codigo + cod + ': no se guardó nada.' + pista);
+  }
+
+  /* Que llegó entero y que es un respaldo: los bytes y la huella que dice la función, y cómo empieza. Nada de su contenido sale de aquí. */
+  var h = copiaCabeceras_(r.getHeaders());
+  var bytes = r.getContent();
+  var nombre = String(h['x-respaldo-nombre'] || '');
+  if (!COPIA_RESPALDO_PATRON.test(nombre)) nombre = 'al3d-respaldo-' + new Date().toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/:/g, '') + '.json';
+  var problema = !bytes || !bytes.length ? 'llegó vacío'
+    : bytes.length > COPIA_RESPALDO_TOPE ? 'pasa de 45 MB'
+    : String(bytes.length) !== String(h['x-respaldo-bytes'] || '') ? 'no llegó entero (' + bytes.length + ' bytes de ' + String(h['x-respaldo-bytes'] || '?').slice(0, 12) + ')'
+    : copiaHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)) !== String(h['x-respaldo-sha256'] || '') ? 'su huella sha256 no coincide'
+    : copiaInicio_(bytes, COPIA_RESPALDO_INICIO.length) !== COPIA_RESPALDO_INICIO ? 'no es un respaldo «al3d-respaldo-1»' : '';
+  if (problema) return copiaRespaldoAnotar_('la función contestó 200 pero el archivo ' + problema + ': no se guardó nada.');
+
+  var carpeta;
+  try { carpeta = copiaRespaldoCarpeta_(); }
+  catch (e) { return copiaRespaldoAnotar_('no se pudo abrir la carpeta «' + COPIA_RESPALDO_CARPETA + '» (' + String((e && e.message) || e).slice(0, 120) + '): no se guardó nada. ¿Falta el permiso de Drive? Corre instalarRespaldoSemanal a mano.'); }
+  var archivo;
+  try {
+    archivo = carpeta.carpeta.createFile(Utilities.newBlob(bytes, 'application/json', nombre));
+    archivo.setDescription(COPIA_RESPALDO_MARCA);
+  } catch (e) { return copiaRespaldoAnotar_('Drive no aceptó el archivo (' + String((e && e.message) || e).slice(0, 120) + ').'); }
+
+  var rot = copiaRespaldoRotar_(carpeta.carpeta, archivo.getId(), nombre);
+  var filas = Number(h['x-respaldo-filas']);
+  return copiaRespaldoAnotar_('guardado ' + nombre + ' en «' + COPIA_RESPALDO_CARPETA + '» (' + carpeta.donde + ') · ' + Math.max(1, Math.round(bytes.length / 1024)) + ' KB · ' +
+    (isFinite(filas) ? filas : '?') + ' filas · ' + rot);
+}
+
+/* La carpeta «AL3D Respaldos»: la unidad compartida con ese nombre; si no, una carpeta con ese nombre (en cualquier unidad); si no, se crea
+   en Mi unidad. Si Drive no deja buscar, lanza (y no se crea nada: una búsqueda que falla no es «no existe»). */
+function copiaRespaldoCarpeta_() {
+  var token = ScriptApp.getOAuthToken();
+  var nombre = COPIA_RESPALDO_CARPETA.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var unidades = copiaDriveLista_(COPIA_DRIVE_API + 'drives?pageSize=10&fields=' + encodeURIComponent('drives(id,name)') +
+    '&q=' + encodeURIComponent("name = '" + nombre + "'"), token, 'drives');
+  if (unidades.length) {
+    return { carpeta: DriveApp.getFolderById(unidades[0].id), donde: 'unidad compartida' + (unidades.length > 1 ? ', la primera de ' + unidades.length + ' con ese nombre' : '') };
+  }
+  var carpetas = copiaDriveLista_(COPIA_DRIVE_API + 'files?pageSize=10&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true&fields=' +
+    encodeURIComponent('files(id,name,driveId)') + '&q=' + encodeURIComponent("name = '" + nombre + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"), token, 'files');
+  if (carpetas.length) {
+    return { carpeta: DriveApp.getFolderById(carpetas[0].id), donde: carpetas[0].driveId ? 'carpeta dentro de una unidad compartida' : 'carpeta de Mi unidad' };
+  }
+  return { carpeta: DriveApp.createFolder(COPIA_RESPALDO_CARPETA), donde: 'Mi unidad: no había una unidad compartida ni una carpeta con ese nombre, así que se creó' };
+}
+
+function copiaDriveLista_(url, token, campo) {
+  var r = UrlFetchApp.fetch(url, { method: 'get', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true, followRedirects: false });
+  var codigo = r.getResponseCode(), d = null;
+  try { d = JSON.parse(r.getContentText()); } catch (e) { d = null; }
+  if (codigo !== 200 || !d || !Array.isArray(d[campo])) throw new Error('Drive contestó ' + codigo + ' al buscarla');
+  return d[campo].filter(function (x) { return x && typeof x.id === 'string' && /^[A-Za-z0-9_-]{10,200}$/.test(x.id); });
+}
+
+/* Deja los COPIA_RESPALDO_CONSERVAR más recientes de los que creó este script (nombre con su patrón Y su marca); el recién guardado siempre
+   se queda. Lo que sobra va a la papelera. Nunca lanza: si falla, el respaldo ya está guardado y se dice. */
+function copiaRespaldoRotar_(carpeta, idNuevo, nombreNuevo) {
+  try {
+    var nuestros = [], it = carpeta.getFiles(), vistos = 0;
+    while (it.hasNext() && vistos < 5000) {
+      var f = it.next(); vistos++;
+      if (f.getId() === idNuevo || f.isTrashed()) continue;
+      if (!COPIA_RESPALDO_PATRON.test(f.getName()) || f.getDescription() !== COPIA_RESPALDO_MARCA) continue;
+      nuestros.push(f);
+    }
+    nuestros.sort(function (a, b) { return a.getName() < b.getName() ? 1 : a.getName() > b.getName() ? -1 : 0; });   // del más nuevo al más viejo
+    var sobran = nuestros.slice(Math.max(0, COPIA_RESPALDO_CONSERVAR - 1)), fallos = 0;
+    sobran.forEach(function (f) { try { f.setTrashed(true); } catch (e) { fallos++; } });
+    return 'se quedan ' + Math.min(COPIA_RESPALDO_CONSERVAR, nuestros.length + 1) + ' respaldos; a la papelera: ' + (sobran.length - fallos) +
+      (fallos ? ' (' + fallos + ' no se dejaron mandar)' : '') + '.';
+  } catch (e) {
+    return 'el respaldo quedó guardado, pero no se pudo revisar la carpeta para mandar los viejos a la papelera (' + String((e && e.message) || e).slice(0, 80) + ').';
+  }
+}
+
+/* Las cabeceras de la respuesta, con el nombre en minúsculas (Apps Script las da como vienen). Solo las del respaldo. */
+function copiaCabeceras_(h) {
+  var o = {};
+  Object.keys(h || {}).forEach(function (k) { if (/^x-respaldo-/i.test(k)) o[k.toLowerCase()] = String(h[k]); });
+  return o;
+}
+
+/* Bytes con signo (como los da Apps Script) a hexadecimal en minúsculas. */
+function copiaHex_(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i++) { var b = (bytes[i] + 256) % 256; s += (b < 16 ? '0' : '') + b.toString(16); }
+  return s;
+}
+
+/* Los primeros n bytes como texto ASCII (para ver que empieza como un respaldo, sin leer lo demás). */
+function copiaInicio_(bytes, n) {
+  var s = '';
+  for (var i = 0; i < Math.min(n, bytes.length); i++) s += String.fromCharCode((bytes[i] + 256) % 256);
+  return s;
+}
+
+function copiaRespaldoAnotar_(texto) {
+  var linea = 'Respaldo semanal (' + Utilities.formatDate(new Date(), COPIA_ZONA, 'yyyy-MM-dd HH:mm') + '): ' + texto;
+  Logger.log(linea);
+  return linea;
 }

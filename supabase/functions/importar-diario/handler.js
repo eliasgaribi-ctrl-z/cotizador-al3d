@@ -21,6 +21,14 @@
              409 OCUPADA            otra copia está corriendo (candado en la base): esta no hizo nada
              502 BASE_NO_CONTESTA   ni siquiera se pudo anotar el fallo
 
+   EL RESPALDO SEMANAL (decidido 2026-10-17 para que Elías no tenga que mover secretos; respaldo.js): con el MISMO
+   secreto y el cuerpo { "formato": "al3d-pedir-respaldo", "version": 1 }, la función contesta la base entera:
+             200 el archivo «al3d-respaldo-1» tal cual (application/json), con x-respaldo-nombre, x-respaldo-sha256,
+                 x-respaldo-bytes y x-respaldo-filas; leído en una transacción de solo lectura (repeatable read)
+             413 RESPALDO_GRANDE    pasa de 45 MB (UrlFetchApp no recibe más de 50): no se manda nada
+             502 BASE_NO_CONTESTA   la base no contestó
+   Lo pide y lo guarda en Drive puente/copia-diaria.gs (respaldarSemanal). No escribe nada en la base.
+
    Lo que NUNCA sale, ni en la respuesta ni en el registro: un nombre, un teléfono o un importe de un
    cliente (solo cuentas, folios V-### y columnas), el secreto y la dirección de la base (que lleva la
    contraseña).
@@ -39,10 +47,13 @@
 import { json, leerTexto, previa, registrar, sobreDeError } from '../_shared/http.js';
 import { secretoValido } from '../_shared/respaldo.js';
 import { planear } from '../../../scripts/importador/plan.mjs';
-import { copiar, CopiaOcupada, ErrorDeCopia } from './copia.js';
+import { copiar, CopiaOcupada, ErrorDeCopia, errorSinDatos } from './copia.js';
+import { esPedidoDeRespaldo, exportar, paquete, origenDe, RespaldoGrande, TOPE_RESPALDO } from './respaldo.js';
 
 export const VARIABLES = Object.freeze({ secreto: 'IMPORTAR_SECRETO', base: 'SUPABASE_DB_URL' });
 export const CABECERA_SECRETO = 'x-importar-secreto';
+/* Lo que acompaña al respaldo (en minúsculas: así llegan por HTTP/2; el .gs las busca sin distinguir). Ninguna lleva datos. */
+export const CABECERAS_RESPALDO = Object.freeze({ nombre: 'x-respaldo-nombre', sha256: 'x-respaldo-sha256', bytes: 'x-respaldo-bytes', filas: 'x-respaldo-filas' });
 export const SECRETO_MINIMO = 32;
 export const MAX_CUERPO = 15 * 1024 * 1024;
 export const VIGENCIA_MS = 36 * 3600 * 1000;       // un volcado de hace más de 36 horas no se aplica (un reenvío viejo pisaría lo nuevo)
@@ -108,6 +119,28 @@ export async function manejar(peticion, deps) {
     if (!t.ok) return responder(t.motivo === 'demasiado_grande' ? 413 : 400, sobreDeError('DATO_INVALIDO', t.motivo === 'demasiado_grande' ? 'El volcado pasa de 15 MB.' : 'No se pudo leer el cuerpo.'));
     let volcado;
     try { volcado = JSON.parse(t.texto); } catch (_) { return responder(400, sobreDeError('DATO_INVALIDO', 'El cuerpo no es JSON.')); }
+
+    /* 2 bis. ¿El pedido del respaldo semanal (respaldarSemanal de copia-diaria.gs)? La base entera, en un JSON, y nada más (respaldo.js). */
+    if (esPedidoDeRespaldo(volcado)) {
+      base = deps.abrirBase(url);
+      let p;
+      try {
+        p = await paquete({ ...(await exportar(base)), ahoraMs: inicio, origen: origenDe(leerVar(deps.entorno, 'SUPABASE_URL')) });
+      } catch (e) {
+        if (e instanceof RespaldoGrande) {
+          registrar(deps, FUNCION, 'error', 'respaldo_grande', { tope_mb: TOPE_RESPALDO / 1048576 }, secretos);
+          return responder(413, sobreDeError('RESPALDO_GRANDE', 'El respaldo pasa de ' + (TOPE_RESPALDO / 1048576) + ' MB y UrlFetchApp no lo recibe: no se mandó nada. ' +
+            'Toca la alternativa de la función respaldo (supabase/README.md).'));
+        }
+        registrar(deps, FUNCION, 'error', 'respaldo_base', { error: errorSinDatos(e) }, secretos);
+        return responder(502, sobreDeError('BASE_NO_CONTESTA', 'La base no contestó al leer el respaldo: no se mandó nada.', { transitorio: true }));
+      }
+      /* Al registro, solo cuentas: el respaldo lleva datos de clientes. */
+      registrar(deps, FUNCION, 'info', 'respaldo', { bytes: p.bytes.byteLength, filas: p.filas, duracion_ms: Math.max(0, Number(deps.ahora()) - inicio) }, secretos);
+      return new Response(p.bytes, { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        [CABECERAS_RESPALDO.nombre]: p.nombre, [CABECERAS_RESPALDO.sha256]: p.sha256, [CABECERAS_RESPALDO.bytes]: String(p.bytes.byteLength), [CABECERAS_RESPALDO.filas]: String(p.filas) } });
+    }
+
     const malo = problemaDelVolcado(volcado, inicio);
     if (malo) return responder(400, sobreDeError('DATO_INVALIDO', malo));
 
