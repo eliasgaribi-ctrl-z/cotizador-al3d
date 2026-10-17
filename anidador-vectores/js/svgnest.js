@@ -51,6 +51,12 @@
 		   número de la corrida en la que nació y, si al volver ya no es la vigente, no toca nada.
 		   Sube en stop() y en config(), que es donde el estado de una corrida deja de valer. */
 		var corrida = 0;
+		/* AL3D · la orilla. El motor encoge la hoja media separación por lado y la lleva al origen,
+		   así que sus posiciones están corridas media separación hacia arriba y a la izquierda: las
+		   piezas quedaban a media separación de la orilla de arriba y de la izquierda y a una y media
+		   de las otras dos. applyPlacement() les suma este corrimiento y quedan a la separación
+		   completa de las cuatro orillas, con la misma área útil. */
+		var corrimiento = { x: 0, y: 0 };
 		
 		this.parsesvg = function(svgstring){
 			// reset if in progress
@@ -154,21 +160,86 @@
 			// build tree without bin
 			tree = this.getParts(parts.slice(0));
 			
-			offsetTree(tree, 0.5*config.spacing, this.polygonOffset.bind(this));
+			/* AL3D · la separación de verdad. Cada pieza se engorda media separación, pero su polígono
+			   no es la curva: las curvas se enderezan a 0.3 mm (cuerdas que cortan por dentro las
+			   partes convexas), cleanPolygon quita vértices casi alineados y el redondeo del engorde es
+			   otra cuerda (y Clipper trunca los pasos del arco: la cuerda puede salir hasta cuatro veces
+			   más honda de lo pedido). Sumado, dos piezas quedaban hasta 1.5 mm más juntas que la
+			   separación pedida, y con separación 0 dos curvas podían encimarse. Aquí se engorda y luego
+			   se MIDE contra la curva fina (`finos`, a 0.02 mm): si a algún punto le falta, se engorda
+			   lo que falta y se vuelve a medir. Cada pieza queda a media separación y 0.03 mm de su
+			   vecina, también en las esquinas. Los huecos (con «Meter piezas chicas en los huecos») se
+			   adelgazan igual, al revés. Y el `childNodes` del original no existía en el árbol —es
+			   `children`—: los huecos nunca se adelgazaban. */
+			var ARCO_MM = 0.1, DE_MAS_MM = 0.03;
+			var self0 = this;
+			var finos = polygonosFinos(parts);
+			offsetTree(tree, 0.5*config.spacing, 1);
 
-			// offset tree recursively
-			function offsetTree(t, offset, offsetFunction){
+			function offsetTree(t, offset, signo){
 				for(var i=0; i<t.length; i++){
-					var offsetpaths = offsetFunction(t[i], offset);
-					if(offsetpaths.length == 1){
+					var nuevo = engordar(t[i], finos[t[i].source], offset, signo);
+					if(!nuevo && signo < 0){
+						// un hueco que, adelgazado, ya no existe: ahí no cabe nada
+						t.splice(i, 1); i--; continue;
+					}
+					if(nuevo){
 						// replace array items in place
-						Array.prototype.splice.apply(t[i], [0, t[i].length].concat(offsetpaths[0]));
+						Array.prototype.splice.apply(t[i], [0, t[i].length].concat(nuevo));
 					}
 					
-					if(t[i].childNodes && t[i].childNodes.length > 0){
-						offsetTree(t[i].childNodes, -offset, offsetFunction);
+					if(t[i].children && t[i].children.length > 0){
+						offsetTree(t[i].children, offset, -signo);
 					}
 				}
+			}
+			function engordar(poli, fino, delta, signo){
+				var meta = delta + DE_MAS_MM, extra = ARCO_MM, ultimo = null;
+				if(!fino){ extra += config.curveTolerance; }
+				for(var vuelta=0; vuelta<4; vuelta++){
+					var off = self0.polygonOffset(poli, signo*(delta + extra), ARCO_MM);
+					if(!off.length){ return null; }
+					// en pedazos: el más grande (para una pieza es su contorno de fuera; para un hueco, menos lugar)
+					off.sort(function(a, b){ return Math.abs(GeometryUtil.polygonArea(b)) - Math.abs(GeometryUtil.polygonArea(a)); });
+					ultimo = off[0];
+					if(!fino){ return ultimo; }
+					var m = holgura(ultimo, fino, signo);
+					if(m >= meta - 1e-9){ return ultimo; }
+					extra += (meta - m) + 0.005;
+				}
+				return ultimo;
+			}
+			/* Lo que queda entre la curva fina y el polígono engordado: la distancia más corta entre
+			   las dos orillas (vértice contra lado, en los dos sentidos), negativa si la curva se
+			   sale. Para un hueco, al revés: el polígono adelgazado tiene que quedar dentro de la curva. */
+			function holgura(off, fino, signo){
+				var dentro = signo > 0 ? fino : off, fuera = signo > 0 ? off : fino, min = Infinity, k, d;
+				for(k=0; k<dentro.length; k++){
+					d = distanciaAlBorde(dentro[k], fuera);
+					if(GeometryUtil.pointInPolygon(dentro[k], fuera) === false){ d = -d; }
+					if(d < min){ min = d; }
+				}
+				for(k=0; k<fuera.length; k++){
+					d = distanciaAlBorde(fuera[k], dentro);
+					if(d < min){ min = d; }
+				}
+				return min;
+			}
+			/* Los contornos de cada elemento con las curvas enderezadas a 0.02 mm: «la curva real». */
+			function polygonosFinos(elementos){
+				var out = [];
+				try{
+					SvgParser.config({ tolerance: Math.min(0.02, config.curveTolerance) });
+					for(var i=0; i<elementos.length; i++){
+						var f = null;
+						try{ f = SvgParser.polygonify(elementos[i]); }catch(e){ f = null; }
+						out.push(f && f.length > 2 ? f : null);
+					}
+				}
+				finally{
+					SvgParser.config({ tolerance: config.curveTolerance });
+				}
+				return out;
 			}
 			
 			binPolygon = SvgParser.polygonify(bin);
@@ -215,6 +286,7 @@
 				binPolygon[i].x -= xbinmin;
 				binPolygon[i].y -= ybinmin;
 			}
+			corrimiento = { x: xbinmin - binBounds.x, y: ybinmin - binBounds.y };   // AL3D: ver `corrimiento`
 			
 			binPolygon.width = xbinmax-xbinmin;
 			binPolygon.height = ybinmax-ybinmin;
@@ -327,7 +399,8 @@
 					var placed = placelist[j];
 					key = {A: placed.id, B: part.id, inside: false, Arotation: rotations[j], Brotation: rotations[i]};
 					if(!nfpCache[JSON.stringify(key)]){
-						nfpPairs.push({A: placed, B: part, key: key});
+						// AL3D: los huecos van aparte; ver «AL3D · NFP» en el worker
+						nfpPairs.push({A: placed, B: part, key: key, huecosA: config.useHoles ? (placed.children || null) : null});
 					}
 					else{
 						newCache[JSON.stringify(key)] = nfpCache[JSON.stringify(key)]
@@ -356,6 +429,7 @@
 			p.require('geometryutil.js');
 			p.require('placementworker.js');
 			p.require('clipper.js');
+			p.require('minkowski.js');   // AL3D: el NFP exterior por convolución
 			
 			var self = this;
 			var spawncount = 0;
@@ -372,6 +446,7 @@
 				var searchEdges = global.env.searchEdges;
 				var useHoles = global.env.useHoles;
 				
+				if(pair.huecosA){ pair.A.children = pair.huecosA; }   // AL3D
 				var A = rotatePolygon(pair.A, pair.key.Arotation);
 				var B = rotatePolygon(pair.B, pair.key.Brotation);
 
@@ -400,10 +475,17 @@
 					}
 				}
 				else{
-					if(searchEdges){
+					/* AL3D · NFP. La suma de Minkowski por convolución (js/lib/minkowski.js): la misma
+					   figura que la de Clipper de abajo, cientos de veces más rápido. Con «Buscar también
+					   dentro de las concavidades» (searchEdges) trae además sus huecos —donde B cabe
+					   dentro de una concavidad cerrada de A—, que es lo que buscaba el NFP orbital del
+					   original, y en una fracción del tiempo. Si la convolución no sale para un par,
+					   ese par usa lo de antes: la suma de Clipper o el orbital. */
+					nfp = MinkowskiAL3D.nfpExterior(A, B, !!searchEdges);
+					if(!nfp && searchEdges){
 						nfp = GeometryUtil.noFitPolygon(A,B,false,searchEdges);
 					}
-					else{
+					else if(!nfp){
 						nfp = minkowskiDifference(A,B);
 					}
 					// sanity check
@@ -447,16 +529,21 @@
 					}
 					
 					// generate nfps for children (holes of parts) if any exist
-					if(useHoles && A.childNodes && A.childNodes.length > 0){
+					/* AL3D · los huecos. El original buscaba `A.childNodes`, que el árbol nunca tuvo (son
+					   `children`): «Meter piezas chicas en los huecos grandes» no hacía nada. Ahora el NFP
+					   de cada hueco sale de minkowski.js (el hueco menos la franja donde B lo toca) y, si
+					   no sale, del orbital de antes. */
+					if(useHoles && A.children && A.children.length > 0){
 						var Bbounds = GeometryUtil.getPolygonBounds(B);
 						
-						for(var i=0; i<A.childNodes.length; i++){
-							var Abounds = GeometryUtil.getPolygonBounds(A.childNodes[i]);
+						for(var i=0; i<A.children.length; i++){
+							var Abounds = GeometryUtil.getPolygonBounds(A.children[i]);
 
 							// no need to find nfp if B's bounding box is too big
 							if(Abounds.width > Bbounds.width && Abounds.height > Bbounds.height){
 							
-								var cnfp = GeometryUtil.noFitPolygon(A.childNodes[i],B,true,searchEdges);
+								var cnfp = MinkowskiAL3D.nfpHueco(A.children[i], B);
+								if(!cnfp){ cnfp = GeometryUtil.noFitPolygon(A.children[i],B,true,searchEdges); }
 								// ensure all interior NFPs have the same winding direction
 								if(cnfp && cnfp.length > 0){
 									for(var j=0; j<cnfp.length; j++){
@@ -628,6 +715,15 @@
 			// turn the list into a tree
 			toTree(polygons);
 			
+			function estrictamenteDentro(p, de){
+				var tol = Math.max(HUECO_MM, 2*config.curveTolerance);
+				for(var k=0; k<p.length; k++){
+					if(GeometryUtil.pointInPolygon(p[k], de) !== true){ return false; }
+					if(distanciaAlBorde(p[k], de) <= tol){ return false; }
+				}
+				return true;
+			}
+			
 			function toTree(list, idstart){
 				var parents = [];
 				var i,j;
@@ -641,6 +737,15 @@
 					var ischild = false;
 					for(j=0; j<list.length; j++){
 						if(j==i){
+							continue;
+						}
+						/* AL3D · un hueco es lo que queda ESTRICTAMENTE dentro de otro contorno. El original
+						   miraba solo el primer vértice: una pieza encimada que comparte orilla con la de fuera
+						   —las dos mitades de una letra dibujadas sobre su contorno completo, o una que se sale
+						   1 mm— se volvía hueco de la otra y no se cortaba. Ahora tiene que estar toda adentro y
+						   a más de HUECO_MM de la orilla; si no, es otra pieza (y se anota con quién se encima). */
+						if(GeometryUtil.pointInPolygon(p[0], list[j]) === true && !estrictamenteDentro(p, list[j])){
+							p.encima = list[j].source;
 							continue;
 						}
 						if(GeometryUtil.pointInPolygon(p[0], list[j]) === true){
@@ -685,7 +790,7 @@
 		
 		// use the clipper library to return an offset to the given polygon. Positive offset expands the polygon, negative contracts
 		// note that this returns an array of polygons
-		this.polygonOffset = function(polygon, offset){
+		this.polygonOffset = function(polygon, offset, arco){
 			if(!offset || offset == 0 || GeometryUtil.almostEqual(offset, 0)){
 				return polygon;
 			}
@@ -693,7 +798,8 @@
 			var p = this.svgToClipper(polygon);
 			
 			var miterLimit = 2;
-			var co = new ClipperLib.ClipperOffset(miterLimit, config.curveTolerance*config.clipperScale);
+			// AL3D: `arco` (mm) es la fineza del redondeo; sin él, la tolerancia de curva, como el original
+			var co = new ClipperLib.ClipperOffset(miterLimit, (arco || config.curveTolerance)*config.clipperScale);
 			co.AddPath(p, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
 			
 			var newpaths = new ClipperLib.Paths();
@@ -786,7 +892,7 @@
 					
 					// the original path could have transforms and stuff on it, so apply our transforms on a group
 					var partgroup = document.createElementNS(svg.namespaceURI, 'g');
-					partgroup.setAttribute('transform','translate('+p.x+' '+p.y+') rotate('+p.rotation+')');
+					partgroup.setAttribute('transform','translate('+(p.x+corrimiento.x)+' '+(p.y+corrimiento.y)+') rotate('+p.rotation+')');   // AL3D: `corrimiento`
 					partgroup.appendChild(clone[part.source]);
 					
 					if(part.children && part.children.length > 0){
@@ -832,6 +938,22 @@
 				clearInterval(workerTimer);
 			}
 		};
+	}
+	
+	/* AL3D · a cuánto de la orilla de fuera tiene que quedar un contorno para ser su hueco (mm). */
+	var HUECO_MM = 0.5;
+	
+	/* AL3D · la distancia de un punto a la orilla de un polígono (al lado más cercano). */
+	function distanciaAlBorde(q, poli){
+		var min = Infinity;
+		for(var i=0, j=poli.length-1; i<poli.length; j=i++){
+			var ax = poli[j].x, ay = poli[j].y, bx = poli[i].x, by = poli[i].y;
+			var dx = bx-ax, dy = by-ay, l = dx*dx + dy*dy, t = 0;
+			if(l > 0){ t = Math.max(0, Math.min(1, ((q.x-ax)*dx + (q.y-ay)*dy)/l)); }
+			var ex = ax + t*dx - q.x, ey = ay + t*dy - q.y, d = ex*ex + ey*ey;
+			if(d < min){ min = d; }
+		}
+		return Math.sqrt(min);
 	}
 	
 	function GeneticAlgorithm(adam, bin, config){

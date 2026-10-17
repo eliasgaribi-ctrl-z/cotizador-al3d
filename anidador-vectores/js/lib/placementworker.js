@@ -218,6 +218,24 @@ function PlacementWorker(binPolygon, paths, ids, rotations, config, nfpCache){
 				var minx = null;
 				var nf, area, shiftvector;
 
+				/* AL3D · la caja de lo ya colocado y la de la pieza se sacan UNA vez, no por cada
+				   vértice candidato: el original juntaba todos los puntos de todas las piezas puestas
+				   en cada candidato (miles × miles). La caja de la unión es la unión de las cajas: el
+				   resultado es el mismo número. */
+				var puestas = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+				for(m=0; m<placed.length; m++){
+					for(n=0; n<placed[m].length; n++){
+						var px = placed[m][n].x+placements[m].x, py = placed[m][n].y+placements[m].y;
+						if(px < puestas.x0){ puestas.x0 = px; } if(px > puestas.x1){ puestas.x1 = px; }
+						if(py < puestas.y0){ puestas.y0 = py; } if(py > puestas.y1){ puestas.y1 = py; }
+					}
+				}
+				var pieza = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+				for(m=0; m<path.length; m++){
+					if(path[m].x < pieza.x0){ pieza.x0 = path[m].x; } if(path[m].x > pieza.x1){ pieza.x1 = path[m].x; }
+					if(path[m].y < pieza.y0){ pieza.y0 = path[m].y; } if(path[m].y > pieza.y1){ pieza.y1 = path[m].y; }
+				}
+
 				for(j=0; j<finalNfp.length; j++){
 					nf = finalNfp[j];
 					if(Math.abs(GeometryUtil.polygonArea(nf)) < 2){
@@ -225,13 +243,6 @@ function PlacementWorker(binPolygon, paths, ids, rotations, config, nfpCache){
 					}
 					
 					for(k=0; k<nf.length; k++){
-						var allpoints = [];
-						for(m=0; m<placed.length; m++){
-							for(n=0; n<placed[m].length; n++){
-								allpoints.push({x:placed[m][n].x+placements[m].x, y: placed[m][n].y+placements[m].y});
-							}
-						}
-						
 						shiftvector = {
 							x: nf[k].x-path[0].x,
 							y: nf[k].y-path[0].y,
@@ -240,11 +251,9 @@ function PlacementWorker(binPolygon, paths, ids, rotations, config, nfpCache){
 							nfp: combinedNfp
 						};
 						
-						for(m=0; m<path.length; m++){
-							allpoints.push({x: path[m].x+shiftvector.x, y:path[m].y+shiftvector.y});
-						}
-						
-						var rectbounds = GeometryUtil.getPolygonBounds(allpoints);
+						var bx0 = Math.min(puestas.x0, pieza.x0+shiftvector.x), bx1 = Math.max(puestas.x1, pieza.x1+shiftvector.x);
+						var by0 = Math.min(puestas.y0, pieza.y0+shiftvector.y), by1 = Math.max(puestas.y1, pieza.y1+shiftvector.y);
+						var rectbounds = { x: bx0, y: by0, width: bx1-bx0, height: by1-by0 };
 						
 						// weigh width more, to help compress in direction of gravity
 						area = rectbounds.width*2 + rectbounds.height;
