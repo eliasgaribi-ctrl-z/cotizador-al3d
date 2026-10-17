@@ -278,6 +278,7 @@
       var en = parseFloat(c.getAttribute('data-sep')) === v;
       c.classList.toggle('on', en); c.setAttribute('aria-pressed', en ? 'true' : 'false');
     });
+    var f = $('fld-minimo'); if (f) f.hidden = !brocaElegida();
   }
   /* «Cuánto busca» (Rápido / A fondo) y el formato del archivo (DXF / SVG): dos grupos de chips
      de una sola opción, como el material. Ninguno cambia lo que el motor calcula —uno decide
@@ -316,13 +317,14 @@
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
       huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
-      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo() })); } catch (_) {}
+      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo(), minimo: $('an-minimo').value })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
     if (!g) { marcarCorte(); sincronizarHoja(true); return; }
     if (g.busca) elegirBusqueda(g.busca);
+    if (g.minimo !== undefined && g.minimo !== '') $('an-minimo').value = g.minimo;
     if (g.formato) elegirFormato(g.formato);
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
@@ -364,14 +366,15 @@
     });
   });
   ['an-ancho', 'an-alto', 'an-sep'].forEach(function (id) {
-    $(id).addEventListener('input', function () { if (id === 'an-sep') marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
+    $(id).addEventListener('input', function () { if (id === 'an-sep') { marcarCorte(); revisarVibracion(); } sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
   });
   lista(document.querySelectorAll('#an-corte .chip')).forEach(function (c) {
     c.addEventListener('click', function () {
       $('an-sep').value = c.getAttribute('data-sep');
-      marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar();
+      marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); revisarVibracion();
     });
   });
+  $('an-minimo').addEventListener('input', function () { guardarMaterial(); revisarVibracion(); });
   /* Los tres cambian lo que el motor calcula: habilitar() decide si «Seguir buscando» vale. */
   $('an-rot').addEventListener('change', function () { _veta.rotPrevia = null; guardarMaterial(); habilitar(); });
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); habilitar(); });
@@ -928,6 +931,7 @@
     mensaje(!solo ? 'Detenido. ' + s
       : !L.intentos ? 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
       : 'Se detuvo solo: ' + L.intentos + ' intentos y ' + Math.round(L.ms / 1000) + ' s seguidos sin mejorar. ' + s, 'ok');
+    revisarVibracion();
   }
 
   function seguir() {
@@ -1294,7 +1298,7 @@
   function reiniciarMesa() {
     cancelarBarrido(); finalizarPliegue(); soltarSenales(); cerrarFicha(); terminarCalculo();
     liberarCarrusel();
-    _zoom = []; _activa = 0; _cacheLocal = {}; _cacheArea = {};
+    _zoom = []; _activa = 0; _cacheLocal = {}; _cacheArea = {}; _vibra = [];
     var res = $('an-res'); res.textContent = '';
     _vista = 'vienen'; habilitarAcomodadas(false);
     if (_ctlVer) _ctlVer.fijar('vienen', false);
@@ -1327,7 +1331,8 @@
       $('an-pieza-girar').textContent = 'Girar ' + pasoDeGiro() + '°';
       $('an-pieza-devolver').hidden = !(g && fueMovida(g));
     }
-    pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && !(tienePags && !$('an-pags').hidden);
+    $('an-vibra').hidden = !(enHojas && _vibra.length);
+    pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && $('an-vibra').hidden && !(tienePags && !$('an-pags').hidden);
     if (tieneZoom) actualizarZoomUI();
   }
 
@@ -1543,6 +1548,7 @@
     }
     actualizarEditable();
     medirMesa();
+    revisarVibracion();   // con el motor corriendo solo limpia: las marcas son del acomodo ya quieto
     /* Cuando MEJORA —no la primera vez— el marcador late una vez. */
     if (mejora && !QUIETO) {
       var m = $('an-prog'); m.classList.remove('mejora');
@@ -2005,8 +2011,8 @@
     T.huella = null;                  // no hay nada que «seguir buscando»: el motor no sabe de esto
     habilitar();
     $('an-vista-tab').textContent = 'Acomodo editado a mano';
-    mensaje(nombreDe(g) + ' movida a mano. Descarga el SVG con la posición nueva, o vuelve a acomodar desde cero.', 'ok');
-    actualizarPie();
+    mensaje(nombreDe(g) + ' movida a mano. Descarga el archivo con la posición nueva, o vuelve a acomodar desde cero.', 'ok');
+    revisarVibracion();
   }
   function llevarA(g, nuevo, alTerminar) {
     var P = PZ();
@@ -2094,7 +2100,7 @@
   $('an-pieza-devolver').addEventListener('click', function () {
     var g = _sel && document.getElementById(_sel), o = g && _origen && _origen.get(g);
     if (!g || !o) return;
-    llevarA(g, o, function () { marcarGiradas(); actualizarPie(); });
+    llevarA(g, o, function () { marcarGiradas(); revisarVibracion(); });
     mensaje(nombreDe(g) + ' devuelta a su lugar.', 'ok');
   });
 
@@ -2207,6 +2213,67 @@
     if (P && P.senalar && destino) P.senalar(destino, { desplazar: true });
   });
 
+  /* ---------- Cortes rectos muy juntos: donde el router vibra (audio del taller, 16/10/2026) ----------
+     «Entre línea y línea debe haber un restante de aluminio que no se corte… no puedo poner dos L a
+     la par». El motor acomoda a la separación justa, así que dos orillas rectas de piezas distintas
+     quedan paralelas y pegadas seguido; el taller lo arregla girando o moviendo unas cuantas letras.
+     Con una broca elegida en «Se corta con», js/vibracion.js busca esos lugares en el acomodo quieto
+     (detenido, o movido a mano) y aquí se pintan: las dos piezas con orilla roja, la tira de en
+     medio rellena en rojo (un <path data-mesa> que armarSalida() y armarDxf() saltan) y una frase en
+     el pie con cuáles son. El material que se pide es el que queda entre los dos cortes: la
+     distancia entre las orillas menos el ancho de la broca. El mínimo lo pone el taller. */
+  var VIBRA = { largoMin: 15, traslapeMin: 15, anguloMax: 5 };   // mm de recta, mm frente a frente, grados
+  var _vibra = [];   // los pares en riesgo del acomodo en pantalla: { hoja, a, b, material }
+  function brocaElegida() {
+    var on = document.querySelector('#an-corte .chip.on[data-broca]');
+    return on ? parseFloat(on.getAttribute('data-broca')) || 0 : 0;
+  }
+  function minimoMaterial() { var v = parseFloat($('an-minimo').value); return v >= 0 ? v : 3; }
+  function limpiarVibra() {
+    _vibra = [];
+    if (!T.mejor) return;
+    T.mejor.svglist.forEach(function (s) {
+      lista(s.querySelectorAll('[data-mesa="vibra"]')).forEach(function (n) { n.parentNode.removeChild(n); });
+      lista(s.querySelectorAll(':scope>g.vibra')).forEach(function (g) { g.classList.remove('vibra'); });
+    });
+  }
+  function revisarVibracion() {
+    limpiarVibra();
+    var V = window.AnidadorVibracion, broca = brocaElegida();
+    if (V && broca && T.mejor && !T.corriendo && hayResultado()) {
+      var minimo = minimoMaterial();
+      T.mejor.svglist.forEach(function (svg, i) {
+        var piezas = lista(svg.querySelectorAll(':scope>g[id]')).map(function (g) {
+          var t = leerTransform(g);
+          return { id: g.id, contornos: poligonosLocales(g).map(function (p) { return aHoja(p, t); }) };
+        });
+        var pares = V.buscar(piezas, { broca: broca, minimo: minimo, largoMin: VIBRA.largoMin, traslapeMin: VIBRA.traslapeMin, anguloMax: VIBRA.anguloMax });
+        if (!pares.length) return;
+        var d = '';
+        pares.forEach(function (par) {
+          _vibra.push({ hoja: i, a: par.a, b: par.b, material: par.material });
+          [par.a, par.b].forEach(function (id) { var g = document.getElementById(id); if (g) g.classList.add('vibra'); });
+          par.marcas.forEach(function (q) { d += 'M' + q.map(function (p) { return fmt(p.x) + ' ' + fmt(p.y); }).join('L') + 'Z'; });
+        });
+        var marca = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        marca.setAttribute('d', d); marca.setAttribute('class', 'an-vibra-marca');
+        marca.setAttribute('data-mesa', 'vibra'); marca.setAttribute('aria-hidden', 'true');
+        svg.appendChild(marca);
+      });
+    }
+    pintarVibra();
+  }
+  function pintarVibra() {
+    var t = $('an-vibra-t'), n = _vibra.length;
+    if (t) {
+      var num = function (id) { var g = document.getElementById(id); return (g && numeroDe(g)) || '?'; };
+      var pares = _vibra.slice(0, 4).map(function (v) { return num(v.a) + ' y ' + num(v.b); }).join(' · ') + (n > 4 ? ' · …' : '');
+      t.innerHTML = n ? '<b>Puede vibrar en el router:</b> ' + (n === 1 ? '1 lugar' : n + ' lugares') + ' con menos de ' + esc(fmtMm(minimoMaterial())) +
+        ' mm de material entre dos cortes rectos (piezas ' + esc(pares) + '). Gira o mueve una pieza de cada par.' : '';
+    }
+    actualizarPie();
+  }
+
   /* Lo que cambia con el cálculo: mientras corre no se mueven piezas a mano. */
   function actualizarEditable() {
     $('an-mesa').classList.toggle('editable', editable());
@@ -2266,7 +2333,7 @@
       g.setAttribute('id', 'hoja-' + (i + 1));
       g.setAttribute('transform', 'translate(0 ' + fmt(i * (H + gap)) + ')');
       hijos(hoja).forEach(function (n) {
-        if (!n.tagName) return;
+        if (!n.tagName || n.hasAttribute('data-mesa')) return;   // las marcas de la mesa no se cortan
         var c = n.cloneNode(true);
         if ((c.getAttribute('class') || '').indexOf('bin') >= 0) {
           if (!contorno) return;
@@ -2311,7 +2378,7 @@
       datos = hojas.map(function (hoja) {
         var d = dimsDeHoja(hoja), contornos = [];
         hijos(hoja).forEach(function (g) {
-          if (g.tagName !== 'g') return;
+          if (g.tagName !== 'g' || g.hasAttribute('data-mesa')) return;
           var t = leerTransform(g);
           hijos(g).forEach(function (e) {
             if (!e.tagName) return;
@@ -2657,7 +2724,8 @@
   window.Anidador.mesa = function () {
     return { vista: _vista, zoom: _zoom.map(function (v) { return v ? { z: v.z, cx: v.cx, cy: v.cy } : null; }),
              eleccion: _sel, senal: _senal ? _senal.quien : '', carrusel: !!_pags, editable: editable(),
-             editado: !!(T.mejor && T.mejor.editado), numeros: A ? Object.assign({}, A.numeros) : {}, fuera: (T.fueraIds || []).slice() };
+             editado: !!(T.mejor && T.mejor.editado), numeros: A ? Object.assign({}, A.numeros) : {}, fuera: (T.fueraIds || []).slice(),
+             vibra: _vibra.map(function (v) { return { hoja: v.hoja, a: v.a, b: v.b, material: v.material }; }) };
   };
   /* ¿Cabe la pieza `id` donde está? '' si sí. Las posiciones que da el motor tienen que caber siempre:
      si no, la cuenta del choque no es la del motor y mover una pieza sería imposible. */

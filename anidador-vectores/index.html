@@ -237,9 +237,17 @@ document.documentElement.classList.add('arrancando');
         <div class="fld-lab" id="lab-corte">Se corta con</div>
         <div class="chips an-corte" id="an-corte" role="group" aria-labelledby="lab-corte">
           <button type="button" class="chip" aria-pressed="false" data-sep="2">Láser <small>2 mm</small></button>
-          <button type="button" class="chip" aria-pressed="false" data-sep="4.5">Broca 1/8″ <small>4.5 mm</small></button>
-          <button type="button" class="chip" aria-pressed="false" data-sep="6">Broca 3/16″ <small>6 mm</small></button>
-          <button type="button" class="chip" aria-pressed="false" data-sep="7.5">Broca 1/4″ <small>7.5 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="4.5" data-broca="3.175">Broca 1/8″ <small>4.5 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="6" data-broca="4.7625">Broca 3/16″ <small>6 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="7.5" data-broca="6.35">Broca 1/4″ <small>7.5 mm</small></button>
+        </div>
+        <!-- Con broca, la mesa marca dónde dos cortes rectos de piezas distintas quedan tan juntos
+             que la tira de en medio vibra (audio del taller, 16/10/2026; js/vibracion.js). Lo que se
+             pide es cuánto material tiene que quedar entre los dos cortes: el número es del taller. -->
+        <div class="fld an-minimo" id="fld-minimo" hidden>
+          <label for="an-minimo">Material mínimo entre dos cortes rectos (mm)</label>
+          <input id="an-minimo" type="number" inputmode="decimal" min="0" step="any" value="3">
+          <div class="hintnote an-hint">Si entre dos orillas rectas de piezas distintas queda menos, la tira vibra con el router. La mesa marca esos lugares en rojo para que solo muevas esas piezas.</div>
         </div>
 
         <!-- Los retazos del taller. Un sobrante se mide una vez, se guarda con su nombre y
@@ -377,6 +385,9 @@ document.documentElement.classList.add('arrancando');
           <div class="an-pie-fila an-fuera" id="an-fuera" hidden>
             <button type="button" class="an-btn-mesa" id="an-fuera-ver" aria-pressed="false"></button>
           </div>
+          <div class="an-pie-fila an-vibra" id="an-vibra" hidden>
+            <p class="an-vibra-t" id="an-vibra-t"></p>
+          </div>
         </div>
       </div>
     </section>
@@ -402,6 +413,7 @@ document.documentElement.classList.add('arrancando');
 <!-- Lo nuestro: la aritmética de unidades (probada en node) y la interfaz. -->
 <script src="js/medidas.js"></script>
 <script src="js/dxf.js"></script>
+<script src="js/vibracion.js"></script>
 <!-- Las piezas compartidas con el cotizador y la plataforma. -->
 <script src="../js/piezas.js"></script>
 <script src="js/app.js"></script>
