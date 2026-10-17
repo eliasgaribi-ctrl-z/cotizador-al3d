@@ -219,6 +219,44 @@ if (e.mejor) {
     ? bien('y volviéndolo a tocar, vuelve') : mal('el interruptor no volvió a encenderse');
 }
 
+// ── 5b. El DXF que sale ────────────────────────────────────────────────────
+/* El que usa el router (audio del taller, 16/10/2026): cada contorno UNA polilínea cerrada, con las
+   curvas finas. Del mismo acomodo de arriba, hecho por el motor de verdad. */
+console.log('\nEL DXF QUE SALE (EL DEL ROUTER)');
+if (e.mejor) {
+  const n = e.mejor.laminas;
+  const dxf = await p.evaluate(() => window.Anidador.armarDxf(null));
+  const l = dxf.split('\r\n'), polis = [];
+  let cur = null;
+  for (let i = 0; i + 1 < l.length; i += 2) {
+    const c = l[i].trim(), v = l[i + 1];
+    if (c === '0') { if (v === 'POLYLINE') polis.push(cur = { capa: null, cerrada: false, n: 0 }); else if (v === 'VERTEX') cur.n++; else if (v === 'SEQEND') cur = null; }
+    else if (cur && !cur.n && c === '8') cur.capa = v;
+    else if (cur && !cur.n && c === '70') cur.cerrada = v === '1';
+  }
+  const piezas = polis.filter(q => /^HOJA-\d+$/.test(q.capa));
+  piezas.length === 7 ? bien('7 polilíneas de pieza: las 6 piezas y el hueco de la «O», cada contorno una sola') : mal(piezas.length + ' polilíneas de pieza y son 7 (6 piezas + el hueco de la «O»)');
+  polis.every(q => q.cerrada) ? bien('todas cerradas') : mal('hay polilíneas abiertas: ' + polis.filter(q => !q.cerrada).length);
+  polis.filter(q => q.capa === 'CONTORNO-HOJA').length === n ? bien('y un contorno de hoja por cada una de las ' + n + ' hojas') : mal('contornos de hoja: ' + polis.filter(q => q.capa === 'CONTORNO-HOJA').length + ' para ' + n + ' hojas');
+  piezas.filter(q => q.n > 60).length === 2 ? bien('los dos círculos van finos (más de 60 vértices: 0.05 mm de desvío y no los 0.3 del cálculo)') : mal('vértices de las piezas: ' + piezas.map(q => q.n).join(', '));
+  new RegExp('\\$EXTMAX\\r\\n10\\r\\n100\\r\\n20\\r\\n' + (100 * n + 25 * (n - 1)) + '\\r\\n').test(dxf) ? bien('a escala: 100 mm de ancho y las hojas una debajo de otra, como el SVG') : mal('la extensión del DXF no cuadra: ' + (dxf.match(/\$EXTMAX[^]*?\r\n9\r\n/) || [''])[0].replace(/\r\n/g, ' '));
+}
+
+// ── 5c. «Rápido» se para solo, con el motor de verdad ──────────────────────
+console.log('\nRÁPIDO: SE PARA SOLO EN SEGUNDOS, CON EL MOTOR DE VERDAD');
+await cargar(SVG_MM, 'prueba.svg');
+(await estado()).busca === 'rapido' ? bien('la página nació en «Rápido»') : mal('la búsqueda de entrada es «' + (await estado()).busca + '»');
+await p.evaluate(() => window.Anidador.iniciar());
+if (await esperar(async () => !!(await estado()).mejor, 60000)) {
+  const t1 = Date.now();
+  const paro = await esperar(async () => !(await estado()).corriendo, 25000);
+  const seg = Math.round((Date.now() - t1) / 100) / 10;
+  e = await estado();
+  paro && e.detenidoSolo && seg <= 17 ? bien('se detuvo solo ' + seg + ' s después del primer acomodo (el tope es 15 s)') : mal('no se detuvo solo a tiempo: ' + JSON.stringify({ paro, seg, detenidoSolo: e.detenidoSolo }));
+  /^Listo: acomodo rápido/.test(await p.evaluate(() => document.getElementById('an-msg').textContent)) ? bien('y lo dice') : mal('el mensaje dice «' + await p.evaluate(() => document.getElementById('an-msg').textContent) + '»');
+} else mal('en 60 s no hubo un primer acomodo');
+if ((await estado()).corriendo) await p.evaluate(() => window.Anidador.detener());
+
 // ── 6. Lo que no es una medida ─────────────────────────────────────────────
 console.log('\nUN SVG EN PX: LA MEDIDA SE PIDE, NO SE ADIVINA');
 await cargar(SVG_PX, 'logo.svg');

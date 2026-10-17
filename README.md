@@ -200,8 +200,12 @@ desde **Acomodar en hoja** del vectorizador, que lo abre con el trazo ya puesto.
 
 Trabaja en milímetros y lo que no es una medida lo pregunta: si el SVG declara mm, cm, pulgadas
 o puntos se convierte solo; si viene en `px` —que en SVG no es una medida— se pide el ancho real
-en vez de adivinar. Se detiene solo cuando lleva 25 intentos sin mejorar. Corre completo en el
-navegador con [SVGnest](https://github.com/Jack000/SVGnest); ningún archivo se sube a un servidor.
+en vez de adivinar. Busca **rápido** de entrada —se detiene a los 5 s sin mejorar, o a los 15 s del
+primer acomodo— porque el acomodo de dos minutos ahorraba unos 3 cm y para el router se retoca a mano
+de todos modos; **a fondo** es el paro largo de antes (25 intentos y 40 s sin mejorar). Descarga en
+**DXF**, el del router, con cada contorno como una polilínea cerrada, o en SVG para el láser. Corre
+completo en el navegador con [SVGnest](https://github.com/Jack000/SVGnest); ningún archivo se sube a
+un servidor.
 
 ## Uso
 
@@ -374,7 +378,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento veinticinco archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento veintiséis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -385,7 +389,7 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               70 archivos, solo node, unos segundos
+    pruebas/correr.sh               71 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   45 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero

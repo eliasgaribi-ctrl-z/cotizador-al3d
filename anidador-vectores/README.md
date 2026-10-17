@@ -20,12 +20,20 @@ y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— 
 4. Acomoda las piezas con el motor de código abierto [SVGnest](https://github.com/Jack000/SVGnest)
    (algoritmo genético + *no-fit polygon*), probando giros, y va enseñando el mejor
    acomodo encontrado. Si no caben en una hoja, abre las que hagan falta.
-5. **Se detiene solo** cuando lleva 25 intentos y 40 segundos seguidos sin mejorar, porque
-   el algoritmo genético nunca termina por su cuenta. «Seguir buscando» continúa desde
-   donde iba; «Detener» para cuando el resultado ya convence.
-6. Descarga el SVG acomodado **a escala real** (`width="1200mm"`), con una capa por hoja
-   —todas en un archivo, o una hoja sola— y el contorno de la hoja en azul en su propia
-   capa, para colocar el archivo en la cama y ponerlo en «no cortar».
+5. **Se detiene solo**, porque el algoritmo genético nunca termina por su cuenta. En
+   **Rápido**, el de omisión, a los 5 s sin mejorar o a los 15 s del primer acomodo aunque
+   siga mejorando; en **A fondo**, cuando lleva 25 intentos y 40 segundos seguidos sin
+   mejorar. «Seguir buscando» continúa desde donde iba; «Detener» para cuando el resultado
+   ya convence. (Rápido es el de omisión desde el 16/10/2026, por un audio del taller: el
+   acomodo de dos minutos ahorraba unos 3 cm, y para el router se retoca a mano de todos
+   modos —entre dos cortes rectos muy juntos tiene que quedar material o la pieza vibra—.)
+6. Descarga el acomodo **a escala real**, con una capa por hoja —todas en un archivo, o una
+   hoja sola— y el contorno de la hoja en azul en su propia capa, para colocar el archivo en
+   la cama y ponerlo en «no cortar». En **DXF**, el de omisión y el del router: R12, en mm,
+   cada contorno —el de fuera de cada pieza y cada hueco— como UNA polilínea cerrada, con
+   las curvas a 0.05 mm (`js/dxf.js`). Antes iba solo el SVG, y el programa del router lo
+   abría con cada curva en tramitos sueltos y encimados que había que juntar a mano o con
+   «Reparar problema». O en **SVG** (`width="1200mm"`), para el láser o Illustrator.
 
 La hoja se elige mirándola: en este taller todas son de 1.20 × 2.40 m, así que las tarjetas
 son la completa, la media y el cuarto, y la cuarta es el retazo, que se mide a mano y se
@@ -64,6 +72,7 @@ anidador-vectores/
 └── js/
     ├── app.js               la interfaz: cargar, medir, acomodar, descargar
     ├── medidas.js           unidades del archivo → milímetros; puro, probado en node
+    ├── dxf.js               el acomodo en DXF R12, polilíneas cerradas; puro, probado en node
     ├── svgnest.js           motor de anidamiento (genético + NFP)       ┐
     ├── svgparser.js         formas SVG → polígonos                       │ vendorizados de
     ├── SVGNEST-LICENSE.txt  licencia MIT del motor                       │ SVGnest (MIT),
@@ -93,6 +102,8 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 ## Pruebas
 
 - `pruebas/anidador-medidas.mjs` — la aritmética de unidades, en node y nada más.
+- `pruebas/anidador-dxf.mjs` — el DXF, leído de vuelta par por par: cerrado, sin puntos
+  repetidos, en su capa, a escala y sin espejo.
 - `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
   comprueba las piezas colocadas y que el SVG de salida esté en milímetros; y que el trazo
   que deja el cotizador se recoge y se borra. Pide Chromium: `pruebas/correr.sh --navegador`.

@@ -269,7 +269,7 @@ document.documentElement.classList.add('arrancando');
             <div class="hintnote an-hint">El centro de una «O» o de una «D» grande puede recibir un punto o una letra chica. Tarda más en calcular.</div>
             <button type="button" class="switch" role="switch" aria-checked="false" id="an-concavas"><span class="tg" aria-hidden="true"></span> Buscar también dentro de las concavidades</button>
             <div class="hintnote an-hint">Mete piezas en el hueco abierto de una «C», una «U» o una «G», que de entrada se trata como si estuviera lleno. Es la opción «Explore concave areas» del motor: tarda bastante más.</div>
-            <button type="button" class="switch" role="switch" aria-checked="true" id="an-contorno"><span class="tg on" aria-hidden="true"></span> Incluir el contorno de la hoja en el SVG</button>
+            <button type="button" class="switch" role="switch" aria-checked="true" id="an-contorno"><span class="tg on" aria-hidden="true"></span> Incluir el contorno de la hoja en el archivo</button>
             <div class="hintnote an-hint">Sale en azul y en su propia capa. En el software de corte se pone en «no cortar» o se borra; sirve para colocar el archivo en la cama.</div>
           </div>
         </details>
@@ -277,6 +277,16 @@ document.documentElement.classList.add('arrancando');
     </section>
 
     <div class="an-acciones">
+      <!-- Cuánto busca (audio del taller, 16/10/2026): el acomodo de los primeros segundos y el de
+           dos minutos se llevan unos 3 cm de material, y para el router se retoca a mano de
+           todos modos. «Rápido» entrega en segundos; «A fondo» es el paro de siempre. -->
+      <div class="an-opcion">
+        <div class="fld-lab" id="lab-busca">Cuánto busca</div>
+        <div class="chips an-busca" id="an-busca" role="radiogroup" aria-labelledby="lab-busca">
+          <button type="button" class="chip on" role="radio" aria-checked="true" data-busca="rapido">Rápido <small>segundos</small></button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-busca="fondo">A fondo <small>minutos, ahorra unos cm</small></button>
+        </div>
+      </div>
       <button type="button" class="btn btn-pri" id="an-ir" disabled>Acomodar las piezas</button>
       <!-- El paro automático, a la vista (A4): una mecha que se consume en los 40 s desde la
            última mejora y, debajo, lo que falta dicho con palabras. Solo mientras el motor
@@ -286,9 +296,18 @@ document.documentElement.classList.add('arrancando');
         <p class="an-paro-t" id="an-paro-t"></p>
       </div>
       <button type="button" class="btn btn-gho" id="an-seguir" hidden><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Seguir buscando un acomodo mejor</button>
+      <!-- El formato de la descarga. DXF por omisión: es el que usa el router, y cada contorno
+           sale como una polilínea cerrada (js/dxf.js). SVG para el láser o para Illustrator. -->
+      <div class="an-opcion">
+        <div class="fld-lab" id="lab-formato">Archivo</div>
+        <div class="chips an-formato" id="an-formato" role="radiogroup" aria-labelledby="lab-formato">
+          <button type="button" class="chip on" role="radio" aria-checked="true" data-formato="dxf">DXF <small>router</small></button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-formato="svg">SVG <small>láser</small></button>
+        </div>
+      </div>
       <!-- Un solo botón de descarga. Con varias hojas, o con dónde compartir, abre un menú
            (A16); con una hoja y sin compartir, descarga directo y no lleva flecha. -->
-      <button type="button" class="btn btn-gho an-dl" id="an-dl" disabled><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> <span id="an-dl-t">Descargar SVG</span><svg class="svgi an-dl-flecha" id="an-dl-flecha" aria-hidden="true" hidden><use href="#i-desplegar"/></svg></button>
+      <button type="button" class="btn btn-gho an-dl" id="an-dl" disabled><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> <span id="an-dl-t">Descargar DXF</span><svg class="svgi an-dl-flecha" id="an-dl-flecha" aria-hidden="true" hidden><use href="#i-desplegar"/></svg></button>
     </div>
     <div class="an-msg" id="an-msg" role="status" aria-live="polite"></div>
   </main>
@@ -382,6 +401,7 @@ document.documentElement.classList.add('arrancando');
 <script src="js/svgnest.js"></script>
 <!-- Lo nuestro: la aritmética de unidades (probada en node) y la interfaz. -->
 <script src="js/medidas.js"></script>
+<script src="js/dxf.js"></script>
 <!-- Las piezas compartidas con el cotizador y la plataforma. -->
 <script src="../js/piezas.js"></script>
 <script src="js/app.js"></script>

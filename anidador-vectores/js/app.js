@@ -18,18 +18,20 @@
      · Lo que no es dibujo no entra. El SVG llega de fuera y esta página comparte origen con
        el cotizador: antes de pintarlo se le quita todo lo que ejecuta código (sanear).
      · Se detiene solo. El algoritmo genético no termina nunca: sigue buscando mejores
-       acomodos mientras nadie lo pare. Cuando lleva 25 intentos y 40 segundos sin mejorar,
-       se detiene y lo dice; «Seguir buscando» continúa desde donde iba. Bajo «Detener», una
-       mecha y una frase dicen cuánto falta para ese paro (A4); y «Volver a acomodar desde cero»
-       guarda el acomodo anterior y ofrece «Recuperar» durante 8 s (A9).
+       acomodos mientras nadie lo pare. En «Rápido», el de omisión, se para a los 5 s sin
+       mejorar o a los 15 s del primer acomodo; en «A fondo», cuando lleva 25 intentos y 40
+       segundos sin mejorar. Lo dice al pararse, y «Seguir buscando» continúa desde donde iba.
+       Bajo «Detener», una mecha y una frase dicen cuánto falta para ese paro (A4); y «Volver a
+       acomodar desde cero» guarda el acomodo anterior y ofrece «Recuperar» durante 8 s (A9).
      · El marcador: el aprovechamiento en una aguja con su calificación, y las piezas caen
        en su lugar cada vez que el motor encuentra algo mejor. Es lo que hace que un cálculo
        de dos minutos se pueda mirar.
      · El trazo puede llegar del vectorizador del cotizador, por localStorage, sin pasar
        por el disco.
-     · El SVG sale en milímetros —width="1200mm"— para que LightBurn, RDWorks o Illustrator
-       lo abran a tamaño, con una capa por hoja. «Descargar SVG» es un menú: todas, una hoja o
-       compartir el archivo (A16).
+     · El archivo sale en milímetros, con una capa por hoja, en DXF o en SVG. El DXF —el de
+       omisión, el que usa el router— lleva cada contorno como una polilínea cerrada (js/dxf.js);
+       el SVG lleva width="1200mm" para que LightBurn, RDWorks o Illustrator lo abran a tamaño.
+       «Descargar» es un menú: todas, una hoja o compartir el archivo (A16).
      · El aluminio y el MDF tienen veta: al elegirlos se quitan los giros de 90° y se pregunta
        (A5). Sobre el dibujo, dos cotas dicen qué caja se está midiendo (A6). Sin archivo a la
        mano, «Probar con un ejemplo» carga las letras del logotipo (A31).
@@ -43,9 +45,20 @@
   var LS_MATERIAL = 'al3d_anidador_material';   // la última hoja usada en este aparato
   var LS_RETAZOS  = 'al3d_anidador_retazos';    // los sobrantes medidos, con su nombre
   var LS_ENTRADA  = 'al3d_anidar';              // lo que deja el vectorizador del cotizador
-  var LIMITE_INTENTOS = 25;                     // intentos seguidos sin mejorar…
-  var LIMITE_MS = 40000;                        // …y segundos sin mejorar: las dos, para parar
+  /* Cuánto busca el motor antes de pararse solo. «A fondo» es el paro de siempre: 25 intentos Y
+     40 s seguidos sin mejorar, que en un letrero de 25 letras llega a los dos minutos para ahorrar
+     unos 3 cm de material. El taller lo dijo claro (audio del 16/10/2026): para el router eso no
+     sirve, porque el acomodo se retoca a mano de todos modos —entre dos cortes rectos muy juntos
+     tiene que quedar material, o la pieza vibra y la broca la avienta— y con el primer acomodo
+     ya solo se mueven cuatro letras en vez de veinticinco. Así que «Rápido», el de omisión, solo
+     mira el reloj: se para a los 5 s sin mejorar, y a más tardar 15 s después del primer acomodo
+     aunque siga mejorando. Con `intentos: 0` no cuenta intentos; con `topeMs: 0` no hay tope. */
+  var BUSQUEDA = {
+    rapido: { intentos: 0, ms: 5000, topeMs: 15000 },
+    fondo:  { intentos: 25, ms: 40000, topeMs: 0 }
+  };
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
+  var TOLERANCIA_DXF_MM = 0.05;                 // …y para el DXF, que va a la máquina: más fina
   var HUECO_ENTRE_HOJAS_MM = 25;                // en el SVG de salida, una hoja debajo de otra
   var COLORES_PIEZA = 6;                        // cuántos tonos se turnan en la mesa
   var CON_VETA = ['aluminio', 'mdf'];           // los que preguntan por la veta: el cepillado y la madera
@@ -266,6 +279,28 @@
       c.classList.toggle('on', en); c.setAttribute('aria-pressed', en ? 'true' : 'false');
     });
   }
+  /* «Cuánto busca» (Rápido / A fondo) y el formato del archivo (DXF / SVG): dos grupos de chips
+     de una sola opción, como el material. Ninguno cambia lo que el motor calcula —uno decide
+     cuándo se para y el otro cómo se escribe la descarga—, así que no entran en huellaMotor():
+     cambiarlos no esconde «Seguir buscando». */
+  function chipElegido(grupo, atributo, omision) {
+    var on = document.querySelector('#' + grupo + ' .chip.on');
+    return on ? on.getAttribute(atributo) : omision;
+  }
+  function elegirChip(grupo, atributo, valor) {
+    lista(document.querySelectorAll('#' + grupo + ' .chip')).forEach(function (c) {
+      var on = c.getAttribute(atributo) === valor;
+      c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+  function busqueda() { return chipElegido('an-busca', 'data-busca', 'rapido'); }
+  function limites() { return BUSQUEDA[busqueda()] || BUSQUEDA.rapido; }
+  function formatoArchivo() { return chipElegido('an-formato', 'data-formato', 'dxf') === 'svg' ? 'svg' : 'dxf'; }
+  function elegirBusqueda(v) { elegirChip('an-busca', 'data-busca', BUSQUEDA[v] ? v : 'rapido'); }
+  function elegirFormato(v) {
+    elegirChip('an-formato', 'data-formato', v === 'svg' ? 'svg' : 'dxf');
+    var t = $('an-dl-t'); if (t) t.textContent = 'Descargar ' + formatoArchivo().toUpperCase();
+  }
   function leerMaterial(avisar) {
     var ancho = parseFloat($('an-ancho').value), alto = parseFloat($('an-alto').value), sep = parseFloat($('an-sep').value);
     var ok = true;
@@ -281,12 +316,14 @@
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
       huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
-      mat: materialElegido(), sinVeta: !_veta.lleva })); } catch (_) {}
+      mat: materialElegido(), sinVeta: !_veta.lleva, busca: busqueda(), formato: formatoArchivo() })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
     if (!g) { marcarCorte(); sincronizarHoja(true); return; }
+    if (g.busca) elegirBusqueda(g.busca);
+    if (g.formato) elegirFormato(g.formato);
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
@@ -340,6 +377,18 @@
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); habilitar(); });
   $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); habilitar(); });
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
+  lista(document.querySelectorAll('#an-busca .chip')).forEach(function (c) {
+    c.addEventListener('click', function () {
+      elegirBusqueda(c.getAttribute('data-busca')); guardarMaterial();
+      /* Con el motor corriendo, el paro nuevo vale desde ya: la mecha vuelve a empezar con la
+         duración nueva y pintarParo() —que encenderParo() llama al final— lo para en el acto si
+         con los números nuevos ya tocaba (de «A fondo» a «Rápido» con 7 s sin mejorar). */
+      if (T.corriendo && T.mejor) encenderParo();
+    });
+  });
+  lista(document.querySelectorAll('#an-formato .chip')).forEach(function (c) {
+    c.addEventListener('click', function () { elegirFormato(c.getAttribute('data-formato')); guardarMaterial(); actualizarDescarga(); });
+  });
   $('an-girar').addEventListener('click', function () {
     var a = $('an-ancho').value; $('an-ancho').value = $('an-alto').value; $('an-alto').value = a;
     sincronizarHoja(); guardarMaterial(); habilitar();
@@ -858,7 +907,9 @@
     pintarEstadoTrabajo();
     if (previo) ofrecerRecuperar(previo);
     mensaje((fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la hoja ni girada' + (fuera === 1 ? '' : 's') + ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '') +
-      'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.', fuera ? 'av' : '');
+      (busqueda() === 'rapido'
+        ? 'Acomodo rápido: queda en unos segundos. Si quieres exprimir unos centímetros más, elige «A fondo».'
+        : 'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.'), fuera ? 'av' : '');
     /* En pantalla angosta la mesa queda debajo de los controles: se baja a verla. */
     if (window.matchMedia('(max-width:900px)').matches) $('an-mesa').scrollIntoView({ behavior: QUIETO ? 'auto' : 'smooth', block: 'start' });
   }
@@ -873,10 +924,10 @@
     pintarEstadoTrabajo(); habilitar();
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
     if (!T.mejor) { mensaje('Detenido antes del primer acomodo.', ''); return; }
-    var s = 'Descarga el resultado o sigue buscando.';
-    mensaje(solo
-      ? 'Se detuvo solo: ' + LIMITE_INTENTOS + ' intentos y ' + Math.round(LIMITE_MS / 1000) + ' s seguidos sin mejorar. ' + s
-      : 'Detenido. ' + s, 'ok');
+    var s = 'Descarga el resultado o sigue buscando.', L = limites();
+    mensaje(!solo ? 'Detenido. ' + s
+      : !L.intentos ? 'Listo: acomodo rápido. Descárgalo, o «Seguir buscando» si quieres exprimir unos centímetros más.'
+      : 'Se detuvo solo: ' + L.intentos + ' intentos y ' + Math.round(L.ms / 1000) + ' s seguidos sin mejorar. ' + s, 'ok');
   }
 
   function seguir() {
@@ -888,7 +939,7 @@
     /* start() contesta false cuando el motor ya no tiene la hoja o las piezas: sin mirarlo, la
        mesa se quedaba en «Acomodando…» para siempre, sin un solo intento. */
     if (window.SvgNest.start(function () {}, mostrarDe(++corrida)) === false) { T.huella = null; iniciar(); return; }
-    T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = Date.now(); T.detenidoSolo = false;
+    T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = T.primer = Date.now(); T.detenidoSolo = false;
     $('an-mesa').classList.add('corriendo');
     pintarEstadoTrabajo();
     encenderParo();
@@ -942,8 +993,11 @@
   }
 
   /* ---------- El paro automático, a la vista (A4) ----------
-     El motor se detiene solo cuando se juntan DOS cosas: 25 intentos seguidos sin mejorar Y 40 s
-     desde la última mejora. Hasta aquí nada decía cuánto faltaba, y la única barra de la mesa
+     En «A fondo», el motor se detiene solo cuando se juntan DOS cosas: 25 intentos seguidos sin
+     mejorar Y 40 s desde la última mejora. En «Rápido» solo cuenta el reloj (ver BUSQUEDA), y la
+     frase dice «listo en N s» con lo que llegue primero: los segundos sin mejorar o el tope.
+     Lo de abajo se escribió para «A fondo», y la mecha de las dos es la misma: el reloj de los
+     segundos sin mejorar de la búsqueda elegida. Hasta aquí nada decía cuánto faltaba, y la única barra de la mesa
      —la del avance de cada intento interno— llegaba a 100 y volvía a 0 sin que eso significara
      nada para quien miraba. Ahora, bajo «Detener», una mecha (P.mecha) se consume durante los 40 s
      y se rellena de golpe cuando el acomodo mejora, y una frase dice lo que falta con palabras.
@@ -956,24 +1010,39 @@
 
      Con menos movimiento la mecha ni se ve (css/anidador.css, «rm · an-controles»): queda la frase. */
   var _paro = null, _paroReloj = 0;
-  /* Pura: la frase del paro. `sinMejoraMs` es lo que lleva sin mejorar; `intentos`, los intentos
-     seguidos sin mejorar. Dice «hace 18 s», lo que falta de cada condición y nada más. */
-  function textoParo(sinMejoraMs, intentos) {
-    var P = window.Piezas;
+  /* Pura (salvo por la búsqueda elegida): la frase del paro. `sinMejoraMs` es lo que lleva sin
+     mejorar; `intentos`, los intentos seguidos sin mejorar; `desdePrimeroMs`, lo que lleva desde el
+     primer acomodo (solo «Rápido» lo usa, por su tope). Dice «hace 18 s», lo que falta y nada más. */
+  function textoParo(sinMejoraMs, intentos, desdePrimeroMs) {
+    var P = window.Piezas, L = limites();
     var reloj = function (ms, falta) { return P && P.reloj ? P.reloj(ms, { falta: !!falta }) : Math.floor(ms / 1000) + ' s'; };
-    var faltanIntentos = Math.max(0, LIMITE_INTENTOS - (intentos || 0));
-    var faltaMs = Math.max(0, LIMITE_MS - sinMejoraMs);
     var hace = 'Sin mejora hace ' + reloj(sinMejoraMs);
+    if (!L.intentos) {
+      var falta = Math.max(0, L.ms - sinMejoraMs);
+      if (L.topeMs && desdePrimeroMs >= 0) falta = Math.min(falta, Math.max(0, L.topeMs - desdePrimeroMs));
+      return hace + (falta > 0 ? ' · listo en ' + reloj(falta, true) : ' · se detiene ya');
+    }
+    var faltanIntentos = Math.max(0, L.intentos - (intentos || 0));
+    var faltaMs = Math.max(0, L.ms - sinMejoraMs);
     var n = faltanIntentos + (faltanIntentos === 1 ? ' intento' : ' intentos');
     if (faltanIntentos > 0 && faltaMs > 0) return hace + ' · faltan ' + n + ' y ' + reloj(faltaMs, true);
     if (faltanIntentos > 0) return hace + ' · ya pasó el tiempo, faltan ' + n;
-    if (faltaMs > 0) return hace + ' · ya van ' + LIMITE_INTENTOS + ' intentos, faltan ' + reloj(faltaMs, true);
+    if (faltaMs > 0) return hace + ' · ya van ' + L.intentos + ' intentos, faltan ' + reloj(faltaMs, true);
     return hace + ' · se detiene ya';
+  }
+  /* ¿Ya toca pararse solo? Lo que decide de verdad el paro: lo usan alMostrar() en cada intento y
+     pintarParo() cada segundo —el reloj de «Rápido» no puede esperar a que el motor conteste—. */
+  function tocaParar() {
+    var L = limites(), ahora = Date.now();
+    if (L.topeMs && T.primer && ahora - T.primer >= L.topeMs) return true;
+    return T.sinMejora >= L.intentos && ahora - T.ultimaMejora >= L.ms;
   }
   function pintarParo() {
     var t = $('an-paro-t');
     if (!t || !T.corriendo || !T.mejor) return;
-    var frase = textoParo(Date.now() - T.ultimaMejora, T.sinMejora);
+    if (tocaParar()) { detener(true); return; }
+    var ahora = Date.now();
+    var frase = textoParo(ahora - T.ultimaMejora, T.sinMejora, T.primer ? ahora - T.primer : -1);
     if (t.textContent !== frase) t.textContent = frase;
   }
   /* Hay un acomodo del que contar: se enseña el bloque y arranca (o vuelve a empezar) la mecha. */
@@ -982,8 +1051,9 @@
     if (!bloque || !T.mejor) return;
     bloque.hidden = false;
     if (P && P.mecha) {
-      if (_paro && _paro.el && _paro.el.isConnected) _paro.reiniciar(LIMITE_MS);
-      else _paro = P.mecha('an-mecha-paro', { ms: LIMITE_MS });
+      var ms = limites().ms;
+      if (_paro && _paro.el && _paro.el.isConnected) _paro.reiniciar(ms);
+      else _paro = P.mecha('an-mecha-paro', { ms: ms });
     }
     clearInterval(_paroReloj); _paroReloj = setInterval(pintarParo, 1000);
     pintarParo();
@@ -1003,11 +1073,12 @@
       var habia = !!T.mejor;
       T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total };
       T.sinMejora = 0; T.ultimaMejora = Date.now();
+      if (!T.primer) T.primer = T.ultimaMejora;   // desde aquí cuenta el tope de «Rápido»
       pintarResultado(habia);
       encenderParo();   // la primera mejora la arranca; las demás la rellenan de golpe
     } else if (T.corriendo && T.mejor) {
       T.sinMejora++;
-      if (T.sinMejora >= LIMITE_INTENTOS && Date.now() - T.ultimaMejora >= LIMITE_MS) detener(true);
+      if (tocaParar()) detener(true);
       else pintarParo();
     }
     pintarStats();
@@ -2224,21 +2295,68 @@
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(out);
   }
 
+  /* ---------- La salida en DXF (audio del taller, 16/10/2026) ----------
+     El SVG llegaba al programa del router con cada curva en tramitos sueltos y encimados, y había
+     que juntarlos a mano o pasarle «Reparar problema». El DXF lleva cada contorno —el de fuera de
+     cada pieza y cada hueco— como UNA polilínea cerrada. Los contornos salen del mismo polygonify
+     con el que el motor lee las piezas, pero más fino (TOLERANCIA_DXF_MM: 0.05 mm de desvío
+     máximo en las curvas, contra 0.3 del cálculo), y se llevan a la hoja con el transform de cada
+     pieza: el del motor o el que le dejó la mano (A24). Lo escribe js/dxf.js, probado en node. */
+  function armarDxf(indice) {
+    if (!T.mejor || !window.AnidadorDxf || !window.SvgParser) return null;
+    var hojas = (indice === null || indice === undefined) ? T.mejor.svglist : [T.mejor.svglist[indice]];
+    var SP = window.SvgParser, datos;
+    try { SP.config({ tolerance: TOLERANCIA_DXF_MM }); } catch (_) {}
+    try {
+      datos = hojas.map(function (hoja) {
+        var d = dimsDeHoja(hoja), contornos = [];
+        hijos(hoja).forEach(function (g) {
+          if (g.tagName !== 'g') return;
+          var t = leerTransform(g);
+          hijos(g).forEach(function (e) {
+            if (!e.tagName) return;
+            var p = null;
+            try { p = SP.polygonify(e); } catch (_) {}
+            if (p && p.length > 2) contornos.push(aHoja(p, t));
+          });
+        });
+        return { ancho: d.w, alto: d.h, contornos: contornos };
+      });
+    } finally {
+      /* La fineza es del parser compartido: se devuelve la del cálculo, que es la que esperan el
+         motor y poligonosLocales(). */
+      try { SP.config({ tolerance: TOLERANCIA_MM }); } catch (_) {}
+    }
+    return window.AnidadorDxf.armar(datos, { hueco: HUECO_ENTRE_HOJAS_MM, contorno: interruptor('an-contorno') });
+  }
+  /* El archivo del formato elegido: { texto, tipo, ext }. */
+  var TIPOS = { dxf: ['application/dxf', 'image/vnd.dxf', 'text/plain'], svg: ['image/svg+xml', 'text/plain'] };
+  function armarArchivo(indice) {
+    var fmtA = formatoArchivo();
+    if (fmtA === 'dxf') {
+      var d = armarDxf(indice);
+      return d ? { texto: d.texto, tipo: 'application/dxf', ext: 'dxf', contornos: d.contornos } : null;
+    }
+    var s = armarSalida(indice);
+    return s ? { texto: s, tipo: 'image/svg+xml;charset=utf-8', ext: 'svg' } : null;
+  }
+
   /* El nombre del archivo, el mismo para bajarlo y para compartirlo. */
-  function nombreDeArchivo(indice) {
-    var base = (A ? A.nombre : 'diseño').replace(/\.svg$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
-    return base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.svg';
+  function nombreDeArchivo(indice, ext) {
+    var base = (A ? A.nombre : 'diseño').replace(/\.(svg|dxf)$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
+    return base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.' + (ext || formatoArchivo());
   }
   function descargar(indice) {
-    var txt = armarSalida(indice);
-    if (!txt) { mensaje('Todavía no hay un acomodo que descargar.', 'mal'); return; }
-    var nombre = nombreDeArchivo(indice);
-    var blob = new Blob([txt], { type: 'image/svg+xml;charset=utf-8' });
+    var arch = armarArchivo(indice);
+    if (!arch) { mensaje('Todavía no hay un acomodo que descargar.', 'mal'); return; }
+    var nombre = nombreDeArchivo(indice, arch.ext);
+    var blob = new Blob([arch.texto], { type: arch.tipo });
     var u = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
-    var W = T.mejor.svglist[0].viewBox.baseVal.width, H = T.mejor.svglist[0].viewBox.baseVal.height;
-    toast('SVG descargado a escala real: ' + fmt(W) + ' × ' + fmt(H) + ' mm por hoja', 'ok', 3600);
+    var d = dimsDeHoja(T.mejor.svglist[0]);
+    toast(arch.ext.toUpperCase() + ' descargado a escala real: ' + fmt(d.w) + ' × ' + fmt(d.h) + ' mm por hoja' +
+      (arch.ext === 'dxf' ? ' · ' + arch.contornos + (arch.contornos === 1 ? ' contorno cerrado' : ' contornos cerrados') : ''), 'ok', 3600);
   }
 
   /* ---------- Descargar por hoja desde un menú, y mandar el archivo (A16) ----------
@@ -2255,9 +2373,11 @@
      archivo «…-acomodado.svg»—. Sin menú cuando no hay nada que elegir: una sola hoja y sin
      dónde compartir descarga directo, como siempre, y el botón no lleva flecha. */
   var _menuDl = null;
-  function archivoParaCompartir(txt, nombre) {
+  /* El DXF, igual que el SVG: si el aparato no acepta su tipo, se prueba como texto plano con el
+     mismo nombre .dxf. */
+  function archivoParaCompartir(txt, nombre, ext) {
     if (!(navigator.share && navigator.canShare) || typeof File !== 'function') return null;
-    var tipos = ['image/svg+xml', 'text/plain'];
+    var tipos = TIPOS[ext] || TIPOS.svg;
     for (var i = 0; i < tipos.length; i++) {
       try { var f = new File([txt], nombre, { type: tipos[i] }); if (navigator.canShare({ files: [f] })) return f; } catch (_) {}
     }
@@ -2265,14 +2385,15 @@
   }
   function puedeCompartir() {
     if (!T.mejor) return false;
-    return !!archivoParaCompartir('<svg xmlns="http://www.w3.org/2000/svg"/>', 'prueba.svg');
+    var ext = formatoArchivo();
+    return !!archivoParaCompartir(ext === 'dxf' ? '0\r\nEOF\r\n' : '<svg xmlns="http://www.w3.org/2000/svg"/>', 'prueba.' + ext, ext);
   }
   function opcionesDeDescarga() {
     var n = T.mejor ? T.mejor.svglist.length : 0, o = [];
     if (n > 1) {
       o.push({ v: 'todas', t: 'Todas las hojas', s: 'una capa por hoja' });
       for (var i = 0; i < n; i++) o.push({ v: String(i), t: 'Hoja ' + (i + 1) });
-    } else o.push({ v: 'todas', t: 'Descargar SVG' });
+    } else o.push({ v: 'todas', t: 'Descargar ' + formatoArchivo().toUpperCase() });
     if (puedeCompartir()) o.push({ v: 'compartir', t: 'Compartir', s: 'WhatsApp, correo…' });
     return o;
   }
@@ -2287,8 +2408,8 @@
     else { b.removeAttribute('aria-haspopup'); b.removeAttribute('aria-expanded'); if (_menuDl) _menuDl.cerrar('codigo'); }
   }
   function compartir(indice) {
-    var txt = armarSalida(indice); if (!txt) return;
-    var nombre = nombreDeArchivo(indice), archivo = archivoParaCompartir(txt, nombre);
+    var arch = armarArchivo(indice); if (!arch) return;
+    var nombre = nombreDeArchivo(indice, arch.ext), archivo = archivoParaCompartir(arch.texto, nombre, arch.ext);
     if (!archivo) { toast('Este aparato no puede compartir archivos. Descárgalo.', 'err', 4000); return; }
     navigator.share({ files: [archivo], title: nombre }).catch(function (e) {
       if (e && e.name === 'AbortError') return;   // cerró la hoja de compartir: no es un fallo
@@ -2520,10 +2641,12 @@
      esta interfaz, sin pasar por el ratón. */
   window.Anidador = {
     cargarTexto: cargarTexto, iniciar: iniciar, detener: function () { detener(false); }, seguir: seguir,
-    armarSalida: armarSalida, probarEjemplo: probarEjemplo, textoParo: textoParo,
+    armarSalida: armarSalida, armarDxf: function (i) { var d = armarDxf(i); return d ? d.texto : null; },
+    probarEjemplo: probarEjemplo, textoParo: textoParo,
     estado: function () {
       return { archivo: A ? { nombre: A.nombre, piezas: A.piezas, k: A.k, origen: A.escala && A.escala.origen, bbox: A.bbox, avisos: A.avisos.slice() } : null,
                corriendo: T.corriendo, intentos: T.intentos, sinMejora: T.sinMejora, detenidoSolo: T.detenidoSolo,
+               busca: busqueda(), formato: formatoArchivo(),
                anterior: !!T.anterior, paro: !!_paro, veta: conVeta(),
                hoja: hojaElegida(), material: materialElegido(), retazos: R.slice(),
                mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
