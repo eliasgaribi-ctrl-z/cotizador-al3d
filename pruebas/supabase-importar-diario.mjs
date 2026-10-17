@@ -22,7 +22,7 @@ import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'no
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { register } from 'node:module';
 import vm from 'node:vm';
@@ -338,7 +338,7 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
   eq('cada fuente de su cabecera tiene la huella de hoy (si falla: node supabase/functions/importar-diario/desplegar/armar.mjs)',
     fuentes.filter(x => !existsSync(join(RAIZ, x.f)) || huella(readFileSync(join(RAIZ, x.f), 'utf8')) !== x.h).map(x => x.f), []);
   const deben = ['supabase/functions/importar-diario/index.ts', 'supabase/functions/importar-diario/handler.js', 'supabase/functions/importar-diario/copia.js',
-    'supabase/functions/importar-diario/base.js', 'scripts/importador/plan.mjs', 'scripts/importador/sql.mjs', 'scripts/importador/celdas.mjs',
+    'supabase/functions/importar-diario/base.js', 'supabase/functions/importar-diario/respaldo.js', 'scripts/importador/plan.mjs', 'scripts/importador/sql.mjs', 'scripts/importador/celdas.mjs',
     'supabase/functions/_shared/http.js', 'supabase/functions/_shared/respaldo.js', 'datos/semilla.json'];
   eq('y lleva las fuentes que tiene que llevar', deben.filter(f => !fuentes.some(x => x.f === f)), []);
   eq('lo único de fuera: el driver de Postgres fijado por versión y lo de Node que Deno trae', [...new Set([...txt.matchAll(/^import .* from "([^"]+)";$/gm)].map(m => m[1]))].sort(),
@@ -359,6 +359,7 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
         pg.sentencias.push(t);
         if (/pg_try_advisory_xact_lock/.test(t)) return [{ ok: true }];
         if (/insert into public\.cuadre_diario/.test(t)) return [{ id: '1', fecha: '2026-10-17', cuadra: p[2] }];
+        if (/json_agg/.test(t)) return [{ filas: '[{"id":1}]', n: 1 }];
         return [];
       } }),
       end: async () => { pg.terminado = true; },
@@ -385,6 +386,12 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
     eq('con el secreto y un volcado de hoy: 200, aplicada, por el driver con prepare:false y cerrando la conexión', [si.status, cuerpo.aplicado, cuerpo.ventas, pg.opciones.prepare, pg.terminado, pg.url === URL_BD],
       [200, true, 220, false, true, true]);
     eq('y por el driver pasaron: candado, tiempo, importador, cambios, limpiar, cuadre, anotar', pg.sentencias.map(clase), ['candado', 'tiempo', 'importador', 'cambios', 'limpiar', 'cuadre', 'anotar']);
+    const pr = await pedir(SECRETO, JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }));
+    const prTexto = await pr.text();
+    const pg2 = globalThis.__al3dUltimoPg;
+    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (18 tablas), en una transacción de solo lectura, cerrando la conexión',
+      [pr.status, JSON.parse(prTexto).formato, Object.keys(JSON.parse(prTexto).tablas).length, pg2.sentencias[0], pg2.sentencias.filter(t => /json_agg/.test(t)).length, pg2.terminado],
+      [200, 'al3d-respaldo-1', 18, 'set transaction isolation level repeatable read, read only', 18, true]);
     delete envB.IMPORTAR_SECRETO;
     const sinSec = await pedir(SECRETO, JSON.stringify(v));
     eq('y sin el secreto en el entorno: 503', sinSec.status, 503);
@@ -406,7 +413,7 @@ function formatear(d, tz, patron) {
   return String(patron).replace('yyyy', p.year).replace('MM', p.month).replace('dd', p.day).replace('HH', p.hour).replace('mm', p.minute);
 }
 /** La hoja de mentiras para el .gs: pestañas como matrices; escribir en ellas truena. */
-function libroFalso() {
+function libroFalso(extra = {}) {
   const fecha = (s, h = '00:00') => new Date(s + 'T' + h + ':00-06:00');
   const tabs = {
     'Ventas': [['Folio', 'Proyecto', 'Estatus', 'Cuenta', 'Tipo', 'IVA', 'Subtotal'], ['V-001', 'PersonaGs - NegocioGs', 'COBRANDO', 'Elias BBVA', 'Rotulacion de vinil', 'No', 1500.5],
@@ -415,6 +422,7 @@ function libroFalso() {
     'Accesos': [['Correo', 'Rol', 'Nota'], ['dir@al3d.test', 'direccion', ''], ['x', true, new Date(NaN)]],
     'Bitácora del puente': [['Cuándo', 'Rol', 'Folio'], [fecha('2026-09-01'), 'direccion', 'V-002']],
     'Pestaña que no se manda': [['nada'], ['secreto']],
+    ...extra,
   };
   const escribir = () => { throw new Error('la copia NO escribe en la hoja'); };
   const hoja = (nombre, m) => {
@@ -425,30 +433,68 @@ function libroFalso() {
       appendRow: escribir, deleteRow: escribir, insertRowsAfter: escribir };
   };
   const leidas = [];
-  return { leidas, getSheetByName: n => (tabs[n] ? (leidas.push(n), hoja(n, tabs[n])) : null), getSpreadsheetTimeZone: () => 'America/Mexico_City', getName: () => 'Finanzas AL3D (de mentiras)',
+  return { tabs, leidas, getSheetByName: n => (tabs[n] ? (leidas.push(n), hoja(n, tabs[n])) : null), getSpreadsheetTimeZone: () => 'America/Mexico_City', getName: () => 'Finanzas AL3D (de mentiras)',
     insertSheet: escribir };
 }
-function cargarGs(fuente, { props = {}, respuesta = { status: 200, texto: '{}' }, conPuenteVersion = true, falloFetch = null } = {}) {
-  const reg = { logs: [], fetch: [], orden: [], drive: [] };
+/* El Utilities de Apps Script que hace falta: computeHmacSha256Signature como el de VERDAD (US-ASCII con un «?» por cada carácter
+   que no lo sea, bytes con signo; comprobado el 2026-10-10, pruebas/datos/hmac-apps-script-real.json y pruebas/supabase-sello.mjs),
+   computeDigest sobre bytes (con signo, como getContent()) y newBlob. */
+const asciiInterr = s => Uint8Array.from([...String(s)].map(c => (c.codePointAt(0) < 128 ? c.codePointAt(0) : 63)));
+const aSigno = buf => Array.from(buf, b => (b > 127 ? b - 256 : b));
+const sinSigno = a => Buffer.from(Array.from(a, b => (b + 256) % 256));
+const UTILITIES = {
+  formatDate: formatear,
+  DigestAlgorithm: { SHA_256: 'sha256' },
+  Charset: { UTF_8: 'utf8' },
+  computeHmacSha256Signature: (valor, clave) => aSigno(createHmac('sha256', asciiInterr(clave)).update(asciiInterr(valor)).digest()),
+  computeDigest: (alg, valor) => { if (!Array.isArray(valor)) throw new Error('el doble solo sabe digerir bytes'); return aSigno(createHash(alg).update(sinSigno(valor)).digest()); },
+  newBlob: (bytes, tipo, nombre) => ({ bytes, tipo, nombre, getBytes: () => bytes }),
+};
+/** Una respuesta de UrlFetchApp: status, texto o bytes (con signo, como getContent()) y cabeceras. */
+function respuestaFalsa({ status = 200, texto = '', bytes = null, cabeceras = {} } = {}) {
+  const b = bytes || aSigno(Buffer.from(texto, 'utf8'));
+  return { getResponseCode: () => status, getContentText: () => (bytes ? sinSigno(bytes).toString('utf8') : texto), getContent: () => b, getHeaders: () => ({ ...cabeceras }) };
+}
+/**
+ * Un .gs (o varios, en orden, en el MISMO contexto: así comparten el ámbito global como los archivos de un proyecto de Apps
+ * Script) con los servicios de mentiras. `rutas(u, o)` contesta lo que no es la función (Drive); `drive` es el DriveApp.
+ */
+function cargarGs(fuente, { props = {}, respuesta = { status: 200, texto: '{}' }, conPuenteVersion = true, falloFetch = null, tabs = {}, rutas = null, drive = null } = {}) {
+  const reg = { logs: [], fetch: [], orden: [], drive: [], permisos: [] };
   const triggers = [{ fn: 'enviarResumen' }, { fn: 'alEditar' }];
-  const libro = libroFalso();
+  const libro = libroFalso(tabs);
+  const driveQueAnota = new Proxy({}, { get: (_, metodo) => (...args) => {
+    if (metodo === 'createFile') { reg.drive.push({ nombre: args[0], contenido: args[1] }); return { getUrl: () => 'https://drive.falso/archivo' }; }
+    reg.drive.push({ metodo }); throw new Error('no hay Drive en esta prueba');
+  } });
   const ctx = vm.createContext({
     SpreadsheetApp: { getActive: () => libro },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: () => { throw new Error('no escribe propiedades'); } }) },
-    Utilities: { formatDate: formatear },
+    Utilities: UTILITIES,
     Logger: { log: x => reg.logs.push(String(x)) },
+    console: { log: x => reg.logs.push(String(x)), error: x => reg.logs.push(String(x)) },
     LockService: { getScriptLock: () => ({ waitLock: () => reg.orden.push('candado'), tryLock: () => (reg.orden.push('candado'), true), releaseLock: () => reg.orden.push('soltar') }) },
-    UrlFetchApp: { fetch: (u, o) => { reg.orden.push('mandar'); reg.fetch.push({ u, o }); if (falloFetch) throw falloFetch; return { getResponseCode: () => respuesta.status, getContentText: () => respuesta.texto }; } },
+    UrlFetchApp: { fetch: (u, o) => {
+      reg.orden.push('mandar'); reg.fetch.push({ u, o });
+      if (falloFetch) throw falloFetch;
+      const otra = rutas ? rutas(u, o || {}) : null;
+      if (otra) return otra;
+      return respuesta.getResponseCode ? respuesta : respuestaFalsa(respuesta);
+    } },
     ScriptApp: {
+      AuthMode: { FULL: 'FULL' }, WeekDay: { SUNDAY: 'SUNDAY' },
+      getOAuthToken: () => 'token-FALSO-de-la-hoja',
+      requireScopes: (modo, alcances) => { reg.permisos.push(alcances.slice()); },
       getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => t.fn, _t: t })),
       deleteTrigger: x => { const i = triggers.indexOf(x._t); if (i >= 0) triggers.splice(i, 1); },
       newTrigger: fn => { const t = { fn, cadena: [] }; const b = { timeBased: () => (t.cadena.push('timeBased'), b), atHour: h => (t.cadena.push('atHour:' + h), b),
-        everyDays: n => (t.cadena.push('everyDays:' + n), b), inTimezone: z => (t.cadena.push('inTimezone:' + z), b), create: () => { triggers.push(t); return {}; } }; return b; },
+        everyDays: n => (t.cadena.push('everyDays:' + n), b), onWeekDay: d => (t.cadena.push('onWeekDay:' + d), b), inTimezone: z => (t.cadena.push('inTimezone:' + z), b),
+        create: () => { triggers.push(t); return {}; } }; return b; },
     },
-    DriveApp: { createFile: (nombre, contenido) => { reg.drive.push({ nombre, contenido }); return { getUrl: () => 'https://drive.falso/archivo' }; } },
+    DriveApp: drive || driveQueAnota,
     ...(conPuenteVersion ? { PUENTE_VERSION: 'puente-sheets-14' } : {}),
   });
-  vm.runInContext(fuente, ctx, { filename: 'gs' });
+  for (const f of [].concat(fuente)) vm.runInContext(f, ctx, { filename: 'gs' });
   return { ctx, reg, triggers, libro };
 }
 const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/functions/v1/importar-diario', IMPORTAR_SECRETO: SECRETO };
@@ -475,8 +521,9 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   const v = cargarGs(VOL_GS, {});
   v.ctx.volcarParaImportar();
   const deDrive = JSON.parse(v.reg.drive[0].contenido);
-  const sinHora = x => ({ ...x, hecho: 'x' });
-  eq('lo que manda es EXACTAMENTE el volcado de volcado-para-importar.gs (salvo la hora en que se hizo)', sinHora(mandado), sinHora(deDrive));
+  const sinHora = x => { const { autorizaciones_comprobadas: _, ...resto } = x; return { ...resto, hecho: 'x' }; };
+  eq('lo que manda es EXACTAMENTE el volcado de volcado-para-importar.gs (salvo la hora en que se hizo y la comprobación de las firmas)', sinHora(mandado), sinHora(deDrive));
+  eq('sin Código.gs junto (aquí está solo): no comprueba ninguna firma y lo dice', mandado.autorizaciones_comprobadas, { version: 1, filas: [], sin: 'codigo' });
   eq('las mismas pestañas en los dos archivos', /var COPIA_PESTANAS = (\[[\s\S]*?\]);/.exec(GS)[1].replace(/\s+/g, ' '), /var VOLCADO_PESTANAS = (\[[\s\S]*?\]);/.exec(VOL_GS)[1].replace(/\s+/g, ' '));
   eq('con fechas como {$fecha,$hora,$ms} en la zona de la hoja, y una fecha inválida como celda vacía', [mandado.pestanas['Abonos comisión'][1][3].$fecha, mandado.pestanas['Abonos comisión'][1][3].$hora, mandado.pestanas['Accesos'][2][2]],
     ['2026-09-15', '10:30', '']);
@@ -512,9 +559,135 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   const propios = nombres(GS);
   eq('ningún nombre de copia-diaria.gs existe en Código.gs (hoja-apps-script.gs) ni en volcado-para-importar.gs: pegado junto, no pisa nada',
     [...propios].filter(n => nombres(PUENTE_GS).has(n) || nombres(VOL_GS).has(n)), []);
-  eq('y todos llevan su prefijo (o son las tres que se eligen en el editor)', [...propios].filter(n => !/^(copia|Copia|COPIA_)/.test(n) && !['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].includes(n)), []);
-  cierto('las tres que se eligen en el editor no terminan en _ (Apps Script esconde esas)', ['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria'].every(n => propios.has(n)));
-  cierto('y no usa nada que escriba: ni setValue(s), ni appendRow, ni DriveApp, ni setProperty', !/setValues?\(|appendRow|DriveApp|setProperty|deleteProperty/.test(GS.replace(/\/\*[\s\S]*?\*\//g, '')));
+  const EDITOR = ['copiarHojaASupabase', 'instalarCopiaDiaria', 'quitarCopiaDiaria', 'respaldarSemanal', 'instalarRespaldoSemanal', 'quitarRespaldoSemanal'];
+  eq('y todos llevan su prefijo (o son las seis que se eligen en el editor)', [...propios].filter(n => !/^(copia|Copia|COPIA_)/.test(n) && !EDITOR.includes(n)), []);
+  cierto('las seis que se eligen en el editor no terminan en _ (Apps Script esconde esas)', EDITOR.every(n => propios.has(n)));
+  const sinComentarios = GS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const corte = GS.lastIndexOf('/*', GS.indexOf('EL RESPALDO SEMANAL DE LA BASE'));
+  cierto('no usa nada que escriba la hoja ni las propiedades: ni setValue(s), ni appendRow, ni setProperty', !/setValues?\(|appendRow|setProperty|deleteProperty|insertSheet|deleteRow/.test(sinComentarios));
+  cierto('y la COPIA no toca Drive: DriveApp solo aparece en el bloque del respaldo, que va después y no lee la hoja',
+    corte > 0 && !/DriveApp/.test(GS.slice(0, corte).replace(/\/\*[\s\S]*?\*\//g, '')) && !/SpreadsheetApp/.test(GS.slice(corte).replace(/\/\*[\s\S]*?\*\//g, '')));
+}
+
+/* ============================================================================ */
+seccion('9 bis. LAS FIRMAS DE «AUTORIZACIONES», COMPROBADAS DENTRO DE LA HOJA — Código.gs real + copia-diaria.gs en el mismo vm, clave FALSA');
+{
+  const CLAVE = 'CLAVE-FALSA-SOLO-PARA-PRUEBAS-0000';
+  const PROPS_SELLO = { ...PROPS, SELLO_AUTORIZACION: CLAVE };
+  /* Las filas como las deja autorizar() de Código.gs (17 columnas, getValues()), firmadas con SU firmar() en el mismo contexto. */
+  const base = (o) => {
+    const v = new Array(17).fill('');
+    Object.assign(v, { 0: o.ts, 1: o.folio, 2: o.proyecto, 3: 'Cliente de mentiras', 4: o.sub ?? 12500, 5: o.precio ?? 0, 6: o.total ?? 14500, 7: 0, 8: o.items ?? '',
+      9: o.huella ?? 'c|1:Letras~acrilico', 10: 'dir@al3d.test', 11: 'pag@al3d.test', 14: o.estado ?? 'vigente', 15: '', 16: o.renglones ?? '' });
+    return v;
+  };
+  const especies = [
+    { folio: 'COT-0101@K7QM', ts: '2026-09-01T16:00:00.000Z', proyecto: 'Tacos Ana' },                                                  // 2: v1, todo ASCII
+    { folio: 'COT-0102@K7QM', ts: '2026-09-02T16:00:00.000Z', proyecto: 'Taquería «El Güero»', items: '1:500.00',
+      renglones: '[["Letras 3D · 8 × 40 cm «Acrílico»",8,12500]]' },                                                                     // 3: v2 con acentos, ·, × y «»
+    { folio: 'COT-0103@K7QM', ts: '2026-09-03T16:00:00.000Z', proyecto: 'Óptica Luz', estado: 'superada' },                              // 4: superada, buena
+    { folio: 'COT-0104@K7QM', ts: '2026-09-04T16:00:00.000Z', proyecto: 'Total movido', alterar: v => { v[6] = 15500; } },               // 5: el total, a mano
+    { folio: 'COT-0105@K7QM', ts: '2026-09-05T16:00:00.000Z', proyecto: 'Nombre', alterar: v => { v[2] = 'Nombre cambiado'; } },          // 6: el negocio, a mano
+    { folio: 'COT-0106@K7QM', ts: '2026-09-06T16:00:00.000Z', proyecto: 'Código', alterar: v => { v[12] = 'AAAA-BBBB-CCCC'; } },          // 7: el código impreso
+    { folio: 'COT-0107@K7QM', ts: '2026-09-07T16:00:00.000Z', proyecto: 'Hora hecha fecha', alterar: v => { v[0] = new Date(v[0]); } },   // 8: la hoja la volvió fecha
+  ];
+  const conCodigo = (props = PROPS_SELLO, o = {}, mas = []) => {
+    const g = cargarGs([PUENTE_GS, GS], { props, ...o });
+    const filasAut = especies.concat(mas).map(e => {
+      const v = base(e);
+      const firma = g.ctx.firmar(g.ctx.registroDeFila(v), CLAVE);
+      v[13] = firma; v[12] = g.ctx.codigoDe(firma);
+      if (e.alterar) e.alterar(v);
+      return v;
+    });
+    filasAut.push(base({ folio: '', ts: '', proyecto: 'renglón a medias, sin folio' }));                                                 // 9: no es una autorización
+    g.libro.tabs['Autorizaciones'] = [['Cuándo (ISO)', 'Folio', 'Proyecto', 'Cliente', 'Subtotal calculado', 'Precio autorizado (neto)', 'Total', 'Ajuste %',
+      'Ajustes por partida', 'Huella', 'Autorizó', 'Solicitó', 'Código', 'Firma', 'Estado', 'Nota', 'Renglones'], ...filasAut];
+    return g;
+  };
+
+  const g = conCodigo();
+  g.ctx.copiarHojaASupabase();
+  const textoMandado = g.reg.fetch[0].o.payload;
+  const mandado = JSON.parse(textoMandado);
+  const ver = mandado.autorizaciones_comprobadas;
+  eq('un veredicto por fila con folio (la 9 no lo tiene): buenas la 2, 3 y 4; las alteradas a mano, no, con su motivo',
+    ver.filas.map(f => [f.fila, f.firma_ok, f.firma_ok ? f.codificacion : f.motivo]),
+    [[2, true, 'ascii-?'], [3, true, 'ascii-?'], [4, true, 'ascii-?'], [5, false, 'firma_no_coincide'], [6, false, 'firma_no_coincide'], [7, false, 'codigo_no_coincide'], [8, false, 'firma_no_coincide']]);
+  eq('las buenas llevan el texto que se firmó (canon de Código.gs); las malas, nada más que su motivo',
+    [ver.filas.filter(f => f.firma_ok).every(f => typeof f.canon === 'string' && f.canon.startsWith('AL3D-AUTH-v')), ver.filas.filter(f => !f.firma_ok).every(f => Object.keys(f).sort().join() === 'fila,firma_ok,motivo')],
+    [true, true]);
+  eq('NUNCA la clave: ni en lo que se manda (tal cual o escapada), ni en el registro, ni una firma recalculada de las malas',
+    [textoMandado.includes(CLAVE), textoMandado.includes(JSON.stringify(CLAVE).slice(1, -1)), g.reg.logs.join('\n').includes(CLAVE),
+      ver.filas.some(f => 'firma' in f || 'clave' in f || 'secreto' in f)], [false, false, false, false]);
+  eq('y la comprobación se hizo con el candado puesto, antes de mandar (lee una sola vez)', g.reg.orden, ['candado', 'soltar', 'mandar']);
+  const cg = vm.runInContext('copiaHayNotario_()', g.ctx);
+  cierto('copiaHayNotario_ ve las funciones de Código.gs desde el otro archivo (ámbito global compartido)', cg === true);
+
+  /* Lo que mandó la hoja, a la función (con un volcado de 220 ventas que cuadra, para ver que lo de las firmas no frena nada). */
+  const vol = { ...VOLCADO, pestanas: { ...VOLCADO.pestanas, 'Autorizaciones': mandado.pestanas['Autorizaciones'] }, autorizaciones_comprobadas: ver };
+  const b = baseFalsa();
+  const r = await llamar({ base: b, cuerpo: JSON.stringify(vol) });
+  eq('la función: aplicada y CUADRA; entran las 3 buenas, 4 no entran y NO frenan la copia (ni rechazos ni conflictos)',
+    [r.status, r.c.aplicado, r.c.cuadra, r.c.rechazos, r.c.conflictos, r.c.autorizaciones], [200, true, true, 0, 0, { comprobadas: 3, no_entran: 4 }]);
+  const sqlCopia = b.tx[0].find(x => x.e && clase(x.e) === 'importador').e;
+  const firmaDe = n => mandado.pestanas['Autorizaciones'][n - 1][13];
+  eq('al SQL van las firmas de las filas 2, 3 y 4, y ninguna de las otras', [2, 3, 4, 5, 6, 7, 8].map(n => sqlCopia.includes(firmaDe(n))), [true, true, true, false, false, false, false]);
+  const res = JSON.parse(b.insertados[0][6]);
+  eq('el renglón de cuadre_diario dice qué filas no entraron y por qué (lista cerrada), sin folios ni nombres; la 7 (código cambiado) ya la para el importador antes',
+    res.no_importado.find(x => x.que === 'Autorizaciones'), { que: 'Autorizaciones', n: 4, filas: [5, 6, 7, 8], motivos: { firma_no_coincide: 3, fila_mal_formada: 1 } });
+  eq('ni el renglón, ni la respuesta, ni el registro llevan nombres, importes, el secreto ni la clave',
+    [fugas(b.insertados[0][6] + r.texto + r.reg.join('\n')), (b.insertados[0][6] + r.texto + r.reg.join('')).includes(CLAVE), /COT-01/.test(b.insertados[0][6])], [[], false, false]);
+  const linea = g.ctx.copiaLinea_(200, r.c, 220, 4.2);
+  cierto('la línea del registro de la hoja lo cuenta: «3 autorizaciones con firma buena (4 no entran…)»', /3 autorizaciones con firma buena \(4 no entran/.test(linea));
+
+  /* Lo que se guardaría es lo que se firmó: sello.js (otra implementación, WebCrypto) lo recalcula con la clave desde la fila del plan. */
+  const plan = await planear({ volcado: vol, semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  const S = await import(url('supabase/functions/_shared/sello.js'));
+  const comoBase = a => ({ ...a, sub_calc: a.sub_calc_txt, precio_auth: a.precio_auth_txt, total: a.total_txt });
+  const v = [];
+  for (const a of plan.tablas.autorizaciones) v.push([a.fila_hoja, a.codificacion, (await S.verificar(comoBase(a), CLAVE)).valida]);
+  eq('cada autorización que entra se verifica después con la clave, desde lo que guardaría la base, con SU codificación (ascii-?)', v,
+    [[2, 'ascii-?', true], [3, 'ascii-?', true], [4, 'ascii-?', true]]);
+
+  /* El importador de línea de comandos NO cree el veredicto: sin la clave, ninguna entra. */
+  const cli = await planear({ volcado: vol, semilla: SEMILLA });
+  eq('planear sin aceptarVeredictosDeLaHoja (como scripts/importar-hoja.mjs): ninguna entra; «falta la clave»', [cli.tablas.autorizaciones.length, cli.reporte.no_importado.find(x => x.que === 'Autorizaciones').n,
+    /falta la clave/.test(cli.reporte.no_importado.find(x => x.que === 'Autorizaciones').por)], [0, 7, true]);
+  cierto('y scripts/importar-hoja.mjs llama planear solo con volcado, teléfonos y la clave del entorno', /planear\(\{ volcado, telefonos, clave: env\.AL3D_SELLO_CLAVE \|\| null \}\)/.test(leer('scripts/importar-hoja.mjs')));
+  const conClave = await planear({ volcado: vol, semilla: SEMILLA, clave: CLAVE, aceptarVeredictosDeLaHoja: true });
+  eq('con la clave a la mano, manda la clave (se recalcula aquí; el veredicto no se usa): entra también la 8, cuya hora la hoja volvió fecha y aquí se reconstruye ' +
+    '(la hoja dice que no porque su /verificar ya no la reconoce)', conClave.tablas.autorizaciones.map(a => a.fila_hoja), [2, 3, 4, 8]);
+
+  /* Un veredicto que no cuadra con la fila que llegó: no se le cree. */
+  const t = JSON.parse(JSON.stringify(vol));
+  t.pestanas['Autorizaciones'][1][2] = 'Tacos Ana y Asociados';                                                // la 2 dice otra cosa que lo que se comprobó
+  t.autorizaciones_comprobadas.filas.find(f => f.fila === 3).codificacion = 'utf-16';                           // la 3, con una codificación que no existe
+  t.autorizaciones_comprobadas.filas.push({ ...t.autorizaciones_comprobadas.filas.find(f => f.fila === 4) });    // la 4, dos veces
+  const p2 = await planear({ volcado: t, semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  eq('texto distinto del comprobado, codificación inventada, veredicto repetido: ninguna entra, cada una con su motivo',
+    [p2.tablas.autorizaciones.length, p2.reporte.no_importado.find(x => x.que === 'Autorizaciones').detalle.filter(x => x.fila <= 4).map(x => x.fila + ':' + x.motivo)],
+    [0, ['2:texto_distinto', '3:veredicto_invalido', '4:sin_veredicto']]);
+  const gDos = conCodigo(PROPS_SELLO, {}, [{ folio: 'COT-0101@K7QM', ts: '2026-09-09T16:00:00.000Z', proyecto: 'Tacos Ana', total: 15000 }]);   // fila 9: otra vigente de la 2
+  gDos.ctx.copiarHojaASupabase();
+  const p3 = await planear({ volcado: { ...VOLCADO, ...JSON.parse(gDos.reg.fetch[0].o.payload), pestanas: { ...VOLCADO.pestanas, 'Autorizaciones': JSON.parse(gDos.reg.fetch[0].o.payload).pestanas['Autorizaciones'] } },
+    semilla: SEMILLA, aceptarVeredictosDeLaHoja: true });
+  eq('dos vigentes del mismo folio (las dos con firma buena): en la copia diaria no se decide; las dos esperan en la hoja, sin conflicto que frene',
+    [p3.tablas.autorizaciones.map(a => a.fila_hoja), p3.reporte.conflictos.length, p3.reporte.no_importado.find(x => x.que === 'Autorizaciones').detalle.filter(x => x.motivo === 'dos_vigentes').map(x => x.fila)],
+    [[3, 4], 0, [2, 9]]);
+
+  /* Sin clave en la hoja, sin Código.gs, o con la hoja vieja (sin comprobación): no entra ninguna, se dice y la copia sigue. */
+  const sinClave = conCodigo(PROPS);
+  sinClave.ctx.copiarHojaASupabase();
+  const mSin = JSON.parse(sinClave.reg.fetch[0].o.payload);
+  eq('sin SELLO_AUTORIZACION en las propiedades: { sin: clave } y NO crea una (setProperty truena en el doble)', mSin.autorizaciones_comprobadas, { version: 1, filas: [], sin: 'clave' });
+  for (const [que, comp, motivo] of [['la hoja sin clave', mSin.autorizaciones_comprobadas, 'sin_clave_en_la_hoja'], ['sin Código.gs', { version: 1, filas: [], sin: 'codigo' }, 'sin_codigo_gs'],
+    ['un volcado de antes (sin comprobación)', undefined, 'sin_comprobacion']]) {
+    const b2 = baseFalsa();
+    const r2 = await llamar({ base: b2, cuerpo: JSON.stringify({ ...vol, autorizaciones_comprobadas: comp }) });
+    eq(que + ': aplicada y cuadra; las 7 no entran, con su motivo', [r2.c.aplicado, r2.c.cuadra, r2.c.autorizaciones, JSON.parse(b2.insertados[0][6]).no_importado.find(x => x.que === 'Autorizaciones').motivos],
+      [true, true, { comprobadas: 0, no_entran: 7 }, { [motivo]: 7 }]);
+  }
 }
 
 /* ============================================================================ */
@@ -547,6 +720,218 @@ seccion('10. AJUSTES — la racha de la copia diaria, y apagado no cambia nada')
   const sw = leer('sw.js');
   cierto('sw.js: APP_VERSION subió (los teléfonos bajan el Ajustes nuevo) y lleva los tres archivos que cambiaron', Number((/const APP_VERSION = (\d+);/.exec(sw) || [])[1]) >= 122 &&
     ['js/mod/ajustes.js', 'js/datos/supa-enchufe.js', 'js/datos/supa-cuadre.js'].every(a => sw.includes("'./" + a + "'")));
+}
+
+/* ============================================================================ */
+seccion('11. EL RESPALDO SEMANAL, POR importar-diario — con el MISMO secreto, la base entera en un JSON, de solo lectura');
+const R = await import(url('supabase/functions/_shared/respaldo.js'));
+const RD = await import(url('supabase/functions/importar-diario/respaldo.js'));
+const PEDIDO = JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 });
+/** La base de mentiras para el respaldo: contesta cada json_agg con las filas de su tabla (texto, como Postgres). */
+function baseDeRespaldo(o = {}) {
+  const m = { tx: [], abiertas: 0, cerradas: 0 };
+  m.base = {
+    transaccion: async fn => {
+      const log = ['begin']; m.tx.push(log);
+      try {
+        const r = await fn({
+          ejecutar: async t => { log.push({ e: t }); },
+          consultar: async t => {
+            log.push({ q: t });
+            if (o.falla) throw o.falla;
+            const tabla = /from public\.([a-z_]+) x$/.exec(t)[1];
+            if (o.texto && o.texto[tabla]) return [{ filas: o.texto[tabla], n: 1 }];
+            const filas = (o.tablas || {})[tabla] || [];
+            return [{ filas: filas.length ? '[' + filas.map(f => JSON.stringify(f)).join(', \n ') + ']' : '[]', n: filas.length }];
+          },
+        });
+        log.push('commit'); return r;
+      } catch (e) { log.push('rollback'); throw e; }
+    },
+    cerrar: async () => { m.cerradas++; },
+  };
+  m.abrir = () => { m.abiertas++; return m.base; };
+  return m;
+}
+/** La respuesta de la función, cruda (bytes y cabeceras): es lo que recibe UrlFetchApp. */
+async function pedirRespaldo({ secreto = SECRETO, entorno = {}, base = baseDeRespaldo(), cuerpo = PEDIDO } = {}) {
+  const env = { IMPORTAR_SECRETO: SECRETO, SUPABASE_DB_URL: URL_BD, SUPABASE_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co', ...entorno };
+  const reg = [];
+  const h = { 'content-type': 'application/json' };
+  if (secreto !== null) h['x-importar-secreto'] = secreto;
+  const res = await H.manejar(new Request('https://falso.supabase.co/functions/v1/importar-diario', { method: 'POST', headers: h, body: cuerpo }),
+    { ahora: () => AHORA, entorno: n => env[n], semilla: SEMILLA, abrirBase: base.abrir, registrar: (n, l) => reg.push(n + ' ' + l) });
+  const bytes = Buffer.from(await res.arrayBuffer());
+  return { status: res.status, bytes, texto: bytes.toString('utf8'), cab: Object.fromEntries(res.headers.entries()), reg, base };
+}
+/* Unas tablas de mentiras con datos de clientes (para ver que no salen al registro) y caracteres que no son ASCII. */
+const TABLAS_FALSAS = {
+  empresas: [{ id: 'al3d', nombre: 'AL3D' }],
+  proyectos: [{ id: 'p1', nombre: 'PersonaRespaldo - Taquería «Ñandú»', tel: '33 41234567' }, { id: 'p2', nombre: 'Otra 😀', tel: '' }],
+  abonos: [{ id: 1, importe: 1500.5, nota: 'abono de mentiras' }],
+  autorizaciones: [{ id: 7, folio_global: 'COT-0101@K7QM', renglones: '[["Letras 3D · 8 × 40 cm",8,12500]]' }],
+};
+{
+  const b = baseDeRespaldo({ tablas: TABLAS_FALSAS });
+  const r = await pedirRespaldo({ base: b });
+  const sha = createHash('sha256').update(r.bytes).digest('hex');
+  eq('200, JSON, sin caché, con nombre, huella, bytes y filas en las cabeceras (y la huella y los bytes son los del cuerpo)',
+    [r.status, r.cab['content-type'], r.cab['cache-control'], R.PATRON_NOMBRE.test(r.cab['x-respaldo-nombre']), r.cab['x-respaldo-sha256'] === sha, r.cab['x-respaldo-bytes'] === String(r.bytes.length), r.cab['x-respaldo-filas']],
+    [200, 'application/json; charset=utf-8', 'no-store', true, true, true, '5']);
+  const j = JSON.parse(r.texto);
+  const tablas = Object.fromEntries(R.TABLAS.map(t => [t.nombre, TABLAS_FALSAS[t.nombre] || []]));
+  eq('el archivo es EXACTAMENTE el de la función respaldo (armarArchivo, «al3d-respaldo-1»): mismas llaves, mismo orden, mismas filas', j,
+    JSON.parse(R.armarArchivo({ tablas, ahoraMs: AHORA, origen: 'gwzfdprdrdudfakjsdxf.supabase.co' })));
+  eq('con las 18 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
+  eq('UNA transacción de solo lectura (repeatable read: una foto exacta), con tope de tiempo y una consulta por tabla; ni candado ni escritura',
+    b.tx.map(log => log.map(x => (typeof x === 'string' ? x : x.e !== undefined ? 'E:' + x.e : 'Q'))).map(l => [l.slice(0, 4), l.length]),
+    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 18 + 1]]);
+  cierto('cada tabla con su orden de llave primaria, nombres solo de TABLAS', R.TABLAS.every(t => b.tx[0].some(x => x.q === RD.consultaDeTabla(t))) &&
+    RD.consultaDeTabla({ nombre: 'contadores', orden: 'empresa_id,clave,ventana' }).includes('json_agg(x order by x.empresa_id, x.clave, x.ventana)'));
+  let lanzo = false; try { RD.consultaDeTabla({ nombre: 'x; drop table y', orden: 'id' }); } catch (_) { lanzo = true; }
+  cierto('un nombre de tabla raro no se arma', lanzo);
+  eq('al registro: una línea de info con bytes y filas; ni un dato de cliente, ni el secreto, ni la base', [r.reg.length, /"evento":"respaldo"/.test(r.reg[0]),
+    /PersonaRespaldo|Ñandú|33 41|abono de mentiras|1500/.test(r.reg.join('')), fugas(r.reg.join(''))], [1, true, false, []]);
+  eq('se cerró la conexión', [b.abiertas, b.cerradas], [1, 1]);
+
+  const otro = await pedirRespaldo({ secreto: SECRETO.slice(0, -1) + 'Z' });
+  const sinSec = await pedirRespaldo({ entorno: { IMPORTAR_SECRETO: undefined } });
+  eq('con otro secreto: 401 y la base ni se abre; sin IMPORTAR_SECRETO en la función: 503 y nada', [otro.status, otro.base.abiertas, sinSec.status, sinSec.base.abiertas], [401, 0, 503, 0]);
+  const malPedido = await pedirRespaldo({ cuerpo: JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 2 }) });
+  eq('un pedido de otra versión no es respaldo (ni volcado): 400 y la base ni se abre', [malPedido.status, malPedido.base.abiertas], [400, 0]);
+  const grande = await pedirRespaldo({ base: baseDeRespaldo({ texto: { proyectos: '["' + 'x'.repeat(RD.TOPE_RESPALDO) + '"]' } }) });
+  eq('más de 45 MB: 413 RESPALDO_GRANDE, sin mandar nada (UrlFetchApp no recibe más de 50)', [grande.status, JSON.parse(grande.texto).codigo, grande.bytes.length < 2000], [413, 'RESPALDO_GRANDE', true]);
+  const err = Object.assign(new Error('could not read: PersonaRespaldo ' + URL_BD), { code: '57014' });
+  const caida = await pedirRespaldo({ base: baseDeRespaldo({ falla: err }) });
+  eq('la base no contesta: 502 BASE_NO_CONTESTA; al registro, el código y nunca el mensaje', [caida.status, JSON.parse(caida.texto).codigo, /57014/.test(caida.reg.join('')),
+    /PersonaRespaldo|could not/.test(caida.reg.join('') + caida.texto), fugas(caida.reg.join('') + caida.texto)], [502, 'BASE_NO_CONTESTA', true, false, []]);
+  /* El CPU: unas 5 000 filas de proyectos (~2 MB). La función solo pega el texto de Postgres: no lo parsea ni lo vuelve a escribir. */
+  const muchas = { proyectos: Array.from({ length: 5000 }, (_, i) => ({ id: 'p' + i, nombre: 'PersonaRespaldo' + i + ' - Negocio', notas: 'n'.repeat(300) })) };
+  const bm = baseDeRespaldo({ tablas: muchas });
+  const c0 = process.cpuUsage();
+  const rm = await pedirRespaldo({ base: bm });
+  const cpu = (d => (d.user + d.system) / 1000)(process.cpuUsage(c0));
+  console.log(`  ·    respaldo de ${Math.round(rm.bytes.length / 1024)} KB: ${cpu.toFixed(0)} ms de CPU en node (con la base de mentiras armando el texto)`);
+  cierto('y gasta poco CPU (menos de 500 ms con 2 MB; el límite es 2 s)', rm.status === 200 && cpu < 500);
+}
+
+/* ============================================================================ */
+seccion('12. EL RESPALDO SEMANAL EN LA HOJA (copia-diaria.gs, respaldarSemanal), EN vm — lo pide, lo comprueba, lo guarda en «AL3D Respaldos» y deja 8');
+/** Drive de mentiras: unidades compartidas y carpetas (lo que contestaría la API v3) y los archivos de cada carpeta (DriveApp). */
+function driveFalso({ unidades = [{ id: 'unidadAL3DRespaldos01', name: 'AL3D Respaldos' }], carpetas = [], archivos = [], fallaBusqueda = null } = {}) {
+  const d = { creados: [], papelera: [], carpetasCreadas: [], abiertas: [], busquedas: [], archivos };
+  const archivo = o => ({ getId: () => o.id, getName: () => o.name, getDescription: () => o.desc || '', isTrashed: () => !!o.trashed,
+    setTrashed: v => { o.trashed = v; d.papelera.push(o.name); }, setDescription: x => { o.desc = x; } });
+  const carpeta = id => ({
+    getFiles: () => { const l = archivos.filter(a => a.carpeta === id).map(archivo); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; },
+    createFile: blob => { const o = { id: 'archivoNuevo' + (d.creados.length + 1) + 'xxxx', name: blob.nombre, tipo: blob.tipo, bytes: blob.bytes, carpeta: id }; archivos.push(o); d.creados.push(o); return archivo(o); },
+  });
+  d.DriveApp = { getFolderById: id => { d.abiertas.push(id); return carpeta(id); }, createFolder: n => { d.carpetasCreadas.push(n); return carpeta('carpetaCreadaMiUnidad1'); } };
+  d.rutas = (u, o) => {
+    if (!u.startsWith('https://www.googleapis.com/drive/v3/')) return null;
+    d.busquedas.push({ u, auth: o.headers && o.headers.Authorization, q: new URL(u).searchParams.get('q') });
+    if (fallaBusqueda) return respuestaFalsa({ status: fallaBusqueda, texto: '{"error":{"code":' + fallaBusqueda + '}}' });
+    if (u.includes('/drive/v3/drives?')) return respuestaFalsa({ texto: JSON.stringify({ drives: unidades }) });
+    return respuestaFalsa({ texto: JSON.stringify({ files: carpetas }) });
+  };
+  return d;
+}
+/** Lo que contesta la función de verdad (handler.js) a un pedido de respaldo, como respuesta de UrlFetchApp. */
+async function respuestaDeLaFuncion(cambiar) {
+  const r = await pedirRespaldo({ base: baseDeRespaldo({ tablas: TABLAS_FALSAS }) });
+  const x = { status: r.status, bytes: aSigno(r.bytes), cabeceras: { 'X-Respaldo-Nombre': r.cab['x-respaldo-nombre'], 'X-Respaldo-Sha256': r.cab['x-respaldo-sha256'],
+    'X-Respaldo-Bytes': r.cab['x-respaldo-bytes'], 'X-Respaldo-Filas': r.cab['x-respaldo-filas'], 'Content-Type': r.cab['content-type'] } };
+  if (cambiar) cambiar(x);
+  return respuestaFalsa(x);
+}
+const MARCA = /var COPIA_RESPALDO_MARCA = '([^']+)';/.exec(GS)[1];
+/* Lo que ya había en la carpeta: 9 respaldos de este script (uno ya en la papelera), uno que se llama igual pero sin la marca (alguien lo dejó
+   a mano) y otro archivo cualquiera. */
+const yaHabia = id => [
+  ...Array.from({ length: 9 }, (_, i) => ({ id: 'viejo' + i + 'xxxxxxxxxx', name: `al3d-respaldo-2026-08-${String(10 + i)}T112300Z.json`, desc: MARCA, carpeta: id })),
+  { id: 'enPapelera0xxxxxxx', name: 'al3d-respaldo-2026-07-01T112300Z.json', desc: MARCA, carpeta: id, trashed: true },
+  { id: 'ajeno0xxxxxxxxxxx', name: 'al3d-respaldo-2026-01-01T000000Z.json', desc: '', carpeta: id },
+  { id: 'otro0xxxxxxxxxxxx', name: 'notas.txt', desc: MARCA, carpeta: id },
+];
+{
+  const d = driveFalso({ archivos: yaHabia('unidadAL3DRespaldos01') });
+  const resp = await respuestaDeLaFuncion();
+  const g = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: resp, rutas: d.rutas, drive: d.DriveApp });
+  const linea = g.ctx.respaldarSemanal();
+  eq('pide el respaldo a la función: POST, con el secreto en la cabecera, sin seguir redirecciones, cuerpo «al3d-pedir-respaldo»', [g.reg.fetch[0].u, g.reg.fetch[0].o.method,
+    g.reg.fetch[0].o.headers['x-importar-secreto'] === SECRETO, g.reg.fetch[0].o.followRedirects, g.reg.fetch[0].o.payload], [PROPS.IMPORTAR_URL, 'post', true, false, PEDIDO]);
+  eq('busca la unidad compartida «AL3D Respaldos» por nombre, con el permiso de la hoja (su token), y guarda AHÍ',
+    [d.busquedas.map(b => b.q), d.busquedas[0].auth, d.abiertas, d.carpetasCreadas], [["name = 'AL3D Respaldos'"], 'Bearer token-FALSO-de-la-hoja', ['unidadAL3DRespaldos01'], []]);
+  const nuevo = d.creados[0];
+  eq('UN archivo, con el nombre que dio la función, JSON, con los MISMOS bytes que llegaron y la marca del script',
+    [d.creados.length, nuevo.name, nuevo.tipo, Buffer.compare(sinSigno(nuevo.bytes), sinSigno(resp.getContent())) === 0, nuevo.desc === MARCA, R.PATRON_NOMBRE.test(nuevo.name)],
+    [1, resp.getHeaders()['X-Respaldo-Nombre'], 'application/json', true, true, true]);
+  eq('se quedan 8 (el nuevo y los 7 más recientes); los 2 más viejos de los SUYOS van a la papelera; el ajeno, el de otro nombre y el que ya estaba en la papelera no se tocan',
+    d.papelera.sort(), ['al3d-respaldo-2026-08-10T112300Z.json', 'al3d-respaldo-2026-08-11T112300Z.json']);
+  cierto('la línea del registro: nombre, dónde, KB, filas y cuántos a la papelera', /guardado al3d-respaldo-2026-10-17T090500Z\.json en «AL3D Respaldos» \(unidad compartida\) · \d+ KB · 5 filas · se quedan 8 respaldos; a la papelera: 2\./.test(linea));
+  eq('y NADA del contenido al registro (nombres, teléfonos, importes), ni el secreto, ni el token', [/PersonaRespaldo|Ñandú|33 41|abono|1500|Letras/.test(g.reg.logs.join('')),
+    g.reg.logs.join('').includes(SECRETO), /token-FALSO/.test(g.reg.logs.join(''))], [false, false, false]);
+  cierto('la hoja ni se leyó', g.libro.leidas.length === 0);
+
+  // otra semana: con lo de la anterior ya rotado, sigue dejando 8
+  const g2 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(x => { x.cabeceras['X-Respaldo-Nombre'] = 'al3d-respaldo-2026-10-24T110000Z.json'; }), rutas: d.rutas, drive: d.DriveApp });
+  g2.ctx.respaldarSemanal();
+  eq('a la semana siguiente: 8 de los suyos vivos, el más viejo a la papelera', [d.archivos.filter(a => a.desc === MARCA && !a.trashed && R.PATRON_NOMBRE.test(a.name)).length, d.papelera.length], [8, 3]);
+
+  // lo que llega mal no se guarda
+  for (const [que, cambiar, patron] of [
+    ['bytes de menos (se cortó)', x => { x.bytes = x.bytes.slice(0, -10); }, /no llegó entero/],
+    ['otra huella', x => { x.cabeceras['X-Respaldo-Sha256'] = '0'.repeat(64); }, /huella sha256 no coincide/],
+    ['algo que no es un respaldo', x => { const t = Buffer.from('{"formato":"otra-cosa"}'); x.bytes = aSigno(t); x.cabeceras['X-Respaldo-Bytes'] = String(t.length);
+      x.cabeceras['X-Respaldo-Sha256'] = createHash('sha256').update(t).digest('hex'); }, /no es un respaldo/],
+  ]) {
+    const dm = driveFalso();
+    const gm = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(cambiar), rutas: dm.rutas, drive: dm.DriveApp });
+    const l = gm.ctx.respaldarSemanal();
+    eq('con ' + que + ': no guarda nada, ni busca la carpeta, y lo dice', [dm.creados.length, dm.busquedas.length, patron.test(l)], [0, 0, true]);
+  }
+  for (const [status, codigo, patron] of [[401, 'SIN_SESION', /secreto no coincide/], [400, 'DATO_INVALIDO', /versión de importar-diario que sabe dar el respaldo/],
+    [413, 'RESPALDO_GRANDE', /45 MB/], [502, 'BASE_NO_CONTESTA', /502 BASE_NO_CONTESTA/]]) {
+    const dm = driveFalso();
+    const gm = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: { status, texto: JSON.stringify({ ok: false, codigo, mensaje: 'PersonaRespaldo' }) }, rutas: dm.rutas, drive: dm.DriveApp });
+    const l = gm.ctx.respaldarSemanal();
+    eq('la función contesta ' + status + ': nada se guarda, la línea da el código y la pista, sin copiar el cuerpo', [dm.creados.length, patron.test(l), /PersonaRespaldo/.test(gm.reg.logs.join(''))], [0, true, false]);
+  }
+
+  // la carpeta: sin unidad compartida, una carpeta con ese nombre; sin nada, se crea en Mi unidad; si Drive no deja buscar, no se crea nada
+  const d1 = driveFalso({ unidades: [], carpetas: [{ id: 'carpetaMiUnidad0001', name: 'AL3D Respaldos' }] });
+  const g3 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d1.rutas, drive: d1.DriveApp });
+  const l3 = g3.ctx.respaldarSemanal();
+  eq('sin unidad compartida: la carpeta con ese nombre (buscada en todas las unidades, sin las de la papelera)', [d1.abiertas, d1.creados.length, d1.carpetasCreadas, /carpeta de Mi unidad/.test(l3),
+    /mimeType = 'application\/vnd\.google-apps\.folder' and trashed = false/.test(d1.busquedas[1].q), /corpora=allDrives/.test(d1.busquedas[1].u)],
+    [['carpetaMiUnidad0001'], 1, [], true, true, true]);
+  const d2 = driveFalso({ unidades: [], carpetas: [] });
+  const g4 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d2.rutas, drive: d2.DriveApp });
+  const l4 = g4.ctx.respaldarSemanal();
+  eq('sin nada que se llame así: se crea «AL3D Respaldos» en Mi unidad, y la línea lo dice', [d2.carpetasCreadas, d2.creados.length, /se creó/.test(l4)], [['AL3D Respaldos'], 1, true]);
+  const d3 = driveFalso({ fallaBusqueda: 403 });
+  const g5 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d3.rutas, drive: d3.DriveApp });
+  const l5 = g5.ctx.respaldarSemanal();
+  eq('si Drive no deja buscar (403): no crea ninguna carpeta (una búsqueda que falla no es «no existe») ni guarda nada', [d3.carpetasCreadas, d3.creados.length, /permiso de Drive/.test(l5)], [[], 0, true]);
+
+  // instalar y quitar
+  const d4 = driveFalso();
+  const g6 = cargarGs([PUENTE_GS, GS], { props: PROPS, respuesta: await respuestaDeLaFuncion(), rutas: d4.rutas, drive: d4.DriveApp });
+  g6.ctx.instalarCopiaDiaria();
+  const li = g6.ctx.instalarRespaldoSemanal(); g6.ctx.instalarRespaldoSemanal();
+  eq('instalar (dos veces): UN disparador de respaldarSemanal, los domingos de 5 a 6 en hora de México; el de la copia y los de la hoja siguen',
+    g6.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ['copiarHojaASupabase', 'timeBased,atHour:3,everyDays:1,inTimezone:America/Mexico_City'],
+      ['respaldarSemanal', 'timeBased,onWeekDay:SUNDAY,atHour:5,inTimezone:America/Mexico_City']]);
+  eq('pide los permisos de Drive y de conectarse afuera (por si quedaron desmarcados) y hace el primer respaldo en ese momento',
+    [g6.reg.permisos[0], d4.creados.length >= 1, /programado: los domingos entre las 5 y las 6/.test(li) && /guardado al3d-respaldo-/.test(li)],
+    [['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/script.external_request'], true, true]);
+  const lq = g6.ctx.quitarRespaldoSemanal();
+  eq('quitar: solo el suyo', [g6.triggers.map(t => t.fn), /1 disparador quitado/.test(lq)], [['enviarResumen', 'alEditar', 'copiarHojaASupabase'], true]);
+  const g7 = cargarGs([PUENTE_GS, GS], { props: {}, rutas: d4.rutas, drive: d4.DriveApp });
+  const l7 = g7.ctx.instalarRespaldoSemanal();
+  eq('sin IMPORTAR_URL / IMPORTAR_SECRETO: ni programa ni pide nada', [g7.triggers.map(t => t.fn), g7.reg.fetch.length, /no se programó/.test(l7)], [['enviarResumen', 'alEditar'], 0, true]);
+  const g8 = cargarGs([PUENTE_GS, GS], { props: PROPS, falloFetch: new Error('Timeout') });
+  eq('la función no contesta: lo dice y no truena', /no contestó \(Timeout\)/.test(g8.ctx.respaldarSemanal()), true);
 }
 
 console.log('\n' + (mal ? mal + ' FALLA(S) de ' + (bien + mal) + '.' : 'Todo pasa. ' + bien + ' comprobaciones.') +

@@ -12,8 +12,15 @@
 //   CD-05  una venta que la hoja pasa de FABRICACION a COBRANDO sin folio de cotización sigue VIVA (opción a): estatus y montos
 //          nuevos, sin conflicto, cuadra; y lo que la base sigue sin dejar (histórica → viva) es conflicto
 //   CD-06  si algo truena a media copia, se deshace ENTERA y el fallo se anota sin el mensaje de la base
+//   CD-07  las autorizaciones con el veredicto de la hoja (2026-10-17): entran solo las de firma buena, verbatim, y se verifican después
+//          con la clave desde la base; las demás no frenan la copia; la revocación llega; sin el permiso explícito no entra ninguna
+//   CD-08  el respaldo semanal por la misma función (2026-10-17): las 18 tablas en una transacción de solo lectura, JSON válido, cuentas
+//          iguales a count(*), el texto firmado verbatim; y Postgres no deja escribir dentro de ella
 import { describir, prueba, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sesionDe, como, sql, una } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sesionDe, como, sql, una, CLAVE_SELLO_FALSA } from '../comun/semilla.js';
+import { firmar, codigoDe, canonDe, verificar } from '../../functions/_shared/sello.js';
+import { exportar, paquete, MODO_LECTURA } from '../../functions/importar-diario/respaldo.js';
+import { TABLAS } from '../../functions/_shared/respaldo.js';
 import { volcado, filaVentas, dia } from '../comun/hoja-de-mentiras.js';
 import { cincuentaFilas } from '../comun/escenarios-importador.js';
 import { planear } from '../../../scripts/importador/plan.mjs';
@@ -236,6 +243,109 @@ describir('CD-06 si algo truena a media copia, no queda NADA de ella y el fallo 
       const fila = await una(db, `select aplicado, cuadra, resumen->'error' as e from public.cuadre_diario order by id desc limit 1`);
       igual([fila.aplicado, fila.cuadra, fila.e], [false, false, { codigo: '23514', tabla: 'proyectos', restriccion: 'proyectos_inventada' }]);
       sinDatosDeClientes(r.resumen, filas);
+    } finally { await cerrar(db); }
+  });
+});
+
+/* ============================================================================
+   CD-07 — las autorizaciones, con el veredicto de la hoja (decidido 2026-10-17 para que Elías no tenga que mover secretos)
+   ============================================================================ */
+/** Una fila de «Autorizaciones» como la deja autorizar() de Código.gs, firmada con la clave FALSA en ascii-? (como Apps Script), y el
+ *  veredicto que mandaría copia-diaria.gs. Aquí el veredicto se arma con sello.js; que la hoja diga EXACTAMENTE eso con Código.gs real
+ *  lo comprueba pruebas/supabase-importar-diario.mjs (sección 9 bis). Lo que se prueba aquí es lo que la base guarda. */
+async function autorizacion(fila, o) {
+  const r = { folio: o.folio, huella: 'c|1:x', subCalc: 12500, precioAuth: 0, itemsAuth: o.items ?? '', total: o.total ?? 14500, proyecto: o.proyecto,
+    correo: 'dir@al3d.test', ts: o.ts, renglones: o.renglones ?? '' };
+  const firma = await firmar(r, CLAVE_SELLO_FALSA, { codificacion: 'ascii-?' });
+  const celdas = [r.ts, r.folio, r.proyecto, 'Cliente', r.subCalc, r.precioAuth, r.total, '', r.itemsAuth, r.huella, r.correo, 'pag@al3d.test', codigoDe(firma), firma,
+    o.estado ?? 'vigente', '', r.renglones];
+  if (o.alterar) o.alterar(celdas);
+  const veredicto = o.alterar ? { fila, firma_ok: false, motivo: 'firma_no_coincide' } : { fila, firma_ok: true, codificacion: 'ascii-?', canon: canonDe(r) };
+  return { celdas, veredicto };
+}
+async function hojaConAutorizaciones(estado2 = 'vigente') {
+  const { filas, v } = hojaDeCincuenta();
+  const auts = [
+    await autorizacion(2, { folio: 'COT-0101@K7QM', ts: '2026-09-01T16:00:00.000Z', proyecto: 'Tacos Ana', estado: estado2 }),
+    await autorizacion(3, { folio: 'COT-0102@K7QM', ts: '2026-09-02T16:00:00.000Z', proyecto: 'Taquería «El Güero»', items: '1:500.00',
+      renglones: '[["Letras 3D · 8 × 40 cm «Acrílico»",8,12500]]' }),
+    await autorizacion(4, { folio: 'COT-0103@K7QM', ts: '2026-09-03T16:00:00.000Z', proyecto: 'Óptica Luz', estado: 'superada' }),
+    await autorizacion(5, { folio: 'COT-0104@K7QM', ts: '2026-09-04T16:00:00.000Z', proyecto: 'Total movido', alterar: c => { c[6] = 15500; } }),
+  ];
+  const conAut = volcado({ ventas: v.pestanas['Ventas'].slice(1), abonos: v.pestanas['Abonos comisión'].slice(1), autorizaciones: auts.map(a => a.celdas) },
+    { autorizaciones_comprobadas: { version: 1, filas: auts.map(a => a.veredicto) } });
+  return { filas, v: conAut };
+}
+async function correConVeredictos(db, v) {
+  const plan = await planear({ volcado: v, aceptarVeredictosDeLaHoja: true });
+  return copiar({ base: basePGlite(db), plan, volcado: v, ahora: () => (reloj += 7), inicio: reloj });
+}
+const AUTS = `select folio_global, ts_iso, proyecto, sub_calc::text as sub_calc, precio_auth::text as precio_auth, total::text as total, items_auth, huella,
+                     autorizo, renglones, codigo, firma, estado, codificacion, origen, fila_hoja from public.autorizaciones order by folio_global`;
+
+describir('CD-07 las autorizaciones entran con el veredicto de la hoja: solo las de firma buena, tal cual se firmaron, y las demás no frenan la copia', () => {
+  prueba('día 1: entran 3 de 4 con ascii-?, se verifican después con la clave desde la base; la alterada se cuenta con su fila; día 2 igual; día 3 la revocación llega', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      const { filas, v } = await hojaConAutorizaciones();
+      const d1 = await correConVeredictos(db, v);
+      igual([d1.aplicado, d1.cuadra, d1.rechazos, d1.conflictos], [true, true, 0, 0], 'día 1: la copia se aplica y cuadra; la autorización alterada no la frena');
+      const a = await sql(db, AUTS);
+      igual(a.map(x => [x.folio_global, x.estado, x.codificacion, x.origen, x.fila_hoja]),
+        [['COT-0101@K7QM', 'vigente', 'ascii-?', 'importada_hoja', 2], ['COT-0102@K7QM', 'vigente', 'ascii-?', 'importada_hoja', 3], ['COT-0103@K7QM', 'superada', 'ascii-?', 'importada_hoja', 4]],
+        'las tres buenas, con la codificación con que la hoja las firmó');
+      for (const f of a) {
+        const r = await verificar(f, CLAVE_SELLO_FALSA);
+        cierto(r.valida && r.codificacion === 'ascii-?', `${f.folio_global}: /verificar de Supabase la recalcula desde la base con la clave (texto verbatim) — ${r.motivo}`);
+      }
+      igual(d1.resumen.no_importado.find(x => x.que === 'Autorizaciones'), { que: 'Autorizaciones', n: 1, filas: [5], motivos: { firma_no_coincide: 1 } }, 'la alterada: su fila y su motivo');
+      sinDatosDeClientes(d1.resumen, filas);
+      igual((await sql(db, `select count(*)::int as n from public.cotizaciones where procedencia->>'stub' = 'Autorizaciones'`))[0].n, 3, 'y su talón de cotización');
+
+      const d2 = await correConVeredictos(db, (await hojaConAutorizaciones()).v);
+      igual([d2.cuadra, d2.resumen.cambios], [true, []], 'día 2, la misma hoja: ni una alta ni un cambio');
+
+      const d3 = await correConVeredictos(db, (await hojaConAutorizaciones('revocada')).v);
+      igual([d3.cuadra, d3.resumen.cambios.filter(c => c.tabla === 'autorizaciones')], [true, [{ tabla: 'autorizaciones', accion: 'cambio', n: 1 }]], 'día 3: la hoja revocó la 2');
+      igual((await una(db, `select estado from public.autorizaciones where folio_global = 'COT-0101@K7QM'`)).estado, 'revocada', 'y la base también (el estado no se firma)');
+    } finally { await cerrar(db); }
+  });
+  prueba('sin aceptarVeredictosDeLaHoja (el importador de línea de comandos), el mismo volcado no mete ninguna', async () => {
+    const { v } = await hojaConAutorizaciones();
+    const plan = await planear({ volcado: v });
+    igual([plan.tablas.autorizaciones.length, plan.reporte.no_importado.map(x => x.que + ':' + x.n)], [0, ['Autorizaciones:4']]);
+  });
+});
+
+/* ============================================================================
+   CD-08 — el respaldo semanal por importar-diario (2026-10-17): el SQL de verdad sobre las 18 tablas
+   ============================================================================ */
+describir('CD-08 el respaldo: una foto de solo lectura de las 18 tablas, en JSON válido, con todas sus filas', () => {
+  prueba('después de una copia con autorizaciones: cada tabla con sus filas (las cuentas cuadran con count(*)), el archivo se parsea y es «al3d-respaldo-1»', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await correConVeredictos(db, (await hojaConAutorizaciones()).v);
+      const { partes, filas } = await exportar(basePGlite(db));
+      const p = await paquete({ partes, filas, ahoraMs: Date.parse('2026-10-18T11:05:00.000Z'), origen: 'gwzfdprdrdudfakjsdxf.supabase.co' });
+      const j = JSON.parse(new TextDecoder().decode(p.bytes));
+      igual([j.formato, j.origen, Object.keys(j.tablas)], ['al3d-respaldo-1', 'gwzfdprdrdudfakjsdxf.supabase.co', TABLAS.map(t => t.nombre)], 'el formato, el origen y las 18 tablas en orden');
+      for (const t of TABLAS) {
+        const n = (await una(db, `select count(*)::int as n from public.${t.nombre}`)).n;
+        igual([j.filas[t.nombre], j.tablas[t.nombre].length], [n, n], `${t.nombre}: ${n} filas`);
+      }
+      cierto(j.filas.proyectos === 50 && j.filas.autorizaciones === 3 && j.filas.cuadre_diario === 1, 'con datos de verdad: 50 proyectos, 3 autorizaciones, el renglón de la copia');
+      const a = j.tablas.autorizaciones.find(x => x.folio_global === 'COT-0102@K7QM');
+      igual([a.renglones, a.codificacion], ['[["Letras 3D · 8 × 40 cm «Acrílico»",8,12500]]', 'ascii-?'], 'el texto firmado viaja verbatim (acentos, ·, × y «»)');
+      igual(p.nombre, 'al3d-respaldo-2026-10-18T110500Z.json');
+    } finally { await cerrar(db); }
+  });
+  prueba('es de solo lectura de verdad: dentro de esa transacción, Postgres no deja escribir (25006)', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await esperarError(db.transaction(async tx => {
+        await tx.exec(MODO_LECTURA);
+        await tx.exec(`insert into public.cuadre_diario (empresa_id, aplicado, cuadra, diferencias, conflictos, duracion_ms) values ('al3d', true, true, 0, 0, 1)`);
+      }), '25006', 'cannot execute INSERT in a read-only transaction');
     } finally { await cerrar(db); }
   });
 });

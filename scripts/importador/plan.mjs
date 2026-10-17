@@ -21,9 +21,34 @@ import { col, texto, numero, fecha, hora, vacia, esFecha, filas, encabezados, li
 import { plazoDesdeHoja, ETAPA_DESDE_NOTION } from '../../js/datos/puente.js';
 import { telefonoLimpio, ubicacionDeHoja } from '../../js/datos/proyectos.js';
 import { entregaDesdeHoja } from '../../js/datos/entrega.js';
-import { verificar, dinero2, normalizarCodigo } from '../../supabase/functions/_shared/sello.js';
+import { verificar, dinero2, normalizarCodigo, canonDe, registroDeFila, CODIFICACIONES } from '../../supabase/functions/_shared/sello.js';
 
 export const EMPRESA = 'al3d';
+
+/* Por qué una autorización no entra en la copia diaria (lista cerrada: es lo único que se anota de ella, junto con su fila).
+   Los tres primeros son los que manda la hoja (copiaVeredicto_ de puente/copia-diaria.gs); los demás, los de aquí. */
+export const MOTIVOS_AUTORIZACION = Object.freeze(['firma_no_coincide', 'codigo_no_coincide', 'no_se_pudo_comprobar', 'sin_veredicto', 'veredicto_invalido',
+  'texto_distinto', 'fila_mal_formada', 'dos_vigentes', 'sin_comprobacion', 'sin_clave_en_la_hoja', 'sin_codigo_gs']);
+
+/** La comprobación de firmas que manda la hoja (`volcado.autorizaciones_comprobadas`), leída sin creerle la forma. */
+export function leerVeredictos(x) {
+  const no = (motivo, por) => ({ ok: false, motivo, por });
+  if (!objeto(x) || x.version !== 1) {
+    return no('sin_comprobacion', 'la hoja no mandó su comprobación de firmas (puente/copia-diaria.gs de antes del 2026-10-17): se pegan los archivos nuevos y entran solas');
+  }
+  if (x.sin === 'clave') return no('sin_clave_en_la_hoja', 'la hoja no tiene la clave del sello en sus propiedades (SELLO_AUTORIZACION): no pudo comprobar ninguna');
+  if (x.sin === 'codigo') return no('sin_codigo_gs', 'la hoja no encontró las funciones del sello de Código.gs: no comprobó ninguna');
+  if (!Array.isArray(x.filas)) return no('sin_comprobacion', 'la comprobación de firmas de la hoja no trae sus filas');
+  const porFila = new Map();
+  const repetidas = new Set();
+  for (const v of x.filas) {
+    if (!objeto(v) || !Number.isInteger(v.fila) || v.fila < 2) continue;
+    if (porFila.has(v.fila)) repetidas.add(v.fila);
+    porFila.set(v.fila, v);
+  }
+  for (const f of repetidas) porFila.delete(f);      // dos veredictos para la misma fila: no se le cree a ninguno
+  return { ok: true, porFila };
+}
 
 /* Vocabularios cerrados de la base (CHECK). Duplicados a propósito: si la base cambia uno, la prueba lo atrapa. */
 const ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
@@ -115,9 +140,11 @@ export function leerTelefono(t, i) {
 
 /**
  * @param {{volcado: object, telefonos?: Array<{etiqueta?: string, disp?: string, respaldo: object}>,
- *          clave?: string|null, semilla?: object|null, empresa?: string}} entrada
+ *          clave?: string|null, semilla?: object|null, empresa?: string, aceptarVeredictosDeLaHoja?: boolean}} entrada
  *   clave    la clave del sello (SELLO_AUTORIZACION), leída del entorno por quien llama. Sin ella las
  *            autorizaciones no se importan: no se puede comprobar que la fila sea lo que se firmó.
+ *   aceptarVeredictosDeLaHoja  SOLO la función `importar-diario` (autenticada con IMPORTAR_SECRETO): sin clave, cree la
+ *            comprobación que la hoja hizo con la suya (`volcado.autorizaciones_comprobadas`; ver la sección 11).
  *   semilla  datos/semilla.json (por omisión, el del repositorio).
  */
 export async function planear(entrada) {
@@ -706,12 +733,34 @@ export async function planear(entrada) {
   }
   if (!T.miembros.some(m => m.area === 'direccion')) rep.avisar('Accesos', '-', '-', 'no hay nadie de Dirección: sin uno activo nadie podrá dar altas');
 
-  /* ----- 11. «Autorizaciones» (§3.4): cada fila se verifica antes de entrar ----- */
+  /* ----- 11. «Autorizaciones» (§3.4): cada fila se verifica antes de entrar -----
+     Dos maneras de comprobar la firma, y solo dos:
+       · con la clave (`entrada.clave`, la de la línea de comandos): se recalcula aquí con sello.js;
+       · sin la clave, con el VEREDICTO DE LA HOJA (decidido 2026-10-17 para que Elías no tenga que mover secretos): la copia
+         diaria (puente/copia-diaria.gs) comprueba cada fila DENTRO de la hoja con la clave del script y las funciones de
+         Código.gs que usa /verificar, y manda por fila { firma_ok, codificacion, canon } en `volcado.autorizaciones_comprobadas`
+         —nunca la clave—. Solo se acepta si quien llama lo pide con `aceptarVeredictosDeLaHoja: true`, y eso lo hace únicamente
+         la función autenticada `importar-diario` (secreto IMPORTAR_SECRETO); el importador de línea de comandos no lo pasa, así
+         que un volcado con veredictos que llegue por ahí sigue necesitando la clave. Una fila entra solo si la hoja dijo
+         firma_ok:true Y el texto firmado que se guardaría (canonDe de sello.js sobre la fila tal como va a la base) es
+         EXACTAMENTE el que la hoja comprobó: así lo guardado es lo firmado y /verificar de Supabase lo puede recalcular cuando
+         tenga la clave.
+     En la copia diaria lo que no entra NO frena la copia (no es «rechazo» ni «conflicto»: Q-14 dice que no se decide, y la
+     fila espera en la hoja): va a no_importado con su número de fila y su motivo (MOTIVOS_AUTORIZACION). */
   const auts = [];
   const pestAut = P['Autorizaciones'];
   const filasAut = filas(pestAut).filter(x => !vacia(x.celdas[1]));
-  if (filasAut.length && !entrada.clave) {
+  const conVeredicto = !entrada.clave && entrada.aceptarVeredictosDeLaHoja === true;
+  const veredictos = conVeredicto ? leerVeredictos(vol.autorizaciones_comprobadas) : null;
+  const fuera = [];
+  const noEntra = (fila, folio, motivo, por) => {
+    if (conVeredicto) fuera.push({ fila, folio, motivo, por });
+    else rep.rechazar('Autorizaciones', fila, folio, por + ': no entra y se queda en la hoja congelada');
+  };
+  if (filasAut.length && !entrada.clave && !conVeredicto) {
     rep.no_importado.push({ que: 'Autorizaciones', n: filasAut.length, por: 'falta la clave del sello (AL3D_SELLO_CLAVE): sin ella no se puede comprobar que cada fila sea lo que se firmó' });
+  } else if (filasAut.length && conVeredicto && !veredictos.ok) {
+    rep.no_importado.push({ que: 'Autorizaciones', n: filasAut.length, por: veredictos.por, motivos: { [veredictos.motivo]: filasAut.length } });
   } else {
     for (const { fila, celdas } of filasAut) {
       const t = i => texto(celdas[i]);
@@ -728,25 +777,52 @@ export async function planear(entrada) {
       if (!['vigente', 'superada', 'revocada'].includes(reg.estado)) { rep.avisar('Autorizaciones', fila, reg.folio_global, `estado «${reg.estado}» se lee como superada, como en la hoja`); reg.estado = 'superada'; }
       const malo = !RE_FOLIO_GLOBAL.test(reg.folio_global) ? 'folio sin aparato' : !RE_TS_ISO.test(reg.ts_iso) ? 'la hora no es ISO' : !/^[0-9a-f]{64}$/.test(reg.firma) ? 'firma mal formada'
         : reg.codigo.replace(/-/g, '') !== reg.firma.slice(0, 12).toUpperCase() ? 'el código no es el inicio de la firma' : !reg.autorizo ? 'falta quién autorizó' : null;
-      if (malo) { rep.rechazar('Autorizaciones', fila, reg.folio_global, malo + ': no entra y se queda en la hoja congelada'); continue; }
-      let r;
-      try {
-        r = await verificar({ folio_global: reg.folio_global, ts_iso: reg.ts_iso, proyecto: reg.proyecto, sub_calc: reg.sub_calc_txt, precio_auth: reg.precio_auth_txt,
-          total: reg.total_txt, items_auth: reg.items_auth, huella: reg.huella, autorizo: reg.autorizo, renglones: reg.renglones, codigo: reg.codigo, firma: reg.firma, estado: reg.estado }, entrada.clave);
-      } catch (e) { r = { valida: false, motivo: e.message }; }
-      if (!r.valida) { rep.rechazar('Autorizaciones', fila, reg.folio_global, `la firma no cuadra (${r.motivo}): no entra y se queda en la hoja congelada`); continue; }
-      reg.codificacion = r.codificacion === 'ascii' ? 'utf-8' : r.codificacion;
+      if (malo) { noEntra(fila, reg.folio_global, 'fila_mal_formada', malo); continue; }
+      /* La fila tal como la guardaría la base: es lo que se firma (sello.js) y lo que /verificar recalculará. */
+      const filaFirmada = { folio_global: reg.folio_global, ts_iso: reg.ts_iso, proyecto: reg.proyecto, sub_calc: reg.sub_calc_txt, precio_auth: reg.precio_auth_txt,
+        total: reg.total_txt, items_auth: reg.items_auth, huella: reg.huella, autorizo: reg.autorizo, renglones: reg.renglones, codigo: reg.codigo, firma: reg.firma, estado: reg.estado };
+      if (!conVeredicto) {
+        let r;
+        try { r = await verificar(filaFirmada, entrada.clave); } catch (e) { r = { valida: false, motivo: e.message }; }
+        if (!r.valida) { rep.rechazar('Autorizaciones', fila, reg.folio_global, `la firma no cuadra (${r.motivo}): no entra y se queda en la hoja congelada`); continue; }
+        reg.codificacion = r.codificacion === 'ascii' ? 'utf-8' : r.codificacion;
+        auts.push(reg);
+        continue;
+      }
+      const v = veredictos.porFila.get(fila);
+      let canon = null;
+      try { canon = canonDe(registroDeFila(filaFirmada)); } catch (_) { canon = null; }
+      if (!v) { noEntra(fila, reg.folio_global, 'sin_veredicto', 'la hoja no dijo si su firma cuadra'); continue; }
+      if (v.firma_ok !== true) {
+        const m = MOTIVOS_AUTORIZACION.includes(v.motivo) ? v.motivo : 'firma_no_coincide';
+        noEntra(fila, reg.folio_global, m, `la hoja dice que su firma no cuadra (${m})`); continue;
+      }
+      if (!CODIFICACIONES.includes(v.codificacion) || typeof v.canon !== 'string') { noEntra(fila, reg.folio_global, 'veredicto_invalido', 'el veredicto de la hoja no tiene la forma esperada'); continue; }
+      if (canon === null || v.canon !== canon) {
+        noEntra(fila, reg.folio_global, 'texto_distinto', 'lo que se guardaría no es EXACTAMENTE el texto que la hoja comprobó (se firmaría una cosa y se guardaría otra)'); continue;
+      }
+      reg.codificacion = v.codificacion;
       auts.push(reg);
     }
-    // una sola vigente por folio (índice de la base): la de la fila más reciente
+    // una sola vigente por folio (índice de la base): la de la fila más reciente. En la copia diaria no se decide: el folio espera en la hoja.
     const porFolio = new Map();
     for (const a of auts) (porFolio.get(a.folio_global) || porFolio.set(a.folio_global, []).get(a.folio_global)).push(a);
     for (const [fg, lista] of porFolio) {
       const vig = lista.filter(a => a.estado === 'vigente');
-      if (vig.length > 1) {
-        rep.conflicto('dos autorizaciones vigentes', fg, `filas ${vig.map(a => a.fila_hoja).join(', ')}: queda vigente la ${vig.at(-1).fila_hoja}, las demás como superadas`);
-        for (const a of vig.slice(0, -1)) a.estado = 'superada';
+      if (vig.length <= 1) continue;
+      if (conVeredicto) {
+        for (const a of lista) { noEntra(a.fila_hoja, fg, 'dos_vigentes', 'su folio tiene dos autorizaciones vigentes en la hoja: se decide en la hoja'); auts.splice(auts.indexOf(a), 1); }
+        continue;
       }
+      rep.conflicto('dos autorizaciones vigentes', fg, `filas ${vig.map(a => a.fila_hoja).join(', ')}: queda vigente la ${vig.at(-1).fila_hoja}, las demás como superadas`);
+      for (const a of vig.slice(0, -1)) a.estado = 'superada';
+    }
+    if (fuera.length) {
+      fuera.sort((a, b) => a.fila - b.fila);
+      const motivos = {};
+      for (const x of fuera) motivos[x.motivo] = (motivos[x.motivo] || 0) + 1;
+      rep.no_importado.push({ que: 'Autorizaciones', n: fuera.length, por: 'la copia diaria no las importa y se quedan en la hoja (no frenan la copia): ' +
+        Object.entries(motivos).map(([k, n]) => k + ' ' + n).join(', '), filas: fuera.map(x => x.fila), motivos, detalle: fuera });
     }
     T.autorizaciones.push(...auts.map(a => ({ empresa_id: empresa, ...a, origen: 'importada_hoja', clave_id: 'k1' })));
   }

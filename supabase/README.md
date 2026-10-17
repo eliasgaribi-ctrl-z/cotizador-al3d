@@ -109,7 +109,22 @@ decide el día del cambio (abajo).
 
 Son tres piezas: la tabla (`migrations/0018_cuadre_diario.sql`), la función (para pegar en el panel:
 **`functions/importar-diario/desplegar/index.ts`**) y el Apps Script (**`puente/copia-diaria.gs`**, un archivo nuevo junto a
-`Código.gs`, que no se toca).
+`Código.gs`, que no se toca). Desde el 2026-10-17 la misma copia trae **las autorizaciones** (comprobadas dentro de la hoja, sin que
+la clave del sello salga de ahí) y la misma función da **el respaldo semanal** que la hoja guarda en Drive (abajo, «El respaldo
+semanal»). Las dos cosas, decididas ese día para que Elías no tenga que mover secretos.
+
+**Lo del 2026-10-17, si la copia ya estaba en marcha (una vez, en este orden):**
+
+1. **La función otra vez.** Panel → *Edge Functions* → `importar-diario` → *Code*: borrar todo, pegar **entero** el
+   `supabase/functions/importar-diario/desplegar/index.ts` nuevo y *Deploy*. Los secretos no cambian («Verify JWT» sigue apagado).
+2. **El Apps Script otra vez.** En la hoja de verdad: *Extensiones* → *Apps Script* → el archivo «Copia diaria» → borrar todo, pegar
+   **entero** `puente/copia-diaria.gs` nuevo y guardar. Las propiedades no cambian (`IMPORTAR_URL`, `IMPORTAR_SECRETO`).
+3. **Una sola ejecución:** elegir `instalarRespaldoSemanal` → *Ejecutar*. Programa el respaldo de los domingos y hace el primero en
+   ese momento; el registro dice dónde quedó. `Código.gs` ya usa Drive, así que lo normal es que Google no pida nada nuevo; si pide
+   permiso de Drive (o de conectarse a un servicio externo), aceptarlo.
+
+Nada más: la copia diaria sigue con su disparador y desde la siguiente madrugada trae las autorizaciones. Si se pega el `.gs` antes
+que la función, la copia sigue igual (la función vieja ignora la comprobación) y el respaldo dice que falta pegar la función.
 
 **Cómo se pone en marcha (una vez, en este orden).** No hace falta la CLI ni Docker: todo es desde el navegador.
 
@@ -136,6 +151,7 @@ Son tres piezas: la tabla (`migrations/0018_cuadre_diario.sql`), la función (pa
    diferencias · 0 conflictos» o por qué no.
 7. **Programarla.** Elegir `instalarCopiaDiaria` → *Ejecutar*. Queda todos los días entre las 3 y las 4 de la mañana (hora de
    México). `quitarCopiaDiaria` la quita (solo esa: los demás disparadores de la hoja no se tocan).
+8. **El respaldo.** Elegir `instalarRespaldoSemanal` → *Ejecutar* (abajo, «El respaldo semanal»).
 
 **Qué puede decir cada día** (en Ajustes, o en el Editor SQL con
 `select fecha, aplicado, cuadra, diferencias, conflictos, rechazos, resumen from public.cuadre_diario order by id desc limit 7;`).
@@ -151,9 +167,16 @@ El `resumen` dice pestañas, filas, folios y columnas; **nunca** nombres ni impo
 - **La función contestó 401:** el secreto de la hoja y el de la función no son el mismo. **503:** a la función le falta
   `IMPORTAR_SECRETO`. **409:** ya había otra copia corriendo (no pasa nada; se queda la otra).
 
-**Lo que no hace.** No toca la hoja (solo la lee, con el candado del puente mientras lee). No importa las autorizaciones (no
-usa la clave del sello: siguen como en la importación del 2026-10-16). No borra nada de la base. Un volcado de hace más de
-36 horas se rechaza. Cuánto gasta: con una hoja de mentiras de 220 ventas, unos 0.1 s de CPU en frío (el límite de una
+**Las autorizaciones** (desde el 2026-10-17). La clave del sello no sale de la hoja: `copia-diaria.gs` comprueba cada fila de
+«Autorizaciones» con ella, con las mismas funciones de `Código.gs` que usa `/verificar`, y manda solo el veredicto (`firma_ok`, la
+codificación y el texto que se firmó; nunca la clave). La función, y solo ella, le cree: entran las de firma buena cuyo texto es
+exactamente el comprobado, tal cual se firmaron (`codificacion = 'ascii-?'`), para que `/verificar` de Supabase las pueda recalcular.
+Las demás (un total editado a mano, por ejemplo) se quedan en la hoja, **no frenan la copia** y el renglón de `cuadre_diario` dice
+sus números de fila y el motivo (`no_importado`). El registro de la hoja lo cuenta: «28 autorizaciones con firma buena (2 no entran…)».
+Detalle: `docs/DECISIONES-SUPABASE.md`, «Las autorizaciones en la copia diaria».
+
+**Lo que no hace.** No toca la hoja (solo la lee, con el candado del puente mientras lee). La clave del sello no sale de la hoja.
+No borra nada de la base. Un volcado de hace más de 36 horas se rechaza. Cuánto gasta: con una hoja de mentiras de 220 ventas, unos 0.1 s de CPU en frío (el límite de una
 función es 2 s); el trabajo pesado lo hace Postgres, que no cuenta para ese límite.
 
 **Si se cambia el código** de la función o del importador: `npm ci` una vez en `supabase/functions/importar-diario/desplegar/`,
@@ -165,7 +188,33 @@ vez en el panel. Si no se arma, `pruebas/supabase-importar-diario.mjs` falla y l
 
 **El día del cambio** (lo decide Elías con los 7 días en verde): correr `copiarHojaASupabase` a mano una última vez y ver que
 cuadre; `quitarCopiaDiaria`; poner la hoja en solo lectura; y el equipo pasa a la plataforma, con la sombra y la lectura en
-vivo encendidas (`docs/DECISIONES-SUPABASE.md`, «Transición»).
+vivo encendidas (`docs/DECISIONES-SUPABASE.md`, «Transición»). El respaldo semanal **sigue**: no lee la hoja, solo la base.
+
+### El respaldo semanal (desde el 2026-10-17)
+
+El plan gratuito de Supabase no trae respaldos. Cada domingo, entre las 5 y las 6 de la mañana (hora de México), `respaldarSemanal`
+de `puente/copia-diaria.gs` le pide a `importar-diario`, con el **mismo** `IMPORTAR_SECRETO`, la base entera: la función la lee en una
+transacción de solo lectura (una foto exacta de las 18 tablas) y contesta el archivo «al3d-respaldo-1» con su nombre, su huella
+`sha256`, sus bytes y sus filas en las cabeceras. El script comprueba que llegó entero y lo guarda en la carpeta **«AL3D Respaldos»**:
+
+- primero busca una **unidad compartida** con ese nombre (la que creó Elías), con la API de Drive y el permiso que la hoja ya tiene;
+- si no hay, una **carpeta** con ese nombre en cualquier unidad;
+- si no hay ninguna, **crea** la carpeta «AL3D Respaldos» en Mi unidad (el registro lo dice). Si Drive no deja buscar, no crea nada.
+
+Se quedan los **8 más recientes**: los demás que **ese script** creó (nombre `al3d-respaldo-AAAA-MM-DDTHHMMSSZ.json` y su marca en
+la descripción) van a la papelera de Drive. Un archivo que alguien dejó a mano ahí no se toca. El respaldo lleva datos de clientes:
+nunca va al registro (que dice solo nombre, KB, filas y cuántos fueron a la papelera).
+
+**Cómo se instala:** `instalarRespaldoSemanal` → *Ejecutar*, una vez (hace el primero en ese momento). `quitarRespaldoSemanal` lo
+quita. `respaldarSemanal` se puede correr a mano cuando se quiera.
+
+**El límite:** `UrlFetchApp` no recibe respuestas de más de 50 MB. Arriba de 45 MB la función contesta `413 RESPALDO_GRANDE` y no
+manda nada (hoy la base anda en cientos de KB). Ese día se enciende la **alternativa**, que sigue en el repositorio, probada y
+apagada: la función `respaldo` (`functions/respaldo/`) sube el archivo a Drive con una **cuenta de servicio** de Google, disparada
+por `.github/workflows/respaldo-semanal.yml`. Necesita crear la cuenta de servicio y una carpeta de una unidad compartida donde sea
+«Administrador de contenido», y cargar `RESPALDO_GOOGLE_CREDENCIALES`, `RESPALDO_CARPETA_DRIVE` y `RESPALDO_SECRETO_FUNCION` (y en
+GitHub `RESPALDO_URL_FUNCION`); se despliega con la CLI (`supabase functions deploy respaldo`; para pegarla en el panel habría que
+armarla en un archivo, como `importar-diario/desplegar/armar.mjs`).
 
 ## Secretos: qué es cada uno, dónde vive y quién lo carga
 
@@ -173,14 +222,14 @@ Ninguno va al repositorio, a la hoja ni al chat (regla del plan §4.12). Aquí s
 
 | Secreto | Dónde vive | Quién lo carga | Para qué |
 |---|---|---|---|
-| `SELLO_AUTORIZACION` | Secretos de las funciones de Supabase | **Elías**, desde el Apps Script actual. **No se rota** (cambiarla invalida todos los PDF ya entregados); guardar una copia fuera de línea | Firmar y verificar los sellos de autorización |
+| `SELLO_AUTORIZACION` | Secretos de las funciones de Supabase | **Elías**, desde el Apps Script actual. **No se rota** (cambiarla invalida todos los PDF ya entregados); guardar una copia fuera de línea | Firmar y verificar los sellos de autorización desde Supabase (`autorizar`, `verificar`). **La copia diaria NO la necesita** (2026-10-17): la hoja comprueba las autorizaciones con la suya y manda solo el veredicto |
 | `IA_KEYS` (JSON con las llaves de Qwen, DeepSeek y Gemini) | Secretos de las funciones | **Elías** | La función `ia` (las llaves salen del navegador) |
 | `ESPEJO_SECRETO_FUNCION`, `ESPEJO_URL`, `ESPEJO_SECRETO`, `ESPEJO_EMPRESA` (opcional) | Secretos de las funciones | **Elías** | La función `espejo`; `ESPEJO_SECRETO` es el mismo valor que la propiedad del Apps Script (ver [`puente/ESPEJO.md`](../puente/ESPEJO.md)) |
-| `RESPALDO_GOOGLE_CREDENCIALES` | Secretos de las funciones | **Elías** | La función `respaldo`: el JSON de la llave de una **cuenta de servicio** de Google (`client_email`, `private_key`). Solo necesita acceso a la carpeta del respaldo |
-| `RESPALDO_CARPETA_DRIVE` | Secretos de las funciones | **Elías** | La función `respaldo`: el id de la carpeta de Drive (de una unidad compartida) donde se sube el archivo semanal |
-| `RESPALDO_SECRETO_FUNCION` | Secretos de las funciones **y** secreto de GitHub Actions (el mismo valor, 32 caracteres o más) | **Elías** | Quien dispara `respaldo` (el flujo semanal) lo presenta en la cabecera `x-respaldo-secreto`. En GitHub va junto a la variable `RESPALDO_URL_FUNCION`; sin las dos, el flujo no hace nada |
-| `IMPORTAR_SECRETO` | Secretos de las funciones **y** propiedad del script de la hoja (el mismo valor, 32 caracteres o más) | **Elías** | La función `importar-diario`: el Apps Script de la hoja (`puente/copia-diaria.gs`) lo presenta en la cabecera `x-importar-secreto`. Sin él la función contesta 503 y no hace nada. Abajo, «La copia diaria» |
-| `RESPALDO_CONSERVAR` | Secretos de las funciones (**opcional**; no es secreto, pero ahí viven las variables de la función) | **Elías** | La función `respaldo`: cuántos respaldos se quedan en la carpeta, de 1 a 520. **Sin ella, 8** (decidido por Elías el 2026-10-16). Después de cada subida buena, lo que sobra de lo que la función creó va a la papelera de Drive; un valor que no sirve apaga la rotación (el respaldo se sube igual y la respuesta lo dice) |
+| `RESPALDO_GOOGLE_CREDENCIALES` | Secretos de las funciones | **Elías**, solo si se enciende la alternativa (hoy no hace falta: «El respaldo semanal») | La función `respaldo`: el JSON de la llave de una **cuenta de servicio** de Google (`client_email`, `private_key`). Solo necesita acceso a la carpeta del respaldo |
+| `RESPALDO_CARPETA_DRIVE` | Secretos de las funciones | **Elías**, solo para la alternativa | La función `respaldo`: el id de la carpeta de Drive (de una unidad compartida) donde se sube el archivo semanal |
+| `RESPALDO_SECRETO_FUNCION` | Secretos de las funciones **y** secreto de GitHub Actions (el mismo valor, 32 caracteres o más) | **Elías**, solo para la alternativa | Quien dispara `respaldo` (el flujo semanal) lo presenta en la cabecera `x-respaldo-secreto`. En GitHub va junto a la variable `RESPALDO_URL_FUNCION`; sin las dos, el flujo no hace nada |
+| `IMPORTAR_SECRETO` | Secretos de las funciones **y** propiedad del script de la hoja (el mismo valor, 32 caracteres o más) | **Elías** | La función `importar-diario`: el Apps Script de la hoja (`puente/copia-diaria.gs`) lo presenta en la cabecera `x-importar-secreto`, para la copia de cada madrugada y para pedir el respaldo de los domingos. Sin él la función contesta 503 y no hace nada. Arriba, «La copia diaria» y «El respaldo semanal» |
+| `RESPALDO_CONSERVAR` | Secretos de las funciones (**opcional**; no es secreto, pero ahí viven las variables de la función) | **Elías**, solo para la alternativa (el respaldo de la hoja deja 8, fijo en `copia-diaria.gs`) | La función `respaldo`: cuántos respaldos se quedan en la carpeta, de 1 a 520. **Sin ella, 8** (decidido por Elías el 2026-10-16). Después de cada subida buena, lo que sobra de lo que la función creó va a la papelera de Drive; un valor que no sirve apaga la rotación (el respaldo se sube igual y la respuesta lo dice) |
 | Contraseña de la base de datos | Gestor de contraseñas de Elías | **Elías** | Acceso directo a PostgreSQL (`supabase link` / `db push`) |
 | Llave secreta (`sb_secret_…`) | La inyecta Supabase a las funciones; nunca fuera de ahí | Supabase | Que las funciones lean con privilegios de servicio |
 | Llave pública (`sb_publishable_…`) y URL del proyecto | En el código de la app y en la variable `SUPABASE_PROYECTOS` de GitHub | Cualquiera | Es pública por diseño; la protege RLS |

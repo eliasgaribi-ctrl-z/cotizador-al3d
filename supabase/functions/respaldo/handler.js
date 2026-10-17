@@ -1,9 +1,14 @@
 /* ============================================================================
    RESPALDO — exporta todas las tablas de la base a un archivo JSON y lo sube a una carpeta de Drive.
 
-   APAGADA: la dispara SOLO el flujo .github/workflows/respaldo-semanal.yml (una vez por semana), y ese
-   flujo no hace nada mientras falten su variable RESPALDO_URL_FUNCION y su secreto RESPALDO_SECRETO_FUNCION.
-   La hoja sigue siendo la fuente de verdad: hoy no hay datos reales que respaldar.
+   ES LA ALTERNATIVA, APAGADA (decidido 2026-10-17 para que Elías no tenga que mover secretos): el respaldo semanal
+   lo hace la hoja. puente/copia-diaria.gs (respaldarSemanal, los domingos) se lo pide a la función `importar-diario`
+   con IMPORTAR_SECRETO y lo guarda en Drive con el permiso que la hoja ya tiene, sin cuenta de servicio
+   (importar-diario/respaldo.js; supabase/README.md, «El respaldo semanal»). Esta función queda para el día que el
+   respaldo pase de 45 MB (UrlFetchApp no recibe más de 50) o que se quiera sin Apps Script: necesita una cuenta de
+   servicio de Google y una carpeta de una unidad compartida (RESPALDO_GOOGLE_CREDENCIALES, RESPALDO_CARPETA_DRIVE).
+   La dispara SOLO el flujo .github/workflows/respaldo-semanal.yml (una vez por semana), y ese flujo no hace nada
+   mientras falten su variable RESPALDO_URL_FUNCION y su secreto RESPALDO_SECRETO_FUNCION.
 
    ENTRADA   POST con el secreto en la cabecera  x-respaldo-secreto  (RESPALDO_SECRETO_FUNCION, 32+ caracteres)
              y, si se quiere, un cuerpo JSON de a lo más 1 KB: { "subir": false } exporta y cuenta SIN subir nada
