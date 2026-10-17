@@ -16,6 +16,9 @@
  *         hoja y la escala con las que se calculó, y no ofrece «Seguir buscando» (el motor ya no
  *         lo tiene). Quitar un retazo ya se deshacía con el mismo aviso.
  *   · A16 DESCARGAR POR HOJA DESDE UN MENÚ, y mandar el archivo con navigator.share si existe.
+ *   · RÁPIDO, el paro de omisión desde el audio del taller (16/10/2026): solo reloj, 5 s sin mejorar
+ *         o 15 s desde el primer acomodo, aunque el motor no conteste; y cambiar de búsqueda corriendo.
+ *   · DXF, la descarga de omisión: cada contorno, una polilínea cerrada; bajarlo y compartirlo.
  *   · A21 LA ORIENTACIÓN DE LA HOJA: la hojita de cada tarjeta gira con «Girar la hoja», y al abrir
  *         la página ya acostada nace girada, sin verse girar.
  *   · A29 EL REFLEJO sobre el logo, una vez al terminar la carga.
@@ -63,10 +66,15 @@ const SVG_TIRAS = `<svg xmlns="http://www.w3.org/2000/svg" width="300mm" height=
 /* ---------------------------------------------------------------------------------------------
    Abrir la página. Un contexto por ronda, con el tema, el ancho y el movimiento pedidos.
    --------------------------------------------------------------------------------------------- */
-async function abrir({ ancho = 1100, alto = 900, tema = 'claro', reducido = false, tactil = false, antes, ir = true } = {}) {
+async function abrir({ ancho = 1100, alto = 900, tema = 'claro', reducido = false, tactil = false, antes, ir = true, deSiempre = true } = {}) {
   const ctx = await nav.newContext({ viewport: { width: ancho, height: alto }, locale: 'es-MX', serviceWorkers: 'block',
     hasTouch: tactil, isMobile: tactil, deviceScaleFactor: 1, acceptDownloads: true, reducedMotion: reducido ? 'reduce' : 'no-preference' });
   await ctx.addInitScript(t => { try { if (!localStorage.getItem('al3d_tema')) localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
+  /* Estas rondas se escribieron cuando el paro era solo «A fondo» y la descarga solo SVG. Desde el
+     audio del taller (16/10/2026) la página nace en «Rápido» y DXF, que paran y descargan distinto:
+     se siembran los de antes para que cada ronda siga probando lo suyo. Las de «Rápido» y el DXF
+     piden `deSiempre: false` y ven la página como la abre el taller. */
+  if (deSiempre) await ctx.addInitScript(() => { try { if (!localStorage.getItem('al3d_anidador_material')) localStorage.setItem('al3d_anidador_material', JSON.stringify({ busca: 'fondo', formato: 'svg' })); } catch (_) {} });
   if (antes) await ctx.addInitScript(antes);
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -207,6 +215,121 @@ console.log('\nA4 · LA MECHA DEL PARO');
   await dormir(1200);
   cierto(/Sin mejora hace [1-9] s/.test(await texto(p, '#an-paro-t')), 'y sigue contando cada segundo: «' + await texto(p, '#an-paro-t') + '»');
   await p.evaluate(() => window.Anidador.detener());
+  cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+}
+
+// ═══ RÁPIDO · EL PARO DE OMISIÓN (audio del taller, 16/10/2026) ═══════════════════════════════
+/* El taller: «entre el primero que te da, que dura tres segundos, y el último, que son como dos
+   minutos, se van a ahorrar tres centímetros de material». Para el router el acomodo se retoca a
+   mano de todos modos, así que la página nace en «Rápido»: solo mira el reloj —5 s sin mejorar, o
+   15 s desde el primer acomodo aunque siga mejorando— y se para sola aunque el motor no conteste. */
+console.log('\nRÁPIDO · EL PARO DE OMISIÓN');
+{
+  const { ctx, p, errs } = await abrir({ deSiempre: false });
+  const e0 = await estado(p);
+  cierto(e0.busca === 'rapido' && e0.formato === 'dxf', 'la página nace en «Rápido» y DXF', { busca: e0.busca, formato: e0.formato });
+  const tp = (ms, n, d) => p.evaluate(([a, b, c]) => window.Anidador.textoParo(a, b, c), [ms, n, d]);
+  cierto(await tp(2000, 7, 3000) === 'Sin mejora hace 2 s · listo en 3 s', 'la frase cuenta segundos y no intentos: «' + await tp(2000, 7, 3000) + '»');
+  cierto(await tp(2000, 0, 14000) === 'Sin mejora hace 2 s · listo en 1 s', 'con el tope de 15 s más cerca, manda el tope', await tp(2000, 0, 14000));
+  cierto(/ · se detiene ya$/.test(await tp(5000, 0, 5000)), 'a los 5 s sin mejorar: «se detiene ya»');
+
+  await cargar(p, SVG_MM); await motorFalso(p);
+  await p.evaluate(() => window.Anidador.iniciar());
+  cierto(/^Acomodo rápido/.test(await texto(p, '#an-msg')), 'al arrancar lo dice: «' + await texto(p, '#an-msg') + '»');
+  await mejora(p, 1, 0.5, 6, 6);
+  const duracion = () => p.evaluate(() => { const m = document.querySelector('#an-mecha-paro .mecha'); const a = m && m.getAnimations()[0]; return a ? a.effect.getComputedTiming().duration : null; });
+  cierto(await duracion() === 5000, 'la mecha dura los 5 s de «Rápido»', await duracion());
+  await sinMejora(p); await sinMejora(p);
+  cierto((await estado(p)).corriendo, 'dos intentos sin mejorar no lo paran: cuenta el reloj');
+  /* Pasan 6 s y el motor no contesta: el reloj de cada segundo lo para, sin esperar otro intento. */
+  await p.evaluate(() => { const real = Date.now.bind(Date); window.__salto = 6000; Date.now = () => real() + window.__salto; });
+  await dormir(1300);
+  let e = await estado(p);
+  cierto(!e.corriendo && e.detenidoSolo, 'a los 5 s sin mejorar se detiene solo, aunque el motor no conteste', { corriendo: e.corriendo, detenidoSolo: e.detenidoSolo });
+  cierto(/^Listo: acomodo rápido/.test(await texto(p, '#an-msg')), 'y lo dice: «' + await texto(p, '#an-msg') + '»');
+  cierto(await p.evaluate(() => !document.getElementById('an-seguir').hidden), '«Seguir buscando» queda a la mano');
+
+  /* El tope: mejorando cada 3 s, a los 15 s del primer acomodo se para igual. */
+  await p.evaluate(() => { window.__salto = 0; });
+  await p.evaluate(() => window.Anidador.iniciar());
+  await mejora(p, 1, 0.5, 6, 6);
+  for (const s of [3000, 6000, 9000, 12000]) { await p.evaluate(x => { window.__salto = x; }, s); await mejora(p, 1, 0.5 + s / 100000, 6, 6); }
+  cierto((await estado(p)).corriendo, 'a los 12 s, mejorando cada 3, sigue');
+  await p.evaluate(() => { window.__salto = 15500; });
+  await mejora(p, 1, 0.7, 6, 6);
+  e = await estado(p);
+  cierto(!e.corriendo && e.detenidoSolo && Math.abs(e.mejor.eficiencia - 0.7) < 1e-9, 'a los 15 s del primer acomodo se para aunque siga mejorando, con la última mejora puesta', e.mejor);
+
+  /* Cambiar de búsqueda con el motor corriendo vale desde ya. */
+  await p.evaluate(() => { window.__salto = 0; });
+  await p.evaluate(() => window.Anidador.iniciar()); await mejora(p, 1, 0.5, 6, 6);
+  await p.click('#an-busca [data-busca="fondo"]');
+  cierto(await duracion() === 40000 && /faltan 25 intentos y 40 s$/.test(await texto(p, '#an-paro-t')), 'pasar a «A fondo» pone la mecha de 40 s y la frase de siempre: «' + await texto(p, '#an-paro-t') + '»');
+  await p.evaluate(() => { window.__salto = 7000; }); await dormir(1300);
+  cierto((await estado(p)).corriendo, 'en «A fondo», 7 s sin mejorar no lo paran');
+  await p.evaluate(() => { window.__paros = 0; const s = window.SvgNest.stop; window.SvgNest.stop = function () { window.__paros++; return s.apply(this, arguments); }; });
+  await p.click('#an-busca [data-busca="rapido"]');
+  e = await estado(p);
+  cierto(!e.corriendo && e.detenidoSolo, 'y volver a «Rápido» con 7 s sin mejorar lo para en el acto');
+  cierto(await p.evaluate(() => window.__paros) === 1 && /^Listo: acomodo rápido/.test(await texto(p, '#an-msg')), 'una sola vez, con su mensaje', await p.evaluate(() => window.__paros));
+  await p.evaluate(() => { window.__salto = 0; });
+
+  /* Se recuerda en el aparato, con lo demás de la hoja. */
+  await p.click('#an-busca [data-busca="fondo"]');
+  await p.reload({ waitUntil: 'load' }); await p.waitForFunction(() => window.Anidador && !document.getElementById('an-arranque'));
+  cierto((await estado(p)).busca === 'fondo' && await p.evaluate(() => document.querySelector('#an-busca [data-busca="fondo"]').getAttribute('aria-checked')) === 'true', 'la búsqueda elegida se recuerda al volver a abrir');
+  cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+}
+
+// ═══ EL DXF · LO QUE LEE EL ROUTER (audio del taller, 16/10/2026) ════════════════════════════
+/* «Que tenga soporte para las líneas en DXF, que es lo que nosotros utilizamos»: el SVG llega al
+   programa del router con los tramos sueltos y encimados. El DXF lleva cada contorno como UNA
+   polilínea cerrada; aquí se baja de verdad y se lee el archivo. (js/dxf.js, con sus números, lo
+   prueba pruebas/anidador-dxf.mjs.) */
+console.log('\nEL DXF · LO QUE LEE EL ROUTER');
+{
+  const { ctx, p, errs } = await abrir({ deSiempre: false, antes: 'navigator.share = undefined; navigator.canShare = undefined;' });
+  await cargar(p, SVG_MM); await motorFalso(p);
+  cierto(await texto(p, '#an-dl-t') === 'Descargar DXF', 'el botón dice «Descargar DXF»');
+  await p.evaluate(() => window.Anidador.iniciar()); await mejora(p, 1, 0.5, 6, 6);
+  await p.evaluate(() => window.Anidador.detener());
+  let [d] = await Promise.all([p.waitForEvent('download'), p.click('#an-dl')]);
+  const dxf = fs.readFileSync(await d.path(), 'utf8');
+  cierto(/-acrilico-acomodado\.dxf$/.test(d.suggestedFilename()), 'un clic baja «' + d.suggestedFilename() + '»');
+  const l = dxf.split('\r\n'), pares = [];
+  for (let i = 0; i + 1 < l.length; i += 2) pares.push([l[i].trim(), l[i + 1]]);
+  const polis = []; let cur = null;
+  for (const [c, v] of pares) {
+    if (c === '0') { if (v === 'POLYLINE') polis.push(cur = { capa: null, cerrada: false, n: 0 }); else if (v === 'VERTEX') cur.n++; else if (v === 'SEQEND') cur = null; }
+    else if (cur && !cur.n && c === '8') cur.capa = v;
+    else if (cur && !cur.n && c === '70') cur.cerrada = v === '1';
+  }
+  cierto(pares[0].join(' ') === '0 SECTION' && /\$ACADVER\r\n1\r\nAC1009/.test(dxf) && /\r\n0\r\nEOF\r\n$/.test(dxf), 'es un DXF R12 completo, de «SECTION» a «EOF»');
+  cierto(polis.length === 2 && polis.every(q => q.cerrada), 'la pieza y el contorno de la hoja: dos polilíneas cerradas', polis);
+  cierto(polis.some(q => q.capa === 'HOJA-1' && q.n === 4) && polis.some(q => q.capa === 'CONTORNO-HOJA' && q.n === 4), 'el rectángulo de la pieza con sus 4 vértices en HOJA-1, y la hoja en CONTORNO-HOJA', polis);
+  cierto((await aviso(p)).some(a => /^DXF descargado a escala real: 1200 × 2400 mm por hoja · 1 contorno cerrado$/.test(a.msg)), 'el aviso dice que es DXF y cuántos contornos cerrados lleva', await aviso(p));
+  /* SVG sigue a un toque, con su nombre de siempre. */
+  await p.click('#an-formato [data-formato="svg"]');
+  cierto(await texto(p, '#an-dl-t') === 'Descargar SVG', 'eligiendo SVG el botón lo dice');
+  [d] = await Promise.all([p.waitForEvent('download'), p.click('#an-dl')]);
+  cierto(/-acrilico-acomodado\.svg$/.test(d.suggestedFilename()) && /<svg/.test(fs.readFileSync(await d.path(), 'utf8')), 'y baja el SVG de siempre: «' + d.suggestedFilename() + '»');
+  cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+}
+{
+  /* Compartir el DXF: Chrome de Android no conoce application/dxf; se manda como texto con su nombre .dxf. */
+  const { ctx, p, errs } = await abrir({ deSiempre: false, antes: `window.__compartidos = []; navigator.canShare = d => d.files.every(f => f.type === 'text/plain'); navigator.share = async d => { window.__compartidos.push({ n: d.files[0].name, t: d.files[0].type, tam: d.files[0].size }); };` });
+  await cargar(p, SVG_MM); await motorFalso(p);
+  await p.evaluate(() => window.Anidador.iniciar()); await mejora(p, 1, 0.5, 6, 6);
+  await p.evaluate(() => window.Anidador.detener());
+  await p.click('#an-dl'); await dormir(250);
+  const t = await p.evaluate(() => [...document.querySelectorAll('.an-menu-dl [role="menuitem"]')].map(b => b.innerText.replace(/\s+/g, ' ').trim()));
+  cierto(t.join('|') === 'Descargar DXF|Compartir WhatsApp, correo…', 'el menú: Descargar DXF y Compartir', t);
+  await p.click('.an-menu-dl [data-descarga="compartir"]'); await dormir(150);
+  const cp = await p.evaluate(() => window.__compartidos);
+  cierto(cp.length === 1 && /-acrilico-acomodado\.dxf$/.test(cp[0].n) && cp[0].t === 'text/plain' && cp[0].tam > 200, 'comparte «' + (cp[0] && cp[0].n) + '» como texto', cp);
   cierto(errs.length === 0, 'sin errores de página', errs);
   await ctx.close();
 }
