@@ -62,12 +62,13 @@ jobs:
           mkdir -p motor
           for v in simd nosimd; do
             mkdir -p "motor/$v"
-            cp "studio/web/wasm/pkg-$v/sparrow_web.js" "studio/web/wasm/pkg-$v/sparrow_web_bg.wasm" "motor/$v/"
+            # El paquete entero menos lo de npm: sparrow_web.js importa su snippets/ (el registro del motor).
+            cp -r "studio/web/wasm/pkg-$v/sparrow_web.js" "studio/web/wasm/pkg-$v/sparrow_web_bg.wasm" "studio/web/wasm/pkg-$v/snippets" "motor/$v/"
           done
           cp studio/LICENSE motor/LICENSE-sparrow-studio.txt
           cp studio/web/public/THIRD_PARTY_NOTICES.txt motor/THIRD_PARTY_NOTICES.txt
           echo "sparrow-studio $SPARROW_STUDIO_SHA (web/wasm), wasm-pack 0.15.0, $NIGHTLY" > motor/VERSION.txt
-          (cd motor && sha256sum simd/* nosimd/* > SHA256SUMS.txt)
+          (cd motor && find simd nosimd -type f | sort | xargs sha256sum > SHA256SUMS.txt)
           ls -la motor motor/simd motor/nosimd
       - uses: actions/upload-artifact@v4
         with:
