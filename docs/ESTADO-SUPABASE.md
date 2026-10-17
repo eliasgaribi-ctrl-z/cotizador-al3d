@@ -347,7 +347,7 @@ decidió una **copia automática diaria hoja → Supabase**, con cuadre diario y
 | Ajustes → Supabase (Dirección, tarjeta encendida): «cuadró X de los últimos 7 días · racha · último día» leído de `cuadre_diario`; apagado, idéntico | hecho con dobles (APP_VERSION 122) | `pruebas/supabase-importar-diario.mjs` (sección 10) y `pruebas/supabase-sombra.mjs` |
 
 **El CPU** (el límite de una función de Supabase es 2 s de CPU por petición). Con una hoja de mentiras de 220 ventas, 189 abonos
-y 1 500 renglones de bitácora (269 KB de JSON; el SQL de la copia sale de 255 KB), en node 24 en Windows: **de 50 a 110 ms (según la corrida) la
+y 1 500 renglones de bitácora (269 KB de JSON; el SQL de la copia sale de 255 KB), en node 24 en Windows: **de 50 a 140 ms (según lo ocupada que esté la máquina) la
 primera petición de un proceso nuevo** (más unos 30 ms de cargar los módulos) y **unos 15 ms ya caliente**. El trabajo pesado
 (aplicar el SQL y cuadrar) lo hace Postgres, que no cuenta para ese límite. El reloj de CPU de Windows avanza de 15.6 ms en 15.6
 ms, así que las cifras chicas son aproximadas; en Supabase puede ser dos o tres veces más lento y sigue lejos del límite.
@@ -362,7 +362,7 @@ aflojó**: una histórica que la hoja vuelve viva (COBRANDO → REPARANDO) sigue
 CD-05 (la venta pasa a COBRANDO y después a LIQUIDADO: sigue viva, sin conflicto, y cuadra) y la de «sigue viva» de
 `importador.mjs`. `DECISIONES-SUPABASE.md`, «Transición».
 
-**Cifras (Windows 11):** `sh supabase/tests/correr.sh`: **39 archivos, 876 verificaciones, 0 fallos** (384 s). `sh pruebas/correr.sh`: **70 archivos, todos en verde** (`supabase-importar-diario.mjs`: 91 comprobaciones; las 45 de navegador no corren en Windows). Prueba de humo en PGlite: **63** casos sin `storage.sql` y **79** con él,
+**Cifras (Windows 11):** `sh supabase/tests/correr.sh`: **39 archivos, 883 verificaciones, 0 fallos** (344 s, ya con `main` fusionado y la opción a). `sh pruebas/correr.sh`: **70 archivos, todos en verde** (`supabase-importar-diario.mjs`: 91 comprobaciones; las 45 de navegador no corren en Windows). Prueba de humo en PGlite: **63** casos sin `storage.sql` y **79** con él,
 0 fallos (D01–D05 son de `0018`).
 
 **Para aplicar** (Elías, en este orden; detalle en `supabase/README.md`, «La copia diaria»): `0018` en el Editor SQL de
