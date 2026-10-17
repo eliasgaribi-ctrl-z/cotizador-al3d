@@ -1,6 +1,6 @@
 # Estado de la migración a Supabase
 
-**Última actualización: 2026-10-16, quinta entrega: Fabricación ve las imágenes de las obras ganadas (Q-02 bis, decidido por Elías ese día; `storage.sql` hay que volver a aplicarlo); ver «Quinta entrega» abajo.** Cuarta entrega, el mismo día: las imágenes de las cotizaciones a Storage (bucket privado con las políticas de Q-02, subida con la sombra y bajada en vivo, todo apagado) y la prueba de humo que ya pasa con datos reales; ver «Cuarta entrega» abajo. Tercera entrega, el mismo día: el proyecto de PRODUCCIÓN existe y tiene los datos de la hoja, la app apunta a él (apagada) y las decisiones de Elías del mismo día (Q-05 y Q-19 cambian, `0017`); ver «Tercera entrega» abajo. Antes, ese mismo día (segunda entrega: huecos de la revisión, `autorizar`, `respaldo`, escritura en sombra, lectura en vivo y pantallas de Pagos, todo apagado; y las decisiones de Elías del mismo día sobre sellos y folios, `0014` y `0015`, y sobre los plazos de conservación, `0016`; ver «Segunda entrega» abajo). Primera entrega: 2026-10-10. Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
+**Última actualización: 2026-10-16, sexta entrega: la copia diaria hoja → nube (función `importar-diario`, `0018` y `puente/copia-diaria.gs`, todo sin desplegar); ver «Sexta entrega» abajo.** Quinta entrega, el mismo día: Fabricación ve las imágenes de las obras ganadas (Q-02 bis, decidido por Elías ese día; `storage.sql` hay que volver a aplicarlo); ver «Quinta entrega» abajo. Cuarta entrega, el mismo día: las imágenes de las cotizaciones a Storage (bucket privado con las políticas de Q-02, subida con la sombra y bajada en vivo, todo apagado) y la prueba de humo que ya pasa con datos reales; ver «Cuarta entrega» abajo. Tercera entrega, el mismo día: el proyecto de PRODUCCIÓN existe y tiene los datos de la hoja, la app apunta a él (apagada) y las decisiones de Elías del mismo día (Q-05 y Q-19 cambian, `0017`); ver «Tercera entrega» abajo. Antes, ese mismo día (segunda entrega: huecos de la revisión, `autorizar`, `respaldo`, escritura en sombra, lectura en vivo y pantallas de Pagos, todo apagado; y las decisiones de Elías del mismo día sobre sellos y folios, `0014` y `0015`, y sobre los plazos de conservación, `0016`; ver «Segunda entrega» abajo). Primera entrega: 2026-10-10. Es el avance real, fase por fase, de [`PLAN-SUPABASE.md`](PLAN-SUPABASE.md): el plan dice qué se va a hacer, [`DECISIONES-SUPABASE.md`](DECISIONES-SUPABASE.md) dice cómo, y aquí está qué ya existe, con qué evidencia y qué falta. Las cifras son de corridas reales hechas ese día; lo que no se pudo comprobar está en «No verificado», sin adornos.
 
 ## En una frase
 
@@ -90,7 +90,7 @@ La migración está **apagada, pero ya tiene su casa de verdad**: el proyecto de
 | Parche de seguridad del `/expandir` (la lista blanca aceptaba `https://maps.google.com:x@evil.example/` y conectaba a evil.example) | hecho y verificado | `puente/hoja-apps-script.gs` (`expandirLiga_`) y su prueba. Corre en producción desde la versión 17 del Apps Script (2026-10-12) |
 | Pegar y publicar el código nuevo en Apps Script | hecho el 2026-10-12, **espejo apagado** | Versión 18 de la implementación de siempre (misma URL), `puente-sheets-14` de `main` (`09a7842`), 366,228 caracteres, comprobado tras recargar el editor. Se corrió «3 · Preparar la hoja»: Ventas tiene AG «Notas», AH «Plazo taller» y AI «Sellos» oculta. Mientras no se carguen `ESPEJO_SECRETO` y `MODO_ESPEJO` (no existían antes de esta versión), `/espejo` no hace nada |
 | La plataforma escribe en la base a través de la bandeja | pendiente | — |
-| Cuadre diario automático | pendiente | — |
+| Cuadre diario automático | hecho con dobles y PGlite, **sin desplegar**: la **copia diaria** hoja → nube (función `importar-diario`, `0018`, `puente/copia-diaria.gs`), decidida por Elías el 2026-10-16 porque el equipo sigue capturando en la hoja | «Sexta entrega», abajo |
 
 **Puerta de salida:** siete días seguidos de cuadre. Si no cuadra, se regresa a la fase 2.
 
@@ -131,8 +131,9 @@ La migración está **apagada, pero ya tiene su casa de verdad**: el proyecto de
 | ~~Revisar y confirmar, o cambiar, las decisiones Q-01 a Q-20~~ | **hecho el 2026-10-16** | `DECISIONES-SUPABASE.md` |
 | **Aplicar `supabase/migrations/0017_decisiones_elias.sql`** en `al3d-pruebas` y en `al3d-produccion` (Editor SQL, completa; termina con la auditoría), y después la prueba de humo: **58** casos en verde sin `storage.sql` (57 de antes más C58, que dice que Storage no aplica) | Antes de encender Supabase en cualquier aparato | «Tercera entrega», abajo |
 | ~~Aplicar `supabase/opcional/storage.sql` en `al3d-pruebas` y en `al3d-produccion`, y la prueba de humo: 69 casos~~ | **hecho el 2026-10-16** (humo 69 de 69 en los dos) | «Cuarta entrega», abajo |
-| **Volver a aplicar `supabase/opcional/storage.sql`** (la versión de Q-02 bis) en `al3d-pruebas` y en `al3d-produccion` (Editor SQL, completo; es idempotente y reemplaza las cuatro políticas), y la prueba de humo: **74** casos en verde. Con la versión anterior todavía aplicada, la prueba nueva da 73 de 74 (C70 en rojo: Fabricación no ve la obra ganada) | Antes de encender la lectura en vivo en un teléfono de Fabricación | «Quinta entrega», abajo, y `supabase/README.md`, «Las imágenes de las cotizaciones (Storage)» |
+| **Volver a aplicar `supabase/opcional/storage.sql`** (la versión de Q-02 bis) en `al3d-pruebas` y en `al3d-produccion` (Editor SQL, completo; es idempotente y reemplaza las cuatro políticas), y la prueba de humo: **74** casos en verde (**79** con `0018` aplicada: D01–D05 son de la copia diaria; sin ella, D01 sale en rojo y dice que falta). Con la versión anterior todavía aplicada, la prueba nueva da 73 de 74 (C70 en rojo: Fabricación no ve la obra ganada) | Antes de encender la lectura en vivo en un teléfono de Fabricación | «Quinta entrega», abajo, y `supabase/README.md`, «Las imágenes de las cotizaciones (Storage)» |
 | **Pegar el Apps Script nuevo** (`puente/hoja-apps-script.gs`) e implementar una versión nueva: Pagos mueve la etapa en la hoja, «No se dio» solo Dirección, IA a 50 al día en hora de México | Ya: hasta entonces la hoja le rechaza a Pagos los cambios de etapa | `puente/DESPLIEGUE.md` |
+| **Poner en marcha la copia diaria**: aplicar `0018` en `al3d-produccion` (y la prueba de humo: **63** casos, **79** con `storage.sql`), generar `IMPORTAR_SECRETO` sin pasarlo por el chat, desplegar `importar-diario` pegando `supabase/functions/importar-diario/desplegar/index.ts` (con «Verify JWT» apagado), cargar el secreto en sus Secrets, pegar `puente/copia-diaria.gs` en la hoja real con `IMPORTAR_URL` e `IMPORTAR_SECRETO`, correr `copiarHojaASupabase` y después `instalarCopiaDiaria` | Ya: desde ese día cuenta la racha de 7 | `supabase/README.md`, «La copia diaria»; «Sexta entrega», abajo |
 | Dar la clave del sello por un canal seguro para las 30 autorizaciones pendientes | Antes de apagar `/verificar` de Apps Script | Fase 2 |
 | Confirmar el día en que la hoja pasa a solo lectura (después de 7 días seguidos de cuadre) | Fase 3 → 4 | `DECISIONES-SUPABASE.md`, Q-01 |
 | Confirmar la lista de áreas: ¿cotizador, taller, cobranza, almacén y comisiones, o falta alguna? | Fase 1 | `PLAN-SUPABASE.md` §9 |
@@ -330,6 +331,52 @@ Rama `claude/supabase-imagenes-taller`. **Decidido por Elías el 2026-10-16:** F
 **Para aplicar** (primero `al3d-pruebas`, después `al3d-produccion`): volver a correr `supabase/opcional/storage.sql` completo en el Editor SQL (idempotente: reemplaza las cuatro políticas; no crea funciones; termina con su comprobación) y después `supabase/opcional/prueba-de-humo.sql`: verde con **74** casos. Sin `storage.sql`, 58.
 
 **No verificado en esta entrega:** que el servicio de Storage aplique la rama nueva al firmar la URL igual que la lectura simulada; la copia de Storage de verdad (`copy`: que pida leer el origen e insertar el destino, y cómo dice «ya existe»); la caja de la ficha en un teléfono real con la lectura en vivo (las pruebas de navegador no corren en Windows); cuánto ocupan las copias (solo las imágenes que una duplicada ganada comparte con su original).
+
+## Sexta entrega (2026-10-16): la copia diaria hoja → nube
+
+El equipo sigue capturando en la hoja y no usa la plataforma, así que la escritura en sombra no mantiene la nube al día. Elías
+decidió una **copia automática diaria hoja → Supabase**, con cuadre diario y racha de 7 días (`DECISIONES-SUPABASE.md`,
+«Transición»). Cómo se pone en marcha, paso a paso: `supabase/README.md`, «La copia diaria».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `supabase/migrations/0018_cuadre_diario.sql`: la bitácora de cada corrida. Solo Dirección la lee; nadie la escribe desde la app; nadie la cambia ni la borra; la auditoría de `0011` sigue limpia | hecho y verificado en PGlite, **sin aplicar** | `supabase/tests/sync-e-importacion/importar-diario.mjs` (CD-01); `auditoria/auditoria.mjs` y `rls-y-dinero/rls.mjs` (18 tablas); la prueba de humo, bloque 12 (D01–D05) |
+| Función `importar-diario`: secreto `IMPORTAR_SECRETO` en tiempo constante (sin él, 503 y nada), el MISMO importador de la fase 2 en UNA transacción sobre `SUPABASE_DB_URL` (postgres.js 3.4.5), el cuadre por folio y su renglón en `cuadre_diario`; con conflictos o filas que no entran no aplica nada; si truena, se deshace entera y el fallo se anota con su código | hecho y verificado con dobles y con PGlite, **sin desplegar** | `pruebas/supabase-importar-diario.mjs` (secciones 1–6); `supabase/tests/sync-e-importacion/importar-diario.mjs` (CD-02 a CD-06, el SQL de verdad) |
+| **El archivo para pegar en el panel**: `supabase/functions/importar-diario/desplegar/index.ts` (150 KB, 24 fuentes, esbuild 0.24.2 fijado). Lo único de fuera: `npm:postgres@3.4.5`, `node:crypto` y `node:fs` | hecho; corre en node con un Deno y un postgres de mentiras | `pruebas/supabase-importar-diario.mjs` (sección 8: huellas de cada fuente y, con esbuild instalado, armado otra vez idéntico byte por byte) |
+| `puente/copia-diaria.gs`: un archivo NUEVO junto a `Código.gs` (no lo cambia). Arma el volcado de `volcado-para-importar.gs` en memoria (sin Drive), con el candado del puente mientras lee; lo manda con `IMPORTAR_URL` e `IMPORTAR_SECRETO`; disparador diario de 3 a 4 de la mañana, hora de México; registro sin datos de clientes | hecho y verificado en vm, **falta pegarlo** | `pruebas/supabase-importar-diario.mjs` (sección 9: mismo volcado que `volcado-para-importar.gs`, ni Drive ni escrituras, ningún nombre que choque con `Código.gs`) |
+| Ajustes → Supabase (Dirección, tarjeta encendida): «cuadró X de los últimos 7 días · racha · último día» leído de `cuadre_diario`; apagado, idéntico | hecho con dobles (APP_VERSION 122) | `pruebas/supabase-importar-diario.mjs` (sección 10) y `pruebas/supabase-sombra.mjs` |
+
+**El CPU** (el límite de una función de Supabase es 2 s de CPU por petición). Con una hoja de mentiras de 220 ventas, 189 abonos
+y 1 500 renglones de bitácora (269 KB de JSON; el SQL de la copia sale de 255 KB), en node 24 en Windows: **de 50 a 140 ms (según lo ocupada que esté la máquina) la
+primera petición de un proceso nuevo** (más unos 30 ms de cargar los módulos) y **unos 15 ms ya caliente**. El trabajo pesado
+(aplicar el SQL y cuadrar) lo hace Postgres, que no cuenta para ese límite. El reloj de CPU de Windows avanza de 15.6 ms en 15.6
+ms, así que las cifras chicas son aproximadas; en Supabase puede ser dos o tres veces más lento y sigue lejos del límite.
+
+**La venta viva que la hoja haría histórica (hallazgo de esta entrega, decidido el mismo día: opción a).** Una venta que la hoja
+tenía en FABRICACION o REPARANDO sin folio de cotización entró como «viva»; cuando pasa a COBRANDO o LIQUIDADO, la regla del
+importador (DISENO §3.0) la haría «histórica» y la base no deja cambiar `historica`. Antes, el importador la dejaba sin tocar y
+la anotaba como conflicto todos los días, y la racha no podía llegar a 7. Ahora **sigue viva**: el SQL del importador
+(`scripts/importador/sql.mjs`, el mismo para `importar-hoja.mjs` y para la función) le pone el estatus, el dinero y lo demás de la
+hoja, deja la etapa de la base si la hoja no trae una y la fecha de instalación de histórica vacía. La regla de la base **no se
+aflojó**: una histórica que la hoja vuelve viva (COBRANDO → REPARANDO) sigue siendo conflicto. Hecho y verificado en PGlite:
+CD-05 (la venta pasa a COBRANDO y después a LIQUIDADO: sigue viva, sin conflicto, y cuadra) y la de «sigue viva» de
+`importador.mjs`. `DECISIONES-SUPABASE.md`, «Transición».
+
+**Cifras (Windows 11):** `sh supabase/tests/correr.sh`: **39 archivos, 883 verificaciones, 0 fallos** (344 s, ya con `main` fusionado y la opción a). `sh pruebas/correr.sh`: **70 archivos, todos en verde** (`supabase-importar-diario.mjs`: 91 comprobaciones; las 45 de navegador no corren en Windows). Prueba de humo en PGlite: **63** casos sin `storage.sql` y **79** con él,
+0 fallos (D01–D05 son de `0018`).
+
+**Para aplicar** (Elías, en este orden; detalle en `supabase/README.md`, «La copia diaria»): `0018` en el Editor SQL de
+`al3d-produccion` (después de `0017`) y la prueba de humo; generar el secreto sin pasarlo por el chat; desplegar la función
+pegando `desplegar/index.ts` y apagar «Verify JWT»; cargar `IMPORTAR_SECRETO` en los Secrets de la función; pegar
+`puente/copia-diaria.gs` en la hoja real con sus dos propiedades; correr `copiarHojaASupabase` a mano y después
+`instalarCopiaDiaria`.
+
+**No verificado en esta entrega:** la función en el runtime real de Supabase (no hay Deno ni CLI en esta máquina: el archivo
+corrió en node con un Deno de mentiras); que `SUPABASE_DB_URL` acepte la conexión de postgres.js desde la función (es lo que
+documenta Supabase; no lo probé); el tamaño máximo del cuerpo que acepta la plataforma (la función pone su tope en 15 MB; la hoja
+real debe andar en unos cientos de KB); el tiempo que UrlFetchApp espera la respuesta; el Apps Script en la hoja real; que el
+panel llame «Verify JWT» a ese interruptor; y cuánto tarda Postgres en aplicar la copia de verdad (en PGlite, 220 ventas de
+mentiras con sus abonos: 0.7 s la primera vez sobre la base vacía y 0.4 s la segunda, con la copia, el cuadre y el renglón).
 
 ## Lo que quedaba para la segunda entrega (resuelto arriba, salvo los secretos y la prueba real)
 

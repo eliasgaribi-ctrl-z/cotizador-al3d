@@ -51,7 +51,7 @@ marcado «(hallazgo)».
 
 | Q | Decisión (valor por defecto) | Por qué es el lado seguro |
 |---|---|---|
-| **Q-01 Pagos** | Se construye en la base lo que Pagos hace hoy en la hoja: `registrar_cobro`, `registrar_abono_comision`, `repartir_abono_fifo`, `corregir_venta` (anticipo/subtotal/nombre/cuenta), `alta_venta`. **Las pantallas de Pagos NO entran en esta rama.** La hoja **no se pasa a solo lectura** hasta que existan las pantallas y el cuadre de 7 días. (hallazgo: la plataforma hoy no tiene captura de liquidación, abonos ni reparto) **Decidido por Elías el 2026-10-16: CONFIRMADO.** La hoja pasa a **solo lectura después de 7 días seguidos de cuadre**, y el cambio lo confirma Elías ese día (no es automático). | Declarar la hoja «solo lectura» antes de que exista la captura detendría la cobranza |
+| **Q-01 Pagos** | Se construye en la base lo que Pagos hace hoy en la hoja: `registrar_cobro`, `registrar_abono_comision`, `repartir_abono_fifo`, `corregir_venta` (anticipo/subtotal/nombre/cuenta), `alta_venta`. **Las pantallas de Pagos NO entran en esta rama.** La hoja **no se pasa a solo lectura** hasta que existan las pantallas y el cuadre de 7 días. (hallazgo: la plataforma hoy no tiene captura de liquidación, abonos ni reparto) **Decidido por Elías el 2026-10-16: CONFIRMADO.** La hoja pasa a **solo lectura después de 7 días seguidos de cuadre**, y el cambio lo confirma Elías ese día (no es automático). **Desde el 2026-10-16 los 7 días los cuenta la copia diaria** (`cuadre_diario`; abajo, «Transición»). | Declarar la hoja «solo lectura» antes de que exista la captura detendría la cobranza |
 | **Q-02 Cotizaciones y solicitudes** | **Decidido por Elías el 2026-10-16: CONFIRMADO como está.** Dirección las lee **todas**; Pagos, **las suyas** (`cotizaciones.creado_por`, `solicitudes.solicito_id`); Fabricación, **ninguna**, porque llevan precios (R1 manda sobre «cada quien las suyas»). Verificado en la base: políticas `cotizaciones_sel_direccion`/`cotizaciones_sel_autor_pagos` y `solicitudes_sel_direccion`/`solicitudes_sel_autor_pagos` de `0008_notario.sql`; ninguna migración posterior las toca. (La versión anterior de esta fila decía «Fabricación y Pagos solo las suyas»: la base nunca le dio cotizaciones a Fabricación.) (hallazgo: el Cotizador está abierto a los 3 roles) **Q-02 bis, decidido por Elías el 2026-10-16: Fabricación SÍ VE (lee y baja) las IMÁGENES —plano, renders y propuesta— de las cotizaciones de obras GANADAS**, para fabricarlas: no llevan precios. La cotización (con precios) sigue cerrada para Fabricación, y las imágenes de una cotización no ganada, de una venta cancelada o de una lápida «No se dio» también; sigue sin subir, cambiar ni borrar. Ver «Las imágenes de las obras ganadas», abajo. | Hoy cada teléfono ve solo lo suyo: es un superconjunto de lo actual para Dirección y nunca más abierto; a Fabricación no le llega un precio |
 | **Q-03 estatus, iva, fecha anticipo** | Siguen **visibles para los 3 roles** (hoy lo son). Viven fuera de `ventas_dinero`. (hallazgo) **Decidido por Elías el 2026-10-16: CONFIRMADO.** Verificado en la base: `estatus`, `iva` y `fecha_anticipo` viven en `proyectos` (`0003_proyectos.sql`), que leen los tres roles; las cifras siguen en `ventas_dinero`. | Romperlo quita «Faltan datos» y las marcas de Drive del Tablero |
 | **Q-04 Ventas históricas** | Las ≥199 filas de la hoja sin proyecto **no se pierden**: existen en la base (ver decisión de tablas en `DISENO.md`). `ventas_dinero.proyecto_id` no puede suponer que hay cotización. (hallazgo) **Aceptado por defecto (Elías no pidió cambio, 2026-10-16).** | Control suma todas |
@@ -140,6 +140,46 @@ trigger deja pasar **solo** la fila que cumple la regla de su tabla, revisada ot
 `direccion`). El aviso de Realtime de cada borrado lleva solo la llave primaria (identidad de réplica DEFAULT), nunca la fila: se
 acepta. Una cotización purgada puede volver si un teléfono que todavía la tiene la sube otra vez (la purga es de la nube, no de los
 teléfonos).
+
+### Transición: copia diaria hoja → nube (decidido por Elías el 2026-10-16)
+
+**Lo que pasa hoy.** El equipo **no usa la plataforma**: sigue capturando directo en la hoja «Finanzas AL3D — Ventas y
+Comisiones». La escritura en sombra (fase 3) solo copia a la nube lo que pasa por la app, así que con la hoja como única
+entrada la nube se quedaría como el día de la importación.
+
+**Lo que decidió Elías.** Una **copia automática diaria de la hoja a Supabase**, con su **cuadre diario** y la **racha de 7
+días**. El día que Elías diga: una última copia, la hoja a **solo lectura** y el equipo pasa a la plataforma. La escritura en
+sombra queda para **después del cambio** (mientras la hoja manda, la copia de cada madrugada pisa la base con la hoja: encender
+la sombra antes no estorba, pero no hace falta).
+
+**Cómo quedó** (`supabase/README.md`, «La copia diaria»):
+
+- `puente/copia-diaria.gs`, un archivo nuevo del proyecto de Apps Script de la hoja (no cambia `Código.gs`), arma cada madrugada
+  (de 3 a 4, hora de México) el mismo volcado que `volcado-para-importar.gs`, en memoria, y lo manda a la función
+  `importar-diario` con el secreto `IMPORTAR_SECRETO` (en los Secrets de la función y en las propiedades del script).
+- La función corre **el mismo importador** de la fase 2 (Q-14: no decide), en **una sola transacción**, y después el cuadre por
+  folio de `cuadre.sql`. Deja un renglón en `cuadre_diario` (`0018`), que solo lee Dirección, sin nombres ni importes.
+- Si el **plan** trae conflictos o filas que no entran, **no se aplica nada** ese día (se anota y se arregla en la hoja). Lo que
+  la **base** no deja cambiar (una histórica que la hoja volvería viva) lo deja sin tocar el propio SQL del importador y se anota
+  como conflicto: lo demás sí se aplica. Una VIVA que la hoja haría histórica sigue viva (abajo, opción a).
+- Sin teléfonos y sin la clave del sello, como la importación del 2026-10-16: las 30 autorizaciones siguen esperando la clave.
+
+**Cómo se lee Q-01 desde hoy.** «7 días seguidos de cuadre» = 7 días de México seguidos cuyo último renglón de `cuadre_diario`
+dice `cuadra` (se aplicó, 0 diferencias, 0 conflictos, 0 filas que no entran). Ajustes → Supabase lo cuenta. El día del cambio
+lo sigue confirmando Elías: no es automático.
+
+**Una venta viva que la hoja haría histórica — decidido el 2026-10-16: opción (a), en el importador.** Una venta que la hoja
+tenía en **FABRICACION o REPARANDO** sin folio de cotización entró a la base como «viva»; cuando pasa a **COBRANDO o LIQUIDADO**
+(el ciclo normal de una venta), la regla de la fase 2 (DISENO §3.0) la haría «histórica», y la base no deja cambiar eso. Sin una
+regla, esa venta dejaba de actualizarse y la racha no podía llegar a 7. Se eligió **(a): una venta que ya es VIVA en la base
+sigue viva**; se le actualizan su estatus y su dinero (y todo lo demás) desde la hoja, conserva la etapa de la base si la hoja no
+trae una (una viva siempre tiene etapa) y no lleva fecha de instalación de histórica. Vale igual para el importador de línea de
+comandos (`scripts/importar-hoja.mjs`) y para la función: está en el SQL que los dos usan (`scripts/importador/sql.mjs`). La otra
+opción, (b), era aflojar la regla de la base para que una fila de la hoja pudiera pasar de viva a histórica; **no se tomó: la base
+sigue sin dejar cambiar `historica`**, y lo contrario (una histórica que la hoja vuelve a poner en FABRICACION o REPARANDO, por
+ejemplo una garantía) sigue saliendo como conflicto para decidirlo a mano. **Elegida por Claude**, con el visto bueno general de
+Elías para decidir lo técnico; motivo: **no afloja ninguna regla de la base**. Pruebas: CD-05 de
+`supabase/tests/sync-e-importacion/importar-diario.mjs` y la de «sigue viva» de `importador.mjs`.
 
 ---
 

@@ -23,6 +23,9 @@
    que falta. Si el mismo V-### está en los dos lados pero cada uno con OTRA cotización, no son la
    misma venta: no se emparejan por folio (se intenta por cotización y, si no, cuentan como faltantes).
 
+   Desde el 2026-10-16 la racha que cuenta es la de la COPIA DIARIA (la función `importar-diario` deja
+   cada madrugada un renglón en `cuadre_diario`): `resumenCopiaDiaria` la cuenta para Ajustes.
+
    Lo que NO hace: no decide nada ni corrige nada. Dice si cuadra y dónde no.
    ============================================================================ */
 
@@ -176,6 +179,34 @@ export function racha(historial) {
   let d = dias[dias.length - 1], n = 0;
   while (porDia.has(d) && porDia.get(d).cuadra === true) { n++; d = ayer(d); }
   return n;
+}
+
+/**
+ * La COPIA DIARIA hoja → nube (función `importar-diario`, tabla `cuadre_diario` de 0018), en lo que enseña Ajustes:
+ * cuántos de los últimos 7 días de México cuadraron, la racha de días seguidos (la de `racha`) y el último resultado.
+ * Desde el 2026-10-16 (decisión de Elías) ESTA es la cuenta de la fase 3: el equipo captura en la hoja y la nube se pone al
+ * día cada madrugada. Si en un día hubo varias corridas, manda la última de ese día. null si no hay ninguna.
+ * @param {{fecha:string, hecho_en:string, aplicado:boolean, cuadra:boolean, diferencias:number, conflictos:number, rechazos:number}[]} filas
+ * @param {string} hoy  el día de México, «AAAA-MM-DD»
+ */
+export function resumenCopiaDiaria(filas, hoy) {
+  const hist = (Array.isArray(filas) ? filas : [])
+    .filter(f => f && /^\d{4}-\d{2}-\d{2}$/.test(String(f.fecha || '')))
+    .map(f => ({ dia: f.fecha, cuadra: f.cuadra === true, ts: Date.parse(f.hecho_en) || 0, f }));
+  if (!hist.length) return null;
+  const porDia = new Map();
+  for (const h of hist) { const p = porDia.get(h.dia); if (!p || h.ts >= p.ts) porDia.set(h.dia, h); }
+  let deSiete = 0;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(hoy || ''))) {
+    for (let i = 0, d = hoy; i < 7; i++, d = ayer(d)) if (porDia.has(d) && porDia.get(d).cuadra) deSiete++;
+  }
+  const u = hist.reduce((a, b) => (b.ts > a.ts || (b.ts === a.ts && b.dia > a.dia) ? b : a)).f;
+  const n = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return {
+    deSiete, racha: racha(hist), meta: 7,
+    ultimo: { fecha: u.fecha, hecho_en: u.hecho_en || '', aplicado: u.aplicado === true, cuadra: u.cuadra === true,
+              diferencias: n(u.diferencias), conflictos: n(u.conflictos), rechazos: n(u.rechazos) },
+  };
 }
 
 /** Pesos con centavos, para la pantalla («$1,234.50»). */

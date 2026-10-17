@@ -1425,6 +1425,9 @@ async function bloqueSombra() {
   h += '<p class="pf-nota">El <b>cuadre</b> compara la hoja con la base: número de ventas y la suma de cada columna (subtotal, neto, anticipo, liquidación, ' +
     'saldo, comisiones, abonado y comisión restante), y folio por folio. Con la sombra encendida se hace solo una vez al día. ' +
     'La fase 3 termina con ' + cu.meta + ' días seguidos cuadrando.</p>';
+  /* La copia diaria hoja → nube (importar-diario, 0018): desde el 2026-10-16 es la racha que cuenta. Se lee de la base. */
+  const nube = await E.cuadreDiario().catch(e => ({ error: (e && e.message) || 'sin respuesta' }));
+  h += bloqueCopiaDiaria(nube);
   if (ult) {
     const r = ult.resultado || {};
     const partes = [];
@@ -1435,7 +1438,7 @@ async function bloqueSombra() {
     if (r.folio_distinto && r.folio_distinto.n) partes.push(r.folio_distinto.n + ' con otro V-### en la base');
     h += nota('Último cuadre (' + esc(sbFecha(ult.ts)) + '): ' + (ult.cuadra ? 'cuadra' : 'no cuadra') +
       (partes.length ? ' — ' + esc(partes.join(', ')) : '') + ' · ' + (r.hoja ? r.hoja.filas : 0) + ' ventas en la hoja, ' +
-      (r.base ? r.base.filas : 0) + ' en la base. Racha: ' + cu.racha + ' de ' + cu.meta + ' días.', ult.cuadra ? 'ok' : 'av');
+      (r.base ? r.base.filas : 0) + ' en la base.' + (nube && nube.ultimo ? '' : ' Racha: ' + cu.racha + ' de ' + cu.meta + ' días.'), ult.cuadra ? 'ok' : 'av');
     const det = [].concat(((r.solo_hoja && r.solo_hoja.lista) || []).map(x => x.folio + ': solo en la hoja'),
       ((r.solo_base && r.solo_base.lista) || []).map(x => x.folio + ': solo en la base'),
       ((r.distintos && r.distintos.lista) || []).map(x => x.folio + ': ' + x.campo + ' hoja ' + (x.hoja / 100).toFixed(2) + ' / base ' + (x.base / 100).toFixed(2)));
@@ -1452,6 +1455,19 @@ async function bloqueSombra() {
     }
   }
   return h;
+}
+
+/* La copia diaria hoja → nube, como la deja `resumenCopiaDiaria` (js/datos/supa-cuadre.js). Solo cuentas: ni nombres ni importes. */
+function bloqueCopiaDiaria(nube) {
+  if (nube && nube.error) return nota('No se pudo leer la copia diaria de la nube: ' + esc(nube.error), 'av');
+  if (!nube || !nube.ultimo) return nota('La copia diaria de la hoja a la nube todavía no ha corrido (se instala en el Apps Script de la hoja).', 'av');
+  const u = nube.ultimo;
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(u.fecha) ? new Date(u.fecha + 'T12:00:00Z').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : u.fecha;
+  const por = [u.diferencias + (u.diferencias === 1 ? ' diferencia' : ' diferencias'), u.conflictos + (u.conflictos === 1 ? ' conflicto' : ' conflictos')];
+  if (u.rechazos) por.push(u.rechazos + (u.rechazos === 1 ? ' fila que no entra' : ' filas que no entran'));
+  return nota('<b>Copia diaria de la hoja a la nube:</b> cuadró ' + nube.deSiete + ' de los últimos 7 días · racha: ' + nube.racha + ' de ' + nube.meta + '. ' +
+    'Último día (' + esc(dia) + '): ' + (u.cuadra ? 'cuadra' : 'no cuadra') + ' — ' + esc(por.join(', ')) +
+    (u.aplicado ? '.' : '; la copia no se aplicó (lo decide una persona).'), u.cuadra ? 'ok' : 'av');
 }
 
 async function accionSombra(b) {
