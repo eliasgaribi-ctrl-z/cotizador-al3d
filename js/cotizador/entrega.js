@@ -165,6 +165,17 @@ function pistaWhatsApp(){
     aviso:teniaTel?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
                   :'Sin teléfono capturado: elige el chat en WhatsApp'};
 }
+/* ----- El anticipo que sale en papel -----
+   renderSummary() no acota el anticipo a propósito (proceso.js, «El techo del anticipo NO se
+   aplica aquí»): un total que baja un instante no debe cortar el pactado para siempre. Pero lo
+   que sale al cliente no puede decir «Anticipo $10,000 · Resta $0» sobre un total de $8,000, así
+   que el PDF, el WhatsApp y Canva imprimen esto, y el vendedor recibe el aviso para corregirlo. */
+function anticipoDelPapel(neto){ return Math.min(Math.max(0,+Q.anti||0),Math.max(0,+neto||0)); }
+function avisarAnticipoDeMas(neto){
+  if(!(Q.anti>0)||!(Q.anti-(+neto||0)>0.01)) return false;   // la misma tolerancia que partirAnticipo
+  toast(`El anticipo (${money(Q.anti)}) es mayor que el total (${money(neto)}) — en el documento sale igual al total; corrígelo en «Anticipo»`,'err',7000);
+  return true;
+}
 function mensajeWhatsApp(){
   const pf=precioFinal();
   const n=Q.items.filter(it=>it.showInPdf!==false).length;
@@ -180,7 +191,7 @@ function mensajeWhatsApp(){
   /* Con una propuesta con opciones (pieza 76) el total suma solo la abierta: sin esta línea el
      cliente leería ese número como el precio de todo y no abriría la hoja que lo explica. */
   if(Q.items.some(it=>it.showInPdf!==false&&opcionesParaPdf(it))) L.push('Incluye una propuesta con opciones: en el PDF viene la hoja «Opciones propuestas» para elegir.');
-  if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
+  if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(anticipoDelPapel(pf))}`);
   if((Q.entrega||'').trim()) L.push(`Límite de fabricación: ${Q.entrega.trim()}`);
   /* Solo la nota que se escribió a mano. La de respaldo —«El cliente debe proporcionar
      salidas eléctricas»— está redactada para el documento, no para hablarle a alguien;
@@ -200,6 +211,7 @@ function enviarPorWhatsApp(){
      aquí se lee con el pulgar todavía encima del botón, y la pista del renglón se lo venía
      diciendo desde antes de tocarlo (H2). */
   if(!w.ok) toast(w.aviso,'err',5200);
+  else avisarAnticipoDeMas(precioFinal());
   const url='https://wa.me/'+w.num+'?text='+encodeURIComponent(mensajeWhatsApp());
   /* Sin el 'noopener': window.open lo devuelve null POR ESPECIFICACIÓN cuando se pide, así
      que la app siempre creía que el navegador había bloqueado la ventana y enseñaba el aviso
@@ -516,7 +528,7 @@ PARTIDAS:
 ${lineas}
 
 Subtotal: ${money(subC)}${hayAjusteC&&ajuste>0.01?`\nDescuento: −${money(ajuste)}`:''}${hayAjusteC&&ajuste<-0.01?`\nAjuste: +${money(-ajuste)}`:''}${hayAjusteC?`\nSubtotal ${ajuste>0?'con descuento':'ajustado'}: ${money(dFinC.sub)}`:''}${Q.iva?`\nIVA (16%): ${money(dFinC.iva)}`:''}
-${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.anti>0?`\nAnticipo para arrancar: ${money(Q.anti)}\nResta al entregar: ${money(Math.max(0,dFinC.neto-Q.anti))}`:''}
+${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.anti>0?`\nAnticipo para arrancar: ${money(anticipoDelPapel(dFinC.neto))}\nResta al entregar: ${money(dFinC.neto-anticipoDelPapel(dFinC.neto))}`:''}
 
 Nota: ${notaCliente()}
 Límite de fabricación: ${Q.entrega||'—'}
@@ -692,6 +704,7 @@ function generarPDF(){
   if(Q.items.length&&!itemsForPDF.length){
     toast('Todas las partidas están ocultas del PDF — muestra al menos una','err',4600); return;
   }
+  avisarAnticipoDeMas(precioFinal());
   /* El PDF se arma con los precios que ve el cliente —preciosCliente(): los ajustados por
      el autorizador y, si además subió el total, con ese aumento ya repartido entre las
      partidas—, para que las filas de la tabla siempre sumen lo que dice el total.
@@ -1752,8 +1765,8 @@ ${trozos.map((trozo,ti)=>{
       <div class="neto"><span>${Q.iva?'Total neto':'Total'}</span><span>${money(dFin.neto)}</span></div>
       ${Q.anti>0?`<div class="pago">
         <span class="lbl">Plan de pago</span>
-        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>${money(Q.anti)}</span></div>
-        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>${money(Math.max(0,dFin.neto-Q.anti))}</span></div>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>${money(anticipoDelPapel(dFin.neto))}</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>${money(dFin.neto-anticipoDelPapel(dFin.neto))}</span></div>
       </div>`:''}
     </div>
   </div>
