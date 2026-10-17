@@ -4,6 +4,9 @@
 # vez por semana a la función `respaldo` (supabase/functions/respaldo), que exporta todas las tablas a un archivo
 # JSON y lo sube a Drive con una cuenta de servicio. La función hace el trabajo; aquí solo se la dispara.
 #
+# ES LA ALTERNATIVA (decidido 2026-10-17 para que Elías no tenga que mover secretos): el respaldo semanal lo hace la hoja
+# (puente/copia-diaria.gs, respaldarSemanal), pidiéndoselo a la función importar-diario, sin cuenta de servicio. Este flujo
+# queda para cuando la base pase de 45 MB o se quiera sin Apps Script (supabase/README.md, «El respaldo semanal»).
 # APAGADO POR DEFECTO: si falta la variable o el secreto, el flujo lo dice y termina bien, sin llamar a nada.
 # Se enciende desde Settings > Secrets and variables > Actions:
 #   Variables:  RESPALDO_URL_FUNCION      la dirección de la función: https://<ref>.supabase.co/functions/v1/respaldo

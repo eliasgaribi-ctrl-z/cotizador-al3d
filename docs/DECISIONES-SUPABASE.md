@@ -71,7 +71,7 @@ marcado «(hallazgo)».
 | **Q-17 Privacidad** | Se redacta el cambio de `privacidad.html` con hechos (qué se guarda, dónde, quién lo ve, cómo se baja un acceso). **Es borrador para tu revisión**; no es asesoría legal Aplicado el 2026-10-16 con las decisiones de Elías (`BORRADOR-PRIVACIDAD-SUPABASE.md`); no estaba en la lista de ese día. | El plan pide actualizarlo antes de la fase 2 |
 | **Q-18 Repositorio** | `supabase/` y `scripts/` van en **este** repo. `.gitignore` y `_headers` (noindex) cubren `.env*`, `supabase/.temp/`, volcados y `reportes/`. Reportes con datos de clientes **nunca** dentro del árbol (el sitio publica todo) **Aceptado por defecto (Elías no pidió cambio, 2026-10-16).** | El código no es secreto; los datos sí |
 | **Q-19 IA** | **Decidido por Elías el 2026-10-16: CAMBIA a 50 consultas al día por persona** (antes 200), contado en el día de **México** (`America/Mexico_City`). La base lo impone: `ia_cuota` nunca deja más de 50 aunque quien llama pida más (`0017_decisiones_elias.sql`). Lo dicen también la función `ia` (`IA_LIMITE_DIARIO` en `supabase/functions/_shared/ia.js`) y el Apps Script, que hoy es el que da la IA (`IA_LIMITE_DIARIO` = 50 y el día del cupo en hora de México en lugar de GMT; surte efecto cuando se pegue en la hoja). Se cuenta en una tabla (las funciones no guardan estado). Lista blanca de modelos y URLs igual | Lo pidió Elías; con la hoja y la base contando igual no hay una hora del día en que el cupo se reinicie antes |
-| **Q-20 Respaldo y pausa** | **Pausa**: un flujo de GitHub Actions programado cada 2 días llama a una función pública `salud` (la pausa es a la semana). **Respaldo**: función `respaldo` (secreto compartido) + función de Apps Script que escribe a Drive; semanal; se enciende después de la fase 4. Sin respaldos propios de Supabase en el plan Free (verificado 2026-10-10) **Aceptado por defecto (Elías no pidió cambio, 2026-10-16).** | Un cron semanal no deja margen |
+| **Q-20 Respaldo y pausa** | **Pausa**: un flujo de GitHub Actions programado cada 2 días llama a una función pública `salud` (la pausa es a la semana). **Respaldo**: semanal, a Drive. Sin respaldos propios de Supabase en el plan Free (verificado 2026-10-10) **Aceptado por defecto (Elías no pidió cambio, 2026-10-16).** **Cambia el CÓMO, decidido 2026-10-17 para que Elías no tenga que mover secretos:** ya no lo sube la función `respaldo` con una cuenta de servicio de Google (credenciales que Elías tendría que crear y cargar). Lo pide la hoja: `puente/copia-diaria.gs` (`respaldarSemanal`, los domingos de 5 a 6 de la mañana, hora de México) se lo pide a la función `importar-diario` con el **mismo** `IMPORTAR_SECRETO` (comparación en tiempo constante; mismo modelo de confianza: solo la hoja lo tiene, y ese secreto ya deja escribir toda la base) y lo guarda en «AL3D Respaldos» con el permiso de Drive que la hoja ya tiene; se quedan los 8 más recientes. La función contesta el archivo «al3d-respaldo-1» leído en **una** transacción de solo lectura (una foto exacta) y se niega arriba de 45 MB (`UrlFetchApp` no recibe más de 50). La función `respaldo` y su flujo de GitHub quedan como **alternativa apagada** (para cuando la base pase de 45 MB). Ver «El respaldo semanal», abajo | Un cron semanal no deja margen; así no hay credenciales nuevas que crear |
 
 ### Confirmadas por Elías el 2026-10-16 (segunda entrega)
 
@@ -116,14 +116,14 @@ proyecto (`js/mod/proyectos.js`), todo apagado mientras no se encienda la lectur
 
 Hasta aquí nada se borraba nunca (A.6). Elías fijó cuánto se guarda cada cosa en la nube; lo implementan
 `supabase/migrations/0016_plazos.sql` (purgas en el esquema `interno` y su programación diaria con pg_cron, 03:15 de México) y la
-función `respaldo` (la rotación en Drive).
+función `respaldo` (la rotación en Drive; desde el 2026-10-17 la hace `puente/copia-diaria.gs`, ver Q-20).
 
 | Qué | Plazo | Cómo |
 |---|---|---|
 | Cotizaciones **no ganadas** | se borran a los **8 meses** de su última actividad | `interno.purgar_cotizaciones_no_ganadas`. Se van con sus solicitudes y su lápida «No se dio». «Última actividad» = lo más reciente entre su `updated_at`, su `created_at`, sus solicitudes y su lápida |
 | Bitácora | se conserva **1 año** (por la hora del hecho, `ts`) | `interno.purgar_bitacora`. Sigue sin poder editarse |
 | Lo borrado en la app (`deleted_at`) | se purga a los **30 días** de marcado | `interno.purgar_borrados`: cotizaciones (si no están protegidas), notas de cuaderno y citas |
-| Respaldos semanales en Drive | se quedan los **8 más recientes** | La función `respaldo`, solo después de una subida buena y solo sobre lo que ella creó (nombre `al3d-respaldo-…Z.json` **y** su marca `appProperties.al3d = respaldo`); lo que sobra va a la papelera de Drive. `RESPALDO_CONSERVAR` lo cambia (8 por omisión) |
+| Respaldos semanales en Drive | se quedan los **8 más recientes** | Desde el 2026-10-17, `respaldarSemanal` de `puente/copia-diaria.gs`, solo después de guardar uno bueno y solo sobre lo que ese script creó (nombre `al3d-respaldo-…Z.json` **y** su marca en la descripción); lo que sobra va a la papelera de Drive. La alternativa apagada (la función `respaldo`) hace lo mismo con su marca `appProperties.al3d = respaldo` y `RESPALDO_CONSERVAR` |
 | Libros de dinero (ventas, abonos, comisiones) y autorizaciones | **no se purgan nunca** (contabilidad) | Ninguna purga los toca y `sin_borrar` los rechaza aun dentro de una purga. Tampoco `proyectos`/`ventas_dinero` con `deleted_at`: son el libro de ventas |
 
 **Qué cuenta como «no ganada» (criterio conservador: ante la duda, se queda).** Una cotización está **protegida** —no se borra ni
@@ -162,7 +162,8 @@ la sombra antes no estorba, pero no hace falta).
 - Si el **plan** trae conflictos o filas que no entran, **no se aplica nada** ese día (se anota y se arregla en la hoja). Lo que
   la **base** no deja cambiar (una histórica que la hoja volvería viva) lo deja sin tocar el propio SQL del importador y se anota
   como conflicto: lo demás sí se aplica. Una VIVA que la hoja haría histórica sigue viva (abajo, opción a).
-- Sin teléfonos y sin la clave del sello, como la importación del 2026-10-16: las 30 autorizaciones siguen esperando la clave.
+- Sin teléfonos. **Las autorizaciones sí entran desde el 2026-10-17, sin que la clave del sello salga de la hoja** (abajo, «Las
+  autorizaciones en la copia diaria»).
 
 **Cómo se lee Q-01 desde hoy.** «7 días seguidos de cuadre» = 7 días de México seguidos cuyo último renglón de `cuadre_diario`
 dice `cuadra` (se aplicó, 0 diferencias, 0 conflictos, 0 filas que no entran). Ajustes → Supabase lo cuenta. El día del cambio
@@ -180,6 +181,52 @@ sigue sin dejar cambiar `historica`**, y lo contrario (una histórica que la hoj
 ejemplo una garantía) sigue saliendo como conflicto para decidirlo a mano. **Elegida por Claude**, con el visto bueno general de
 Elías para decidir lo técnico; motivo: **no afloja ninguna regla de la base**. Pruebas: CD-05 de
 `supabase/tests/sync-e-importacion/importar-diario.mjs` y la de «sigue viva» de `importador.mjs`.
+
+### Las autorizaciones en la copia diaria (decidido 2026-10-17 para que Elías no tenga que mover secretos)
+
+**El problema.** Para importar las 30 filas de «Autorizaciones» hay que comprobar la firma de cada una (si no, un renglón editado a
+mano entraría como un sello bueno), y para eso hace falta la clave del sello (`SELLO_AUTORIZACION`). Esa clave vive **solo** en las
+propiedades del script de la hoja y no debe salir de ahí: ni al chat, ni a un archivo, ni a otra máquina.
+
+**Lo que se hizo.** La comprobación ocurre **dentro de la hoja**. Al armar el volcado, `puente/copia-diaria.gs` comprueba cada fila con
+la clave del script usando las **mismas funciones de `Código.gs` que usa `/verificar`**: `registroDeFila` → `firmar(…, secretoDelSello_(false))`
+y las dos comparaciones de `rutaVerificar_` (la firma guardada y el código impreso). Se llaman desde otro archivo porque en Apps Script
+todos los archivos de un proyecto comparten el ámbito global (el guion bajo final solo las esconde del menú «Ejecutar» y de
+`google.script.run`). No se llama `rutaVerificar_` misma porque gasta el cupo público, busca el último renglón por folio y código (no esa
+fila) y no dice por qué. `secretoDelSello_(false)` no crea una clave si no la hay. Al volcado va, por fila, solo el **veredicto**:
+`firma_ok` y, si es bueno, la codificación con la que coincidió (`ascii-?`, la única con la que firma Apps Script) y el texto que se firmó
+(`canon`). **Nunca la clave.**
+
+**Quién le cree.** Solo la función `importar-diario`, después de comprobar `IMPORTAR_SECRETO`: le pide al importador
+`aceptarVeredictosDeLaHoja`. El importador de línea de comandos no lo pide, así que por ahí un volcado con veredictos sigue necesitando
+la clave. Una fila entra solo si la hoja dijo `firma_ok: true` **y** el texto firmado que sale de la fila tal como va a la base es
+**exactamente** el `canon` que la hoja comprobó: la base guarda la autorización verbatim, con `codificacion = 'ascii-?'`, y `/verificar`
+de Supabase la puede recalcular el día que tenga la clave.
+
+**Lo que no entra no frena la copia.** Una firma que no cuadra (un total o un negocio editado a mano), una fila mal formada, un texto
+distinto del comprobado o dos vigentes del mismo folio **esperan en la hoja** (Q-14: no se decide) y se cuentan en el renglón de
+`cuadre_diario` con su número de fila y su motivo (lista cerrada), sin folios ni nombres. No son «rechazos» ni «conflictos», así que el
+día puede cuadrar. Una fila cuya hora la hoja volvió fecha tampoco entra por aquí (el `/verificar` de la hoja ya no la reconoce); con
+la clave en la línea de comandos sí entraría, reconstruyendo la hora.
+
+**Lo que sigue sin comprobarse:** el `.gs` con la hoja real y su clave real (las pruebas cargan `Código.gs` real con una clave FALSA:
+`pruebas/supabase-importar-diario.mjs`, sección 9 bis, y CD-07 en PGlite). La debilidad conocida de ASCII-? (no distingue un acento de
+otro) es la misma que la de `/verificar` de la hoja.
+
+### El respaldo semanal (Q-20, el cómo, decidido 2026-10-17 para que Elías no tenga que mover secretos)
+
+- **Quién lo pide:** `respaldarSemanal` de `puente/copia-diaria.gs`, los domingos de 5 a 6 de la mañana (hora de México; la copia
+  diaria corre de 3 a 4). `instalarRespaldoSemanal` lo programa y hace el primero; `quitarRespaldoSemanal` lo quita.
+- **Quién lo da:** la función `importar-diario` (no la función `respaldo`): es la que ya está desplegada, ya tiene la base y ya confía
+  en `IMPORTAR_SECRETO` para escribirla entera; leerla con el mismo secreto no agranda a quién se le cree, y es un solo archivo que
+  pegar. Contesta el archivo «al3d-respaldo-1» (el formato de la función `respaldo`), con su nombre, `sha256`, bytes y filas en
+  cabeceras, leído en una transacción de solo lectura.
+- **Dónde queda:** la unidad compartida «AL3D Respaldos» (la que creó Elías), buscada por nombre con la API de Drive y el permiso que la
+  hoja ya tiene (`Código.gs` ya usa Drive); si no está, una carpeta con ese nombre en cualquier unidad; si no hay ninguna, se crea en Mi
+  unidad. Se quedan los **8** más recientes que el script creó; los demás van a la papelera.
+- **Lo que no sale:** el contenido (datos de clientes) nunca va al registro de la hoja ni al de la función: solo nombre, KB y filas.
+- **El límite:** arriba de 45 MB la función contesta `RESPALDO_GRANDE` y no manda nada. Ese día se enciende la alternativa (la función
+  `respaldo` con cuenta de servicio, que sigue en el repositorio, probada y apagada).
 
 ---
 
