@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 128;
+const APP_VERSION = 130;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -178,6 +178,21 @@ const APP_FILES = [
   './anidador-vectores/js/medidas.js',
   './anidador-vectores/js/dxf.js',
   './anidador-vectores/js/vibracion.js',
+  './anidador-vectores/js/contornos.js',
+  './anidador-vectores/js/dxf-entrada.js',
+  './anidador-vectores/js/sobrante.js',
+  /* El motor de acomodo sparrow (MIT; anidador-vectores/motor/, compilado en CI por
+     .github/workflows/motor-sparrow.yml). La variante SIMD entera, para que la mesa acomode sin
+     señal; de la de respaldo (aparatos sin SIMD, raros) solo el guion: su .wasm se baja si hace
+     falta, para no cargarle 1.6 MB más a cada teléfono que instala la plataforma. */
+  './anidador-vectores/js/motor-sparrow.js',
+  './anidador-vectores/js/motor-sparrow-mesa.js',
+  './anidador-vectores/js/motor-sparrow-trabajador.js',
+  './anidador-vectores/motor/simd/sparrow_web.js',
+  './anidador-vectores/motor/simd/sparrow_web_bg.wasm',
+  './anidador-vectores/motor/simd/snippets/sparrow-web-47a017a485d46f18/inline0.js',
+  './anidador-vectores/motor/nosimd/sparrow_web.js',
+  './anidador-vectores/motor/nosimd/snippets/sparrow-web-47a017a485d46f18/inline0.js',
   './anidador-vectores/js/svgnest.js',
   './anidador-vectores/js/svgparser.js',
   './anidador-vectores/js/lib/pathsegpolyfill.js',

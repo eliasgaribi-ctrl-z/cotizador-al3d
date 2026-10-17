@@ -10,23 +10,49 @@ y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— 
 
 ## Qué hace
 
-1. Recibe el SVG de las piezas: arrastrado, pegado con Ctrl+V, elegido del disco, o
-   directo del vectorizador del cotizador sin pasar por el disco.
+1. Recibe el SVG **o el DXF** de las piezas: arrastrado, pegado con Ctrl+V, elegido del disco,
+   o directo del vectorizador del cotizador sin pasar por el disco. El DXF se lee aquí mismo
+   (`js/dxf-entrada.js`: LINE, LWPOLYLINE/POLYLINE con bulge, ARC, CIRCLE, ELLIPSE, SPLINE,
+   bloques INSERT; unidades de `$INSUNITS`, mm si no lo dice y se avisa) y entra como un SVG en mm.
+   **Limpieza antes de acomodar** (`js/contornos.js`), lo que antes se hacía con «Reparar
+   problema»: las líneas sueltas —de un DXF o un `<line>`/trazo abierto de un SVG— se juntan por
+   sus extremos con tolerancia creciente (de 1 micra a 0.5 mm); lo que no cierra se pinta en ámbar
+   y se avisa; los contornos repetidos y lo que no tiene área se quitan. Cuando una letra viene
+   dibujada entera y además partida por dentro en mitades o tiras (AVIDA, Primaria y America Car
+   Rental), se corta **el contorno completo**, con todos sus huecos, y se quitan las partes (Elías,
+   17/10/2026: «tiene que ser el contorno»); el aviso deja cambiar a cortar las partes. La
+   **línea doble** (un contorno casi igual a ≤3 mm alrededor de otro) se quita: se cortaría una
+   tira. Lo quitado se pinta punteado.
 2. Lo pasa a **milímetros**. Si el archivo declara sus medidas (mm, cm, in, pt) se
    convierte solo; si viene en px o sin unidades —que en SVG no es una medida— pide el
    ancho o el alto real del diseño, igual que hace el vectorizador.
 3. Dice lo que se va a quedar fuera antes de empezar: textos sin convertir en contornos,
    símbolos `<use>`, imágenes, y las piezas que no caben en la hoja ni giradas.
-4. Acomoda las piezas con el motor de código abierto [SVGnest](https://github.com/Jack000/SVGnest)
-   (algoritmo genético + *no-fit polygon*), probando giros, y va enseñando el mejor
-   acomodo encontrado. Si no caben en una hoja, abre las que hagan falta.
-5. **Se detiene solo**, porque el algoritmo genético nunca termina por su cuenta. En
-   **Rápido**, el de omisión, a los 5 s sin mejorar o a los 15 s del primer acomodo aunque
-   siga mejorando; en **A fondo**, cuando lleva 25 intentos y 40 segundos seguidos sin
-   mejorar. «Seguir buscando» continúa desde donde iba; «Detener» para cuando el resultado
-   ya convence. (Rápido es el de omisión desde el 16/10/2026, por un audio del taller: el
-   acomodo de dos minutos ahorraba unos 3 cm, y para el router se retoca a mano de todos
-   modos —entre dos cortes rectos muy juntos tiene que quedar material o la pieza vibra—.)
+4. Acomoda las piezas con **sparrow** ([repositorio](https://github.com/JeroenGar/sparrow),
+   KU Leuven 2025, MIT), lo más avanzado que hay en código abierto para piezas irregulares, a
+   través del puente WebAssembly de [sparrow-studio](https://github.com/JeroenGar/sparrow-studio)
+   (MIT). Desde el 17/10/2026 es el motor de omisión: Elías dijo que el de SVGnest «no está bien
+   optimizado» y era cierto —con su letrero de AVIDA, 2.37 m de hoja contra 2.04 de sparrow, y a
+   1 cm de separación dos hojas contra una—. Lo que hace:
+   - colisiones exactas con la **separación** pedida, de pieza a pieza y con la orilla;
+   - **giro libre** de omisión (cualquier ángulo); con veta, solo 0° y 180°;
+   - acomoda en una franja del ancho de la hoja buscando el **menor largo**, así que lo que
+     sobra queda junto, como **retazo** rectangular de lado a lado; en los trabajos chicos prueba
+     también franjas más angostas y se queda con la que gasta menos superficie (las piezas
+     quedan en una esquina);
+   - corre **varias búsquedas a la vez** (una por núcleo, menos uno) con distinta semilla y se
+     queda con la mejor; si no cabe en una hoja, lo que cabe entero en el primer largo es la
+     hoja 1 y lo demás vuelve al motor para la siguiente;
+   - no mete piezas dentro del hueco de otra (reserva la huella de fuera entera).
+   El código: `js/motor-sparrow.js` (la traducción, pura y probada en node),
+   `js/motor-sparrow-mesa.js` (los Web Workers, las semillas, los anchos y el reparto en hojas),
+   `js/motor-sparrow-trabajador.js` (el Worker) y `motor/` (el paquete compilado, con sus
+   licencias y SHA256SUMS; ver «El motor compilado» abajo). Donde no hay Web Workers de módulo o
+   WebAssembly, se usa el motor viejo, [SVGnest](https://github.com/Jack000/SVGnest).
+5. **Cuánto busca**: 2, 5 o 10 minutos (Elías, 17/10/2026: «quiero que todo sea a fondo»; el modo
+   «Rápido» se quitó). «Detener» se queda con el mejor acomodo que lleve. El marcador dice el
+   aprovechamiento de lo que se gasta de hoja (las hojas llenas y, de la última, el rectángulo
+   usado) y el retazo que queda.
 6. Descarga el acomodo **a escala real**, con una capa por hoja —todas en un archivo, o una
    hoja sola— y el contorno de la hoja en azul en su propia capa, para colocar el archivo en
    la cama y ponerlo en «no cortar». En **DXF**, el de omisión y el del router: R12, en mm,
@@ -46,6 +72,31 @@ La mesa es la cama de un láser: oscura, con cuadrícula, y las hojas encima con
 Las piezas caen en su lugar, cada una de su color, cada vez que el motor mejora; el marcador
 lleva el aprovechamiento en una aguja con su calificación, la merma, las colocadas y las
 hojas. Con «reducir movimiento» en el sistema, nada se mueve.
+
+**La separación** se elige a la vista: 3 mm, 6 mm o 1 cm de un toque, o cualquier número en el
+campo. Es la distancia mínima entre pieza y pieza; con la orilla de la hoja SVGnest deja al menos
+la mitad (media separación arriba y a la izquierda, una y media abajo y a la derecha), y así lo
+dice la interfaz y lo revisan `cabe()` y `revisarSeparacion()`. Se recuerda en el aparato, sale en el pie de cada hoja y en el nombre del archivo
+descargado (`…-sep6mm-acomodado.dxf`). «Se corta con» ya no se deduce de la separación: la broca
+elegida se queda y la marca de vibración la sigue usando. A SVGnest se le pide 1 mm de más
+(`MARGEN_MOTOR_MM`): su polígono de cada pieza se queda corto de la curva y, medido con AVIDA a
+6 mm, dejaba 17 lugares más juntos que lo pedido; con el milímetro de más, cero.
+
+**Nada a menos de la separación.** Con el acomodo quieto (del motor, de `colocar()` o movido a
+mano), `revisarSeparacion()` revisa cada par con la curva fina y marca en rosa punteado las piezas
+que queden a menos de la separación (0.1 mm de gracia), o a menos de ella de la orilla, y el pie
+dice cuáles.
+
+**El retazo útil.** Junto al aprovechamiento, «Te queda un retazo de 1.20 × 1.55 m»: el rectángulo
+libre más grande de la última hoja, a la separación de las piezas (`js/sobrante.js`), dibujado
+punteado sobre la mesa y con «Guardar como retazo».
+
+**Para conectar otro motor** sin tocar la interfaz (`window.Anidador`):
+`piezasLimpias(tolerancia)` → `[{id, numero, contorno:[{x,y}], huecos:[[{x,y}]], origen:{x,y}}]` en
+mm, cada pieza trasladada a su esquina mínima; `colocar([{id, x, y, giro, hoja}], {mensaje})` arma
+las hojas de la mesa (la pieza en su esquina mínima se gira `giro`° alrededor de (0,0) y se lleva a
+(x, y) de la hoja `hoja`), y de ahí salen igual la mesa, mover a mano, la vibración, la separación,
+el retazo y el DXF/SVG; `posiciones()` devuelve lo que hay en la mesa en ese mismo formato.
 
 ## Cómo correrla en local
 
@@ -74,6 +125,9 @@ anidador-vectores/
     ├── medidas.js           unidades del archivo → milímetros; puro, probado en node
     ├── dxf.js               el acomodo en DXF R12, polilíneas cerradas; puro, probado en node
     ├── vibracion.js         cortes rectos muy juntos (el router vibra); puro, probado en node
+    ├── dxf-entrada.js       abrir un DXF: entidades, curvas, bloques, unidades; puro, en node
+    ├── contornos.js         juntar líneas sueltas, quitar repetidos/guías/líneas dobles; puro, en node
+    ├── sobrante.js          el rectángulo libre más grande de una hoja; puro, en node
     ├── svgnest.js           motor de anidamiento (genético + NFP)       ┐
     ├── svgparser.js         formas SVG → polígonos                       │ vendorizados de
     ├── SVGNEST-LICENSE.txt  licencia MIT del motor                       │ SVGnest (MIT),
@@ -105,8 +159,20 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - `pruebas/anidador-medidas.mjs` — la aritmética de unidades, en node y nada más.
 - `pruebas/anidador-dxf.mjs` — el DXF, leído de vuelta par por par: cerrado, sin puntos
   repetidos, en su capa, a escala y sin espejo.
+- `pruebas/anidador-contornos.mjs` — juntar líneas sueltas (huecos de dibujo, tramos repetidos y
+  encimados); con una letra entera y sus partes, cortar el contorno (o las partes, si se pide); y
+  quitar la línea doble y lo repetido sin tocar un hueco de verdad.
+- `pruebas/anidador-dxf-entrada.mjs` — un DXF armado a mano: unidades, LINE sueltas, bulge, ARC,
+  CIRCLE, ELLIPSE, SPLINE racional, bloques girados y escalados, extrusión al revés; y el retazo útil.
 - `pruebas/anidador-vibracion.mjs` — los cortes rectos muy juntos: qué es tramo recto, qué par
   se marca y cuál no (esquinas, piezas giradas, la misma letra, una pieza dentro de un hueco).
+- `pruebas/navegador/an-entrada.mjs` — abre un DXF en cm con LINE sueltas, un repetido, un contorno
+  de guía con sus mitades, una línea doble, una línea que no cierra y un texto; revisa la limpieza,
+  cortar el contorno completo o las partes, que a 3 mm, 6 mm y 1 cm ninguna pieza quede a menos de
+  la separación, el retazo útil, y `colocar(posiciones())`.
+- `pruebas/navegador/an-sparrow.mjs` — el motor sparrow de verdad en la página: arranca (Worker,
+  .wasm, snippets/), se para al tiempo pedido, nada encimado ni a menos de la separación (medido en
+  el DXF con las curvas finas), la veta a 0° y 180° en la hoja parada, y «Detener».
 - `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
   comprueba las piezas colocadas y que el SVG de salida esté en milímetros; y que el trazo
   que deja el cotizador se recoge y se borra. Pide Chromium: `pruebas/correr.sh --navegador`.
@@ -115,7 +181,7 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 
 - La medida que se pide es la del **diseño** —el letrero de orilla a orilla—, no la del
   lienzo o el artboard. Con el ancho o el alto basta.
-- La separación es la distancia mínima entre piezas **y** con la orilla de la hoja.
+- La separación es la distancia mínima entre piezas; con la orilla queda al menos la mitad.
 - «Se corta con» la escribe con un toque, con los números del taller: **láser 2 mm**, y en
   router el diámetro de la broca más un poco de aire —**1/8″ 4.5 mm, 3/16″ 6 mm, 1/4″ 7.5 mm**—.
   Con 3 mm, la de omisión, no pasa ni la broca más chica.
@@ -139,5 +205,6 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
   población y mutación del genético— van con sus valores por omisión (0.3, 10 y 10 %),
   porque en mm la tolerancia de 0.3 ya es fina para rotulación y los otros dos no cambian
   el resultado en trabajos de este tamaño.
-- El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`,
-  `line`. Un texto sin convertir se queda fuera y la app lo avisa al cargar.
+- El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`.
+  Los `line` y trazos abiertos se juntan antes en contornos (`juntarSueltas()`). Un texto sin
+  convertir se queda fuera y la app lo avisa al cargar.
