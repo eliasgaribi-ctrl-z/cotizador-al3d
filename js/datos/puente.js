@@ -1028,10 +1028,18 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
     throw falla('SIN_RED', (e && e.name === 'AbortError')
       ? 'El puente no contestó en ' + Math.round(espera / 1000) + ' segundos. Lo que hiciste está guardado aquí y se manda solo.'
       : 'No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso «Cualquier usuario».');
-  } finally { if (t) clearTimeout(t); }
+  } finally { if (t && !r) clearTimeout(t); }
 
+  /* El reloj sigue corriendo mientras se lee el cuerpo: los encabezados pueden llegar y el
+     cuerpo quedarse a medias, y sin esto `r.json()` esperaba para siempre. Si se acaba aquí,
+     es el mismo «no contestó» de arriba, no «eso no es el puente». */
   let cuerpoRes = null;
-  try { cuerpoRes = await r.json(); } catch (_) { cuerpoRes = null; }
+  try { cuerpoRes = await r.json(); } catch (e) {
+    if (ctrl && ctrl.signal.aborted) {
+      throw falla('SIN_RED', 'El puente no contestó en ' + Math.round(espera / 1000) + ' segundos. Lo que hiciste está guardado aquí y se manda solo.');
+    }
+    cuerpoRes = null;
+  } finally { if (t) clearTimeout(t); }
 
   /* Un 2xx sin JSON no es el puente: es otra cosa que contestó en esa URL —la pantalla
      de inicio de sesión de Google, casi siempre, cuando la implementación quedó en

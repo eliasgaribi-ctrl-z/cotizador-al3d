@@ -19,6 +19,9 @@
    ============================================================================ */
 
 import * as DB from './db.js';
+/* Una señal que corta la petición a los ms dados. AbortSignal.timeout no existe antes de Safari 16:
+   ahí se pide sin tope, como siempre. */
+const conTope = ms => (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') ? AbortSignal.timeout(ms) : undefined;
 
 /** Guadalajara. El centro del mapa cuando todavía no hay ni un proyecto ubicado. */
 export const centroGDL = { lat: 20.6736, lng: -103.344 };
@@ -340,7 +343,9 @@ export async function geocodificar(texto) {
       u.search = new URLSearchParams({
         q, format: 'jsonv2', limit: '1', countrycodes: 'mx', email: 'remates@thiqa.mx',
       }).toString();
-      const r = await fetch(u.toString(), { headers: { Accept: 'application/json' } });
+      /* Con tope de tiempo: esto corre DENTRO de la cola, y un Nominatim que no contesta
+         dejaba colgadas todas las búsquedas que venían detrás hasta recargar. */
+      const r = await fetch(u.toString(), { headers: { Accept: 'application/json' }, signal: conTope(12000) });
       if (r.status === 429 || r.status === 403) throw new Error('cupo');
       if (!r.ok) throw new Error('http ' + r.status);
       return r.json();

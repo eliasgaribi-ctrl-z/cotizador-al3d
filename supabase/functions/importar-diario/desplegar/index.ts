@@ -11,13 +11,13 @@
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   e726712a4de79d0b  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
-//   c52083f8a896d0fd  js/datos/geo.js
+//   b09ca0e66203e2f2  js/datos/geo.js
 //   9d911b25b1f6b360  js/datos/prefs.js
 //   b3e7610b983b33fb  js/datos/proyectos.js
-//   439831f934ac8350  js/datos/puente.js
+//   b15d7cfb0eab4cd6  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
-//   ccaec6cbf5ffb350  js/nucleo/ingreso.js
+//   5d1bdca9d2c8274a  js/nucleo/ingreso.js
 //   f7eb568b76fdec80  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
 //   559ef3c3ff521020  scripts/importador/plan.mjs

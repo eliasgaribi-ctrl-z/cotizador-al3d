@@ -41,7 +41,7 @@ import * as Prefs from '../datos/prefs.js';
 /* El cargador del guion de Google vive en ingreso.js y no aquí: dos cargadores del mismo
    guion, llamados a la vez, añaden la etiqueta dos veces. Lo necesitaba este archivo y ahora
    también el ingreso, así que se mudó al que no depende de nadie. */
-import { cargarGis } from './ingreso.js';
+import { cargarGis, conTope } from './ingreso.js';
 /* Las alarmas salen de la misma función que las del .ics. Ver `alarmasGcal`. */
 import { alarmasDe } from './ics.js';
 
@@ -347,6 +347,9 @@ async function llamar(ruta, opciones) {
   try {
     const r = await fetch(API + encodeURIComponent(c.calendarioId) + '/events' + ruta, {
       ...opciones,
+      /* Sin tope, un Calendar que no contesta dejaba el botón esperando para siempre. 30 s
+         es holgado a propósito: cortar una escritura que sí llegó invita a repetirla. */
+      signal: conTope(30000),
       headers: {
         Authorization: 'Bearer ' + _tok.token,
         'Content-Type': 'application/json',
