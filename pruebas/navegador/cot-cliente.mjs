@@ -305,7 +305,7 @@ async function ronda(R, indice) {
     cierto(t2.v === '33 1234 5' && t2.c === '7/10' && t2.falta, 'a medias dice «7/10» y el paso 1 sigue frenándolo', JSON.stringify(t2));
     /* El ámbar de lo que falta, y que se apaga al completarlo. */
     await ev(() => { _marcarOblig = true; pintarObligatorios(); });
-    const t3 = await ev(() => ({ falta: document.getElementById('fld-tel').classList.contains('falta'), inv: document.getElementById('f-tel').getAttribute('aria-invalid'), frase: faltaTexto(OBLIGATORIOS[1]) }));
+    const t3 = await ev(() => ({ falta: document.getElementById('fld-tel').classList.contains('falta'), inv: document.getElementById('f-tel').getAttribute('aria-invalid'), frase: faltaTexto(OBLIGATORIOS.find(o => o.llave === 'tel')) }));
     cierto(t3.falta && t3.inv === 'true' && /10 dígitos/.test(t3.frase), 'el ámbar y aria-invalid siguen funcionando, con su frase', JSON.stringify(t3));
     await p.keyboard.type('678'); await p.waitForTimeout(150);
     const t4 = await ev(() => ({ falta: document.getElementById('fld-tel').classList.contains('falta'), c: document.querySelector('#fld-tel .tel-cuenta').textContent }));

@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -1374,7 +1374,7 @@ function vtPintarMuestras(){
     cont.dataset.firma=firma;
     cont.innerHTML=VT.layers.map((L,i)=>{
       const hex=vtHex(L.color);
-      return '<button type="button" class="vt-sw" data-idx="'+L.idx+'" onclick="vtToggleColor('+L.idx+')" '+
+      return '<button type="button" class="vt-sw" data-idx="'+L.idx+'" data-acc="vtToggleColor('+L.idx+')" '+
         'title="'+hex+(L.idx===VT.fondoIdx?' — fondo':'')+'">'+
         '<span class="vt-sw-m" style="background:'+hex+'" aria-hidden="true"></span>'+
         '<span class="vt-sw-e" aria-hidden="true">'+ico('i-check','vt-sw-si')+ico('i-cerrar','vt-sw-no')+'</span>'+
@@ -1647,3 +1647,35 @@ function vtUsarComoPartidas(){
           ' — falta elegir material y complejidad',
         'ok',6000,{label:'Ir al cotizador',fn:cerrarVector});
 }
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirVector','cerrarVector','vtAnidar','vtCopiarSVG','vtDescargarPNG',
+  'vtDescargarSVG','vtEnviarAEscalador','vtSetModo','vtSetVista','vtToggleColor',
+  'vtUsarComoPartidas','vtUsarEscalaScaler','vtUsarImagenAI','vtUsarImagenScaler','vtVectorizar',
+  'vtZoomBy','vtZoomReset']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  vtToggleFondo:(el,ev)=>vtToggleFondo(ev),
+  vtToggleInvertir:(el,ev)=>vtToggleInvertir(ev),
+  vtCargarImagen:el=>vtCargarImagen(el),
+  vtOpt:(el,ev,k)=>vtOpt(k,+el.value),
+  vtEscala:(el,ev,k)=>vtEscala(k,el.value),
+  vtZoomMenos:()=>vtZoomBy(1/1.4)
+});
+/* La zona de soltar y el asa de la comparación se cuelgan directo, como el lienzo del escalador:
+   el touchstart del asa tiene que poder cancelar el desplazamiento, y en el documento sería
+   pasivo. Eran onmousedown/ontouchstart y tres ondrag… escritos en cotizador.html. */
+(function(){
+  const area=$('vt-canvas-area'), asa=$('vt-split');
+  if(area){
+    area.addEventListener('drop',vtOnDrop);
+    area.addEventListener('dragover',e=>{ e.preventDefault(); area.style.outline='3px dashed var(--brand)'; });
+    area.addEventListener('dragleave',()=>{ area.style.outline=''; });
+  }
+  if(asa){
+    asa.addEventListener('mousedown',vtSplitDown);
+    asa.addEventListener('touchstart',vtSplitDown,{passive:false});
+  }
+})();

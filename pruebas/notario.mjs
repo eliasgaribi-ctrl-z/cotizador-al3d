@@ -664,7 +664,9 @@ console.log('\nEL CUPO DE IA — se cuenta con candado, y el candado no espera a
 console.log('\nVERIFICAR.HTML — lo que llega de la hoja se escribe como texto');
 {
   const pag = readFileSync(new URL('../verificar.html', import.meta.url), 'utf8');
-  const guion = pag.split('<script type="module">')[1] || '';
+  /* El guion vivía en línea en la página; desde M6 (octubre de 2026) es js/verificar.js. */
+  const guion = readFileSync(new URL('../js/verificar.js', import.meta.url), 'utf8');
+  cierto('la página carga su guion como módulo, desde su archivo', pag.includes('<script type="module" src="js/verificar.js"></script>'));
   cierto('no usa innerHTML: el negocio lo escribió alguien y es un dato', !/innerHTML|insertAdjacentHTML|document\.write/.test(guion));
   cierto('pregunta por la ruta pública, sin token', /ruta: 'verificar'/.test(guion) && !/token/i.test(guion));
   cierto('y no la indexa un buscador', /<meta name="robots" content="noindex">/.test(pag));

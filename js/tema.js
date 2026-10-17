@@ -60,9 +60,10 @@
    manejador en un atributo es un guion en línea: era lo único que obligaba a index.html y a las
    tres páginas de texto a llevar 'unsafe-inline' en su política. Ahora esas páginas marcan el
    <link> con `data-fuentes` y el cambio se hace aquí. Si la hoja ya llegó —de la caché, antes de
-   que este guion corriera— `sheet` ya existe y se enciende en el acto; si no, al cargar. Las
-   páginas que conservan su `onload` (el cotizador, el anidador, verificar) no llevan la marca y
-   no se tocan. */
+   que este guion corriera— `sheet` ya existe y se enciende en el acto; si no, al cargar. Desde
+   octubre de 2026 (M6) también el cotizador, el anidador y verificar: ninguna página conserva
+   su `onload`. El documento del PDF, que no carga este archivo, se enciende solo (GUION_VISOR
+   en js/cotizador/entrega.js). */
 (function () {
   function encender(l) {
     if (l.sheet) { l.media = 'all'; return; }

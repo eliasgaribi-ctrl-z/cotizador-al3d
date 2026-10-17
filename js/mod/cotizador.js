@@ -11,11 +11,13 @@
 
    ----- POR QUÉ NO SE PORTA A MÓDULO ES. NO LO INTENTES. -----
 
-   `cotizador.html` tiene 156 manejadores en línea —111 `onclick`, 19 `oninput`, y el resto
-   repartido entre onchange, los cuatro de arrastrar y soltar, onkeydown, onload y los de
-   ratón y dedo— y CERO asignaciones explícitas a `window.X`. Un manejador en línea se
-   resuelve contra el objeto global; en un módulo ES el ámbito superior NO es el global, así
-   que los 161 dejarían
+   El marcado del cotizador —`cotizador.html` y las plantillas de js/cotizador/— nombra 149
+   acciones con `data-acc="irAPaso(2)"` y compañía, y CERO asignaciones explícitas a
+   `window.X`. Hasta octubre de 2026 eran manejadores en línea (onclick=…); se volvieron
+   nombres para poder quitar 'unsafe-inline' de la política (M6, ver «Los botones del
+   marcado» en js/cotizador/nucleo.js), pero el repartidor las sigue buscando en `window` por
+   su nombre (accionesDirectas). En un módulo ES el ámbito superior NO es el global, así
+   que las 149 dejarían
    de resolver EN SILENCIO: sin error de compilación, sin excepción al cargar, y se
    descubrirían haciendo clic uno por uno sobre 645 KB de JS que no tiene una sola prueba
    unitaria y que guarda `al3d_historial`, el único dato irrecuperable del sistema.

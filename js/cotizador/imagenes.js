@@ -151,9 +151,9 @@ function planoPartidaHTML(it){
     <span class="plano-t">${ico('i-imagen')} Plano en el PDF</span>
     ${u?`<img class="plano-mini" src="${urlImagenSegura(u)}" alt="Plano de la partida">`:`<span class="plano-nota">${!it.plano?'Sin plano':_imgNoHay.has(it.plano)?'No está en este dispositivo':'Cargando…'}</span>`}
     <span class="plano-acc">
-      <button type="button" class="plano-b" onclick="planoDelEscalador(${it.id})" ${hayEsc?'':'aria-disabled="true"'} title="${hayEsc?'Usar la foto del escalador con sus cotas':'Mide en el escalador para usar su foto con cotas'}">${ico('i-escalar')} Del escalador</button>
-      <button type="button" class="plano-b" onclick="planoSubir(${it.id})" title="Subir un plano ya acotado">Subir</button>
-      ${it.plano?`<button type="button" class="plano-b quitar" onclick="planoQuitar(${it.id})" aria-label="Quitar el plano">×</button>`:''}
+      <button type="button" class="plano-b" data-acc="planoDelEscalador(${it.id})" ${hayEsc?'':'aria-disabled="true"'} title="${hayEsc?'Usar la foto del escalador con sus cotas':'Mide en el escalador para usar su foto con cotas'}">${ico('i-escalar')} Del escalador</button>
+      <button type="button" class="plano-b" data-acc="planoSubir(${it.id})" title="Subir un plano ya acotado">Subir</button>
+      ${it.plano?`<button type="button" class="plano-b quitar" data-acc="planoQuitar(${it.id})" aria-label="Quitar el plano">×</button>`:''}
     </span>
   </div>`;
 }
@@ -181,8 +181,8 @@ function renderImgsPdf(){
     return `<div class="imgs-sec">
       <div class="imgs-h"><span class="imgs-t">${titulo}</span><span class="imgs-n">${arr.length}/${max}</span></div>
       <p class="imgs-ayuda">${ayuda}</p>
-      <div class="imgs-g">${arr.map((id,i)=>{ const u=imgUrl(id); return `<div class="imgs-c">${u?`<img src="${urlImagenSegura(u)}" alt="">`:'<span class="plano-nota">Cargando…</span>'}<button type="button" class="imgs-x" onclick="imgQuitar('${lista}',${i})" aria-label="Quitar imagen">×</button></div>`; }).join('')}
-        ${arr.length<max?`<button type="button" class="imgs-add" onclick="imgAgregar('${lista}')">+ Agregar</button>`:''}
+      <div class="imgs-g">${arr.map((id,i)=>{ const u=imgUrl(id); return `<div class="imgs-c">${u?`<img src="${urlImagenSegura(u)}" alt="">`:'<span class="plano-nota">Cargando…</span>'}<button type="button" class="imgs-x" data-acc="imgQuitar('${lista}',${i})" aria-label="Quitar imagen">×</button></div>`; }).join('')}
+        ${arr.length<max?`<button type="button" class="imgs-add" data-acc="imgAgregar('${lista}')">+ Agregar</button>`:''}
       </div>
     </div>`;
   };
@@ -255,3 +255,8 @@ function _imgMedir(url){
     catch(_){ res({w:0,h:0}); }
   });
 }
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['imgAgregar','imgQuitar','planoDelEscalador','planoQuitar','planoSubir']);

@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -337,7 +337,7 @@ function renderAuth(){
        con rol de autorizador —o un pase que caducó entre dos aperturas— sí. Se dice qué pasa
        en vez de pintar una cola con botones que la hoja va a rechazar. */
     body=`<div class="authnote">Solo una cuenta de <b>Dirección</b> autoriza precios, y este teléfono ${identidadVerificada()?'entró como <b>'+esc(identidadVerificada().correo)+'</b>':'no tiene una cuenta verificada'}. Las cotizaciones se mandan a Dirección con <b>Solicitar autorización</b>.</div>
-      <button class="btn btn-gho" onclick="cambiarRol('vendedor')"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a vendedor</button>`;
+      <button class="btn btn-gho" data-acc="cambiarRol('vendedor')"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a vendedor</button>`;
   } else if(Q.rol==='autorizador'){
     // --- Cola de pendientes ---
     const pendientes=getQueue().filter(x=>x.estado==='pendiente');
@@ -360,7 +360,7 @@ function renderAuth(){
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" data-clave="${esc(e.folio)}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry(${jsArg(e.folio)})">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" data-clave="${esc(e.folio)}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" data-acc="loadQueueEntry(${jsArg(e.folio)})">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -389,22 +389,22 @@ function renderAuth(){
          sellaría, y un botón que siempre dice que no es peor que no tener botón. Lo suyo es
          pedirlo, y la solicitud le llega a dirección a su teléfono. */
       body=(puedeAutorizar()
-        ? `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
-            <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>`
-        : `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="solicitar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Solicitar autorización a Dirección</button>
+        ? `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} data-acc="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
+            <button class="btn btn-gho" ${hayPartidas?'':'disabled'} data-acc="solicitar()">Solicitar autorización a alguien más</button>`
+        : `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} data-acc="solicitar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Solicitar autorización a Dirección</button>
             <p class="mini">Solo Dirección autoriza precios: la solicitud le llega a su teléfono y el sello regresa aquí solo.</p>`)+`
             ${hayPartidas?'':`<p class="mini">${!locked()&&faltanDatosCliente()
               ? 'Falta el paso 1.'
               : 'Agrega partidas con precio para continuar.'}</p>`}
-            <button class="btn btn-gho btn-vaciar" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho btn-vaciar" data-acc="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
     else if(Q.estado==='pendiente'){
       body=_selfAuth
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
         : `<div class="authnote espera${Q.solicitud&&Q.solicitud.error?' falla':''}">${esperaHTML()}</div>
-           ${puedeAutorizar()?`<button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>`:''}
-           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" onclick="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> ${Q.solicitud.cancelada?'Volver a pedirla':'Reintentar el envío'}</button>`:''}
-           <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
+           ${puedeAutorizar()?`<button class="btn btn-pri" data-acc="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>`:''}
+           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" data-acc="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> ${Q.solicitud.cancelada?'Volver a pedirla':'Reintentar el envío'}</button>`:''}
+           <button class="btn btn-gho" data-acc="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
       const neto=netoAjustado();
@@ -441,36 +441,36 @@ function renderAuth(){
         body=`${authNote}
               ${descHTML}
               <div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Modo edición activo — usa <svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg> para mostrar u ocultar partidas del PDF.</div>
-              <button class="btn btn-ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar y salir de edición</button>
-              <button class="btn btn-gho" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
-              <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
-              <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>`;
+              <button class="btn btn-ok" data-acc="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar y salir de edición</button>
+              <button class="btn btn-gho" data-acc="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
+              <button class="btn btn-gho" data-acc="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
+              <button class="btn btn-gho" data-acc="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>`;
       } else {
         body=`${authNote}
               ${descHTML}
-              ${suelta?`<button class="btn btn-pri" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Volver a autorizar el precio</button>`:''}
+              ${suelta?`<button class="btn btn-pri" data-acc="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Volver a autorizar el precio</button>`:''}
               <div id="entrega">${entregaHTML({sinRelleno:suelta})}</div>
-              <button class="btn btn-gho" onclick="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
-              ${suelta?'':`<button class="btn btn-gho" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Volver a autorizar el precio</button>`}
+              <button class="btn btn-gho" data-acc="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
+              ${suelta?'':`<button class="btn btn-gho" data-acc="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Volver a autorizar el precio</button>`}
               <!-- Canva y el prompt de Gemini son salidas que se usan a veces, no pasos de la
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
                    hace siempre, y siguen a un toque de distancia. -->
               <details class="ai-cfg otras-salidas pliegue"${_hayPropuestas()?' open':''}>
                 <summary>Otras salidas de esta cotización</summary>
                 <div style="margin-top:2px">
-                  <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
-                  <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>
+                  <button class="btn btn-gho" data-acc="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
+                  <button class="btn btn-gho" data-acc="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>
                 </div>
               </details>
               <!-- Separada del resto: empezar otra cotización no es entregar ésta, y estaba
                    a un dedo de «Registrar venta». -->
-              <div class="auth-cierre"><button class="btn btn-gho" onclick="pedirConfNueva()">Nueva cotización</button></div>`;
+              <div class="auth-cierre"><button class="btn btn-gho" data-acc="pedirConfNueva()">Nueva cotización</button></div>`;
       }
     }
     else if(Q.estado==='rechazada'){
       body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
-            <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar y volver a enviar</button>
-            <button class="btn btn-gho btn-vaciar" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho" data-acc="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar y volver a enviar</button>
+            <button class="btn btn-gho btn-vaciar" data-acc="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
   }
 
@@ -634,7 +634,7 @@ function entregaHTML(opts){
 
        El hecho se dice con la palomita del riel y la fecha, no cambiando el nombre del botón:
        quien vuelva a tocarlo tiene que seguir sabiendo qué hace. */
-    const boton=`<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
+    const boton=`<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" data-acc="${x.fn}">`
       +`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg> ${x.label}</button>`;
     /* El estorbo va en ámbar y con palabras, encima del botón: el color no dice nada solo, y
        quien lo lee tiene que poder arreglarlo (corregir el teléfono) antes de tocar. */
@@ -689,7 +689,7 @@ function authRevisionHTML(soloAutorizar){
     const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
     const diffCls=diff>0.01?' inc':'';
     return '<div class="ia-row">'+
-      '<div class="ia-hdr" '+_ABRIBLE+' aria-expanded="'+(isOpen?'true':'false')+'" aria-controls="ia-body-'+it.id+'" onclick="toggleItemAuth('+it.id+')">'+
+      '<div class="ia-hdr" '+_ABRIBLE+' aria-expanded="'+(isOpen?'true':'false')+'" aria-controls="ia-body-'+it.id+'" data-acc="toggleItemAuth('+it.id+')">'+
       '<div class="ia-num">'+(i+1)+'</div>'+
       '<div class="ia-desc">'+esc(shortDescAuth(it))+'</div>'+
       '<div class="ia-calc">'+money(orig)+'</div>'+
@@ -697,7 +697,7 @@ function authRevisionHTML(soloAutorizar){
       '</div>'+
       '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
       '<label for="ia-in-'+it.id+'" style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
-      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',this.value.length?+this.value:undefined)"></div>'+
+      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" data-al-escribir="updItemAuth('+it.id+')"></div>'+
       '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
       '</div>'+
       '</div>';
@@ -719,7 +719,7 @@ function authRevisionHTML(soloAutorizar){
       <!-- El deslizador de −20 % a +10 % con imanes (C18): lo monta armarBotonesDelPanel() después de
            pintar. El campo de abajo sigue siendo la fuente del número. -->
       <div class="precio-desl"><input type="range" id="a-precio-r" class="precio-r" min="0" max="1" step="any" value="0" aria-label="Ajustar el precio autorizado, subtotal sin IVA" aria-describedby="descuento-info"></div>
-      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${subCalc})"></div>
+      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" data-al-escribir="updPrecioAuth(${subCalc})"></div>
       ${Q.iva?`<div class="precio-auth-neto" id="a-precio-neto">Con IVA 16%: <b>${money(conIva(paCurrent))}</b></div>`:''}
       <div class="descuento-info" id="descuento-info"></div>
     </div>
@@ -734,15 +734,15 @@ function authRevisionHTML(soloAutorizar){
          generales: renderAuth reconstruye este formulario con innerHTML y cualquier
          repintado —plegar una partida, ajustar un precio— borraba lo que se llevaba
          escrito, sin nada que lo insinuara. -->
-    <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" oninput="Q.nota=this.value">${esc(Q.nota||'')}</textarea></div>
+    <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" data-al-escribir="notaAuth">${esc(Q.nota||'')}</textarea></div>
     <!-- «Autorizar precio» ya no se pinta «trabajando» a mano: mientras sella, es la pieza 14 la que lo
          vuelve una ficha de estado (relleno que avanza, reloj, palomita o «Reintentar»), y
          renderAuth() conserva ese botón vivo entre repintados. Con el atributo disabled el foco se
          perdía a media espera; la pieza usa aria-disabled y se come los toques. -->
-    <button class="btn btn-ok" id="a-autorizar" ${puedeAutorizar()?'':'disabled'} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
+    <button class="btn btn-ok" id="a-autorizar" ${puedeAutorizar()?'':'disabled'} data-acc="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
     ${soloAutorizar
-      ? '<button class="btn btn-gho" '+(_sellando?'disabled ':'')+'onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
-      : '<button class="btn btn-dgr" id="a-rechazar" '+(_sellando?'disabled ':'')+'onclick="rechazar()">Rechazar</button>'}`;
+      ? '<button class="btn btn-gho" '+(_sellando?'disabled ':'')+'data-acc="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
+      : '<button class="btn btn-dgr" id="a-rechazar" '+(_sellando?'disabled ':'')+'data-acc="rechazar()">Rechazar</button>'}`;
 }
 
 /* `paSub` y `subCalc` son los dos SIN IVA: lo que se teclea y lo que sale de las partidas.
@@ -855,14 +855,14 @@ function pintarFaltantes(pend){
   else como=`: ${ceros===1?'una vale':ceros+' valen'} <b>$0</b> y ${conPrecio===1?'otra saldría':'las otras '+conPrecio+' saldrían'} en el PDF con precio y sin decir qué se cobra.`;
   $('falt-intro').innerHTML=`${s?'Esta partida está':'Estas '+n+' partidas están'} sin terminar${como} Toca ${s?'la partida':'una'} para ir a completarla.`;
   const filas=pend.map(x=>`<div class="falt-row" data-clave="p${x.it.id}">
-      <button class="falt-ir" onclick="irAPartida(${x.it.id})">
+      <button class="falt-ir" data-acc="irAPartida(${x.it.id})">
         <span class="falt-n">${x.n}</span>
         <span class="falt-b">
           <span class="falt-t">${esc(TIPO_NOMBRE[x.it.tipo]||'Partida')}${x.it.desc?' · '+esc(x.it.desc):''}</span>
           <span class="falt-d">${x.vacia?'Está completamente vacía':'Falta '+esc(x.faltan.join(', '))}</span>
         </span>
       </button>
-      ${x.vacia&&puedeQuitarVacia()?`<button class="falt-quitar" onclick="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
+      ${x.vacia&&puedeQuitarVacia()?`<button class="falt-quitar" data-acc="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
     </div>`).join('');
   /* Con la lista viva (C22), «Quitar» ya no desaparece el renglón de golpe: se despide en su sitio
      y los de abajo se corren a su lugar. Nada aquí llega «nuevo»: las partidas sin terminar solo
@@ -1811,17 +1811,17 @@ function pintarCandadoCliente(){
   if(!editando){
     html=`${ico('i-candado')}<div class="cc-b"><p class="cc-t"><b>${esc(Q.folio)}</b> está ${esc(ESTADO[Q.estado]||'cerrada')}. ${sinTocar}</p>
       <div class="cc-acts">
-        <button type="button" class="btn btn-gho" onclick="abrirEdicionCliente()">${ico('i-lapiz')} Corregir datos del cliente</button>
-        <button type="button" class="btn btn-gho" onclick="nuevaConEstosDatos()">Empezar cotización nueva</button>
+        <button type="button" class="btn btn-gho" data-acc="abrirEdicionCliente()">${ico('i-lapiz')} Corregir datos del cliente</button>
+        <button type="button" class="btn btn-gho" data-acc="nuevaConEstosDatos()">Empezar cotización nueva</button>
       </div></div>`;
   } else if(!otro){
     html=`${ico('i-lapiz')}<div class="cc-b"><p class="cc-t">Corrigiendo los datos de <b>${esc(Q.folio)}</b>.${Q.estado==='rechazada'?'':' El precio autorizado no se toca.'}</p>
-      <div class="cc-acts"><button type="button" class="btn btn-pri" onclick="cerrarEdicionCliente()">${ico('i-check')} Listo</button></div></div>`;
+      <div class="cc-acts"><button type="button" class="btn btn-pri" data-acc="cerrarEdicionCliente()">${ico('i-check')} Listo</button></div></div>`;
   } else {
     html=`${ico('i-aviso')}<div class="cc-b"><p class="cc-t"><b>${esc(Q.folio)}</b> está ${esc(ESTADO[Q.estado]||'cerrada')} a nombre de <b>${esc(quien)}</b>, y esto ya es otro cliente. No se pisa: al guardar, ésta se lleva un folio nuevo y la de ${esc(quien)} se queda como está.</p>
       <div class="cc-acts">
-        <button type="button" class="btn btn-pri" onclick="nuevaConEstosDatos()">Empezar cotización nueva con estos datos</button>
-        <button type="button" class="btn btn-gho" onclick="cerrarEdicionCliente()">Guardarla aparte, con las mismas partidas</button>
+        <button type="button" class="btn btn-pri" data-acc="nuevaConEstosDatos()">Empezar cotización nueva con estos datos</button>
+        <button type="button" class="btn btn-gho" data-acc="cerrarEdicionCliente()">Guardarla aparte, con las mismas partidas</button>
       </div></div>`;
   }
   box.innerHTML=html;
@@ -1875,8 +1875,8 @@ function pintarAvisoDeAntes(){
   const html=`${ico('i-aviso')}<div class="cc-b">
       <p class="cc-t">Esto ya estaba en pantalla antes de abrir: <b>${esc(_deAntes.folio)}</b>${esc(cuando)}${dequien}. ${riesgo}</p>
       <div class="cc-acts">
-        <button type="button" class="btn btn-pri" onclick="nueva()">${ico('i-basura')} Empezar una cotización nueva</button>
-        <button type="button" class="btn btn-gho" onclick="seguirConLaDeAntes()">${ico('i-check')} Sigo con ésta</button>
+        <button type="button" class="btn btn-pri" data-acc="nueva()">${ico('i-basura')} Empezar una cotización nueva</button>
+        <button type="button" class="btn btn-gho" data-acc="seguirConLaDeAntes()">${ico('i-check')} Sigo con ésta</button>
       </div></div>`;
   if(box.innerHTML!==html) box.innerHTML=html;
   box.hidden=false;
@@ -2178,8 +2178,8 @@ function pedirConfNueva(){
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>
     <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
       <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? Vas a tener unos segundos para deshacerlo.</p>
-      <button class="btn btn-dgr" id="conf-nueva-si" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
-      <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Cancelar</button>
+      <button class="btn btn-dgr" id="conf-nueva-si" data-acc="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
+      <button class="btn btn-gho" style="margin-top:9px" data-acc="renderAuth()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Cancelar</button>
     </div>`;
   /* Borrar la cotización entera es lo más destructivo de la pantalla (C23 #5): mantener presionado
      confirma, y un toque suelto solo dice cómo. Sigue teniendo «Deshacer» siete segundos después.
@@ -2292,7 +2292,7 @@ function cotizacionQueVuela(){
 function volarCotizacion(v,destino){
   const P=window.Piezas;
   if(!v||(P&&P.sinMovimiento&&P.sinMovimiento())||document.visibilityState!=='visible') return false;
-  const dest=destino==='plataforma'?document.querySelector('.btn-pf'):document.querySelector('.btn-hist[onclick^="abrirHistorial"]');
+  const dest=destino==='plataforma'?document.querySelector('.btn-pf'):document.querySelector('.btn-hist[data-acc^="abrirHistorial"]');
   if(!dest||typeof dest.animate!=='function') return false;
   const rd=dest.getBoundingClientRect();
   if(!rd.width||!rd.height) return false;   // oculto (empotrado) o sin caja: no hay a dónde volar
@@ -2424,7 +2424,7 @@ function renderMobileBar(){
      partir de 920 px justo para no partir esa fila—, y va primero por lo mismo que un
      «atrás»: es a la izquierda donde se busca. */
   const undo=puedeDeshacer()
-    ? `<button class="mbar-undo" onclick="deshacer()" title="Deshacer el último cambio" aria-label="Deshacer el último cambio">${ico('i-deshacer')}</button>`
+    ? `<button class="mbar-undo" data-acc="deshacer()" title="Deshacer el último cambio" aria-label="Deshacer el último cambio">${ico('i-deshacer')}</button>`
     : '';
   /* Qué botón principal toca ahora: {cls, on, dis, ico, txt, post, full}. */
   let b, modo='total';
@@ -2486,7 +2486,7 @@ function renderMobileBar(){
       : {cls:'mbar-btn',dis:!listo,on:'solicitar()',ico:'i-rayo',txt:'Solicitar autorización'};
   }
   const dentro=x=>(x.ico?ico(x.ico)+' ':'')+esc(x.txt)+(x.post||'');
-  const atributos=x=>'class="'+x.cls+'"'+(x.dis?' disabled':'')+(x.full?' style="width:100%"':'')+' onclick="'+x.on+'"';
+  const atributos=x=>'class="'+x.cls+'"'+(x.dis?' disabled':'')+(x.full?' style="width:100%"':'')+' data-acc="'+x.on+'"';
   /* La barra de la pantalla del cliente: solo el botón de continuar. */
   const lab=hayAjuste?'Precio autorizado':(Q.iva?'Total neto':'Total');
   /* La estructura es solo la pantalla en que se está. «Deshacer» va y viene con cada cambio y NO
@@ -2501,7 +2501,7 @@ function renderMobileBar(){
     const bt=bar.querySelector('.mbar-btn');
     if(bt.dataset.cls!==b.cls){ bt.className=b.cls; bt.dataset.cls=b.cls; }
     if(bt.disabled!==!!b.dis) bt.disabled=!!b.dis;
-    if(bt.getAttribute('onclick')!==b.on) bt.setAttribute('onclick',b.on);
+    if(bt.getAttribute('data-acc')!==b.on) bt.setAttribute('data-acc',b.on);
     P.cambiarRotulo(bt,{html:dentro(b)});
     if(modo==='total'){
       const lb=bar.querySelector('.mbar-lab'), am=bar.querySelector('.mbar-amt');
@@ -2680,3 +2680,21 @@ $('f-anti').addEventListener('change',function(){
   toast(aviso,'err',4200);
 });
 
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirDirRaw','abrirEdicionCliente','abrirMaps','autorizar','autorizarYoMismo',
+  'cambiarRol','cancelarAutoAutorizacion','cerrarEdicionCliente','cerrarFaltantes',
+  'continuarAPartidas','copiarLinkDirRaw','copiarSubtotal','faltSeguir','irAPartida','irAPaso',
+  'nueva','nuevaConEstosDatos','pedirConfNueva','quitarDesdeFaltantes','reabrir','reautorizar',
+  'rechazar','renderAuth','seguirConLaDeAntes','solicitar']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  upd:(el,ev,k)=>upd(k,el.value),
+  updDirRaw:el=>updDirRaw(el.value),
+  updMaps:el=>updMaps(el.value),
+  toggleIva:(el,ev)=>toggleIva(ev),
+  updPrecioAuth:(el,ev,sub)=>updPrecioAuth(+el.value,sub),
+  notaAuth:el=>{ Q.nota=el.value; }
+});

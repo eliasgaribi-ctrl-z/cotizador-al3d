@@ -633,11 +633,11 @@ async function ronda(R, indice) {
     await p.waitForTimeout(2200);
     cierto(await ev(() => { const r = $('s-sub-copiar').querySelector('.rotulo'); return !!r && !r.classList.contains('alt') && /^Copiar/.test(r.querySelector('.rotulo-a').textContent.trim()); }), 'y a los dos segundos vuelve a decir «Copiar»');
     await ev(() => irAPaso(1)); await p.waitForTimeout(500);
-    const bl = await ev(() => { const b = document.querySelector('[onclick="copiarLinkDirRaw()"]'); return b ? { vis: b.getBoundingClientRect().width > 0 } : null; });
+    const bl = await ev(() => { const b = document.querySelector('[data-acc="copiarLinkDirRaw()"]'); return b ? { vis: b.getBoundingClientRect().width > 0 } : null; });
     if (bl && bl.vis) {
-      await s.centro('[onclick="copiarLinkDirRaw()"]');
-      await p.tap('[onclick="copiarLinkDirRaw()"]'); await p.waitForTimeout(350);
-      cierto(await ev(() => { const r = document.querySelector('[onclick="copiarLinkDirRaw()"] .rotulo'); return !!r && r.classList.contains('alt') && /Copiado/.test(r.querySelector('.rotulo-b').textContent); }), '«Copiar link» del mapa confirma en su propio botón');
+      await s.centro('[data-acc="copiarLinkDirRaw()"]');
+      await p.tap('[data-acc="copiarLinkDirRaw()"]'); await p.waitForTimeout(350);
+      cierto(await ev(() => { const r = document.querySelector('[data-acc="copiarLinkDirRaw()"] .rotulo'); return !!r && r.classList.contains('alt') && /Copiado/.test(r.querySelector('.rotulo-b').textContent); }), '«Copiar link» del mapa confirma en su propio botón');
     } else cierto(false, 'no se encontró el botón «Copiar link» del mapa');
     sinErrores(s, 'al copiar'); await s.cierra();
   }

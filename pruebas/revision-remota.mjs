@@ -248,7 +248,7 @@ console.log('\nLA VENTANA MANDA LO QUE CUENTA');
     /cuentaRemota\(items,_remIa,v,c\.iva\)/.test(a) && /cu\.precioAuth,cu\.itemsAuth/.test(a) && !/,\{\},nota\)/.test(a));
   const ab = fuente(NOTARIO, 'abrirRevisionRemota');
   cierto('cada renglón trae su campo, con el calculado a la vista', /id="rem-ia-\$\{i\}"/.test(ab) && /ia-calc/.test(ab));
-  cierto('  identificado por posición: el id de la partida llega de otro teléfono y no va al marcado', /remotaPartida\(\$\{i\},this\.value\)/.test(ab) && !/\$\{it\.id\}/.test(ab));
+  cierto('  identificado por posición: el id de la partida llega de otro teléfono y no va al marcado', /data-al-escribir="remotaPartida\(\$\{i\}\)"/.test(ab) && !/\$\{it\.id\}/.test(ab));
   cierto('abrir otra revisión empieza sin los ajustes de la anterior', /_remIa=\{\}/.test(ab) && /_remIa=\{\}/.test(fuente(NOTARIO, 'cerrarRevisionRemota')));
   cierto('el contrato del puente no cambió: /autorizar ya firmaba los renglones', /itemsAuthCanon\(ia\.valor\)/.test(leer('puente/hoja-apps-script.gs')));
 }

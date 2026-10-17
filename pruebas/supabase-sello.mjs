@@ -1001,7 +1001,7 @@ const consulta = (f, c, filas, extra) => vp({ f, c }, depsDe(filas, extra));
     eq('  el mensaje que ve el cliente no lo acusa de nada y no cuenta detalles', [sin.cuerpo.mensaje, /falsa|falso|auténtica|clave|secret/i.test(sin.cuerpo.mensaje.replace('no quiere decir que tu cotización sea falsa', ''))],
        [Ver.MENSAJE_CONFIGURACION, false]);
     eq('  (y la página lo pinta como «Espera un momento»: solo mira `ok`, y con `ok: false` muestra el mensaje)',
-       /r\.ok !== true[\s\S]{0,200}Espera un momento/.test(readFileSync(join(RAIZ, 'verificar.html'), 'utf8')), true);
+       /r\.ok !== true[\s\S]{0,200}Espera un momento/.test(readFileSync(join(RAIZ, 'js/verificar.js'), 'utf8')), true);
     eq('  pero una petición mal formada sigue siendo «no_autentica» aunque falte la clave: ese papel no puede existir',
        (await vp({ f: 'COT 0042', c: fV.codigo }, depsDe(TODAS, { clave: undefined }))).cuerpo, { ok: true, estado: 'no_autentica' });
     for (const d of ['leerFilas', 'contarCupo', 'ahora']) {
@@ -1098,7 +1098,8 @@ const consulta = (f, c, filas, extra) => vp({ f, c }, depsDe(filas, extra));
 
   console.log('  -- la página que consume esto (verificar.html) sigue entendiendo la respuesta');
   {
-    const pagina = readFileSync(join(RAIZ, 'verificar.html'), 'utf8');
+    /* El guion de la página vive en js/verificar.js desde M6 (octubre de 2026). */
+    const pagina = readFileSync(join(RAIZ, 'js/verificar.js'), 'utf8');
     const tabla = /const ESTADOS = \{([\s\S]*?)\n\};/.exec(pagina);
     const conocidos = tabla ? [...tabla[1].matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]) : [];
     eq('los cuatro estados públicos son los que la página sabe pintar (y «vigente» no: la mandaría a «No auténtica»)', [Ver.ESTADOS_PUBLICOS.every(e => conocidos.includes(e)), conocidos.includes('vigente')], [true, false]);

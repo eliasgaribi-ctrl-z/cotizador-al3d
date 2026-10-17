@@ -6,8 +6,13 @@
      El anidador no habla con nadie: sus workers son de aquí mismo. El de js/lib/eval.js
      evalúa código, pero un worker cargado desde su propia URL trae SU política —la de la
      respuesta de ese archivo—, no la de esta página, así que aquí no hace falta abrir
-     'unsafe-eval'. Ver pruebas/csp.mjs. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+     'unsafe-eval'. Ver pruebas/csp.mjs.
+
+     Tampoco 'unsafe-inline' en script-src desde octubre de 2026 (M6 de la auditoría técnica):
+     esta página comparte origen —y localStorage, con el token de Google y el del puente— con la
+     plataforma. Las tipografías las enciende js/tema.js (data-fuentes) y no un onload, y los dos
+     guiones en línea de abajo corren por su huella sha256, que pruebas/csp.mjs recalcula. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-hHiqOWRH71rZJIDO9rSJrjgoqR3BXoiROFWRRqNkibg=' 'sha256-yFZNkOrIkPdwrJpr2c5mEPBxUtN8zM/cyJ2eaYQWLB0='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Anidador de vectores · AL3D</title>
 <meta name="description" content="Acomoda las piezas de un SVG en la hoja de material para gastar lo menos posible antes de mandarlas al láser o al CNC.">
@@ -22,7 +27,7 @@
      nunca arrancaría. Con media="print" se baja sin bloquear y al terminar se enciende. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
 <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css es el sistema de diseño que comparten el cotizador, la plataforma y esta
@@ -35,16 +40,10 @@
      pantalla de entrar de la plataforma. Empotrada —que es como se usa, desde
      ./#/anidador— esto no hace nada: si hay marco, la puerta ya se pasó del otro lado.
 
-     Mismas exenciones y mismo porqué que en cotizador.html; la explicación larga está allá. -->
-<script>(function(){try{
-  if(parent!==window)return;
-  var h=location.hostname;
-  if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;
-  var p=null;
-  try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}
-  if(p&&p.correo&&Number(p.hasta)>Date.now())return;
-  location.replace('../#/anidador');
-}catch(_){}})();</script>
+     Mismas exenciones y mismo porqué que en cotizador.html; la explicación larga está allá.
+     En UNA línea, como los otros guiones en línea: corre por su huella sha256 (ver la política,
+     arriba) y una huella de varias líneas cambiaría con el fin de línea. -->
+<script>(function(){try{if(parent!==window)return;var h=location.hostname;if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;var p=null;try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}if(p&&p.correo&&Number(p.hasta)>Date.now())return;location.replace('../#/anidador');}catch(_){}})();</script>
 <script src="../js/tema.js"></script>
 <link rel="stylesheet" href="../css/sistema.css">
 <link rel="stylesheet" href="css/anidador.css">
@@ -59,15 +58,14 @@
      arriba se vería un instante y desaparecería, que es peor que no esconderla.
      `parent !== window` y no una query string: así la página suelta —anidador-vectores/, la que
      está en APP_FILES y la que prueba pruebas/navegador/anidador.mjs— se comporta byte por byte
-     como hoy, y el service worker nunca ve dos URLs para el mismo archivo. -->
-<script>if(parent!==window)document.documentElement.classList.add('empotrado');
-/* ARRANCANDO, igual que en cotizador.html: los diez guiones del motor pesan —clipper.js solo
-   ya es grande— y el marcado sin ellos se veía entre 700 y 950 ms como una página que no
-   responde. css/sistema.css enseña el esqueleto de abajo mientras la clase esté puesta; el
-   final de js/app.js la quita. Tope de ocho segundos y el primer error de script la quitan
-   también, para que nunca tape una página que sí funciona. */
-document.documentElement.classList.add('arrancando');
-(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
+     como hoy, y el service worker nunca ve dos URLs para el mismo archivo.
+
+     ARRANCANDO, igual que en cotizador.html: los diez guiones del motor pesan —clipper.js solo
+     ya es grande— y el marcado sin ellos se veía entre 700 y 950 ms como una página que no
+     responde. css/sistema.css enseña el esqueleto de abajo mientras la clase esté puesta; el
+     final de js/app.js la quita. Tope de ocho segundos y el primer error de script la quitan
+     también, para que nunca tape una página que sí funciona. En una línea, por su huella. -->
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');document.documentElement.classList.add('arrancando');(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
 
 <a href="#an-contenido" class="salto">Ir al contenido</a>
 

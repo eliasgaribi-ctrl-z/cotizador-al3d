@@ -46,7 +46,9 @@ function politica(html) {
   return out;
 }
 /* ¿Esta política deja cargar `url` por `directiva`? Con la caída a default-src que manda la
-   especificación y los comodines de subdominio (`https://*.x.com`). */
+   especificación, los comodines de subdominio (`https://*.x.com`) y las rutas: una fuente con
+   ruta deja pasar ese archivo exacto, o todo lo de abajo si termina en «/» (así se nombra
+   pdf.js en el cotizador desde M6, en vez de todo cdnjs). */
 function permite(pol, directiva, url) {
   const fuentes = pol[directiva] || pol['default-src'] || [];
   const u = new URL(url);
@@ -54,9 +56,12 @@ function permite(pol, directiva, url) {
     if (f === '*') return true;
     if (f === u.protocol) return true;
     if (!/^https?:\/\//.test(f)) return false;
-    const [prot, host] = f.split('://');
+    const [prot, resto] = f.split('://');
     if (prot + ':' !== u.protocol) return false;
-    return host.startsWith('*.') ? u.hostname.endsWith(host.slice(1)) : u.hostname === host;
+    const i = resto.indexOf('/'), host = i < 0 ? resto : resto.slice(0, i), ruta = i < 0 ? '' : resto.slice(i);
+    const casa = host.startsWith('*.') ? u.hostname.endsWith(host.slice(1)) : u.hostname === host;
+    if (!casa || !ruta || ruta === '/') return casa;
+    return ruta.endsWith('/') ? u.pathname.startsWith(ruta) : u.pathname === ruta;
   });
 }
 
@@ -152,18 +157,20 @@ cierto('y la búsqueda encontró las salidas que tiene que encontrar', vistos.le
 cierto('js/datos/geo.js → nominatim por connect-src en index.html',
   /nominatim\.openstreetmap\.org/.test(leer('js/datos/geo.js')) && permite(POL['index.html'], 'connect-src', 'https://nominatim.openstreetmap.org/search'));
 
-console.log('\nLOS GUIONES EN LÍNEA, SOLO DONDE HACEN FALTA');
+console.log('\nNINGUNA PÁGINA CORRE GUIONES EN LÍNEA SIN SU HUELLA');
 /* 'unsafe-inline' en script-src es lo que convierte un marcado que se coló en un innerHTML
    —un `<img onerror=…>` en el nombre de un proyecto— en código que corre. index.html lo tenía
-   por UN `onload` en el <link> de las tipografías, y las tres de texto por lo mismo. Ya no:
-   el `onload` lo hace js/tema.js (`data-fuentes`) y la política lo prohíbe. Las que siguen
-   teniéndolo es porque llevan guiones en línea de verdad: el cotizador (161 manejadores), el
-   anidador y verificar.html. */
+   por UN `onload` en el <link> de las tipografías, y las tres de texto por lo mismo; lo quitó
+   js/tema.js (`data-fuentes`). El cotizador, el anidador y verificar.html lo conservaron hasta
+   octubre de 2026 porque llevaban guiones en línea de verdad —el cotizador, unos 290 on…= entre
+   su marcado y sus plantillas— y comparten origen con la plataforma, que guarda en localStorage
+   el token de Google y el del puente. M6 de la auditoría técnica: los botones pasaron a
+   data-acc (ver «Los botones del marcado» en js/cotizador/nucleo.js), el guion de verificar se
+   mudó a js/verificar.js, y lo poco que queda en línea corre por su huella. Ya ninguna. */
 {
-  const SIN_EN_LINEA = ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html', 'plataforma.html',
-                        'publicaciones/index.html', 'publicaciones/motor.html'];
   const sinComentarios = h => h.replace(/<!--[\s\S]*?-->/g, '');
-  for (const p of SIN_EN_LINEA) {
+  const huella = s => "'sha256-" + createHash('sha256').update(s, 'utf8').digest('base64') + "'";
+  for (const p of PAGINAS) {
     const pol = POL[p]; if (!pol) continue;
     eq(p + ': script-src sin \'unsafe-inline\'', (pol['script-src'] || []).includes("'unsafe-inline'"), false);
     const h = sinComentarios(leer(p));
@@ -172,25 +179,96 @@ console.log('\nLOS GUIONES EN LÍNEA, SOLO DONDE HACEN FALTA');
     /* Un guion en línea solo si su huella está en la política. Se recalcula aquí: cambiar el
        reenvío de plataforma.html sin cambiar la huella lo dejaría sin correr, en silencio. */
     const enLinea = [...h.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-    const huellas = enLinea.map(t => "'sha256-" + createHash('sha256').update(t, 'utf8').digest('base64') + "'");
     eq(p + ':   y cada guion en línea que tenga, con su huella en la política',
-       huellas.filter(x => !(pol['script-src'] || []).includes(x)), []);
+       enLinea.map(huella).filter(x => !(pol['script-src'] || []).includes(x)), []);
+    /* Y en UNA línea: la huella es de los bytes, y la copia de trabajo de Windows guarda CRLF
+       donde el sitio publica LF. Un guion de varias líneas tendría dos huellas y correría solo
+       en uno de los dos lados. */
+    eq(p + ':   y cada uno en una sola línea, para que su huella no dependa del fin de línea',
+       enLinea.filter(s => /[\r\n]/.test(s)).length, 0);
   }
   cierto('plataforma.html: su reenvío va por huella, que es lo que lo deja correr',
          (POL['plataforma.html']['script-src'] || []).some(f => /^'sha256-/.test(f)));
+
+  /* El visor del PDF: se abre como blob: y hereda la política del cotizador, así que su guion
+     corre por una huella que vive en cotizador.html. Se saca de la constante —el motor de JS
+     normaliza a LF el texto de una plantilla, por eso aquí también— y se hashea. */
+  const entrega = leer('js/cotizador/entrega.js').replace(/\r\n/g, '\n');
+  const visor = /const GUION_VISOR=`([\s\S]*?)`;/.exec(entrega);
+  cierto('js/cotizador/entrega.js: el guion del visor del PDF es una constante sin ${…}', visor && !/\$\{/.test(visor[1]));
+  cierto('  y su huella está en la política de cotizador.html, que es la que hereda el blob:',
+         visor && (POL['cotizador.html']['script-src'] || []).includes(huella(visor[1])));
+  {
+    const sinNotas = sinComentarios(entrega.replace(/\/\*[\s\S]*?\*\//g, ''));
+    cierto('  y el documento lo lleva tal cual, sin otro guion en línea',
+           /<script>\$\{GUION_VISOR\}<\/script>/.test(sinNotas) && !/<script>(?!\$\{GUION_VISOR\})/.test(sinNotas));
+  }
+
+  /* De cdnjs, los dos archivos de pdf.js que se piden con SRI, no el dominio entero. */
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  eq('cotizador.html: de cdnjs solo pdf.js 3.11.174, por su ruta exacta',
+     (POL['cotizador.html']['script-src'] || []).filter(f => f.includes('cdnjs')),
+     [PDFJS + 'pdf.min.js', PDFJS + 'pdf.worker.min.js']);
+  eq('  y el worker igual', (POL['cotizador.html']['worker-src'] || []).filter(f => f.includes('cdnjs')), [PDFJS + 'pdf.worker.min.js']);
+
   /* Las tipografías siguen encendiéndose: la marca en el <link> y quien la lee. */
   const tema = leer('js/tema.js');
   cierto('js/tema.js enciende las tipografías marcadas con data-fuentes',
          /link\[data-fuentes\]\[media="print"\]/.test(tema) && /media = 'all'/.test(tema));
-  for (const p of ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html']) {
+  for (const p of ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html', 'cotizador.html',
+                   'verificar.html', 'anidador-vectores/index.html']) {
     cierto(p + ': su <link> de tipografías lleva la marca', /fonts\.googleapis\.com\/css2[^>]*media="print" data-fuentes>/.test(leer(p)));
   }
-  /* Y los módulos de la plataforma no escriben manejadores en el marcado que generan: con la
-     política de arriba no correrían, y el botón se quedaría muerto sin error en pantalla. */
-  const js = ['js/app.js'].concat(archivos('js/mod'), archivos('js/nucleo'), archivos('js/datos'));
-  const conManejador = js.filter(r => /[\s"'<]on[a-z]{3,}\s*=\s*\\?["']/.test(
-    readFileSync(join(RAIZ, r), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
-  eq('ningún módulo de la plataforma escribe on…="…" en su marcado', conManejador, []);
+  /* Y nadie escribe manejadores en el marcado que genera: con la política de arriba no
+     correrían, y el botón se quedaría muerto sin error en pantalla. */
+  const sinComJS = r => readFileSync(join(RAIZ, r), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const conManejador = lista => lista.filter(r => /[\s"'<`]on[a-z]{3,}\s*=\s*\\?["']/.test(sinComJS(r)));
+  eq('ningún módulo de la plataforma escribe on…="…" en su marcado',
+     conManejador(['js/app.js'].concat(archivos('js/mod'), archivos('js/nucleo'), archivos('js/datos'))), []);
+  eq('  ni el cotizador, ni el anidador, ni las piezas, ni verificar',
+     conManejador(archivos('js/cotizador').concat(archivos('anidador-vectores/js'), ['js/piezas.js', 'js/verificar.js'])), []);
+  /* El cotizador ya no escribe ningún setAttribute('onclick',…) para cambiar la acción de un
+     botón en sitio: cambia su data-acc. */
+  eq('  ni cambia un manejador en sitio con setAttribute(\'on…\')',
+     archivos('js/cotizador').filter(r => /setAttribute\(\s*'on[a-z]+'/.test(sinComJS(r))), []);
+  /* Ni lo busca por él: un querySelector('[onclick^="abrirHistorial"]') ya no encuentra nada y
+     falla callado (así se quedó sin destino el vuelo de la tarjeta al Historial). */
+  eq('  ni busca un elemento por su on… (selector o getAttribute)',
+     archivos('js/cotizador').concat(['js/piezas.js']).filter(r => /\[on[a-z]+[\^*$~|]?=|\[on[a-z]+\]|[gs]etAttribute\(\s*'on[a-z]+'/.test(sinComJS(r))), []);
+
+  /* Cada acción que el marcado del cotizador nombra está en la lista blanca de algún archivo:
+     un data-acc con un nombre que nadie registró es un botón que no hace nada (el repartidor
+     solo deja un aviso en la consola). Se buscan los nombres en los atributos y en las cadenas
+     que los arman —chip(on,`setItem(…)`), fn:'generarPDF()', on:'reabrir()'—. */
+  const fuentes = ['cotizador.html'].concat(archivos('js/cotizador')).map(r => [r, sinComentarios(sinComJS(r))]);
+  const usadas = new Set();
+  for (const [, x] of fuentes) {
+    for (const m of x.matchAll(/data-(?:acc|al-escribir|al-cambiar|al-salir|al-cargar)=["'`](?!\$\{)([A-Za-z_$][\w$]*)(?:\(\s*'([A-Za-z_$][\w$]*)')?/g)) {
+      usadas.add(m[1]);
+      if (m[1] === 'alFondo' || m[1] === 'aparte') usadas.add(m[2]);
+    }
+    for (const m of x.matchAll(/\b(?:fn|on):'([A-Za-z_$][\w$]*)\(/g)) usadas.add(m[1]);
+    for (const m of x.matchAll(/chip\([^,]+,`([A-Za-z_$][\w$]*)\(/g)) usadas.add(m[1]);
+  }
+  const registradas = new Set(), directas = [];
+  for (const [r, x] of fuentes) {
+    for (const m of x.matchAll(/accionesDirectas\(\[([\s\S]*?)\]\)/g))
+      for (const n of m[1].match(/[\w$]+/g) || []) { registradas.add(n); directas.push([n, r]); }
+    for (const m of x.matchAll(/Object\.assign\(ACC,\{([\s\S]*?)\n\}\);/g))
+      for (const n of m[1].matchAll(/^\s*([\w$]+):/gm)) registradas.add(n[1]);
+  }
+  cierto('el marcado del cotizador nombra acciones (la búsqueda encontró las que tiene que encontrar)', usadas.size > 100);
+  eq('  y cada una está en la lista blanca de algún archivo', [...usadas].filter(n => !registradas.has(n)).sort(), []);
+  /* Las directas se buscan en window: tienen que ser una function de nivel superior —un const
+     o un let no cuelga de window—, y del archivo que las registra. */
+  eq('  y cada directa es una function de nivel superior del archivo que la registra',
+     directas.filter(([n, r]) => !new RegExp('^(?:async )?function ' + n.replace('$', '\\$') + '\\(', 'm').test(leer(r))).map(([n]) => n), []);
+  /* El repartidor no ejecuta lo que dice el atributo: ni eval, ni Function. */
+  const nucleo = sinComJS('js/cotizador/nucleo.js');
+  const rep = nucleo.slice(nucleo.indexOf('const ACC='), nucleo.indexOf("document.addEventListener('keydown'"));
+  cierto('el repartidor de nucleo.js lee el atributo con _accLeer y no lo evalúa',
+         rep.length > 500 && /_accLeer\(texto\)/.test(rep) && !/\beval\(|new Function|Function\(/.test(rep));
+
   /* El comentario de la política ya no promete lo que no es: connect-src deja pasar cualquier
      Apps Script, así que un XSS SÍ tendría a dónde llevarse los datos. */
   const nota = (leer('index.html').match(/<!-- ----- A dónde puede hablar esta página[\s\S]*?-->/) || [''])[0];

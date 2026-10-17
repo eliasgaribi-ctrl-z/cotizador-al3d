@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.

@@ -221,24 +221,32 @@ function comparar(que, real, dichas) {
 const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8');
 const modCot = readFileSync(join(RAIZ, 'js/mod/cotizador.js'), 'utf8');
 
-/* 1 · Los manejadores en línea de cotizador.html. Se cuentan los atributos `on…="` del
-   marcado, que son exactamente los que un módulo ES dejaría mudos. */
-const manejadores = (cotiz.match(/\bon[a-z]+\s*=\s*"/g) || []).length;
-comparar('los manejadores en línea de cotizador.html', manejadores, [
-  cuentaDicha(readme, /los (\d+) manejadores en línea/, 'README.md'),
-  cuentaDicha(modCot, /tiene (\d+) manejadores en línea/, 'js/mod/cotizador.js'),
-  cuentaDicha(modCot, /así que los (\d+) dejarían/, 'js/mod/cotizador.js'),
-  ...['arranque', 'catalogo', 'entrega', 'escalador', 'historial', 'ia', 'nucleo', 'partidas',
-      'proceso', 'vectorizador', 'venta'].map(g => cuentaDicha(
+/* 1 · Las acciones que el marcado del cotizador nombra. Eran los manejadores en línea de
+   cotizador.html (onclick=…); desde M6 (octubre de 2026) son data-acc="…" que el repartidor
+   de nucleo.js busca en `window` por su nombre, y son exactamente las que un módulo ES dejaría
+   mudas. Se cuentan los nombres de las listas accionesDirectas([...]). */
+const GUIONES = ['arranque', 'catalogo', 'entrega', 'escalador', 'historial', 'ia', 'nucleo', 'partidas',
+                 'proceso', 'vectorizador', 'venta'];
+let acciones = 0;
+for (const g of readdirSync(join(RAIZ, 'js/cotizador'))) {
+  for (const m of readFileSync(join(RAIZ, 'js/cotizador/' + g), 'utf8').matchAll(/accionesDirectas\(\[([\s\S]*?)\]\)/g))
+    acciones += (m[1].match(/'[\w$]+'/g) || []).length;
+}
+comparar('las acciones con nombre del cotizador', acciones, [
+  cuentaDicha(readme, /las (\d+) acciones que el marcado nombra/, 'README.md'),
+  cuentaDicha(modCot, /nombra (\d+)\s+acciones/, 'js/mod/cotizador.js'),
+  cuentaDicha(modCot, /que las (\d+) dejarían/, 'js/mod/cotizador.js'),
+  ...GUIONES.map(g => cuentaDicha(
     readFileSync(join(RAIZ, 'js/cotizador/' + g + '.js'), 'utf8'),
-    /(\d+) manejadores en línea del marcado/, 'js/cotizador/' + g + '.js')),
+    /(\d+) acciones que el marcado nombra/, 'js/cotizador/' + g + '.js')),
 ]);
-/* Y el desglose de js/mod/cotizador.js, que nombra los dos más numerosos. */
-const porTipo = t => (cotiz.match(new RegExp('\\b' + t + '\\s*=\\s*"', 'g')) || []).length;
-comparar('los onclick de cotizador.html', porTipo('onclick'),
-  [cuentaDicha(modCot, /(\d+) `onclick`/, 'js/mod/cotizador.js')]);
-comparar('los oninput de cotizador.html', porTipo('oninput'),
-  [cuentaDicha(modCot, /(\d+) `oninput`/, 'js/mod/cotizador.js')]);
+/* Y ningún manejador en línea de vuelta: con la política sin 'unsafe-inline' no correría, y el
+   botón se quedaría muerto sin error en pantalla (pruebas/csp.mjs lo exige con más detalle). */
+{
+  const quedan = (cotiz.replace(/<!--[\s\S]*?-->/g, '').match(/\son[a-z]+\s*=\s*"/g) || []).length;
+  if (quedan) mal('cotizador.html volvió a tener ' + quedan + ' manejadores en línea (on…="…"): van como data-acc, ver js/cotizador/nucleo.js');
+  else bien('cotizador.html no tiene ni un manejador en línea');
+}
 
 /* 2 · Los archivos del conjunto versionado, escrito con letra en el README. */
 const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
@@ -261,8 +269,10 @@ comparar('las pruebas de node', readdirSync(join(RAIZ, 'pruebas')).filter(n => n
    caché primero: «un módulo nuevo con uno viejo no es una app vieja, es una app rota».
    Quedan fuera los doce guiones clásicos del cotizador —que comparten ámbito global y no se
    importan entre sí—, `js/tema.js`, que también es clásico y corre antes del primer pintado, y
-   `js/piezas.js`, el otro clásico: lo cargan las cuatro superficies con un <script> normal. */
-const modulosES = enDisco.filter(f => f !== 'js/tema.js' && f !== 'js/piezas.js' && !f.startsWith('js/cotizador/')).length;
+   `js/piezas.js`, el otro clásico: lo cargan las cuatro superficies con un <script> normal.
+   Y `js/verificar.js`, que sí es módulo pero de verificar.html, no de la plataforma: es el
+   guion que esa página llevaba en línea hasta M6 (octubre de 2026). */
+const modulosES = enDisco.filter(f => f !== 'js/tema.js' && f !== 'js/piezas.js' && f !== 'js/verificar.js' && !f.startsWith('js/cotizador/')).length;
 comparar('los módulos ES de la plataforma', modulosES, [
   cuentaDicha(sw, /La plataforma son (\d+) módulos ES/, 'sw.js'),
   cuentaDicha(sw, /la plataforma pide (\d+) módulos al arrancar/, 'sw.js'),
