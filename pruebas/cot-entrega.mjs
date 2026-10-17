@@ -184,6 +184,30 @@ eq('si el navegador bloquea la ventana no hay chat ni hito, solo el aviso de per
 cierto(/ventanas emergentes/.test(avisos[0].msg), '«' + avisos[0].msg + '»');
 
 /* ===================================================================================== */
+console.log('\n1c · EL ANTICIPO EN PAPEL NUNCA PASA DEL TOTAL');
+{
+  /* renderSummary no acota el anticipo a propósito; el papel sí. Con $30,000 escritos sobre un
+     total de $20,184 el mensaje decía «Anticipo $30,000 · Resta $0»: un número imposible que el
+     cliente lee como pactado. */
+  Q.items = [{ id: 1, tipo: 'manual', pz: 1, pu: 17400, desc: 'x' }]; Q.iva = true; Q.itemsAuth = {}; Q.precioAuth = 0;
+  Q.estado = 'autorizada'; Q.editMode = false; Q.sello = null;
+  if (typeof ctx.opcionesParaPdf !== 'function') ctx.opcionesParaPdf = () => null;   // vive en opciones.js, que aquí no se carga
+  const neto = ev('precioFinal()'), m = ev('money');
+  Q.anti = 30000;
+  cierto(ev('mensajeWhatsApp()').includes('Anticipo para arrancar: ' + m(neto)), 'WhatsApp: el anticipo de más sale igual al total (' + m(neto) + ')');
+  eq('Canva y el PDF usan el mismo tope', ev('anticipoDelPapel(desgloseFinal().neto)'), neto);
+  avisos.length = 0;
+  cierto(ev('avisarAnticipoDeMas(precioFinal())') === true && /mayor que el total/.test(avisos[0] && avisos[0].msg), 'y al vendedor se le avisa: «' + (avisos[0] && avisos[0].msg) + '»');
+  Q.anti = 10000;
+  avisos.length = 0;
+  cierto(ev('mensajeWhatsApp()').includes('Anticipo para arrancar: ' + m(10000)), 'un anticipo normal sale tal cual');
+  cierto(ev('avisarAnticipoDeMas(precioFinal())') === false && avisos.length === 0, 'y no hay aviso');
+  Q.anti = neto + 0.004;
+  cierto(ev('avisarAnticipoDeMas(precioFinal())') === false, 'medio centavo de más no es «de más» (misma tolerancia que partirAnticipo)');
+  Q.anti = 0;
+}
+
+/* ===================================================================================== */
 console.log('\n2 · EL FOLIO COMPLETO EN EL PAPEL');
 {
   const gs = leer('puente/hoja-apps-script.gs');

@@ -3378,6 +3378,7 @@ var COT_IVA = 0.16;
    `_CAMPOS_PRECIO` de nucleo.js. La huella se arma con ellos y tiene que salir idéntica. */
 var COT_CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab', 'recComp',
                          'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
+var COT_CAMPOS_NUM = { altura: 1, n: 1, ancho: 1, alto: 1, tarifa: 1, pz: 1, pu: 1 };
 
 function cotPrecioDe(mapa, k) { return Object.prototype.hasOwnProperty.call(mapa, k) ? mapa[k] : 0; }
 function cotFactorOf(it) { return cotPrecioDe(COT_MATERIALES, it.material) + cotPrecioDe(COT_COMPLEJIDAD, it.comp); }
@@ -3580,6 +3581,14 @@ function limpiarCotizacion(c) {
       if (v !== null && typeof v !== 'number' && typeof v !== 'string' && typeof v !== 'boolean') return { error: 'La partida ' + id + ' trae un dato raro en «' + k + '».' };
       if (typeof v === 'number' && !isFinite(v)) return { error: 'La partida ' + id + ' trae un número inválido en «' + k + '».' };
       if (typeof v === 'string' && v.length > 60) return { error: 'La partida ' + id + ' trae un texto demasiado largo en «' + k + '».' };
+      /* Las medidas y los precios son números positivos o vacíos. Un texto como «abc» volvía NaN
+         el subtotal, y `Math.abs(NaN - x) > 0.01` es falso: la solicitud pasaba el cuadre. Y un
+         negativo restaba a escondidas. El teléfono ya manda solo números ≥ 0 (normalizarItems).
+         Así que cualquier otra cosa no viene de él. */
+      if (COT_CAMPOS_NUM[k] && v !== null && v !== '' && typeof v !== 'boolean') {
+        var x = Number(v);
+        if (!isFinite(x) || x < 0) return { error: 'La partida ' + id + ' trae un número inválido en «' + k + '».' };
+      }
       o[k] = v;
     }
     o.desc = String(it.desc == null ? '' : it.desc).slice(0, 300);
@@ -3804,7 +3813,7 @@ function rutaSolicitar_(cuerpo, rol, ingreso) {
   var c = limpiarCotizacion(cuerpo.cotizacion);
   if (c.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: c.error };
   var sub = cotSubtotal(c.items);
-  if (!isFinite(c.subtotal) || Math.abs(sub - c.subtotal) > 0.01) return descuadre(sub, c.subtotal);
+  if (!isFinite(sub) || !isFinite(c.subtotal) || Math.abs(sub - c.subtotal) > 0.01) return descuadre(sub, c.subtotal);
   var nota = String((cuerpo && cuerpo.nota) || '').slice(0, 500);
   var yo = quienSoy(rol, ingreso);
   return conCandadoNotario(function () {
@@ -3942,7 +3951,7 @@ function rutaAutorizar_(cuerpo, rol, ingreso) {
   var c = limpiarCotizacion(cuerpo.cotizacion);
   if (c.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: c.error };
   var subCalc = cotSubtotal(c.items);
-  if (!isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
+  if (!isFinite(subCalc) || !isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
   if (!(subCalc > 0)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Una cotización en $0 no se autoriza.' };
   var precioAuth = Number(cuerpo.precioAuth || 0);
   if (!isFinite(precioAuth) || precioAuth < 0 || precioAuth > 1e9) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El precio autorizado no es un importe válido.' };
