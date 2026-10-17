@@ -288,8 +288,9 @@ function respaldarSemanal() {
 function instalarRespaldoSemanal() {
   var conf = copiaConfiguracion_();
   if (!conf.ok) return copiaRespaldoAnotar_('no se programó: ' + conf.mensaje + ' Ponlas primero y vuelve a correr esto.');
-  /* Con la pantalla de permisos por casillas, Google solo vuelve a preguntar si se lo piden (como autorizarDrive de Código.gs). */
-  try { if (typeof ScriptApp.requireScopes === 'function') ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, COPIA_RESPALDO_PERMISOS); } catch (e) { /* lo dirá el primer respaldo */ }
+  /* Con la pantalla de permisos por casillas, Google solo vuelve a preguntar si se lo piden (como autorizarDrive de Código.gs). Si ya
+     están, no hace nada; si falta uno, Google enseña la pantalla de permisos y hay que volver a correr esto. Sin try: es lo que la abre. */
+  if (typeof ScriptApp.requireScopes === 'function') ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, COPIA_RESPALDO_PERMISOS);
   copiaQuitarDisparadores_(COPIA_RESPALDO_FUNCION);
   ScriptApp.newTrigger(COPIA_RESPALDO_FUNCION).timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(COPIA_RESPALDO_HORA).inTimezone(COPIA_ZONA).create();
   var primero = copiaRespaldar_();
