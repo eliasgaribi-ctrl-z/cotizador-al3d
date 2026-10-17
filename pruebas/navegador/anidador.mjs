@@ -12,6 +12,10 @@
  *   4. Que el trazo que deja el vectorizador del cotizador se recoja al abrir y se borre, para
  *      que la siguiente apertura no traiga el de la vez pasada.
  *
+ * Desde el 17/10/2026 el motor de omisión es sparrow (pruebas/navegador/an-sparrow.mjs); aquí se
+ * prueba el de SVGnest, que queda de respaldo donde el nuevo no corre, pidiéndolo con
+ * window.__anidadorMotorViejo.
+ *
  * Uso:  PUERTO=8814 node pruebas/navegador/anidador.mjs
  */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
@@ -19,6 +23,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const ctx = await nav.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'es-MX' });
+await ctx.addInitScript(() => { window.__anidadorMotorViejo = true; });
 const p = await ctx.newPage();
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
@@ -152,7 +157,7 @@ else {
   /* Con más de una hoja la leyenda dice «Hoja 1 de 3» y trae su aprovechamiento (A12, pruebas/navegador/an-mesa.mjs):
      el título es el primer renglón de la leyenda. */
   const capt = await p.evaluate(() => document.querySelector('#an-res figcaption .an-cap-t').textContent);
-  /^Hoja 1( de \d+)? · \d+ piezas? · 100\u00A0mm × 100\u00A0mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
+  /^Hoja 1( de \d+)? · \d+ piezas? · 100\u00A0mm × 100\u00A0mm · separación [\d.]+ mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
   (await p.evaluate(() => !document.getElementById('an-dl').disabled)) ? bien('y «Descargar» se encendió') : mal('«Descargar» sigue apagado con resultado');
   /* La descarga por hoja es un menú (A16): «Descargar SVG» abre Todas + una entrada por hoja. */
   await p.click('#an-dl');
@@ -241,21 +246,6 @@ if (e.mejor) {
   piezas.filter(q => q.n > 60).length === 2 ? bien('los dos círculos van finos (más de 60 vértices: 0.05 mm de desvío y no los 0.3 del cálculo)') : mal('vértices de las piezas: ' + piezas.map(q => q.n).join(', '));
   new RegExp('\\$EXTMAX\\r\\n10\\r\\n100\\r\\n20\\r\\n' + (100 * n + 25 * (n - 1)) + '\\r\\n').test(dxf) ? bien('a escala: 100 mm de ancho y las hojas una debajo de otra, como el SVG') : mal('la extensión del DXF no cuadra: ' + (dxf.match(/\$EXTMAX[^]*?\r\n9\r\n/) || [''])[0].replace(/\r\n/g, ' '));
 }
-
-// ── 5c. «Rápido» se para solo, con el motor de verdad ──────────────────────
-console.log('\nRÁPIDO: SE PARA SOLO EN SEGUNDOS, CON EL MOTOR DE VERDAD');
-await cargar(SVG_MM, 'prueba.svg');
-(await estado()).busca === 'rapido' ? bien('la página nació en «Rápido»') : mal('la búsqueda de entrada es «' + (await estado()).busca + '»');
-await p.evaluate(() => window.Anidador.iniciar());
-if (await esperar(async () => !!(await estado()).mejor, 60000)) {
-  const t1 = Date.now();
-  const paro = await esperar(async () => !(await estado()).corriendo, 25000);
-  const seg = Math.round((Date.now() - t1) / 100) / 10;
-  e = await estado();
-  paro && e.detenidoSolo && seg <= 17 ? bien('se detuvo solo ' + seg + ' s después del primer acomodo (el tope es 15 s)') : mal('no se detuvo solo a tiempo: ' + JSON.stringify({ paro, seg, detenidoSolo: e.detenidoSolo }));
-  /^Listo: acomodo rápido/.test(await p.evaluate(() => document.getElementById('an-msg').textContent)) ? bien('y lo dice') : mal('el mensaje dice «' + await p.evaluate(() => document.getElementById('an-msg').textContent) + '»');
-} else mal('en 60 s no hubo un primer acomodo');
-if ((await estado()).corriendo) await p.evaluate(() => window.Anidador.detener());
 
 // ── 6. Lo que no es una medida ─────────────────────────────────────────────
 console.log('\nUN SVG EN PX: LA MEDIDA SE PIDE, NO SE ADIVINA');

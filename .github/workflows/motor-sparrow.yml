@@ -1,0 +1,77 @@
+# El motor de acomodo nuevo de la mesa de corte: sparrow (MIT, KU Leuven) compilado a WebAssembly
+# con el puente de sparrow-studio (MIT). Elías pidió un acomodo que aproveche la placa como lo hace
+# el taller a mano, y el motor de SVGnest (2015) no lo logra ni con más tiempo (medido con el letrero
+# de AVIDA, 17/10/2026).
+#
+# No hay Rust en las computadoras del taller, así que se compila aquí, desde el código fuente, en una
+# versión FIJA de sparrow-studio (SPARROW_STUDIO_SHA): lo que se compila es exactamente lo que se
+# revisó. Sale el paquete de dos variantes, ambas de un solo hilo para que corran en GitHub Pages sin
+# los encabezados de aislamiento que piden los hilos:
+#   · simd    — la rápida, para los navegadores con WebAssembly SIMD (todos los de hoy).
+#   · nosimd  — la de respaldo.
+# Junto van las licencias (MIT de sparrow y sparrow-studio, MPL-2.0 de jagua-rs y las demás).
+#
+# El paquete se baja como artefacto de esta ejecución y se copia a anidador-vectores/motor/; este
+# flujo no publica nada por sí solo.
+name: Motor sparrow (WASM)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/motor-sparrow]
+    paths: ['.github/workflows/motor-sparrow.yml']
+
+permissions:
+  contents: read
+
+env:
+  SPARROW_STUDIO_SHA: e8125c9233f8e7808b5738b35032560c4a53dfa0
+  NIGHTLY: nightly-2026-08-30
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: sparrow-studio en su versión fija
+        uses: actions/checkout@v4
+        with:
+          repository: JeroenGar/sparrow-studio
+          ref: ${{ env.SPARROW_STUDIO_SHA }}
+          path: studio
+      - name: Rust estable y nightly fijo, con wasm32
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup toolchain install "$NIGHTLY" --profile minimal --component rust-src --target wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: wasm-pack
+        run: npm install --global wasm-pack@0.15.0
+      - name: Compilar las dos variantes de un hilo
+        run: |
+          set -e
+          cd studio/web/wasm
+          RUSTUP_TOOLCHAIN="$NIGHTLY" RUSTFLAGS='-Ctarget-feature=+simd128' \
+            wasm-pack build . --target web --release --out-dir pkg-simd --locked --features sparrow/simd
+          RUSTUP_TOOLCHAIN="$NIGHTLY" RUSTFLAGS='-Ctarget-feature=-simd128' \
+            wasm-pack build . --target web --release --out-dir pkg-nosimd --locked
+      - name: Armar el paquete con sus licencias
+        run: |
+          set -e
+          mkdir -p motor
+          for v in simd nosimd; do
+            mkdir -p "motor/$v"
+            # El paquete entero menos lo de npm: sparrow_web.js importa su snippets/ (el registro del motor).
+            cp -r "studio/web/wasm/pkg-$v/sparrow_web.js" "studio/web/wasm/pkg-$v/sparrow_web_bg.wasm" "studio/web/wasm/pkg-$v/snippets" "motor/$v/"
+          done
+          cp studio/LICENSE motor/LICENSE-sparrow-studio.txt
+          cp studio/web/public/THIRD_PARTY_NOTICES.txt motor/THIRD_PARTY_NOTICES.txt
+          echo "sparrow-studio $SPARROW_STUDIO_SHA (web/wasm), wasm-pack 0.15.0, $NIGHTLY" > motor/VERSION.txt
+          (cd motor && find simd nosimd -type f | sort | xargs sha256sum > SHA256SUMS.txt)
+          ls -la motor motor/simd motor/nosimd
+      - uses: actions/upload-artifact@v4
+        with:
+          name: motor-sparrow
+          path: motor
+          retention-days: 30

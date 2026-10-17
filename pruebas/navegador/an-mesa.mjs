@@ -87,9 +87,9 @@ async function abrir({ ancho = 1100, alto = 900, tema = 'claro', reducido = fals
   const ctx = await nav.newContext({ viewport: { width: ancho, height: alto }, locale: 'es-MX', serviceWorkers: 'block',
     hasTouch: tactil, isMobile: tactil, deviceScaleFactor: 1, reducedMotion: reducido ? 'reduce' : 'no-preference' });
   await ctx.addInitScript(t => { try { if (!localStorage.getItem('al3d_tema')) localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
-  /* «A fondo»: con «Rápido», el de omisión desde el 16/10/2026, el motor falso que se deja corriendo
-     se pararía solo a los 5 s de reloj, a media ronda. Estas rondas prueban la mesa, no el paro. */
-  await ctx.addInitScript(() => { try { if (!localStorage.getItem('al3d_anidador_material')) localStorage.setItem('al3d_anidador_material', JSON.stringify({ busca: 'fondo' })); } catch (_) {} });
+  /* El motor falso se monta sobre el de SVGnest, que desde el 17/10/2026 es el de respaldo (el de
+     omisión es sparrow, que prueba pruebas/navegador/an-sparrow.mjs). Estas rondas prueban la mesa. */
+  await ctx.addInitScript(() => { window.__anidadorMotorViejo = true; });
   const p = await ctx.newPage();
   p.setDefaultTimeout(8000);
   const errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -794,7 +794,9 @@ await seccion(async () => {
   const t1 = await transformDe(p, 'pz-an-e2');
   const m1 = /translate\(([\d.-]+) ([\d.-]+)\) rotate\(0\)/.exec(t1);
   cierto(m1 && Math.abs(+m1[1] - 40) < 3 && Math.abs(+m1[2] - 280) < 3, 'soltada en un lugar libre se queda (' + t1 + ')', t1);
-  cierto(await p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].map(e => e.id || e.getAttribute('class')).join()) === 'bin,pz-an-e0,pz-an-e1,pz-an-e5,pz-an-e2,pz-an-e3,pz-an-e4', 'y vuelve a su lugar en el orden del dibujo', await p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].map(e => e.id || e.getAttribute('class')).join()));
+  /* Las marcas de la mesa (data-mesa: el retazo útil, la vibración) no son piezas: no cuentan en el orden. */
+  const orden = () => p.evaluate(() => [...document.querySelector('#an-res .an-hoja>svg').children].filter(e => !e.hasAttribute('data-mesa')).map(e => e.id || e.getAttribute('class')).join());
+  cierto(await orden() === 'bin,pz-an-e0,pz-an-e1,pz-an-e5,pz-an-e2,pz-an-e3,pz-an-e4', 'y vuelve a su lugar en el orden del dibujo', await orden());
   const mm = await mesa(p);
   cierto(mm.editado === true, 'el acomodo queda marcado como editado a mano', mm.editado);
   cierto(await texto(p, '#an-vista-tab') === 'Acomodo editado a mano', 'la mesa lo dice: «Acomodo editado a mano»');
