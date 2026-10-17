@@ -2428,7 +2428,16 @@ let _arranco = false;
 function arrancarUnaVez() {
   if (_arranco) return;
   _arranco = true;
-  arrancar();
+  /* Si algo de después de la puerta lanza, el arranque no se queda girando ocho segundos
+     sin decir nada: el aviso con «Recargar» sale ya, y el error queda en la consola. Si el
+     esqueleto ya se quitó, la app está pintada y sirve; solo se deja constancia. */
+  arrancar().catch(e => {
+    console.error('el arranque se cayó', e);
+    const arr = $('pf-arranque');
+    if (!arr || arr.hidden) return;
+    if (_lentoArranque) { clearTimeout(_lentoArranque); _lentoArranque = 0; }
+    avisarLento(arr, null);
+  });
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', arrancarUnaVez, { once: true });

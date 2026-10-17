@@ -60,6 +60,9 @@ import * as Prefs from '../datos/prefs.js';
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
 const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
+/* Una señal que corta la petición a los ms dados. AbortSignal.timeout no existe antes de Safari 16:
+   ahí se pide sin tope, como siempre. */
+export const conTope = ms => (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') ? AbortSignal.timeout(ms) : undefined;
 
 const GIS = 'https://accounts.google.com/gsi/client';
 
@@ -338,6 +341,7 @@ async function preguntarCorreo(tok) {
   try {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + tok },
+      signal: conTope(10000),   // la puerta espera esta respuesta: colgada, nadie entra
     });
     if (!r.ok) return '';
     const j = await r.json();
