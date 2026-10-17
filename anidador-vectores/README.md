@@ -148,6 +148,10 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
   CIRCLE, ELLIPSE, SPLINE racional, bloques girados y escalados, extrusión al revés; y el retazo útil.
 - `pruebas/anidador-vibracion.mjs` — los cortes rectos muy juntos: qué es tramo recto, qué par
   se marca y cuál no (esquinas, piezas giradas, la misma letra, una pieza dentro de un hueco).
+- `pruebas/navegador/an-entrada.mjs` — abre un DXF en cm con LINE sueltas, un repetido, un contorno
+  de guía con sus mitades, una línea doble, una línea que no cierra y un texto; revisa la limpieza,
+  «Conservar»/«Quitarlos», que a 3 mm, 6 mm y 1 cm ninguna pieza quede a menos de la separación,
+  el retazo útil, y `colocar(posiciones())`.
 - `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
   comprueba las piezas colocadas y que el SVG de salida esté en milímetros; y que el trazo
   que deja el cotizador se recoge y se borra. Pide Chromium: `pruebas/correr.sh --navegador`.
