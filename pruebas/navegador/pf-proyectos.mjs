@@ -189,6 +189,11 @@ const centroVisible = (p, sel) => p.$eval(sel, e => {
 const abrirFicha = async (p, id) => {
   await p.evaluate(i => document.querySelector('[data-abrir="' + i + '"]').click(), id);
   await esp(p, 950);
+  /* Lo que estas secciones prueban —la cuenta de cobro, el estatus, el dinero, lo tapado— vive en
+     «Más detalles» desde el despeje de la ficha (octubre de 2026). Se abre como lo abriría una
+     persona; lo de arriba, para el taller, lo prueba su propia sección («taller», abajo). */
+  await p.evaluate(() => { const d = document.querySelector('#pf-ficha .pj-mas'); if (d && !d.open) d.querySelector('summary').click(); });
+  await esp(p, 150);
 };
 const cerrarFicha = async p => {
   await p.evaluate(() => document.querySelector('[data-cerrar-ficha]').click());
@@ -777,21 +782,21 @@ if (activa('p12')) {
   await p.tap('[data-ver-importes]');
   await esp(p, 250);
 
-  /* Sigue al cambiar de pantalla: la cuenta «En el taller» del Tablero. */
+  /* Sigue al cambiar de pantalla: la suma «en el taller» del resumen del Tablero (`.tb-res-dinero`, marcada `pf-interno`). */
   await irA(p, '#/tablero', 1700);
   que(await p.evaluate(() => document.body.classList.contains('pf-cliente')), 'el modo sobrevive al cambio de pantalla: es del que enseña, no de la pantalla');
-  const taller = await filtro(p, '.pf-cuenta.dinero');
-  que(taller !== 'no existe' && /blur/.test(taller), 'y en el Tablero la cuenta «En el taller» —la suma de todo lo vendido— también queda tapada (' + taller + ')');
-  const tc = await centro(p, '.pf-cuenta.dinero');
+  const taller = await filtro(p, '#mod-tablero .tb-res-dinero');
+  que(taller !== 'no existe' && /blur/.test(taller), 'y en el Tablero la suma de lo que hay en el taller —todo lo vendido— también queda tapada (' + taller + ')');
+  const tc = await centro(p, '#mod-tablero .tb-res-dinero');
   await d.bajar(tc.x, tc.y); await esp(p, 450);
-  const tcCon = await filtro(p, '.pf-cuenta.dinero');
+  const tcCon = await filtro(p, '#mod-tablero .tb-res-dinero');
   await d.soltar(); await esp(p, 300);
-  que(tcCon === 'none' && /blur/.test(await filtro(p, '.pf-cuenta.dinero')), 'y se destapa mientras dura el dedo');
+  que(tcCon === 'none' && /blur/.test(await filtro(p, '#mod-tablero .tb-res-dinero')), 'y se destapa mientras dura el dedo');
   await irA(p, '#/proyectos', 1400);
   await p.tap('[data-cliente]');
   await esp(p, 300);
   await irA(p, '#/tablero', 1500);
-  que((await filtro(p, '.pf-cuenta.dinero')) === 'none', 'apagado el modo, el Tablero vuelve a mostrarla');
+  que((await filtro(p, '#mod-tablero .tb-res-dinero')) === 'none', 'apagado el modo, el Tablero vuelve a mostrarla');
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 }
@@ -1168,6 +1173,64 @@ if (activa('fab')) {
   que((await t.p.$$('.pj-tarj-monto')).length === 0, 'el tablero de fabricación no lleva importes en las tarjetas');
   que(t.errs.length === 0, 'cero errores de página');
   await t.ctx.close();
+}
+
+// ══ 13 · La ficha, para el taller (octubre de 2026) ══════════════════════
+/* El taller pidió que al entrar a un proyecto se vea «qué material lleva, cómo es, dónde se instala…
+   que no dé más información de la que se necesita». Arriba va eso y el paso que sigue; lo demás, en
+   «Más detalles»: plegado para Dirección y Fabricación, abierto para Pagos, cuyo trabajo es el
+   dinero. Aquí se abre la ficha SIN el ayudante, que despliega «Más detalles» por su cuenta. */
+titulo('taller', 'LA FICHA, PARA EL TALLER: ARRIBA LO QUE SE VIENE A BUSCAR; LO DEMÁS, EN «MÁS DETALLES»');
+if (activa('taller')) {
+  const abrirTal = async (p, id) => { await p.evaluate(i => document.querySelector('[data-abrir="' + i + '"]').click(), id); await esp(p, 950); };
+  const c = await entrar({ ancho: 360, touch: true });
+  const { p, errs, h } = c;
+  await abrirTal(p, h.diseno.id);
+  const f = await p.evaluate(() => {
+    const t = document.querySelector('#pf-ficha .pj-taller'), mas = document.querySelector('#pf-ficha .pj-mas');
+    return {
+      hay: !!t, bloques: t ? [...t.querySelectorAll('.pj-t-bloque > .fld-lab:first-child')].map(e => e.textContent) : [],
+      como: ((t && t.querySelector('.pj-t-lista')) || {}).textContent || '',
+      sigue: ((t && t.querySelector('.pj-sigue .btn')) || {}).textContent || '',
+      dinero: t ? /\$/.test(t.textContent) : null,
+      antesDeMas: !!(t && mas && (t.compareDocumentPosition(mas) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      masAbierto: mas ? mas.open : null,
+      datosDentro: !!(mas && mas.querySelector('.pf-2col')), cobroDentro: !!(mas && mas.querySelector('[data-cuenta]')),
+      pie: [...document.querySelectorAll('#pf-ficha .pf-panel-f .btn')].map(b => b.textContent.trim()),
+    };
+  });
+  que(f.hay && f.bloques.join(' · ') === 'Cómo es · Material · Dónde se instala · Etapa de obra', 'arriba, en su orden: ' + f.bloques.join(' · '));
+  que(/letras/.test(f.como), 'cómo es: la partida con sus palabras de siempre («' + f.como.trim().slice(0, 50) + '»)');
+  que(f.sigue.trim() === 'Ya se cortó', 'y el paso que sigue, arriba: «' + f.sigue.trim() + '»');
+  que(f.dinero === false, 'sin un peso en lo de arriba: lo lee quien corta y quien instala');
+  que(f.antesDeMas && f.masAbierto === false, 'para Dirección, «Más detalles» va debajo y nace plegado');
+  que(f.datosDentro && f.cobroDentro, 'y adentro siguen los datos y la cuenta de cobro: nada se quitó');
+  que(f.pie.length === 1 && /Orden de trabajo/.test(f.pie[0]), 'el pie fijo lleva solo «Orden de trabajo» (' + f.pie.join(' · ') + ')');
+
+  /* Abrirlo y guardar algo de adentro no lo vuelve a plegar (la ficha se repinta en su sitio). */
+  await p.locator('#pf-ficha .pj-mas > summary').tap(); await esp(p, 250);
+  await p.locator('#pf-ficha .chips [data-cuenta]').first().tap(); await esp(p, 1300);
+  que(await p.evaluate(() => { const d = document.querySelector('#pf-ficha .pj-mas'); return !!d && d.open; }), 'abierto, guardar una cuenta de cobro de adentro no lo vuelve a plegar');
+
+  /* La lista de compra, si falta material. */
+  const compra = p.locator('#pf-ficha [data-ir-ruta="material"]');
+  if (await compra.count()) {
+    await compra.tap(); await esp(p, 1500);
+    que(p.url().endsWith('#/material'), '«Ver la lista de compra» cierra la ficha y abre Material');
+  } else bien('(este proyecto no tiene material faltante: no hay lista de compra que ofrecer)');
+  que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
+  await c.ctx.close();
+
+  /* Pagos: «Más detalles» nace abierto. Fabricación: plegado, y sin un peso en toda la ficha. */
+  const pg = await entrar({ ancho: 360, touch: true, rol: 'pagos' });
+  await abrirTal(pg.p, pg.h.diseno.id);
+  que(await pg.p.evaluate(() => { const d = document.querySelector('#pf-ficha .pj-mas'); return !!d && d.open; }), 'para Pagos, «Más detalles» nace abierto: su trabajo es el dinero');
+  await pg.ctx.close();
+  const fb = await entrar({ ancho: 360, touch: true, rol: 'fabricacion' });
+  await abrirTal(fb.p, fb.h.diseno.id);
+  const ff = await fb.p.evaluate(() => { const d = document.querySelector('#pf-ficha .pj-mas'); return { abierto: !!d && d.open, dinero: /\$/.test(document.getElementById('pf-ficha').textContent) }; });
+  que(!ff.abierto && !ff.dinero, 'para Fabricación, plegado y sin un peso en toda la ficha');
+  await fb.ctx.close();
 }
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nProyectos aguanta el dedo, el ratón y el teclado, en claro y en oscuro, sin moverse sola.');

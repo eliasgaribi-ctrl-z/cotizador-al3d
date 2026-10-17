@@ -800,8 +800,9 @@ function pintarTaller(d) {
   return html + '</div></div>';
 }
 
-/* (Apagado con la lente Taller: desde octubre de 2026 este botón vive en cada renglón del Tablero,
-   `accionAnidar` en js/mod/tablero.js. Se queda aquí por si la lente vuelve.)
+/* (Apagado con la lente Taller: desde octubre de 2026 este botón vive en la ficha del proyecto,
+   junto al paso que sigue —`tallerHTML` en js/mod/proyectos.js—. Se queda aquí por si la lente
+   vuelve.)
    De aquí a la mesa de corte, con el proyecto puesto. Es el paso que el taller da de verdad
    —lo que hay que cortar se acomoda en la lámina antes de cortarlo— y hasta ahora era una
    pestaña nueva del navegador. Solo en las etapas en que tiene sentido: acomodar piezas de

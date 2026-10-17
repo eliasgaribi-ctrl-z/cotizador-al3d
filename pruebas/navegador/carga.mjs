@@ -50,7 +50,8 @@ async function nuevo(opts = {}) {
   return { ctx, p, errores };
 }
 const retrasa = (p, patron, ms) => p.route(patron, async route => { await new Promise(r => setTimeout(r, ms)); await route.continue(); });
-const tableroPintado = p => p.waitForFunction(() => document.querySelector('#mod-tablero .pf-cuentas:not([aria-hidden])'), null, { timeout: 30000 });
+/* `.tb-limpio` y no `.tb-resumen`: el esqueleto del router dibuja un `.tb-resumen` mientras carga. */
+const tableroPintado = p => p.waitForFunction(() => document.querySelector('#mod-tablero .tb-limpio'), null, { timeout: 30000 });
 async function plataformaLimpia() {
   const c = await nuevo();
   await c.p.goto(B + '/#/hoy', { waitUntil: 'load' });
@@ -191,14 +192,16 @@ console.log('\nEL MARCO DEL ANIDADOR (MESA DE CORTE)');
 {
   const { ctx, p, errores } = await plataformaLimpia();
   await retrasa(p, '**/anidador-vectores/js/app.js', 1500);
-  await p.click('#mod-tablero button:has-text("Mesa de corte")');
+  /* El segmento «Mesa de corte» del Tablero salió con el despeje (octubre de 2026): la mesa se
+     abre por su ruta, que es la misma silueta. */
+  await p.evaluate(() => { location.hash = '#/anidador'; });
   await p.waitForTimeout(700);
   const r = await p.evaluate(() => { const c = document.querySelector('.pf-marco-caja'); return { cargando: !!(c && c.classList.contains('pf-marco-cargando')), txt: ((c && c.querySelector('.pf-marco-esq-t')) || {}).textContent }; });
   cierto(r.cargando, 'a los 700 ms la mesa de corte enseña su silueta: «' + (r.txt || '').trim() + '»');
   await captura(p, '05-marco-anidador');
   await p.waitForFunction(() => { const c = document.querySelector('.pf-marco-caja'); return c && c.classList.contains('pf-marco-listo'); }, null, { timeout: 30000 });
   await p.waitForTimeout(600);
-  cierto(await p.evaluate(() => { const c = document.querySelector('.pf-marco-caja'); return !c.querySelector('.pf-marco-esq') && getComputedStyle(document.getElementById('pf-anid-marco')).opacity === '1'; }),
+  cierto(await p.evaluate(() => { const c = document.querySelector('.pf-marco-caja'); return !c.querySelector('.pf-marco-esq') && getComputedStyle(c.querySelector('iframe.pf-marco')).opacity === '1'; }),
     'y al cargar el motor, el marco se ve y la silueta se fue');
   cierto(errores.length === 0, 'cero errores de página' + (errores.length ? ': ' + errores.join(' | ') : ''));
   await ctx.close();

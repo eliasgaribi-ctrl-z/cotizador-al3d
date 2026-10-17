@@ -66,6 +66,10 @@ let MATS = new Map();       // material_id -> fila del catálogo
 
 let filtro = { etapa: 'todas', texto: '' };
 let fichaId = null;         // el proyecto abierto en 'pf-ficha'
+/* Si «Más detalles» quedó abierto, y de qué ficha. La ficha se repinta en su sitio con cada
+   guardado (P2): sin esto, guardar un estatus de adentro lo volvía a plegar en la cara de quien
+   lo estaba tocando. Es de la ficha abierta: otra ficha nace con lo de su rol. */
+let _masFicha = { id: null, abierto: false };
 
 /* Quién dijo «déjalo como está» en el aviso de huella. Vive en memoria y se va con la
    recarga a propósito: no hay campo donde anotar «ya lo revisé» y usar `notas` sería
@@ -415,7 +419,7 @@ function huellas() {
   }
   return m;
 }
-/* Con respaldo, por lo mismo que `tienePin` en js/mod/tablero.js: en la ventana de un
+/* Con respaldo, por lo mismo que `tienePin` más abajo: en la ventana de un
    despliegue este archivo puede llegar nuevo con un js/datos/cotizador.js viejo ya cargado en
    la pestaña, que todavía no exporta `mismaHuella`, y la lista moría al pintar. El respaldo es
    la comparación de antes: peor, pero no una pantalla rota. */
@@ -1154,6 +1158,8 @@ function cablearFicha() {
   marcarTapados();
   pintarCarpeta();
   pintarImagenesNube();
+  const mas = document.querySelector('#pf-ficha .pj-mas');
+  if (mas) mas.addEventListener('toggle', () => { _masFicha = { id: fichaId, abierto: mas.open }; });
   const p = P();
   const ol = $('pj-etapas');
   if (!p || !p.riel || !ol) return;
@@ -1413,42 +1419,45 @@ function htmlFicha(p) {
   const hoja = avisoHoja(p, rol);
   if (hoja) partes.push(hoja);
 
-  /* La carpeta de Drive con los diseños va ANTES de los datos: es lo primero que fabricación
-     abre la ficha a buscar —el .cdr y las órdenes—, y abajo de la dirección quedaba a dos
-     pantallas de scroll. Se llena sola después de abrir (`pintarCarpeta`), porque hay que
-     preguntarle a la hoja. Sin puente no hay a quién preguntar y ni el hueco sale. */
+  /* ----- Lo de arriba: lo que el taller abre la ficha a buscar (octubre de 2026) -----
+     El equipo, en un audio: «que si nos metemos ya al proyecto, podamos ver qué material lleva,
+     cómo es, dónde se instala… que no dé más información de la que se necesita». Era una lista de
+     catorce datos, con el dinero y la cuenta de cobro antes que la dirección. Ahora arriba va solo
+     eso —las imágenes, cómo es, el material, dónde y cuándo, y el paso que sigue— y todo lo demás
+     queda en «Más detalles», plegado para Dirección y Fabricación (ver `tallerHTML`). */
+  partes.push(tallerHTML(p, { inst, sem, ent, dir, tel, rol }));
+
+  /* La carpeta de Drive con los diseños, justo debajo: es lo otro que fabricación abre la ficha a
+     buscar —el .cdr y las órdenes—. Se llena sola después de abrir (`pintarCarpeta`), porque hay
+     que preguntarle a la hoja. Sin puente no hay a quién preguntar y ni el hueco sale. */
   if (Sync.configurado()) {
     partes.push('<section class="pj-carpeta" id="pj-carpeta" aria-live="polite">' +
       '<div class="fld-lab">Carpeta de Drive</div><p class="hintnote">Buscando su carpeta en Drive…</p></section>');
   }
 
-  /* Las imágenes de la cotización (el plano de cada partida, los renders y la propuesta), desde la
-     nube: Q-02 bis, decidido por Elías el 2026-10-16 (Fabricación las ve para fabricar; no llevan
-     precios). Junto a la carpeta, por lo mismo: es lo que se abre la ficha a buscar. APAGADO: el hueco
-     sale solo si la lectura en vivo puso la ventanilla con `obra` (Dirección y Fabricación) y la obra
-     tiene folio de cotización y no está cancelada; sin ella, la ficha es la de siempre. Se llena
-     después de abrir (`pintarImagenesNube`). */
-  if (nubeObra() && p.folio_global && p.etapa !== 'cancelado') {
-    partes.push('<section class="pj-imagenes" id="pj-imagenes" aria-live="polite">' +
-      '<div class="fld-lab">Imágenes de la cotización</div><p class="hintnote">Buscando el plano y los renders en la nube…</p></section>');
-  }
+  /* ----- «Más detalles» -----
+     Los catorce datos, la garantía, cómo se entrega, la dirección completa, las notas y el eje del
+     dinero. Nada se quitó: se plegó. Abre plegado para Dirección y Fabricación, que vienen a lo de
+     arriba, y abierto para Pagos —su trabajo es justo el dinero— y con el modo cliente, que se
+     enciende para enseñar el total. */
+  const det = [];
 
   /* El aviso de que hay algo tapado va ANTES de la lista de datos, no dentro: si viviera dentro
      también se taparía, y un borrón sin explicación se lee como un error de pintado. Solo sale
      con el modo encendido (lo enseña el CSS) y solo si esta ficha tiene algo que tapar. */
   if (datos.some(x => x.includes('pf-interno'))) {
-    partes.push('<p class="pf-tapado">' + ico('i-ojo') +
+    det.push('<p class="pf-tapado">' + ico('i-ojo') +
       ' Tapado para el cliente · mantén presionado un renglón para verlo</p>');
   }
-  partes.push('<dl class="pf-2col">' + datos.join('') + '</dl>');
+  det.push('<dl class="pf-2col">' + datos.join('') + '</dl>');
 
-  partes.push(garantiaHTML(p, inst, ve));
+  det.push(garantiaHTML(p, inst, ve));
 
   /* Cómo se entrega, justo arriba de la dirección: es lo que decide si la dirección importa.
      Dirección y fabricación lo eligen (fabricación es quien empaca o entrega en mostrador);
      pagos solo lo lee. No va en grupo parchado en su sitio (P2): cambia el rótulo de la fecha
      y el bloque de la dirección, y la ficha se repinta entera. */
-  partes.push('<div class="fld-lab">Cómo se entrega</div>' + (rol === 'pagos'
+  det.push('<div class="fld-lab">Cómo se entrega</div>' + (rol === 'pagos'
     ? '<p class="hintnote">' + esc(ENTREGA_NOMBRE[ent]) + '</p>'
     : segmento(ENTREGAS.map(e => ({ v: e, t: ENTREGA_NOMBRE[e] })), ent, 'data-entrega', 'Cómo se entrega')));
 
@@ -1459,45 +1468,36 @@ function htmlFicha(p) {
      entrega en el taller, y lo que se enseña es la dirección del taller, que es la que el
      cliente necesita. */
   if (ent === 'recoleccion') {
-    partes.push('<dl class="pf-2col">' +
+    det.push('<dl class="pf-2col">' +
       dato('Se recoge en', esc(TALLER_NOMBRE) + '<br>' + esc(DIRECCION_TALLER), true) +
       '</dl>' +
       '<p class="hintnote">' + ico('i-taller') + ' El cliente pasa por su trabajo al taller: no hace falta su dirección ni un pin.</p>');
   } else {
-    partes.push('<dl class="pf-2col">' +
+    det.push('<dl class="pf-2col">' +
       dato(ent === 'paqueteria' ? 'Destino del envío' : 'Dirección',
         dir ? esc(dir).replace(/\n/g, '<br>') : (ent === 'paqueteria' ? 'Sin destino capturado' : 'La cotización no traía dirección'), true) +
       (ent === 'paqueteria' ? '' : dato('Entre calles', p.entrecalles || 'No se anotó')) +
       '</dl>');
     if (ent === 'paqueteria') {
-      partes.push('<p class="hintnote">' + ico('i-camion') + ' Se envía por paquetería: no va en la ruta y no necesita pin.</p>');
+      det.push('<p class="hintnote">' + ico('i-camion') + ' Se envía por paquetería: no va en la ruta y no necesita pin.</p>');
     }
   }
-  /* El botón solo cuando `urlMapa` tiene de dónde armar una liga. Con `isFinite(p.lat)` a
-     secas, un proyecto sin ubicar —se guarda con `lat: null`, e `isFinite(null)` es true—
-     pintaba «Abrir en Maps» hacia una búsqueda vacía. Con recolección no hay a dónde ir. */
-  const mapa = ent === 'recoleccion' ? '' : urlMapa(p);
-  if (mapa) {
-    partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
-      '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
-  }
+  /* «Abrir en Maps» ya no va aquí: está arriba, en «Dónde se instala». */
 
   if (o.notaCliente) {
-    partes.push('<div class="fld-lab">Nota al cliente, la de la cotización</div>' +
+    det.push('<div class="fld-lab">Nota al cliente, la de la cotización</div>' +
       '<p class="hintnote">' + esc(o.notaCliente) + '</p>');
   }
   if (p.notas) {
-    partes.push('<div class="fld-lab">Notas del proyecto</div><p class="hintnote">' +
+    det.push('<div class="fld-lab">Notas del proyecto</div><p class="hintnote">' +
       esc(p.notas).replace(/\n/g, '<br>') + '</p>');
   }
 
-  /* Etapa: los pasos, para los tres roles (Q-05, Elías, 2026-10-16: todos mueven cualquier etapa;
-     «No se dio» es de Dirección). Hasta ese día Fabricación llegaba a «Listo» y Pagos no la veía. */
-  partes.push(pasosDeEtapa(p, rol));
+  /* La etapa ya no va aquí: los pasos y el botón de lo que sigue están arriba (`tallerHTML`). */
 
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
-    partes.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
+    det.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
       '<div data-grupo="estatus">' +
       segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus',
         'Estatus en la hoja') + '</div>' +
@@ -1506,36 +1506,32 @@ function htmlFicha(p) {
       (p.notion_page_id
         ? '<p class="hintnote">Esta venta ya está en la hoja. Lo que cambia es este estatus, y el puente lo sube solo: no copies la fila, pegarla la daría de alta dos veces.</p>'
         : ''));
-    partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips" data-grupo="cuenta">' +
+    det.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips" data-grupo="cuenta">' +
       CUENTAS.map(c => chipGuardado(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
   }
+
+  /* Lo raro también se plegó: copiar la fila para la hoja —solo para la venta que NO está en la
+     hoja; con `notion_page_id` el renglón ya existe y pegarla la daba de alta dos veces— y «No se
+     dio», que es de Dirección. En el pie fijo eran dos botones grandes encima de lo de arriba. */
+  const raros = [];
+  if ((rol === 'direccion' || rol === 'pagos') && !p.notion_page_id) {
+    raros.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
+      ico('i-copiar') + ' Copiar datos para la hoja</button>');
+  }
+  if (rol === 'direccion' && p.etapa !== 'cancelado') {
+    raros.push('<button type="button" class="btn btn-dgr" data-cancelar="' + esc(p.id) + '">No se dio</button>');
+  }
+  if (raros.length) det.push('<div class="btn-fila pj-raros">' + raros.join('') + '</div>');
+
+  const abierto = _masFicha.id === p.id ? _masFicha.abierto : (rol === 'pagos' || enModoCliente());
+  partes.push('<details class="aj-bloque pj-mas"' + (abierto ? ' open' : '') + '><summary>' +
+    esc(ve ? 'Más detalles: precio, fechas, entrega y cobro' : 'Más detalles: fechas, entrega y notas') +
+    '</summary>' + det.join('') + '</details>');
 
   const pie = [];
   if (rol !== 'pagos') {
     pie.push('<button type="button" class="btn ' + (rol === 'fabricacion' ? 'btn-pri' : 'btn-gho') +
       '" data-hoja="' + esc(p.id) + '">' + ico('i-doc') + ' Orden de trabajo</button>');
-  }
-  /* La mesa de corte con este proyecto puesto. Antes de cortar es cuando se acomoda en la lámina
-     —vendido y en diseño—, y solo para quien tiene la mesa en su barra. Es la misma puerta que el
-     renglón del Tablero (`accionAnidar` en js/mod/tablero.js), pero esta no depende de que el
-     proyecto ya tenga fecha: sin ninguna fecha en el taller, el Tablero no pinta renglones. */
-  /* Solo con ratón, como el renglón del Tablero (tab-3): con el dedo era el cuarto botón del pie y
-     llevaba a una herramienta de computadora. */
-  const fino = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (_) { return true; } })();
-  if (fino && (p.etapa === 'ganado' || p.etapa === 'en_diseno') && CTX && typeof CTX.tieneRuta === 'function' &&
-      CTX.tieneRuta('anidador') && typeof CTX.pasar === 'function') {
-    pie.push('<button type="button" class="btn btn-gho" data-anidar="' + esc(p.id) + '">' +
-      ico('i-anidar') + ' Acomodar en la lámina</button>');
-  }
-  /* Solo para la venta que NO está en la hoja. Con `notion_page_id` el renglón ya existe —la
-     venta bajó de allá con su id— y este botón llevaba a pegarla en el primer renglón vacío
-     de Ventas: la misma venta dos veces, con el saldo y la comisión contados doble. */
-  if ((rol === 'direccion' || rol === 'pagos') && !p.notion_page_id) {
-    pie.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
-      ico('i-copiar') + ' Copiar datos para la hoja</button>');
-  }
-  if (rol === 'direccion' && p.etapa !== 'cancelado') {
-    pie.push('<button type="button" class="btn btn-dgr" data-cancelar="' + esc(p.id) + '">No se dio</button>');
   }
 
   return '<div class="pf-panel">' +
@@ -1559,6 +1555,104 @@ const dato = (etiqueta, valorHTML, esHtml, marca, interno) =>
     (marca ? ' data-marca="' + marca + '"' : '') +
     (interno ? ' tabindex="-1"' : '') + '>' +
     '<dt>' + esc(etiqueta) + '</dt><dd>' + (esHtml ? valorHTML : esc(valorHTML)) + '</dd></div>';
+
+/* ============================================================================
+   Para el taller: lo de arriba de la ficha (octubre de 2026)
+   ============================================================================
+   Lo que pidió el equipo, en su orden: cómo es, qué material lleva, dónde se instala, y el paso
+   que sigue. Arriba de todo las imágenes de la cotización —el plano y los renders—, porque «cómo
+   es» se entiende mejor viéndolo que leyéndolo. Sin un peso: esto lo lee quien corta y quien
+   instala. Todo sale de lo que la ficha ya leía; aquí no se calcula nada nuevo. */
+function tallerHTML(p, x) {
+  const { inst, sem, ent, dir, tel, rol } = x;
+  const b = [];
+
+  /* Las imágenes de la cotización (el plano de cada partida, los renders y la propuesta), desde la
+     nube: Q-02 bis, decidido por Elías el 2026-10-16 (Fabricación las ve para fabricar; no llevan
+     precios). APAGADO: el hueco sale solo si la lectura en vivo puso la ventanilla con `obra`
+     (Dirección y Fabricación) y la obra tiene folio de cotización y no está cancelada; sin ella, no
+     se inventa un recuadro vacío. Se llena después de abrir (`pintarImagenesNube`). */
+  if (nubeObra() && p.folio_global && p.etapa !== 'cancelado') {
+    b.push('<section class="pj-imagenes" id="pj-imagenes" aria-live="polite">' +
+      '<div class="fld-lab">Imágenes de la cotización</div><p class="hintnote">Buscando el plano y los renders en la nube…</p></section>');
+  }
+
+  /* Cómo es: cada partida con sus palabras de siempre —las de la orden de trabajo—, las primeras
+     cuatro. Un proyecto que vino de la hoja no trae partidas: se dice su tipo de trabajo. */
+  const items = (p.origen && Array.isArray(p.origen.items)) ? p.origen.items : [];
+  const como = items.length
+    ? '<ul class="pj-t-lista">' + items.slice(0, 4).map(it => {
+        const led = ledDe(it), n = piezasDe(it);
+        /* `descPartida` ya dice el material, cuántas y de qué altura en letras («Acero · 8 letras,
+           40cm») y las medidas en bastidor y caja: debajo va solo lo que le falta decir, sin
+           repetir. Las piezas, solo donde la descripción no las cuenta. */
+        const extra = it.tipo === 'letras' ? (it.comp && it.comp !== 'recta' ? 'Letra ' + it.comp : '')
+          : it.tipo === 'recorte' ? medidasDe(it)
+          : (it.tipo === 'bastidor' || it.tipo === 'caja') ? materialDe(it)
+          : medidasDe(it);
+        const det = [extra, led ? 'LED ' + led.txt : ''].filter(Boolean).join(' · ');
+        const cuenta = it.tipo !== 'letras' && it.tipo !== 'recorte' && n > 1;
+        return '<li><span class="pj-t-n">' + esc(Cot.descPartida(it)) +
+          (cuenta ? ' <span class="pj-t-cant">× ' + n + '</span>' : '') + '</span>' +
+          (det ? '<span class="pj-t-det">' + esc(det) + '</span>' : '') + '</li>';
+      }).join('') + '</ul>' +
+      (items.length > 4 ? '<p class="pj-t-det">Y ' + (items.length - 4) + ' partidas más en la orden de trabajo.</p>' : '')
+    : '<p class="pj-t-det">' + esc((p.tipo_trabajo || []).join(' · ') || 'La cotización no trajo partidas.') + '</p>';
+  b.push(bloqueTaller('Cómo es', como));
+
+  /* El material: la palabra del semáforo y qué falta, la misma frase de la lista. Si falta, la
+     puerta a la lista de compra para quien tiene Material. */
+  if (sem) {
+    const falta = sem.estado === 'falta' || sem.estado === 'grave';
+    b.push(bloqueTaller('Material',
+      '<p class="pj-t-linea"><span class="pf-sem ' + esc(sem.estado) + '">' + esc(sem.palabra) + '</span></p>' +
+      '<p class="pj-t-det">' + esc(sem.detalle) + '</p>' +
+      (falta && CTX && typeof CTX.tieneRuta === 'function' && CTX.tieneRuta('material')
+        ? '<div class="btn-fila"><button type="button" class="btn btn-gho" data-ir-ruta="material">' +
+          ico('i-material') + ' Ver la lista de compra</button></div>'
+        : '')));
+  }
+
+  /* Dónde y cuándo. Con paquetería es el destino del envío; con recolección, el taller. */
+  const titulo = ent === 'recoleccion' ? 'Se recoge en el taller' : ent === 'paqueteria' ? 'A dónde se envía' : 'Dónde se instala';
+  const cuandoHTML = inst
+    ? esc(fmtFechaDia(inst.fecha)) + (inst.hora ? ' · ' + esc(fmtHora(inst.hora)) : '') +
+      ' <span class="pf-cuando' + tonoCuando(inst.fecha) + '">' + esc(cuando(inst.fecha)) + '</span>'
+    : '<span class="pf-sem falta">Sin fecha</span>';
+  const lugar = ent === 'recoleccion'
+    ? esc(TALLER_NOMBRE) + '<br>' + esc(DIRECCION_TALLER)
+    : (dir ? esc(dir).replace(/\n/g, '<br>')
+           : '<span class="pf-sem falta">' + (ent === 'paqueteria' ? 'Sin destino capturado' : 'Sin dirección') + '</span>');
+  const botones = [];
+  const mapa = ent === 'recoleccion' ? '' : urlMapa(p);
+  if (mapa) botones.push('<a class="btn btn-gho" href="' + esc(mapa) + '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en el mapa</a>');
+  /* «Llamar» solo con un número que se pueda marcar: siete cifras o más. */
+  const marcable = tel.replace(/[^\d+]/g, '');
+  if (marcable.replace(/\D/g, '').length >= 7) botones.push('<a class="btn btn-gho" href="tel:' + esc(marcable) + '">' + ico('i-tel') + ' Llamar al cliente</a>');
+  if (tel && telWa(tel)) botones.push('<a class="btn-wa" href="' + esc(linkWa(tel)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' WhatsApp</a>');
+  b.push(bloqueTaller(titulo,
+    '<p class="pj-t-linea pj-t-fecha">' + cuandoHTML + '</p>' +
+    '<p class="pj-t-det">' + lugar + '</p>' +
+    (botones.length ? '<div class="btn-fila">' + botones.join('') + '</div>' : '')));
+
+  /* La mesa de corte con este proyecto puesto, junto al paso que sigue. Antes de cortar es cuando se
+     acomoda en la lámina —vendido y en diseño—, y solo para quien tiene la mesa en su barra. Solo
+     con ratón (tab-3): con el dedo llevaba a una herramienta de computadora. */
+  const fino = (() => { try { return matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (_) { return true; } })();
+  const acomodar = (fino && (p.etapa === 'ganado' || p.etapa === 'en_diseno') && CTX && typeof CTX.tieneRuta === 'function' &&
+      CTX.tieneRuta('anidador') && typeof CTX.pasar === 'function')
+    ? '<button type="button" class="btn btn-gho" data-anidar="' + esc(p.id) + '">' + ico('i-anidar') + ' Acomodar en la lámina</button>'
+    : '';
+  /* Etapa: los pasos, para los tres roles (Q-05, Elías, 2026-10-16: todos mueven cualquier etapa;
+     «No se dio» es de Dirección), con el botón de lo que sigue. Es el mismo avance de siempre
+     (`moverEtapa`), que pregunta antes de cruzar «Cortado». */
+  b.push('<div class="pj-t-bloque pj-t-etapa">' + pasosDeEtapa(p, rol, acomodar) + '</div>');
+
+  return '<section class="pj-taller" aria-label="Para el taller">' + b.join('') + '</section>';
+}
+
+const bloqueTaller = (titulo, html) =>
+  '<div class="pj-t-bloque"><div class="fld-lab">' + esc(titulo) + '</div>' + html + '</div>';
 /* ============================================================================
    P7 · La etapa como PASOS, no como siete casillas
    ============================================================================
@@ -1589,7 +1683,7 @@ function etapasDelRol() {
   return Proy.ETAPAS.filter(e => e !== 'cancelado');
 }
 
-function pasosDeEtapa(p, rol) {
+function pasosDeEtapa(p, rol, junto) {
   const etapas = etapasDelRol();
   /* Un proyecto que «no se dio» solo lo regresa Dirección: a los demás se les enseñan los pasos, sin
      dejarlos tocar, y se dice por qué. */
@@ -1617,11 +1711,11 @@ function pasosDeEtapa(p, rol) {
   return '<div class="fld-lab">Etapa de obra</div>' + riel +
     (sig
       ? '<div class="btn-fila pj-sigue"><button type="button" class="btn btn-pri" data-mover="' +
-        esc(sig) + '">' + esc(VERBO_ETAPA[sig] || Proy.ETAPA_NOMBRE[sig] || sig) + '</button></div>'
+        esc(sig) + '">' + esc(VERBO_ETAPA[sig] || Proy.ETAPA_NOMBRE[sig] || sig) + '</button>' + (junto || '') + '</div>'
       : (atado
           ? '<p class="hintnote pj-sigue">Se marcó «' + esc(Proy.ETAPA_NOMBRE.cancelado || 'No se dio') +
             '»: regresarlo lo decide Dirección.</p>'
-          : '')) +
+          : '') + (junto ? '<div class="btn-fila">' + junto + '</div>' : '')) +
     '<p class="hintnote">Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre. ' +
     'Tocar un paso de atrás regresa la etapa, y eso sí pregunta.</p>';
 }
@@ -1747,8 +1841,9 @@ function chipGuardado(txt, on, attrs) {
 
    Qué se tapa y qué no:
      · se tapa la comisión pactada y la comisión restante de la ficha (marcadas `.pf-interno`);
-     · se tapa la cuenta «En el taller» del Tablero, POR SU CLASE (`.pf-cuenta.dinero`) y sin
-       tocar js/mod/tablero.js: es la suma de todo lo vendido y abre la pantalla de entrada;
+     · se tapa la suma «en el taller» del resumen del Tablero (marcada `.pf-interno` en
+       js/mod/tablero.js desde el despeje de octubre de 2026): es todo lo vendido y abre la
+       pantalla de entrada;
      · NO se tapa el importe del propio proyecto —total, subtotal, anticipo, pago pendiente—,
        que es la decisión que ya está escrita en `fila()`: es lo que se le enseña al cliente;
      · fabricación no ve ninguna de estas cifras porque no se pintan (el `if (ve)`), así que no
@@ -1785,6 +1880,9 @@ function interruptorClienteHTML() {
 
 function ponerModoCliente(on) {
   document.body.classList.toggle(MODO_CLIENTE, !!on);
+  /* El total que se le enseña al cliente vive en «Más detalles»: encender el modo lo abre. */
+  const mas = on && document.querySelector('#pf-ficha .pj-mas');
+  if (mas && !mas.open) mas.open = true;
   if (!on) {
     document.body.classList.remove(MODO_CLIENTE_VE);
     for (const el of document.querySelectorAll('.destapado')) el.classList.remove('destapado');
@@ -2479,8 +2577,8 @@ function urlMapa(p) {
   const dir = String(p.dir_texto || '').replace(/\s+/g, ' ').trim();
   return dir ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(dir) : '';
 }
-/* Con respaldo, por lo mismo que en js/mod/tablero.js: un js/datos/proyectos.js viejo ya
-   cargado en la pestaña puede no exportarla todavía. Es la misma prueba. */
+/* Con respaldo, como en js/mod/mapa.js: un js/datos/proyectos.js viejo ya cargado en la pestaña
+   puede no exportarla todavía. Es la misma prueba. */
 const tienePin = Proy.tienePin || (p => {
   const c = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
   const la = c(p && p.lat), ln = c(p && p.lng);
@@ -2512,6 +2610,21 @@ async function clicFicha(ev) {
     return;
   }
 
+
+  const ir = t.closest('[data-ir-ruta]');
+  if (ir) {
+    const ruta = ir.dataset.irRuta;
+    cerrarCapa('pf-ficha'); fichaId = null;
+    /* El mismo cuidado que «Acomodar en la lámina», abajo: cerrar la ficha consume su entrada de
+       historial con un `history.back()` ASÍNCRONO, y navegar en el mismo tick se pierde. */
+    await new Promise(res => {
+      const fin = () => { clearTimeout(t); window.removeEventListener('popstate', fin); res(); };
+      const t = setTimeout(fin, 400);
+      window.addEventListener('popstate', fin);
+    });
+    if (CTX && CTX.ir) CTX.ir(ruta);
+    return;
+  }
 
   const anid = t.closest('[data-anidar]');
   if (anid) {

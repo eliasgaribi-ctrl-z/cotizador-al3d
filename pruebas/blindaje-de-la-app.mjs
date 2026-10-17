@@ -283,10 +283,11 @@ console.log('\nINSTALAR, TAMBIÉN EN EL TELÉFONO');
 console.log('\nLA MESA DE CORTE, SOLO PARA QUIEN LA TIENE, Y SIN PERDER EL TRAZO');
 {
   const tb = sinComentarios(leer('js/mod/tablero.js'));
-  cierto('el segmento de la mesa no se pinta sin la ruta `anidador`', /function segLente\(\) \{\s*if \(!conMesa\(\)\) return '';/.test(tb));
+  /* Desde el despeje del Tablero (octubre de 2026) no hay segmento: a la mesa empotrada solo se
+     llega con el pase de «Acomodar en la lámina» de la ficha, y ese pase sí pregunta. */
+  cierto('el Tablero ya no tiene segmento de la mesa: solo se llega con el pase de la ficha', !/function segLente\(/.test(tb) && !tb.includes('data-vista'));
   cierto('  ni el pase lo abre', tb.includes("_vista = (pase.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';"));
   cierto('  ni se queda puesto si el rol cambió', tb.includes("if (_vista === 'anidador' && !conMesa()) _vista = 'tablero';"));
-  cierto('  ni el toque en el segmento', tb.includes("(lente.dataset.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero'"));
   cierto('y conMesa pregunta a la lista de rutas', /function conMesa\(\) \{\s*if \(_ctx && typeof _ctx\.tieneRuta === 'function'\) return _ctx\.tieneRuta\('anidador'\);/.test(tb));
   cierto('el trazo del vectorizador sigue de largo a la ruta `anidador`, que sí se conserva',
          /const aLaMesa = !!\(pase && pase\.vista === 'anidador' && !pase\.proyecto_id && conMesa\(\)[\s\S]{0,80}if \(aLaMesa\) \{ _vista = 'tablero'; ctx\.ir\('anidador'\); \}/.test(tb) &&
