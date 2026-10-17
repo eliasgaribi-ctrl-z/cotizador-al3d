@@ -22,6 +22,7 @@
 import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 let fallos = 0;
@@ -137,6 +138,30 @@ if (!/\/publicaciones\//.test((/function esDeLaPlataforma[\s\S]*?\n\}/.exec(sw) 
 /* Y que APP_VERSION exista, porque es la línea que hay que subir al publicar. */
 if (!/const APP_VERSION = \d+;/.test(sw)) mal('sw.js no tiene APP_VERSION: sin eso, publicar un cambio de la plataforma no llega a los teléfonos');
 else bien('sw.js tiene APP_VERSION (súbela al publicar cambios de la plataforma)');
+
+/* Y que se haya SUBIDO si cambió algo de lo que cachea. El service worker sirve caché primero:
+   publicar sin subirla deja a los teléfonos instalados con el código viejo, sin fecha de
+   caducidad y sin aviso. Se compara contra la rama base (la del PR en GitHub, si no main); sin
+   git o sin historia para comparar —una copia superficial— se dice y no se juzga. */
+{
+  const git = (...a) => execFileSync('git', a, { cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const base = 'origin/' + (process.env.GITHUB_BASE_REF || 'main');
+  let mb = '';
+  try { mb = git('merge-base', 'HEAD', base); } catch (_) {}
+  if (!mb) console.log('  · no se pudo comparar APP_VERSION contra ' + base + ' (sin git o sin su historia): no se revisa');
+  else {
+    const cambiados = new Set(git('diff', '--name-only', mb).split('\n').filter(Boolean));
+    const tocados = archivos.filter(f => cambiados.has(f));
+    const ver = s => Number((/const APP_VERSION = (\d+);/.exec(s) || [])[1]);
+    let antes = NaN;
+    try { antes = ver(git('show', mb + ':sw.js')); } catch (_) {}
+    if (!tocados.length) bien('nada de lo que cachea sw.js cambió contra ' + base + ': APP_VERSION puede quedarse');
+    else if (!(ver(sw) > antes)) mal('cambiaron ' + tocados.length + ' archivo(s) que cachea sw.js (' + tocados.slice(0, 4).join(', ') +
+      (tocados.length > 4 ? '…' : '') + ') y APP_VERSION sigue en ' + ver(sw) + ' como en ' + base + '.\n' +
+      '      Arreglo: subir APP_VERSION en sw.js; si no, los teléfonos instalados se quedan con lo de antes.');
+    else bien('cambió lo que cachea sw.js y APP_VERSION subió (' + antes + ' → ' + ver(sw) + ')');
+  }
+}
 
 /* ----- Quién es quién en la puerta -----
    Desde el cambio de puerta de entrada, index.html es la PLATAFORMA y cotizador.html es el
