@@ -117,6 +117,13 @@
 
 .an-girar{margin-top:var(--e3)}
 .an-corte{margin-bottom:var(--e2)}
+/* La separación: los tres de siempre y el campo para cualquier otra, en una fila. */
+.an-sep-fila{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--e2) var(--e3);margin-bottom:var(--e1)}
+.an-sep-fila .chips{margin:0}
+.an-sep-campo{margin:0;flex:0 1 9.5rem;min-width:7.5rem}
+/* El retazo útil ocupa el renglón entero del marcador. */
+.an-ficha-sobra{grid-column:1/-1}
+.an-sobra-guardar{margin-top:6px}
 #lab-corte{margin-top:var(--e4)}
 
 /* ----- Los retazos guardados -----
@@ -262,6 +269,11 @@
 /* La hoja de la vista es blanca en los dos temas (.an-lienzo>svg), así que la tinta es fija: con
    var(--n8) la silueta de noche salía en lavanda claro sobre blanco y casi no se veía. */
 #an-orig svg *{fill:#1a1d33;stroke:none}
+/* Lo que no va al acomodo: el tramo que no cerró (ámbar) y lo que la limpieza quitó —repetidos,
+   contornos de guía, el de fuera de una línea doble— (punteado). Ver juntarSueltas() y
+   analizarContornos() en js/app.js. */
+#an-orig svg .an-suelta{fill:none;stroke:#c27a00;stroke-width:2px;vector-effect:non-scaling-stroke}
+#an-orig svg .an-quitado{fill:none;stroke:#8a8fa8;stroke-width:1.5px;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}
 
 /* Las piezas acomodadas, cada una de su color, como fichas sobre la mesa. Seis tonos del
    sistema que se van turnando; el trazo fino las separa cuando quedan pegadas. Los huecos
@@ -598,6 +610,10 @@ html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(-
 /* Cortes rectos muy juntos (js/vibracion.js): las dos piezas con orilla roja y, entre ellas, la tira
    de material que vibra. La marca es de la mesa: armarSalida() no la copia al archivo de corte. */
 .an-hoja svg>g.vibra>*:not(.hole){stroke:#ff5a4e;stroke-width:2px;vector-effect:non-scaling-stroke}
+/* Más juntas que la separación (revisarSeparacion): orilla rosa punteada, distinta de la vibración. */
+.an-hoja svg>g.junta>*:not(.hole){stroke:#ff3d8b;stroke-width:2.5px;stroke-dasharray:6 3;vector-effect:non-scaling-stroke}
+/* El retazo útil sobre la última hoja: un rectángulo punteado, de la mesa y no del archivo. */
+.an-hoja svg>.an-sobra-marca{fill:rgba(64,214,160,.12);stroke:#40d6a0;stroke-width:2px;stroke-dasharray:8 5;vector-effect:non-scaling-stroke;pointer-events:none}
 .an-hoja svg>.an-vibra-marca{fill:rgba(255,90,78,.55);stroke:#ff5a4e;stroke-width:2px;vector-effect:non-scaling-stroke;pointer-events:none}
 /* La ficha de la pieza es una nota que solo se lee: si queda encima de otra pieza, el toque pasa de largo
    hasta ella (con el dedo, la ficha de una pieza tapaba a su vecina). */
