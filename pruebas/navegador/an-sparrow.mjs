@@ -118,8 +118,10 @@ console.log('\nSPARROW EN LA PÁGINA: ACOMODA, SE PARA SOLO Y LO QUE SALE');
   cierto(m.giros.some(r => Math.abs(((r % 90) + 90) % 90) > 0.5), 'con giro libre hay piezas a ángulos que no son de 90° (' + m.giros.map(r => Math.round(r)).join('°, ') + '°)', m.giros);
 
   /* El marcador: aprovechamiento de lo gastado y el retazo que queda. */
-  const ret = await texto(p, '#an-st-int'), retK = await texto(p, '#an-st-int-k');
-  cierto(retK === 'Retazo' && /^\d\.\d\d × \d\.\d\d m$/.test(ret) && e.retazo && e.retazo.ancho > 0, 'la cuarta ficha dice el retazo: «' + ret + '»', { retK, ret, retazo: e.retazo });
+  const busca = [await texto(p, '#an-st-int-k'), await texto(p, '#an-st-int')];
+  cierto(busca.join(' ') === 'Busca 10 s', 'la ficha de los intentos dice cuánto buscó: «' + busca.join(' ') + '» (sparrow no cuenta intentos)', busca);
+  const sobra = await texto(p, '#an-st-sobra'), mm = await p.evaluate(() => window.Anidador.mesa().sobrante);
+  cierto(mm && mm.w >= 100 && mm.h >= 100 && /\d/.test(sobra || ''), 'y la del retazo, el rectángulo libre más grande que dejó: «' + sobra + '»', mm);
   cierto(e.areaUsada > 0 && e.areaUsada < ANCHO * ALTO && e.mejor.eficiencia > 0.2 && e.mejor.eficiencia <= 1,
     'el aprovechamiento es de lo gastado (' + Math.round(e.mejor.eficiencia * 100) + ' % de ' + Math.round(e.areaUsada / 100) / 100 + ' dm²), no de la hoja entera', { ef: e.mejor.eficiencia, areaUsada: e.areaUsada });
 
