@@ -1,0 +1,1 @@
+sparrow-studio e8125c9233f8e7808b5738b35032560c4a53dfa0 (web/wasm), wasm-pack 0.15.0, nightly-2026-08-30
