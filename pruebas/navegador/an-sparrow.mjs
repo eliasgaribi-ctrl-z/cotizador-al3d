@@ -17,6 +17,7 @@
  *      diga el aprovechamiento de lo gastado y el retazo.
  *   5. LA VETA: con aluminio, todas las piezas a 0° o 180° EN LA HOJA (la tira del motor entra
  *      girada 90° a la hoja parada; ver S.entrada).
+ *   6. VARIAS HOJAS: el % de cada hoja sale de la misma cuenta que el marcador.
  *
  * El tiempo se acorta con window.__anidadorSegundos = 10 (lo menos que acepta el motor).
  *
@@ -165,6 +166,28 @@ console.log('\nCON VETA: TODAS A 0° O 180° EN LA HOJA');
   cierto(r.every(x => !x.girada), 'ninguna rayada como atravesada a la veta');
   const noCaben = await p.evaluate(() => [...document.querySelectorAll('#an-res .an-hoja>svg>g[id]')].map(g => window.Anidador.mesa.cabe(g.id)).filter(c => c !== ''));
   cierto(noCaben.length === 0, 'y nada encimado', noCaben);
+  cierto(errs.length === 0, 'sin errores de página ni de consola', errs);
+  await ctx.close();
+}
+
+// ═══ 6 · VARIAS HOJAS: EL % DE CADA UNA CUADRA CON EL MARCADOR ════════════════════════════════
+console.log('\nVARIAS HOJAS: EL % DE CADA UNA CUADRA CON EL MARCADOR');
+{
+  /* En 200 × 300 las 7 no caben en una. Las hojas llenas cuentan entera su superficie; la última,
+     solo el rectángulo que usó (lo demás es retazo). Ponderado así, el % de cada hoja da el del
+     marcador. */
+  const { ctx, p, errs } = await abrir(10);
+  await p.fill('#an-ancho', '200'); await p.fill('#an-alto', '300');
+  await p.evaluate(() => window.Anidador.iniciar());
+  await esperar(p, async () => { const e = await estado(p); return e.mejor && !e.corriendo; }, 120000);
+  const e = await estado(p);
+  const pcts = await p.evaluate(() => [...document.querySelectorAll('#an-res .an-cap-pct')].map(x => parseInt(x.textContent, 10)));
+  cierto(e.mejor && e.mejor.hojas >= 2 && e.mejor.colocadas === 7, 'en 200 × 300 no caben en una: ' + (e.mejor && e.mejor.hojas) + ' hojas, con las 7 piezas', e.mejor);
+  const H = 200 * 300, n = pcts.length, ultima = e.areaUsada - (n - 1) * H;
+  const ponderado = n ? (pcts.slice(0, -1).reduce((s, x) => s + x * H, 0) + pcts[n - 1] * ultima) / e.areaUsada : NaN;
+  cierto(e.mejor && n === e.mejor.hojas && pcts.every(x => x > 0 && x <= 100) && Math.abs(ponderado - e.mejor.eficiencia * 100) <= 1.5,
+    'cada hoja dice su % (' + pcts.join(' %, ') + ' %) y, ponderados, dan el del marcador (' + ponderado.toFixed(1) + ' contra ' + (e.mejor && (e.mejor.eficiencia * 100).toFixed(1)) + ')',
+    { pcts, ef: e.mejor && e.mejor.eficiencia, areaUsada: e.areaUsada });
   cierto(errs.length === 0, 'sin errores de página ni de consola', errs);
   await ctx.close();
 }
