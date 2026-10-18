@@ -641,6 +641,10 @@ export function esqueletoModulo(mod, nombre) {
   /* El mapa ocupa la sección entera y las cuentas viven en su hoja: la silueta es el bloque solo. */
   if (mod === 'mapa') cuerpo = '<div class="esq-b esq-bloque esq-mapa"></div>';
   else if (mod === 'ajustes') cuerpo = _esqTarjeta(_esqFila.repeat(4));
+  /* El Tablero despejado (octubre de 2026) ya no abre con la cinta de cuentas: abre con el resumen
+     de dos renglones, «Necesita tu decisión» y el taller. */
+  else if (mod === 'tablero') cuerpo = '<div class="tb-resumen"><div class="esq-b esq-d"></div><div class="esq-b esq-t"></div></div>' +
+    _esqTarjeta(_esqFila.repeat(3)) + _esqTarjeta(_esqFila.repeat(2));
   else cuerpo = '<div class="pf-cuentas">' + _esqCuenta.repeat(4) + '</div>' + _esqTarjeta(_esqFila.repeat(3));
   return '<div class="pf-esqueleto" data-mod="' + esc(mod) + '" aria-busy="true"><div aria-hidden="true">' + cuerpo + '</div>' +
     '<p class="pf-esqueleto-t"><span class="esq-giro" aria-hidden="true"></span> <span>Cargando ' + esc(nombre) + '…</span></p></div>';

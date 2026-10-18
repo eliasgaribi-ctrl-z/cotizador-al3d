@@ -18,7 +18,7 @@
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   5d1bdca9d2c8274a  js/nucleo/ingreso.js
-//   c1f6d87ded802660  js/nucleo/ui.js
+//   f7eb568b76fdec80  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
 //   559ef3c3ff521020  scripts/importador/plan.mjs
 //   4965cf5bcce597a1  scripts/importador/sql.mjs

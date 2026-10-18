@@ -891,15 +891,8 @@ async function ronda(cfg) {
   const inf = await infinitas(p);
   cierto(inf.length === 0, 'nada se mueve en reposo', inf);
 
-  /* ---------- F5 en el Tablero ---------- */
-  await seccion('F5 · el Tablero pinta el mismo riel', async () => {
-    await p.evaluate(() => { location.hash = '#/hoy'; });
-    await hasta(p, () => !!document.querySelector('#mod-tablero .tal-fila'), null, 15000);
-    await p.waitForTimeout(500);
-    const t = await p.$$eval('#mod-tablero .tal-fila', fs => fs.map(f => ({ marcas: f.querySelectorAll('.riel-marca').length, viejo: f.querySelectorAll('.tal-hoy').length })));
-    cierto(t.length > 0 && t.every(x => x.marcas === 4 || x.marcas === 0) && t.some(x => x.marcas === 4) && t.every(x => x.viejo === 0), 'el Tablero usa el mismo renglón: cuatro marcas y sin el punto de antes', t);
-    cierto(await sinDesborde(p), 'sin desborde en el Tablero');
-  });
+  /* F5 en el Tablero ya no aplica: desde el despeje de octubre de 2026 el Tablero no pinta
+     renglones con riel, sino una ficha por trabajo (pruebas/navegador/pf-tablero.mjs). */
 
   await ctx.close();
 }
