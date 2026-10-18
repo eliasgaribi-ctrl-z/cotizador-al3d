@@ -56,7 +56,7 @@ archivos estáticos que se sirven tal cual, desde GitHub Pages
   protege los datos sigue siendo Google y la lista de «Accesos» de la hoja.
 - **La carpeta de los diseños, en la ficha del proyecto.** La hoja lee «Trabajos Pendientes» de
   Drive y cada proyecto del taller enseña su carpeta, el `.cdr` y el PDF de órdenes de
-  fabricación. Tablero, Proyectos y el taller marcan **Órdenes listas / Sin órdenes / Sin
+  fabricación. Proyectos y el taller marcan **Órdenes listas / Sin órdenes / Sin
   carpeta**, y Dirección abre con un toque la carpeta que falte.
 - **El PDF se parece al que se manda de verdad.** Cada partida lleva su plano —del escalador, con
   sus cotas, o subido ya acotado— y hasta dos renders; con varios planos salen hojas de Planos, y
@@ -143,13 +143,18 @@ material que hay que comprar**. Nada de eso se captura.
 ## La plataforma
 
 <p align="center">
-  <img src="docs/pantalla-tablero.png" alt="El Tablero: lo que hay en el taller, lo que va tarde y lo que se instala esta semana" width="920">
+  <img src="docs/pantalla-tablero.png" alt="El Tablero: lo que necesita tu decisión y el taller por estación, con una ficha por trabajo" width="920">
 </p>
 
 - **Calendario** — dos lentes: **Taller**, la fila de lo que está en fabricación con su ventana
   contada hacia atrás desde el día de instalación; e **Instalaciones**, el mes con su semáforo.
-- **Tablero** — lo que se rompe primero, en orden: «falta material y esto se instala en 2 días».
-- **Proyectos** — el tablero por etapa de obra, con la orden de trabajo de fabricación y **la
+- **Tablero** — despejado (octubre de 2026): la fecha y cuántos trabajos hay, **«Necesita tu
+  decisión»** —un renglón por asunto, y cada uno lleva a donde se atiende— y **el taller** por
+  estación, con una ficha por trabajo que abre su proyecto. La próxima instalación y la puerta a
+  «Qué atender», y nada más.
+- **Proyectos** — el tablero por etapa de obra. La ficha abre con **lo del taller arriba**: cómo
+  es, qué material lleva, dónde y cuándo se instala y el paso que sigue; el dinero, los datos y la
+  cobranza quedan en «Más detalles». Con la orden de trabajo de fabricación y **la
   carpeta de Drive del trabajo**: el `.cdr` con las escalas y el PDF de órdenes de fabricación.
   La carpeta se empareja por el nombre del negocio, con tolerancia a erratas, y lo que no alcanza
   el umbral no se adivina: la ficha lo dice y deja la liga a «Trabajos Pendientes».

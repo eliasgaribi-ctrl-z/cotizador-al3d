@@ -527,7 +527,7 @@ try {
       /no traía plano/.test(avisos.ninguna), /2 imágenes todavía no están en la nube/.test(avisos.falta) && (avisos.falta.match(/<img /g) || []).length === 1],
       [true, true, true, true, true, true]);
     cierto('APAGADO: el hueco sale solo con la ventanilla `obra`, con folio de cotización y si la obra no está cancelada',
-      /if \(nubeObra\(\) && p\.folio_global && p\.etapa !== 'cancelado'\) \{\s*partes\.push\('<section class="pj-imagenes" id="pj-imagenes"/.test(sin));
+      /if \(nubeObra\(\) && p\.folio_global && p\.etapa !== 'cancelado'\) \{\s*b\.push\('<section class="pj-imagenes" id="pj-imagenes"/.test(sin));
     cierto('la ventanilla se busca con `obra` como función, y sin ella no hay nada', /function nubeObra\(\) \{\s*try \{ const n = globalThis\.AL3D_NUBE; return n && typeof n\.obra === 'function' \? n : null; \}/.test(sin));
     cierto('se llena al abrir y al repintar la ficha, como la carpeta', /pintarCarpeta\(\);\s*pintarImagenesNube\(\);/.test(sin));
     cierto('y no pide nada sin la ventanilla', /async function pintarImagenesNube\(\) \{\s*const nube = nubeObra\(\);\s*if \(!\$\('pj-imagenes'\) \|\| !nube \|\| !fichaId\) return;/.test(sin));

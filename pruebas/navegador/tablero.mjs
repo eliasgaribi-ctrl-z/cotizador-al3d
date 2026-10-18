@@ -10,10 +10,11 @@
  *
  * Por eso el caso 2 es el más importante del archivo, aunque parezca el más tonto.
  *
- * Lo demás que se prueba aquí tampoco se ve mirando la pantalla: que el filtro de la línea de
- * estaciones cambie la lista Y el `aria-pressed`, que el tope por rol enseñe la razón en vez de
- * un botón apagado, y que estar en una ruta oculta deje encendida la pestaña de su madre —el
- * defecto que dejaba la tira entera apagada y la pantalla sin decir dónde estás—.
+ * Lo demás que se prueba aquí tampoco se ve mirando la pantalla: que el Tablero despejado
+ * (octubre de 2026) pinte las cinco estaciones con una ficha por trabajo, que cada rol vea lo
+ * suyo, que la mesa de corte empotrada cargue su motor, y que estar en una ruta oculta deje
+ * encendida la pestaña de su madre —el defecto que dejaba la tira entera apagada y la pantalla
+ * sin decir dónde estás—. Lo del Tablero con más detalle está en pf-tablero.mjs.
  *
  * Uso:  PUERTO=8814 node pruebas/navegador/tablero.mjs
  */
@@ -140,65 +141,30 @@ await irA('#/hoy');
 
 const pintado = await p.evaluate(() => {
   const s = document.getElementById('mod-tablero');
-  const cuentas = [...s.querySelectorAll('.pf-cuentas:not(.tb-linea) .pf-cuenta')]
-    .map(e => e.textContent.trim());
-  const estaciones = [...s.querySelectorAll('.tb-etapa')].map(e => ({
-    etapa: e.dataset.etapa, txt: e.textContent.trim(), atras: !!e.querySelector('em'),
-  }));
   return {
-    cuentas, estaciones,
-    filas: s.querySelectorAll('.pf-fila.tal-fila').length,
-    pistas: s.querySelectorAll('.tal-pista').length,
-    dosColumnas: !!s.querySelector('.tb-cuerpo'),
-    nota: !!s.querySelector('.pf-nota'),
+    resumen: ((s.querySelector('.tb-res-total') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+    estaciones: [...s.querySelectorAll('.tb-est')].map(e => e.dataset.etapa),
+    fichas: s.querySelectorAll('.tb-ficha').length,
+    tarde: [...s.querySelectorAll('.tb-ficha.mal')].map(f => f.textContent),
+    columnas: getComputedStyle(s.querySelector('.tb-limpio')).gridTemplateColumns.split(' ').length,
   };
 });
-pintado.cuentas.length >= 4
-  ? bien('la cinta de cuentas pinta ' + pintado.cuentas.length + ': ' + pintado.cuentas.join(' · '))
-  : mal('la cinta pintó ' + pintado.cuentas.length + ' cuentas');
+/^3 trabajos en el taller/.test(pintado.resumen)
+  ? bien('el resumen dice cuántos trabajos hay: «' + pintado.resumen + '»')
+  : mal('el resumen dice «' + pintado.resumen + '»');
 pintado.estaciones.length === 5
-  ? bien('la línea de estaciones pinta las cinco: ' + pintado.estaciones.map(e => e.etapa).join(', '))
-  : mal('la línea pintó ' + pintado.estaciones.length + ' estaciones');
-pintado.filas >= 3
-  ? bien('la lista del taller pinta ' + pintado.filas + ' renglones, con ' + pintado.pistas + ' pistas')
-  : mal('la lista pintó ' + pintado.filas + ' renglones');
-pintado.dosColumnas ? bien('el cuerpo de dos columnas usa .tb-cuerpo, no un clon de la agenda')
-                    : mal('no hay .tb-cuerpo');
-pintado.nota ? bien('y al pie está la nota que dice cómo se calcula la ventana')
-             : mal('falta la nota del pie: sin ella nadie sabe de dónde salen las fechas');
-
-/* «N atrasados» es EL indicador que no existía en ninguna pantalla. Con una instalación a 4
-   días y un plazo de dos semanas, el trabajo tiene que salir atrasado. */
-const hayAtraso = pintado.estaciones.some(e => e.atras);
-hayAtraso
-  ? bien('un bloque de estación dice cuántos van atrasados — el dato que no existía')
-  : mal('ningún bloque marcó atrasados, y con instalación a 4 días tendría que haberlo');
-
-// ── 5. El filtro de la línea ───────────────────────────────────────────────
-console.log('\nEL FILTRO NO ES NAVEGACIÓN');
-const hashAntes = await p.evaluate(() => location.hash);
-await p.click('.tb-etapa[data-etapa="en_diseno"]');
-await p.waitForTimeout(350);
-const trasFiltro = await p.evaluate(() => ({
-  presionado: document.querySelector('.tb-etapa[data-etapa="en_diseno"]').getAttribute('aria-pressed'),
-  filas: document.querySelectorAll('#mod-tablero .pf-fila.tal-fila').length,
-  hash: location.hash,
-  verTodos: [...document.querySelectorAll('#mod-tablero button')].some(b => b.textContent.includes('Ver todos')),
-}));
-trasFiltro.presionado === 'true' ? bien('aria-pressed pasa a true')
-                                 : mal('aria-pressed quedó en ' + trasFiltro.presionado);
-trasFiltro.filas === 1 ? bien('la lista queda en el único que está en diseño')
-                       : mal('con el filtro puesto quedaron ' + trasFiltro.filas + ' renglones (esperado 1)');
-trasFiltro.hash === hashAntes ? bien('y el hash NO cambió: filtrar no ensucia el botón de atrás')
-                              : mal('el filtro cambió el hash a ' + trasFiltro.hash);
-trasFiltro.verTodos ? bien('con el filtro puesto se ofrece «Ver todos» — el control enseña el filtro')
-                    : mal('el filtro está puesto y no hay cómo soltarlo a la vista');
-
-await p.click('.tb-etapa[data-etapa="en_diseno"]');
-await p.waitForTimeout(350);
-(await p.evaluate(() => document.querySelectorAll('#mod-tablero .pf-fila.tal-fila').length)) >= 3
-  ? bien('el segundo toque suelta el filtro')
-  : mal('el segundo toque no soltó el filtro');
+  ? bien('el taller pinta las cinco estaciones: ' + pintado.estaciones.join(', '))
+  : mal('el taller pintó ' + pintado.estaciones.length + ' estaciones');
+pintado.fichas === 3
+  ? bien('una ficha por trabajo: 3')
+  : mal('el taller pintó ' + pintado.fichas + ' fichas para 3 trabajos');
+/* Con una instalación a 4 días y un plazo de dos semanas, el trabajo tiene que salir atrasado. */
+pintado.tarde.some(t => /Healthylicious/.test(t))
+  ? bien('Healthylicious va en rojo: con su instalación a 4 días, va tarde')
+  : mal('Healthylicious no salió en rojo: ' + JSON.stringify(pintado.tarde));
+pintado.columnas === 2
+  ? bien('en monitor, dos columnas: lo pendiente a la izquierda y el taller a la derecha')
+  : mal('en monitor el Tablero tiene ' + pintado.columnas + ' columna(s)');
 
 // ── 6. El tope por rol enseña la razón, no un botón apagado ────────────────
 console.log('\nEL TOPE POR ROL SE EXPLICA');
@@ -208,8 +174,9 @@ const comoFabrica = await p.evaluate(() => {
   const s = document.getElementById('mod-tablero');
   return {
     dinero: s.textContent.includes('$'),
-    apagados: s.querySelectorAll('.pf-fila-acc button[disabled]').length,
-    hayBotones: s.querySelectorAll('.pf-fila-acc button').length,
+    apagados: s.querySelectorAll('button[disabled]').length,
+    fichas: s.querySelectorAll('.tb-ficha').length,
+    titulo: (s.querySelector('#tb-nec-t') || {}).textContent || '',
   };
 });
 comoFabrica.dinero === false
@@ -218,9 +185,9 @@ comoFabrica.dinero === false
 comoFabrica.apagados === 0
   ? bien('y no hay ni un botón apagado: cuando el rol no puede, se escribe la razón')
   : mal('hay ' + comoFabrica.apagados + ' botones deshabilitados');
-comoFabrica.hayBotones > 0
-  ? bien('fabricación sí puede mover etapas hasta su tope (' + comoFabrica.hayBotones + ' acciones)')
-  : mal('fabricación no tiene ni una acción en el tablero');
+comoFabrica.fichas > 0 && comoFabrica.titulo === 'Pendientes'
+  ? bien('fabricación ve el taller con sus ' + comoFabrica.fichas + ' fichas y sus «Pendientes»')
+  : mal('fabricación no ve el taller como se espera: ' + JSON.stringify(comoFabrica));
 
 await p.evaluate(() => localStorage.setItem('al3d_pf_rol', 'direccion'));
 
@@ -231,9 +198,13 @@ await p.evaluate(() => localStorage.setItem('al3d_pf_rol', 'direccion'));
    que no existe — y no lanza excepción: deja un cálculo que nunca termina. Comprobar que el
    motor «está» no basta: hay que comprobar contra qué resuelve su ruta. */
 console.log('\nLA MESA DE CORTE, DENTRO DEL TALLER');
-await irA('#/hoy');
-await p.click('[data-vista="anidador"]');
-await p.waitForTimeout(2400);
+/* Se entra como entra el taller desde el despeje: «Acomodar en la lámina» en la ficha de un
+   trabajo en diseño. */
+await irA('#/proyectos'); await p.waitForTimeout(400);
+await p.evaluate(id => { const b = document.querySelector('[data-abrir="' + id + '"]'); if (b) b.click(); }, sembrado.creados[1]);
+await p.waitForTimeout(800);
+await p.click('#pf-ficha [data-anidar]');
+await p.waitForTimeout(2600);
 
 const marco = p.frames().find(x => x.url().includes('anidador-vectores'));
 if (!marco) mal('la sub-vista Anidador no cargó su marco');
@@ -286,13 +257,15 @@ trasStorage.existe && trasStorage.href === urlAntes
   ? bien('un storage de al3d_historial NO mata el marco: sigue vivo y en la misma URL')
   : mal('el marco se remontó con un storage: ' + JSON.stringify(trasStorage));
 
-/* Y al salir de la mesa de corte, la guarda se suelta: si se quedara puesta, un proyecto
-   ganado en el cotizador ya no repintaría este tablero nunca más. */
-await p.click('[data-vista="tablero"]');
-await p.waitForTimeout(600);
+/* Y al salir de la mesa de corte —«Volver» al proyecto—, el marco se va: si la guarda se quedara
+   puesta, un proyecto ganado en el cotizador ya no repintaría este tablero nunca más. */
+await p.click('#mod-tablero .tb-volver .btn');
+await p.waitForTimeout(1000);
 (await p.evaluate(() => !document.getElementById('pf-anid-marco')))
-  ? bien('al volver a la carga, el marco se destruye — y con él sus Web Workers')
+  ? bien('al volver al proyecto, el marco se destruye — y con él sus Web Workers')
   : mal('el marco sigue en el DOM después de salir de la mesa de corte');
+await p.evaluate(() => { const c = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (c) c.click(); });
+await p.waitForTimeout(500);
 
 // ── 6c. El Cotizador, empotrado ────────────────────────────────────────────
 /* Los cuatro casos que importan, y ninguno se ve mirando la pantalla:
@@ -430,13 +403,9 @@ console.log('\nEL ATERRIZAJE');
 await irA('#/hoy');
 await p.waitForTimeout(400);
 
-/* «Abrir» de un renglón del taller tiene que dejar la FICHA abierta, no la lista. */
-const abrir = await p.evaluateHandle(() => {
-  const f = document.querySelector('#mod-tablero .pf-fila.tal-fila');
-  if (!f) return null;
-  return [...f.querySelectorAll('button')].find(b => b.textContent.trim() === 'Abrir') || null;
-});
-if (!abrir || !(await abrir.evaluate(e => !!e))) mal('no hay botón «Abrir» en el primer renglón del taller');
+/* Tocar la ficha de un trabajo en el taller tiene que dejar SU ficha abierta, no la lista. */
+const abrir = await p.evaluateHandle(() => document.querySelector('#mod-tablero .tb-ficha') || null);
+if (!abrir || !(await abrir.evaluate(e => !!e))) mal('no hay ninguna ficha en el taller');
 else {
   await abrir.asElement().click();
   await p.waitForTimeout(1400);
@@ -446,8 +415,8 @@ else {
     titulo: (() => { const h = document.querySelector('#pf-ficha .pf-panel-h h2'); return h ? h.textContent.trim().slice(0, 40) : null; })(),
   }));
   tras.montada === 'mod-proyectos'
-    ? bien('«Abrir» lleva a Proyectos')
-    : mal('«Abrir» llevó a ' + tras.montada);
+    ? bien('la ficha del taller lleva a Proyectos')
+    : mal('la ficha del taller llevó a ' + tras.montada);
   tras.fichaAbierta
     ? bien('Y LA FICHA YA ESTÁ ABIERTA («' + tras.titulo + '»): no hay que volver a buscar lo que ya estabas mirando')
     : mal('llegó a la lista con la ficha CERRADA: el salto sigue ahí, que es la queja original');
@@ -466,10 +435,10 @@ else {
 }
 
 /* Del taller a la mesa de corte, con el proyecto puesto. El botón vivía en la lente Taller del
-   Calendario; desde 7dabd21 el Calendario solo enseña las entregas (sin lentes) y el botón se
-   mudó a cada renglón del Tablero (`accionAnidar` en js/mod/tablero.js). Abre la mesa de corte
-   del Tablero en la misma pantalla, con el aviso de dónde vienes. */
-console.log('\nDEL RENGLÓN A LA MESA DE CORTE');
+   Calendario; desde 7dabd21 el Calendario solo enseña las entregas (sin lentes), el botón se mudó
+   a cada renglón del Tablero, y con el despeje de octubre de 2026 vive SOLO en la ficha del
+   proyecto, junto al paso que sigue. */
+console.log('\nDEL TALLER A LA MESA DE CORTE');
 await irA('#/agenda');
 await p.waitForTimeout(600);
 const calendario = await p.evaluate(() => ({
@@ -480,8 +449,8 @@ calendario.lentes === 0 && calendario.anidar === 0
   ? bien('el Calendario solo enseña entregas: sin lentes ni «Acomodar en la lámina»')
   : mal('el Calendario volvió a tener la lente Taller: ' + JSON.stringify(calendario));
 
-/* Uno ya armado, para que «en ninguno ya cortado» mida algo: los tres de la siembra están antes
-   del corte. Se crea aquí y se deja: las secciones de abajo no cuentan renglones. */
+/* Uno ya armado, para que «la ficha de uno ya armado no la ofrece» mida algo: los tres de la
+   siembra están antes del corte. */
 const armado = await p.evaluate(async () => {
   const Proy = await import('./js/datos/proyectos.js');
   const letras = { id: 1, tipo: 'letras', material: 'acero', comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 8 };
@@ -497,64 +466,10 @@ const armado = await p.evaluate(async () => {
 armado === 'ok' ? bien('un cuarto proyecto, ya armado') : mal('no se pudo armar el cuarto proyecto: ' + armado);
 
 await irA('#/hoy');
-const ofrecen = await p.evaluate(() => [...document.querySelectorAll('#mod-tablero [data-renglon]')].map(r => ({
-  etapa: (r.querySelector('.pf-etapa') || {}).textContent || '',
-  anidar: !!r.querySelector('[data-anidar]'),
-  t: (r.querySelector('.pf-fila-t') || {}).textContent || '',
-})));
-const conBoton = ofrecen.filter(x => x.anidar);
-conBoton.length > 0 && conBoton.every(x => /Vendido|Ganado|diseño/i.test(x.etapa))
-  ? bien('«Acomodar en la lámina» está en los renglones vendidos y en diseño (' + conBoton.length + ')')
-  : mal('los renglones con «Acomodar en la lámina» no son los de antes de cortar: ' + JSON.stringify(ofrecen));
-ofrecen.some(x => /Armado/i.test(x.etapa)) && ofrecen.filter(x => !/Vendido|Ganado|diseño/i.test(x.etapa)).every(x => !x.anidar)
-  ? bien('y en ninguno ya cortado, armado o listo')
-  : mal('se ofrece en una etapa donde ya no tiene sentido: ' + JSON.stringify(ofrecen));
-
+(await p.evaluate(() => document.querySelectorAll('#mod-tablero [data-anidar]').length === 0))
+  ? bien('el Tablero ya no ofrece «Acomodar en la lámina»: vive en la ficha del proyecto')
+  : mal('el Tablero volvió a ofrecer «Acomodar en la lámina» en sus renglones');
 const idParen = sembrado.creados[1];
-await p.click('#mod-tablero [data-anidar="' + idParen + '"]');
-await p.waitForTimeout(2600);
-const llegada = await p.evaluate(() => ({
-  hash: location.hash,
-  montada: (() => { const s = [...document.querySelectorAll('.pf-mod')].find(x => !x.hidden); return s ? s.id : null; })(),
-  marco: !!document.getElementById('pf-anid-marco'),
-  seg: (document.querySelector('#mod-tablero [data-vista="anidador"]') || {}).getAttribute?.('aria-pressed')
-    || (document.querySelector('#mod-tablero [data-vista="anidador"]') || {}).getAttribute?.('aria-checked') || null,
-  dice: [...document.querySelectorAll('#mod-tablero .hintnote')].map(h => h.textContent.replace(/\s+/g, ' ').trim()).join(' | '),
-  arriba: Math.round(window.scrollY),
-}));
-llegada.montada === 'mod-tablero' && llegada.marco && llegada.hash === '#/hoy'
-  ? bien('aterriza en la mesa de corte del Tablero, en la misma pantalla')
-  : mal('no llegó a la mesa de corte: ' + JSON.stringify(llegada));
-/Vienes de Parentesis/.test(llegada.dice) && /folio COT-9002/.test(llegada.dice)
-  ? bien('y dice de qué proyecto viene, con su folio: «' + llegada.dice.slice(0, 70) + '…»')
-  : mal('llegó sin decir de qué proyecto viene: ' + JSON.stringify(llegada.dice));
-llegada.arriba === 0
-  ? bien('con la mesa a la vista, desde arriba')
-  : mal('la mesa quedó fuera de la vista (scrollY ' + llegada.arriba + ')');
-
-/* Volver a «Carga del taller» olvida el origen: tres pantallas después no debe seguir diciendo
-   de dónde se venía. */
-await p.click('#mod-tablero [data-vista="tablero"]');
-await p.waitForTimeout(500);
-await p.click('#mod-tablero [data-vista="anidador"]');
-await p.waitForTimeout(800);
-(await p.evaluate(() => !/Vienes de/.test(document.getElementById('mod-tablero').textContent)))
-  ? bien('volver a la carga y entrar a la mesa otra vez ya no dice «Vienes de»')
-  : mal('el aviso de origen se quedó pegado');
-await p.click('#mod-tablero [data-vista="tablero"]');
-await p.waitForTimeout(500);
-
-/* Con teclado, el foco no se cae al <body>: pasa a «Mesa de corte» del segmento. */
-await irA('#/hoy');
-await p.focus('#mod-tablero [data-anidar="' + idParen + '"]');
-await p.keyboard.press('Enter');
-await p.waitForTimeout(900);
-const focoMesa = await p.evaluate(() => { const a = document.activeElement; return a ? (a.dataset.vista || a.tagName) : null; });
-focoMesa === 'anidador'
-  ? bien('con teclado el foco cae en «Mesa de corte», no en el <body>')
-  : mal('con teclado el foco quedó en ' + focoMesa);
-await p.click('#mod-tablero [data-vista="tablero"]');
-await p.waitForTimeout(500);
 
 /* La otra puerta: la ficha de Proyectos, que no depende de que el proyecto tenga renglón en el
    Tablero (sin ninguna fecha en el taller, el Tablero no pinta renglones). */
@@ -633,13 +548,6 @@ const enTel = await tel.evaluate(() => {
        display:none a este ancho, y contar sus pestañas medía un mueble que no existe ahí.
        Con Control la lateral tiene 7 para dirección, y la de abajo sigue en 5. */
     tabs: [...document.querySelectorAll('#pf-abajo button')].filter(b => b.offsetParent !== null).length,
-    /* En 375 px la columna del taller va primero: es la pregunta de la mañana. */
-    primero: (() => {
-      const c = s && s.querySelector('.tb-cuerpo');
-      if (!c) return null;
-      const hijos = [...c.children];
-      return hijos.length === 2 ? getComputedStyle(hijos[1]).order : null;
-    })(),
   };
 });
 enTel.monta ? bien('el tablero monta en 375 px') : mal('el tablero no monta en el teléfono');
