@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -482,7 +482,7 @@ function setShowInPdf(id,val){
     caja.classList.toggle('hidden-pdf',!val);
     b.classList.toggle('off',!val);
     b.setAttribute('aria-pressed',val?'true':'false');
-    b.setAttribute('onclick','setShowInPdf('+id+','+!val+')');
+    b.setAttribute('data-acc','setShowInPdf('+id+','+!val+')');
     b.title=tituloOjoPdf(val);
     pintarResumen(it);
     pintarConteoPartidas();
@@ -594,20 +594,20 @@ function autoContarLetras(id,texto){
    app quedaba inservible por teclado. togglePartida ya resolvía su propio caso a mano; esto
    lo generaliza para todos.
 
-   El control se reconoce por su propio onclick, que ya es único porque lleva el id de la
+   El control se reconoce por su propio data-acc (era su onclick hasta M6), que ya es único porque lleva el id de la
    partida y el valor elegido, así que no hace falta marcar nada en el HTML ni mantener una
    lista de qué es enfocable. */
 function _focoDeItems(){
   const a=document.activeElement;
   if(!a||!a.closest||!a.closest('#items')) return null;
   /* El ojo del PDF y los dos interruptores llevan su marca en data-foco: en los tres el
-     onclick es justo lo que cambia al pulsarlos, así que la marca no sobrevivía. */
-  return a.getAttribute('data-foco')||a.getAttribute('onclick')||null;
+     data-acc es justo lo que cambia al pulsarlos, así que la marca no sobrevivía. */
+  return a.getAttribute('data-foco')||a.getAttribute('data-acc')||null;
 }
 function _devolverFocoItems(marca){
   if(!marca) return;
   const c=$('items'); if(!c) return;
-  const el=c.querySelector('[data-foco="'+CSS.escape(marca)+'"]')||Array.prototype.find.call(c.querySelectorAll('[onclick]'),e=>e.getAttribute('onclick')===marca);
+  const el=c.querySelector('[data-foco="'+CSS.escape(marca)+'"]')||Array.prototype.find.call(c.querySelectorAll('[data-acc]'),e=>e.getAttribute('data-acc')===marca);
   if(el){ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } }
 }
 
@@ -951,10 +951,10 @@ function estadoVacioNodo(){
   empty.classList.add('vacio-partidas');
   empty.innerHTML=`<p class="vacio-t">Aún no hay partidas. Empieza por lo que vas a cotizar.</p>
     <div class="mosaicos" role="group" aria-label="Tipo de la primera partida">
-      ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button type="button" class="mos" data-tipo="${t}" onclick="empezarConTipo('${t}')"><span class="mos-n">${TIPO_NOMBRE[t]}</span><small>${desde[t]}</small></button>`).join('')}
+      ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button type="button" class="mos" data-tipo="${t}" data-acc="empezarConTipo('${t}')"><span class="mos-n">${TIPO_NOMBRE[t]}</span><small>${desde[t]}</small></button>`).join('')}
       <span class="resalte-mos" aria-hidden="true"></span>
     </div>
-    <p class="vacio-ia">¿Tienes el diseño o una foto? <button type="button" class="vacio-ia-b" onclick="aiOpen()">Cotizar con IA</button></p>`;
+    <p class="vacio-ia">¿Tienes el diseño o una foto? <button type="button" class="vacio-ia-b" data-acc="aiOpen()">Cotizar con IA</button></p>`;
   return empty;
 }
 function empezarConTipo(t){
@@ -1131,7 +1131,7 @@ function renderItems(){
                un nombre que dice la acción («Abrir») con un aria-expanded que dice el
                estado, leídos uno tras otro. El estado lo carga aria-expanded, que es su
                trabajo; el title sí dice la acción, que es lo que necesita el ratón. -->
-          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="Detalle de la partida ${i+1}"><span aria-hidden="true">▾</span></button>
+          <button class="pfold" data-acc="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="Detalle de la partida ${i+1}"><span aria-hidden="true">▾</span></button>
           ${!capturaBloqueada()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           ${(!capturaBloqueada()&&Q.items.length>1)
             ?`<button type="button" class="n pmover" data-foco="mover-${it.id}" title="Mantén presionado y arrastra para cambiar el orden" aria-label="Partida ${i+1} de ${Q.items.length}. Mantén presionado y arrastra para moverla, o usa las flechas arriba y abajo.">${i+1}</button>`
@@ -1139,13 +1139,13 @@ function renderItems(){
         </div>
         <span class="ptipo"><span class="lg">${TIPO_NOMBRE[it.tipo]||''}</span><span class="sm">${TIPO_CORTO[it.tipo]||''}</span></span>
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
-          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
+          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} data-acc="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <span class="lt" id="lt-${it.id}">${ltHTML(it)}</span>
         <div class="ptop-actions">
-          ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
-          <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" aria-pressed="${pdfVis?'true':'false'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${tituloOjoPdf(pdfVis)}" aria-label="Mostrar en el PDF">${ojoPdfHTML()}</button>
-          <button class="del" ${_off} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
+          ${!capturaBloqueada()?`<button class="dup" data-acc="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
+          <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" aria-pressed="${pdfVis?'true':'false'}" data-acc="setShowInPdf(${it.id},${!pdfVis})" title="${tituloOjoPdf(pdfVis)}" aria-label="Mostrar en el PDF">${ojoPdfHTML()}</button>
+          <button class="del" ${_off} data-acc="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
       ${resumenHTML(it)}
@@ -1157,7 +1157,7 @@ function renderItems(){
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaHTML(it)}</span>
         ${(!capturaBloqueada()&&Q.items.length>1)
-          ?`<span class="pmover-par" role="group" aria-label="Orden de la partida ${i+1}"><button type="button" class="pmover-b" data-foco="sube-${it.id}" ${i===0?'aria-disabled="true"':''} onclick="moverPartida(${it.id},-1)" title="Subir una posición" aria-label="Subir la partida ${i+1}"><span aria-hidden="true">↑</span></button><button type="button" class="pmover-b" data-foco="baja-${it.id}" ${i===Q.items.length-1?'aria-disabled="true"':''} onclick="moverPartida(${it.id},1)" title="Bajar una posición" aria-label="Bajar la partida ${i+1}"><span aria-hidden="true">↓</span></button></span>`
+          ?`<span class="pmover-par" role="group" aria-label="Orden de la partida ${i+1}"><button type="button" class="pmover-b" data-foco="sube-${it.id}" ${i===0?'aria-disabled="true"':''} data-acc="moverPartida(${it.id},-1)" title="Subir una posición" aria-label="Subir la partida ${i+1}"><span aria-hidden="true">↑</span></button><button type="button" class="pmover-b" data-foco="baja-${it.id}" ${i===Q.items.length-1?'aria-disabled="true"':''} data-acc="moverPartida(${it.id},1)" title="Bajar una posición" aria-label="Bajar la partida ${i+1}"><span aria-hidden="true">↓</span></button></span>`
           :''}
       </div>`;
     /* Pieza 9: la partida PLEGADA es un renglón y se desliza a la izquierda para descubrir
@@ -1168,8 +1168,8 @@ function renderItems(){
        toca un botón rojo ya dijo dos veces lo que quiere. */
     if(plegada&&!capturaBloqueada()&&window.Piezas&&Piezas.filaDeslizableHTML){
       d.innerHTML=Piezas.filaDeslizableHTML({clase:'desliza-partida',cara:_cara,acciones:[
-        {texto:'Duplicar',attrs:`onclick="dupItem(${it.id})"`},
-        {texto:'Borrar',peligro:true,attrs:`onclick="delItem(${it.id})"`}]});
+        {texto:'Duplicar',attrs:`data-acc="dupItem(${it.id})"`},
+        {texto:'Borrar',peligro:true,attrs:`data-acc="delItem(${it.id})"`}]});
     }else d.innerHTML=_cara;
     if(!capturaBloqueada()){
       d.addEventListener('dragstart',e=>{
@@ -1517,7 +1517,7 @@ function chip(on,click,label,extra,libre,attrs){
      total y se pactan hasta el final, igual que los campos de _FM_PDF. */
   const dis=!libre&&capturaBloqueada();
   return `<div class="chip${on?' on':''}" role="button" aria-pressed="${on?'true':'false'}"`+
-    (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"${attrs?' '+attrs:''}`)+
+    (dis?' aria-disabled="true"':` tabindex="0" data-acc="${click}" data-tecla-clic${attrs?' '+attrs:''}`)+
     `><span class="ck" aria-hidden="true"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg></span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
 }
 /* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
@@ -1656,7 +1656,7 @@ function caraPlegadaHTML(it){
    Ahora es texto que se puede leer y navegar, con el clic como atajo de ratón y de dedo;
    el control accesible es el ▾ del encabezado, que hace exactamente lo mismo. */
 function resumenHTML(it){
-  return `<div class="psum" id="psum-${it.id}" onclick="abrirDesdeResumen(${it.id},event)">${caraPlegadaHTML(it)}</div>`;
+  return `<div class="psum" id="psum-${it.id}" data-acc="abrirDesdeResumen(${it.id})">${caraPlegadaHTML(it)}</div>`;
 }
 /* Salvo cuando el toque cae en una ficha con precio TAPADO: ahí el gesto es espiar el
    importe —se destapa mientras se mantiene tocado— y abrir la partida al soltar sería
@@ -1677,7 +1677,7 @@ function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta'
 function descFld(it){
   const dis=capturaBloqueada()?'disabled':'';
   const tag=it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':'';
-  return `<div class="fld"><label for="d-${it.id}">Descripción ${tag}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
+  return `<div class="fld"><label for="d-${it.id}">Descripción ${tag}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} data-al-escribir="typeItem(${it.id},'desc')"></div>`;
 }
 
 function bodyFor(it){
@@ -1708,20 +1708,20 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo(matTitulo,mat?mat.label:'',matChips,avisos,true)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
-        `<button type="button" class="switch" role="switch" data-foco="luz-${it.id}" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
+        `<button type="button" class="switch" role="switch" data-foco="luz-${it.id}" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`data-acc="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
       ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
           <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
-          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} data-al-escribir="typeNum(${it.id},'altura')" data-al-salir="saneaNum(${it.id},'altura',0.5)">
         </div>
         <div class="fld">
           <label class="arrastrable" for="n-${it.id}"># Letras</label>
-          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)">
+          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} data-al-escribir="typeNum(${it.id},'n')" data-al-salir="saneaNum(${it.id},'n',1)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} data-al-escribir="autoContarLetras(${it.id})"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}
       ${letreroCajaHTML(it)}`;
   }
   if(it.tipo==='recorte'){
@@ -1737,7 +1737,7 @@ function bodyFor(it){
       +(alturaDeRecorte(it.altura)?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no hay letra 3D que fabricar — a esta altura el taller la corta en acrílico.</div>`:'');
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
-          `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
+          `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`data-acc="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
       : '';
     return `
       ${descFld(it)}
@@ -1746,12 +1746,12 @@ function bodyFor(it){
       <div class="grid3" style="margin-top:12px">
         <div class="fld">
           <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
-          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} data-al-escribir="typeNum(${it.id},'altura')" data-al-salir="saneaNum(${it.id},'altura',0.5)">
         </div>
-        <div class="fld"><label class="arrastrable" for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
+        <div class="fld"><label class="arrastrable" for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} data-al-escribir="typeNum(${it.id},'n')" data-al-salir="saneaNum(${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} data-al-escribir="autoContarLetras(${it.id})"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²',false,_peekAttrs(it,'bas',b.key,b.label))).join('');
@@ -1760,8 +1760,8 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint,true)}
       <div class="grid2" style="margin-top:12px">
-        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
-        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
+        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} data-al-escribir="typeNum(${it.id},'ancho')" data-al-salir="saneaNum(${it.id},'ancho')"></div>
+        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} data-al-escribir="typeNum(${it.id},'alto')" data-al-salir="saneaNum(${it.id},'alto')"></div>
       </div>`;
   }
   if(it.tipo==='caja'){
@@ -1772,17 +1772,17 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint,true)}
       <div class="grid3" style="margin-top:12px">
-        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
-        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
-        <div class="fld"><label for="ta-${it.id}">Tarifa ($/m²)</label><div class="inp-money"><input id="ta-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.tarifa||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'tarifa',+this.value)" onblur="saneaNum(this,${it.id},'tarifa')"></div></div>
+        <div class="fld"><label class="arrastrable" for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} data-al-escribir="typeNum(${it.id},'ancho')" data-al-salir="saneaNum(${it.id},'ancho')"></div>
+        <div class="fld"><label class="arrastrable" for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} data-al-escribir="typeNum(${it.id},'alto')" data-al-salir="saneaNum(${it.id},'alto')"></div>
+        <div class="fld"><label for="ta-${it.id}">Tarifa ($/m²)</label><div class="inp-money"><input id="ta-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.tarifa||''}" ${dis} data-al-escribir="typeNum(${it.id},'tarifa')" data-al-salir="saneaNum(${it.id},'tarifa')"></div></div>
       </div>`;
   }
   // manual
   return `
-    <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
+    <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} data-al-escribir="typeItem(${it.id},'desc')"></div>
     <div class="grid2">
-      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pz',+this.value)" onblur="saneaNum(this,${it.id},'pz',1)"></div>
-      <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pu',+this.value)" onblur="saneaNum(this,${it.id},'pu')"></div></div>
+      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} data-al-escribir="typeNum(${it.id},'pz')" data-al-salir="saneaNum(${it.id},'pz',1)"></div>
+      <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} data-al-escribir="typeNum(${it.id},'pu')" data-al-salir="saneaNum(${it.id},'pu')"></div></div>
     </div>`;
 }
 
@@ -1832,12 +1832,12 @@ function renderAiPreview(){
   const f=Q.aiFile;
   const isImg=f.type && f.type.indexOf('image/')===0;
   const big=isImg
-    ? `<img class="ai-prev-img" src="${urlImagenSegura(f.url)}" alt="Archivo analizado" ${_ABRIBLE} onclick="openAiFile()">`
-    : `<div class="ai-prev-pdf" ${_ABRIBLE} onclick="openAiFile()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
+    ? `<img class="ai-prev-img" src="${urlImagenSegura(f.url)}" alt="Archivo analizado" ${_ABRIBLE} data-acc="openAiFile()">`
+    : `<div class="ai-prev-pdf" ${_ABRIBLE} data-acc="openAiFile()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
   el.innerHTML=`<div class="ai-prev-big">
     <div class="ai-prev-head">
       <span class="ttl"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
-      <button class="x" onclick="clearAiFile()" title="Quitar la imagen de esta pantalla" aria-label="Quitar la imagen de esta pantalla">×</button>
+      <button class="x" data-acc="clearAiFile()" title="Quitar la imagen de esta pantalla" aria-label="Quitar la imagen de esta pantalla">×</button>
     </div>
     ${big}
     <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
@@ -1846,8 +1846,8 @@ function renderAiPreview(){
 /* Una imagen se abre en el visor con zoom de historial.js (visorAbrir: crece desde la miniatura
    que se tocó, se pellizca y se arrastra); un PDF sigue siendo un <iframe>, que ya trae el zoom
    del visor de PDF del navegador y no se puede pellizcar desde aquí. La miniatura de la que sale
-   el vuelo es la del toque: el onclick del marcado corre con `window.event`, y de ahí se saca la
-   <img>; si no hay evento —se llamó desde la consola—, el plano aparece sin vuelo. */
+   el vuelo es la del toque: la acción del marcado (data-acc) corre dentro del oyente del clic,
+   con `window.event` puesto, y de ahí se saca la <img>; si no hay evento —se llamó desde la consola—, el plano aparece sin vuelo. */
 function openAiFile(){
   if(!Q.aiFile||!Q.aiFile.url)return;
   const isImg=Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0;
@@ -1856,7 +1856,7 @@ function openAiFile(){
     visorAbrir(Q.aiFile.url,Q.aiFile.name||'Archivo',t);
     return;
   }
-  $('lightboxBody').innerHTML=`<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" onclick="event.stopPropagation()"></iframe>`;
+  $('lightboxBody').innerHTML=`<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" data-acc="parar"></iframe>`;
   $('lightbox').classList.add('show');
 }
 /* Si hay un visor con vuelo de regreso en curso, él quita la capa al aterrizar y aquí no se
@@ -2200,9 +2200,9 @@ function _opCardHTML(it,x,v,bloq){
     <div class="op-cuerpo" id="opcu-${it.id}-${x.k}">${_opCuerpoHTML(it,x,v)}</div>
     <span class="op-sello" aria-hidden="true">${sello} Elegida</span>`
     +(bloq?'':`<div class="op-acc">
-      <button type="button" class="btn btn-pri op-elegir" data-foco="op-elegir-${it.id}-${x.k}"${ok?'':' aria-disabled="true"'} aria-label="Elegir la opción ${x.letra}" onclick="elegirOpcion(${it.id},${x.k})">Elegir esta</button>
-      ${x.abierta?'':`<button type="button" class="btn btn-gho op-ed" data-foco="op-ed-${it.id}-${x.k}" aria-label="Editar la opción ${x.letra}" onclick="abrirOpcion(${it.id},${x.k})">Editar</button>`}
-      <button type="button" class="op-quita" data-foco="op-quita-${it.id}-${x.k}" aria-label="Quitar la opción ${x.letra}" title="Quitar la opción ${x.letra}" onclick="quitarOpcion(${it.id},${x.k})"><span aria-hidden="true">×</span></button>
+      <button type="button" class="btn btn-pri op-elegir" data-foco="op-elegir-${it.id}-${x.k}"${ok?'':' aria-disabled="true"'} aria-label="Elegir la opción ${x.letra}" data-acc="elegirOpcion(${it.id},${x.k})">Elegir esta</button>
+      ${x.abierta?'':`<button type="button" class="btn btn-gho op-ed" data-foco="op-ed-${it.id}-${x.k}" aria-label="Editar la opción ${x.letra}" data-acc="abrirOpcion(${it.id},${x.k})">Editar</button>`}
+      <button type="button" class="op-quita" data-foco="op-quita-${it.id}-${x.k}" aria-label="Quitar la opción ${x.letra}" title="Quitar la opción ${x.letra}" data-acc="quitarOpcion(${it.id},${x.k})"><span aria-hidden="true">×</span></button>
     </div>`)
     +`</article>`;
 }
@@ -2212,7 +2212,7 @@ function opcionesHTML(it,v){
   return `<section class="opciones" id="opciones-${it.id}" aria-labelledby="oph-${it.id}">
     <div class="op-barra">
       <h3 class="op-h" id="oph-${it.id}">Propuesta con ${v.length} opciones</h3>
-      ${(!bloq&&v.length<OPC_MAX)?`<button type="button" class="op-mas" data-foco="op-mas-${it.id}" onclick="agregarOpcion(${it.id})">+ Otra opción</button>`:''}
+      ${(!bloq&&v.length<OPC_MAX)?`<button type="button" class="op-mas" data-foco="op-mas-${it.id}" data-acc="agregarOpcion(${it.id})">+ Otra opción</button>`:''}
     </div>
     <div class="opciones-rej">${v.map(x=>_opCardHTML(it,x,v,bloq)).join('')}<span class="resalte-mos" aria-hidden="true"></span></div>
     <p class="op-nota">${Q.iva?'Importes antes de I.V.A.':'Importes sin I.V.A.'} El total de la cotización suma solo la opción abierta; al elegir una, las demás se descartan.</p>
@@ -2223,7 +2223,7 @@ function opcionesHTML(it,v){
    comparar, y con el candado puesto no se puede proponer. */
 function _opPieHTML(it){
   if(capturaBloqueada()||itemVacio(it)) return '';
-  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" onclick="proponerOpciones(${it.id})">Proponer otra opción</button><small>El mismo trabajo en otro material o tipo, lado a lado.</small></div>`;
+  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" data-acc="proponerOpciones(${it.id})">Proponer otra opción</button><small>El mismo trabajo en otro material o tipo, lado a lado.</small></div>`;
 }
 /* Lo que renderItems() pone dentro del cuerpo de la partida. */
 function cuerpoConOpciones(it){
@@ -2350,3 +2350,21 @@ function opcionesParaPdf(it){
   return buenas.length>=2?{n:v.length,opciones:buenas}:null;
 }
 /* ===================== fin de la propuesta con opciones ===================== */
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirOpcion','agregarOpcion','agregarPartida','clearAiFile','closeLightbox',
+  'delItem','dupItem','duplicarUltima','elegirOpcion','empezarConTipo','guardarCambiosEdicion',
+  'irAPendiente','irAlCandado','moverPartida','openAiFile','proponerOpciones','quitarOpcion',
+  'setItem','setShowInPdf','setTipo','toggleEditMode','toggleItemAuth','togglePartida',
+  'togglePlegarTodas']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  typeItem:(el,ev,id,k)=>typeItem(id,k,el.value),
+  typeNum:(el,ev,id,k)=>{ if(el.validity.badInput) return; typeItem(id,k,+el.value); },
+  saneaNum:(el,ev,...a)=>saneaNum(el,...a),
+  autoContarLetras:(el,ev,id)=>autoContarLetras(id,el.value),
+  abrirDesdeResumen:(el,ev,id)=>abrirDesdeResumen(id,ev),
+  updItemAuth:(el,ev,id)=>updItemAuth(id,el.value.length?+el.value:undefined)
+});

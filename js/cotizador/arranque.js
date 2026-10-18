@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -89,8 +89,14 @@ function init(){
   ajustarPliegue();
   aplicarBlurPrecios();
   /* En #items y no en cada partida: renderItems reescribe su contenido entero en cada
-     repintado, así que un oyente colgado de una partida se iría con ella. */
-  const _items=$('items'); if(_items) _items.addEventListener('click',_candTocarPartida);
+     repintado, así que un oyente colgado de una partida se iría con ella.
+     Y oído en el documento, no en #items: los botones de la partida ya no son onclick que
+     corren en el elemento sino data-acc que reparte el documento (nucleo.js), y colgado de
+     #items este aviso pasaba a correr ANTES que el botón tocado. Puesto aquí, después de que
+     nucleo.js puso su oyente, corre después, como siempre. */
+  document.addEventListener('click',e=>{
+    if(e.target&&e.target.closest&&e.target.closest('#items')) _candTocarPartida(e);
+  });
   /* La pantalla se deduce de lo que hay: con los tres datos puestos se estaba cotizando y se
      abre en partidas; sin ellos, en cliente. Va al final, cuando Q ya está cargado. */
   _pantalla=pantallaSegunDatos(); pintarPantalla();

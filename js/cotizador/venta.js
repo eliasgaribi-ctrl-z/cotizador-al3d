@@ -6,9 +6,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -498,7 +498,7 @@ function rvRecordarPreferencias(){
    al 100 % y se queda ahí esperando es peor que ninguna.
 
    El reintento sale del propio marcado: en «mal» el botón vuelve a aceptar toques y su
-   `onclick="registrarGanada()"` corre otra vez, que es el camino correcto —vuelve a pasar por la
+   `data-acc="registrarGanada()"` corre otra vez, que es el camino correcto —vuelve a pasar por la
    constancia local y por la deduplicación por folio—.
 
    «Copiar datos para la hoja» espera con él (`hermanos`): es el respaldo para cuando el puente
@@ -627,3 +627,9 @@ function _copiaManual(txt,cb){
   }catch(e){ toast('No se pudo copiar en este navegador','err',3000); }
 }
 
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirRegistrarVenta','cerrarRegistrarVenta','copiarDatosVenta',
+  'registrarGanada','rvRecalc']);

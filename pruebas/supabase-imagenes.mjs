@@ -452,7 +452,7 @@ try {
         indexedDB: { open: (n, v) => { abiertas.push(n); return idb.open(n, v); } },
         fetch: async u => { red.push(String(u)); throw new TypeError('Failed to fetch'); },
         Image: class { set src(v) { this._s = v; setTimeout(() => { this.naturalWidth = 40; this.naturalHeight = 30; if (this.onload) this.onload(); }, 0); } },
-        toast() {}, saveState() {}, guardarEnHistorial() {}, getHistorial: () => [], $: () => null, ico: () => '', urlImagenSegura: u => u,
+        toast() {}, saveState() {}, guardarEnHistorial() {}, accionesDirectas() {}, getHistorial: () => [], $: () => null, ico: () => '', urlImagenSegura: u => u,
         Q: { items: [{ id: 1, plano: 'img-esta' }], renders: ['img-falta'], propuesta: [], estado: 'autorizada' },
       });
       vm.runInContext('globalThis.window = globalThis; globalThis.parent = globalThis; globalThis.repintados = 0; globalThis.renderItems = () => { repintados++; };', ctx);

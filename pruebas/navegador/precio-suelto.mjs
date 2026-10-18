@@ -132,7 +132,7 @@ console.log('\nLA AUTORIZACIÓN SUELTA SE VE EN TODAS PARTES, Y TIENE CÓMO CERR
 await p.evaluate(()=>guardarCambiosEdicion()); await p.waitForTimeout(400);
 const vista = await p.evaluate(()=>({
   nota:[...document.querySelectorAll('#authbox .authnote')].map(e=>e.textContent.trim()).join(' | '),
-  boton:!!document.querySelector('#authbox .btn-pri[onclick="reautorizar()"]'),
+  boton:!!document.querySelector('#authbox .btn-pri[data-acc="reautorizar()"]'),
   pdfSinRelleno:!document.querySelector('#entrega .btn-pri'),
   sig:(siguientePaso()||{}).txt, tab3:document.getElementById('tab-3').className,
   mbar:document.getElementById('mbar').innerText, cand:document.getElementById('cand-partidas-txt').textContent,
@@ -152,7 +152,7 @@ vista.pdfSinRelleno ? bien('mientras, ningún hito de la entrega lleva relleno: 
 
 // ── 4. Cancelar la revisión reabierta no deja un borrador ────────────────────
 console.log('\nVOLVER A AUTORIZAR: cancelar devuelve la autorizada que era');
-await p.click('#authbox .btn-pri[onclick="reautorizar()"]'); await p.waitForTimeout(600);
+await p.click('#authbox .btn-pri[data-acc="reautorizar()"]'); await p.waitForTimeout(600);
 let rev = await p.evaluate(()=>({estado:Q.estado, self:_selfAuth, campo:document.getElementById('a-precio')&&document.getElementById('a-precio').value, cola:getQueue().length}));
 (rev.estado==='pendiente' && rev.self && rev.cola===1)
   ? bien('se abre la revisión por el camino de siempre: pendiente, en la cola, autorizándote tú mismo')
@@ -176,7 +176,7 @@ await p.fill('#a-precio','20000'); await p.waitForTimeout(200);
 await p.evaluate(()=>autorizar()); await p.waitForTimeout(800);
 const fin = await p.evaluate(()=>({folio:Q.folio, estado:Q.estado, suelta:autorizacionSuelta(), vigente:authVigente(), pa:Q.precioAuth, pf:precioFinal(),
   cola:getQueue().length, hist:JSON.parse(localStorage.getItem('al3d_historial')||'[]').map(e=>({f:e.folio,pa:e.precioAuth})),
-  sig:(siguientePaso()||{}).txt, tab3:document.getElementById('tab-3').className, boton:!!document.querySelector('#authbox .btn-pri[onclick="reautorizar()"]')}));
+  sig:(siguientePaso()||{}).txt, tab3:document.getElementById('tab-3').className, boton:!!document.querySelector('#authbox .btn-pri[data-acc="reautorizar()"]')}));
 (fin.folio===folio && fin.estado==='autorizada' && !fin.suelta && fin.vigente && Math.abs(fin.pa-23200)<0.01 && Math.abs(fin.pf-23200)<0.01)
   ? bien('autorizada otra vez sobre '+folio+': $20,000 + IVA = $23,200, con la huella puesta')
   : mal('tras volver a autorizar quedó '+JSON.stringify(fin));
@@ -186,7 +186,7 @@ const fin = await p.evaluate(()=>({folio:Q.folio, estado:Q.estado, suelta:autori
 /PDF/.test(fin.sig) && /hecho/.test(fin.tab3) && !fin.boton
   ? bien('lo que sigue vuelve a ser el PDF, la pestaña 3 recupera su palomita y el botón con relleno se va')
   : mal('«qué sigue» = «'+fin.sig+'», pestaña 3 = '+fin.tab3+', botón = '+fin.boton);
-const ghost = await p.$('#authbox .btn-gho[onclick="reautorizar()"]');
+const ghost = await p.$('#authbox .btn-gho[data-acc="reautorizar()"]');
 ghost ? bien('y queda, sin relleno, «Volver a autorizar el precio» junto a «Editar partidas», para el cliente que regatea después del PDF')
       : mal('con la autorización vigente no queda manera de volver a autorizar');
 
@@ -198,7 +198,7 @@ await p.fill('#h-1','50'); await p.waitForTimeout(300);
 await p.evaluate(()=>guardarCambiosEdicion()); await p.waitForTimeout(300);
 await p.evaluate(()=>nueva()); await p.waitForTimeout(400);
 await p.evaluate(f=>{ _histData=getHistorial(); reabrirDeHistorial(f); }, folio); await p.waitForTimeout(500);
-const re = await p.evaluate(()=>({folio:Q.folio, estado:Q.estado, suelta:autorizacionSuelta(), boton:!!document.querySelector('#authbox .btn-pri[onclick="reautorizar()"]')}));
+const re = await p.evaluate(()=>({folio:Q.folio, estado:Q.estado, suelta:autorizacionSuelta(), boton:!!document.querySelector('#authbox .btn-pri[data-acc="reautorizar()"]')}));
 (re.folio===folio && re.estado==='autorizada' && re.suelta && re.boton)
   ? bien('la que se guardó suelta abre suelta, con su botón: sellarla al abrir escondía que el precio es el calculado')
   : mal('al reabrir quedó '+JSON.stringify(re));

@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -619,8 +619,9 @@ function scCablearPiezas(){
   if(_scCableado)return;
   _scCableado=true;
   /* Todo lo que este archivo suma al modal se engancha AQUÍ, con addEventListener y no con
-     atributos en el marcado: cotizador.html lleva contados sus manejadores en línea y cada
-     `onclick` nuevo movía esa cuenta, que la documentación afirma. */
+     atributos en el marcado. Nació para no mover la cuenta de manejadores en línea que la
+     documentación afirmaba; desde M6 (octubre de 2026) ya no hay ninguno: un botón nuevo del
+     marcado va con data-acc (ver nucleo.js) o, como estos, con su oyente. */
   /* H12 · las dos salidas del recuadro cuando el PDF falla. */
   const mal=$('sc-overlay-mal');
   if(mal)mal.addEventListener('click',e=>{
@@ -1674,9 +1675,8 @@ function scPintarRefRapidos(){
        navegador fabrica con Enter o Espacio, y 1 o más con el dedo o el ratón. */
     grupo.addEventListener('click',e=>{ _scRefPorToque=e.detail>0; setTimeout(()=>{ _scRefPorToque=false; },0); },true);
     _scRefOpc=Piezas.opcionesDeslizantes(grupo,{alCambiar:scRefRapidoElegido});
-    /* El campo manda: teclear otra cifra desmarca la opción. Va con addEventListener y no con
-       un oninput en el marcado para no mover la cuenta de manejadores en línea que la
-       documentación afirma sobre cotizador.html. */
+    /* El campo manda: teclear otra cifra desmarca la opción. Va con addEventListener, como todo
+       lo que se cablea en este bloque (ver el comentario de scCablearPiezas). */
     $('sc-ref-cm-input').addEventListener('input',scRefSincronizar);
     scRefArrastrable();
   }
@@ -1950,7 +1950,7 @@ function scUpdateGuideList(){
     return `<div class="sp-gitem">
       <span class="ico" aria-hidden="true">${g.type==='h'?ico('i-horiz'):ico('i-vert')}</span>
       <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'} ${n}</span>
-      <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía" aria-label="Quitar la guía ${g.type==='h'?'horizontal':'vertical'} ${n}"><span aria-hidden="true">×</span></button>
+      <button class="sp-ibtn" data-acc="scDelGuide(${g.id})" title="Quitar guía" aria-label="Quitar la guía ${g.type==='h'?'horizontal':'vertical'} ${n}"><span aria-hidden="true">×</span></button>
     </div>`;
   }).join('');
 }
@@ -1978,19 +1978,19 @@ function scMedidaCaraHTML(m,i){
      usado— decide si este renglón enseña el segundo botón. Ver scParDeArea. */
   const par=scParDeArea(i);
   const palomita=window.Piezas?Piezas.palomitaHTML({dibujar:_scUsadasNuevas.has(m.id)}):'';
-  return `<div class="sp-mitem${m.id===SC.sel?' sel':''}" style="border-left-color:${m.color}" onclick="scTocarMedida(${m.id})">
+  return `<div class="sp-mitem${m.id===SC.sel?' sel':''}" style="border-left-color:${m.color}" data-acc="scTocarMedida(${m.id})">
       <div style="flex:1;min-width:0">
         <div class="sp-mitem-n" aria-hidden="true">${i+1}</div>
         <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
         <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}" aria-label="Nombre de la medida ${i+1}"
-          onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
+          data-acc="parar" data-al-escribir="scSetLabel(${m.id})">
         <button class="sp-mitem-add${m.usada?' done':''}"
-          onclick="event.stopPropagation();scUsarMedida(${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?palomita+' Agregada · agregar otra vez':'→ Agregar como partida'}</button>
+          data-acc="aparte('scUsarMedida',${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?palomita+' Agregada · agregar otra vez':'→ Agregar como partida'}</button>
         ${par?`<button class="sp-mitem-add par"
-          onclick="event.stopPropagation();scUsarPar(${m.id})" aria-label="Unir con la medida ${i} de ${scFmtCm(par.cm)} cm en una sola partida de ancho por alto">${ico('i-ajustar')} Ancho × alto con la ${i}</button>`:''}
+          data-acc="aparte('scUsarPar',${m.id})" aria-label="Unir con la medida ${i} de ${scFmtCm(par.cm)} cm en una sola partida de ancho por alto">${ico('i-ajustar')} Ancho × alto con la ${i}</button>`:''}
       </div>
       <div class="sp-mitem-actions">
-        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
+        <button class="sp-ibtn" data-acc="aparte('scDelMedida',${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
       </div>
     </div>`;
 }
@@ -2005,7 +2005,7 @@ function scMedidaFilaHTML(m,i){
     clase:'sp-mfila',
     attrs:'data-clave="'+m.id+'"',
     cara:scMedidaCaraHTML(m,i),
-    acciones:[{texto:'Borrar',peligro:true,attrs:'onclick="scDelMedida('+m.id+')"'}],
+    acciones:[{texto:'Borrar',peligro:true,attrs:'data-acc="scDelMedida('+m.id+')"'}],
   });
 }
 /* Lleva un elemento —el renglón de una medida, la sección del letrero— a la vista moviendo
@@ -2668,13 +2668,13 @@ function renderScalerPreview(){
   if(!SC.img){el.innerHTML='';return;}
   const n=SC.items.length,collapsed=!!SC.previewCollapsed;
   el.innerHTML=`<div class="sc-prev-box">
-    <div class="sc-prev-head" onclick="toggleScalerPreview()" role="button" tabindex="0" aria-expanded="${!collapsed}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+    <div class="sc-prev-head" data-acc="toggleScalerPreview()" role="button" tabindex="0" aria-expanded="${!collapsed}" data-tecla-clic>
       <span class="ttl">${ico('i-escalar')} Imagen del escalador · ${n} ${n===1?'medida':'medidas'}</span>
       <span class="chev">${collapsed?'▾ ver':'▴ ocultar'}</span>
     </div>
-    ${collapsed?'':`<canvas id="sc-mini-cvs" class="sc-prev-img" onclick="abrirScaler()" title="Clic para volver al escalador y seguir midiendo"></canvas>
+    ${collapsed?'':`<canvas id="sc-mini-cvs" class="sc-prev-img" data-acc="abrirScaler()" title="Clic para volver al escalador y seguir midiendo"></canvas>
     <div class="sub">Compárala con tus partidas · clic en la imagen para volver al escalador</div>`}
-    ${n&&!locked()?`<button class="sc-prev-ia" onclick="scCotizarConIA()">${ico('i-ia')} Cotizar ${n===1?'esta medida':`estas ${n} medidas`} con IA</button>`:''}
+    ${n&&!locked()?`<button class="sc-prev-ia" data-acc="scCotizarConIA()">${ico('i-ia')} Cotizar ${n===1?'esta medida':`estas ${n} medidas`} con IA</button>`:''}
   </div>`;
   if(!collapsed)scPaintMiniPreview();
 }
@@ -2714,3 +2714,41 @@ function scFmtCm(cm){return Number(cm).toFixed(1).replace(/\.0$/,'');}
 function scEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function scDist(a,b){return Math.hypot(b.x-a.x,b.y-a.y);}
 
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirScaler','cerrarScaler','scAddGuide','scClearGuides','scConfirmCalib',
+  'scCotasCiclo','scCotizarConIA','scDelGuide','scDelMedida','scExportImg','scResetCalib',
+  'scSetCotas','scSetMeasMode','scSetMode','scTocarMedida','scUsarMedida','scUsarPar',
+  'scUsarTodas','scZoomBy','scZoomReset','toggleScalerPreview','usarImagenAIEnScaler']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  toggleSnapGuias:(el,ev)=>toggleSnapGuias(ev),
+  cargarImagenScaler:el=>cargarImagenScaler(el),
+  scSetLabel:(el,ev,id)=>scSetLabel(id,el.value),
+  scZoomMenos:()=>scZoomBy(1/1.5)
+});
+/* El lienzo y su zona de soltar se cuelgan directo, no por data-acc: un touchmove oído en el
+   documento es pasivo por omisión y el preventDefault de scMove ya no frenaría el desplazamiento
+   de la página bajo el dedo, y mouseleave no sube. Eran ocho onmouse…/ontouch… y tres ondrag…
+   escritos en cotizador.html. */
+(function(){
+  const area=$('sp-canvas-area'), c=$('scalerCanvas');
+  if(area){
+    area.addEventListener('drop',scOnDrop);
+    area.addEventListener('dragover',e=>{ e.preventDefault(); area.style.outline='3px dashed var(--brand)'; });
+    area.addEventListener('dragleave',()=>{ area.style.outline=''; });
+  }
+  if(c){
+    const activo={passive:false};
+    c.addEventListener('mousedown',scDown);
+    c.addEventListener('mousemove',scMove);
+    c.addEventListener('mouseup',scUp);
+    c.addEventListener('mouseleave',scLeave);
+    c.addEventListener('touchstart',scDown,activo);
+    c.addEventListener('touchmove',scMove,activo);
+    c.addEventListener('touchend',scUp,activo);
+    c.addEventListener('touchcancel',scUp,activo);
+  }
+})();

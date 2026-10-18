@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -653,7 +653,7 @@ function histEntradaHTML(e,q,ahora){
   const P=window.Piezas, dsc=histDsc, R=t=>P.resaltar(t,q);
   const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
   const imgHTML=isImg
-    ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" loading="lazy" decoding="async" ${_ABRIBLE} onclick="openHistImg(${jsArg(e.folio)},this)" title="Ver imagen completa" alt="Referencia">`
+    ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" loading="lazy" decoding="async" ${_ABRIBLE} data-acc="openHistImg(${jsArg(e.folio)})" title="Ver imagen completa" alt="Referencia">`
     : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
   const items=e.items||[];
   const rows=items.map((it,i)=>{
@@ -687,8 +687,8 @@ function histEntradaHTML(e,q,ahora){
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${R(e.autorizador||'—')} · ${R(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
-            <button class="hentry-open" onclick="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
+            <button class="hentry-open" data-acc="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
+            <button class="hentry-open" data-acc="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
             <button type="button" class="hentry-del" title="Eliminar: mantén presionado" aria-label="Eliminar cotización">${ico('i-basura')}</button>
             <span class="hentry-pista" aria-hidden="true"></span>
           </div>
@@ -1219,7 +1219,7 @@ function pintarCuadernos(volver){
          explica por qué este cliente salió con otro nombre. */
       const alias=g.alias.length?(qf&&g.alias.find(a=>pl(a).includes(qf))||g.alias[0]):'';
       const sub=[g.tel?R(g.tel):'', alias?'también «'+R(alias)+'»':''].filter(Boolean).join(' · ');
-      return `<button class="cua-card" onclick="abrirCuaderno(${jsArg(g.clave)})" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+      return `<button class="cua-card" data-acc="abrirCuaderno(${jsArg(g.clave)})" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
         <span class="cua-ini" data-clave="${esc(g.clave)}" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
           <span class="cua-nombre">${R(cuaTitulo(g))}</span>
@@ -1235,8 +1235,8 @@ function pintarCuadernos(volver){
   }
   $('cua-body').innerHTML=html;
   $('cua-foot').innerHTML=
-    `<button onclick="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
-     <button onclick="deLosClientesAlHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
+    `<button data-acc="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
+     <button data-acc="deLosClientesAlHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
      <p class="foot-nota">Los cuadernos se arman solos con las cotizaciones autorizadas. Todo vive en este dispositivo: respalda desde el historial.</p>`;
   /* Al volver de un cuaderno, la lista queda donde estaba: sin esto regresaba arriba del todo y
      había que volver a bajar hasta el cliente que se acababa de ver. */
@@ -1298,8 +1298,8 @@ function pintarDetalleCuaderno(clave){
       </div>
       <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
       <div class="cua-cot-acts">
-        <button onclick="cuaAbrirCot(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
-        <button onclick="cuaDuplicarCot(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+        <button data-acc="cuaAbrirCot(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button data-acc="cuaDuplicarCot(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
       </div>
     </div>`).join('');
   const datos=[
@@ -1308,7 +1308,7 @@ function pintarDetalleCuaderno(clave){
   ].filter(Boolean).join('<br>');
   $('cua-body').innerHTML=`
     <div class="cua-det-head">
-      <button class="cua-volver" onclick="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
+      <button class="cua-volver" data-acc="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
       <div class="cua-det-fila">
         <span class="cua-ini" data-clave="${esc(g.clave)}" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
@@ -1316,9 +1316,9 @@ function pintarDetalleCuaderno(clave){
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
-        <button onclick="cuaNuevaCotizacion(${jsArg(g.clave)})" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
-        ${g.tel?`<button onclick="cuaWhatsApp(${jsArg(g.clave)})" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
-        <button onclick="cuaCSV(${jsArg(g.clave)})" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+        <button data-acc="cuaNuevaCotizacion(${jsArg(g.clave)})" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
+        ${g.tel?`<button data-acc="cuaWhatsApp(${jsArg(g.clave)})" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        <button data-acc="cuaCSV(${jsArg(g.clave)})" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
       </div>
     </div>
     <div class="cua-cifras">
@@ -1328,7 +1328,7 @@ function pintarDetalleCuaderno(clave){
     </div>
     <div class="cua-nota-wrap">
       <label for="cua-nota">Nota del cuaderno</label>
-      <textarea id="cua-nota" maxlength="${CUA_NOTA_MAX}" placeholder="Lo que no cabe en una cotización — cómo paga, con quién se habla, qué quedó pendiente." oninput="cuaNotaEscrita()">${esc(notaCuaderno(g))}</textarea>
+      <textarea id="cua-nota" maxlength="${CUA_NOTA_MAX}" placeholder="Lo que no cabe en una cotización — cómo paga, con quién se habla, qué quedó pendiente." data-al-escribir="cuaNotaEscrita()">${esc(notaCuaderno(g))}</textarea>
       <div class="cua-nota-estado" id="cua-nota-estado"><span class="cua-nota-txt">Se guarda sola en este dispositivo.</span></div>
     </div>
     <div class="cua-cots-tit">Cotizaciones autorizadas</div>
@@ -1340,7 +1340,7 @@ function pintarDetalleCuaderno(clave){
   if(P&&P.rodarCifra) $('cua-body').querySelectorAll('.cua-cifra b[data-cifra]').forEach(b=>
     P.rodarCifra(b,b.textContent,{clave:'cua:'+g.clave+':'+b.getAttribute('data-cifra')}));
   $('cua-foot').innerHTML=
-    `<button onclick="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
+    `<button data-acc="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
      <p class="foot-nota">La primera fue el ${esc(cuaFecha(g.cots[g.cots.length-1]))||'—'}; la última, el ${esc(cuaFecha(g.cots[0]))||'—'}.</p>`;
   $('cua-body').scrollTop=0;
 }
@@ -1870,8 +1870,8 @@ function ofrecerRestauracionPendiente(){
   card.innerHTML='<p class="cp-txt"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> <b>La plataforma dejó un respaldo completo'+(fecha?' del '+esc(fecha):'')+'</b>'
     +(cuantas?' con '+esc(cuantas)+(cuantas===1?' cotización':' cotizaciones'):'')+', esperando la parte del cotizador. Restaurar reemplaza lo que hay aquí; antes se descarga una copia de lo actual.</p>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
-    +'<button type="button" class="btn btn-ok" style="width:auto;padding:0 16px" onclick="restaurarPendiente()">Restaurar ahora</button>'
-    +'<button type="button" class="btn btn-gho" style="width:auto;padding:0 16px" onclick="ocultarRestauracionPendiente()">Ahora no</button></div>';
+    +'<button type="button" class="btn btn-ok" style="width:auto;padding:0 16px" data-acc="restaurarPendiente()">Restaurar ahora</button>'
+    +'<button type="button" class="btn btn-gho" style="width:auto;padding:0 16px" data-acc="ocultarRestauracionPendiente()">Ahora no</button></div>';
   main.insertBefore(card,main.firstChild);
 }
 function restaurarPendiente(){
@@ -2620,3 +2620,17 @@ function pintarFolio(){
     : 'Folio provisional — el contador solo avanza cuando la cotización se autoriza';
 }
 
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirCuaderno','abrirCuadernos','abrirHistorial','cerrarCuadernos',
+  'cerrarHistorial','cuaAbrirCot','cuaCSV','cuaDuplicarCot','cuaNotaEscrita','cuaNuevaCotizacion',
+  'cuaWhatsApp','deshacer','exportarClientesCSV','exportarHistorialCSV','loadQueueEntry',
+  'ocultarRestauracionPendiente','pedirRestaurar','pintarCuadernos','pintarHistorialPronto',
+  'reabrirDeHistorial','respaldar','restaurarPendiente','setPlazo','usarComoBase',
+  'volverALosClientes']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  openHistImg:(el,ev,folio)=>openHistImg(folio,el)
+});

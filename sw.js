@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 131;
+const APP_VERSION = 132;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -72,6 +72,7 @@ const APP_FILES = [
   './privacidad.html',
   './condiciones.html',
   './verificar.html',
+  './js/verificar.js',  // su guion: vivía en línea, ver la cabecera del archivo
   './css/publico.css',
   './js/tema.js',
   /* Las piezas compartidas: las cargan el cotizador, la plataforma, el anidador y verificar. */

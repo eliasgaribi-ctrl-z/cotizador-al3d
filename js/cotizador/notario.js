@@ -485,7 +485,7 @@ function remotasHTML(){
     /* `data-clave` es la identidad del renglón para listaViva (C22): el folio con su aparato, que no
        se repite entre teléfonos. Con ella lo que llega entra marcado «nueva» y lo que se va se
        pliega, en vez de repintar la lista entera sin que nada distinga la solicitud recién llegada. */
-    return `<div class="queue-item remota" data-clave="${esc(s.folio)}" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" onclick="abrirRevisionRemota(${jsArg(s.folio)})">
+    return `<div class="queue-item remota" data-clave="${esc(s.folio)}" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" data-acc="abrirRevisionRemota(${jsArg(s.folio)})">
       <span class="qi-dot"></span>
       <div class="qi-body">
         <div class="qi-folio">${esc(String(s.folio).split('@')[0])} <span class="qi-remota">otro teléfono</span></div>
@@ -573,7 +573,7 @@ function abrirRevisionRemota(folio){
     +items.map((it,i)=>{
       const calc=lineTotal(it);
       return `<div class="ia-row"><label class="ia-hdr" for="rem-ia-${i}"><span class="ia-num">${i+1}</span><span class="ia-desc">${esc(it.desc||TIPO_NOMBRE[it.tipo]||'Partida')}</span><span class="ia-calc">${money(calc)}</span></label>`
-        +`<div class="ia-body"><div class="inp-money"><input id="rem-ia-${i}" type="number" inputmode="decimal" min="0" step="50" value="${+(+calc).toFixed(2)}" aria-label="Precio autorizado de la partida ${i+1}${c.iva?', sin IVA':''} · calculado ${money(calc)}" aria-describedby="rem-ia-adj-${i}" oninput="remotaPartida(${i},this.value)"></div>`
+        +`<div class="ia-body"><div class="inp-money"><input id="rem-ia-${i}" type="number" inputmode="decimal" min="0" step="50" value="${+(+calc).toFixed(2)}" aria-label="Precio autorizado de la partida ${i+1}${c.iva?', sin IVA':''} · calculado ${money(calc)}" aria-describedby="rem-ia-adj-${i}" data-al-escribir="remotaPartida(${i})"></div>`
         +`<div class="ia-adj" id="rem-ia-adj-${i}"></div></div></div>`;
     }).join('')
     +`<div class="ia-total"><span>${c.iva?'Subtotal calculado':'Total calculado'}</span><span>${money(sub)}</span></div>`
@@ -750,3 +750,13 @@ function vibrar(patron){
   try{ if(navigator.userActivation&&!navigator.userActivation.hasBeenActive) return; }catch(_){}
   try{ if(navigator.vibrate) navigator.vibrate(patron); }catch(_){}
 }
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['abrirRevisionRemota','autorizarRemota','cerrarRevisionRemota',
+  'enviarSolicitud','pintarRemotaNeto','rechazarRemota']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  remotaPartida:(el,ev,i)=>remotaPartida(i,el.value)
+});

@@ -285,8 +285,8 @@ cuenta. En el teléfono la barra de abajo lleva Tablero · Calendario · Proyect
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 156 manejadores en línea del marcado dependen de eso, y portarlos a
-módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
+eran un solo `<script>`: las 149 acciones que el marcado nombra (`data-acc`) se buscan por su
+nombre en ese ámbito, y portarlos a módulos ES las dejaría mudas sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
 ## Qué está cerrado y qué no
@@ -384,13 +384,13 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento treinta y ocho archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento treinta y nueve archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
 Si cambia el catálogo de precios (`js/cotizador/catalogo.js`), hay que regenerar su copia para la
 plataforma con `herramientas/extraer-catalogo.sh`. Si `pruebas/publicacion.mjs` dice que las
-cifras de la documentación se quedaron atrás (los manejadores en línea del cotizador), las pone
+cifras de la documentación se quedaron atrás (las acciones con nombre del cotizador), las pone
 al día `node herramientas/recontar.mjs`.
 
 ## Pruebas

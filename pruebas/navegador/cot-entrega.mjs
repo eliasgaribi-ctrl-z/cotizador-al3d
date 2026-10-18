@@ -293,7 +293,7 @@ async function ronda(R, indice) {
   /* ============================== 5 · COPIAR PARA CANVA Y GEMINI (H18) ============================== */
   console.log('\n  — copiar confirma en el mismo botón —');
   await ev(() => { const d = document.querySelector('details.otras-salidas'); if (d) d.open = true; });
-  for (const [sel, dice] of [['button[onclick="copiarParaCanva()"]', 'Canva'], ['button[onclick="copiarParaGemini()"]', 'Gemini']]) {
+  for (const [sel, dice] of [['button[data-acc="copiarParaCanva()"]', 'Canva'], ['button[data-acc="copiarParaGemini()"]', 'Gemini']]) {
     const s = 'details.otras-salidas ' + sel;
     const rotuloAntes = await ev(s => document.querySelector(s).textContent.trim().replace(/\s+/g, ' '), s);
     await p.tap(s); await p.waitForTimeout(350);

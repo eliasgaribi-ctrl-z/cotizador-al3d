@@ -23,6 +23,7 @@ consistente y todo lo que se escribe en la hoja va protegido contra fórmulas.
 | M4 | Si `arrancar()` lanzaba después de la puerta, quedaba un rechazo sin manejar y ocho segundos de esqueleto girando | `js/app.js`: el aviso con «Recargar» sale en cuanto falla |
 | M5 | `fetch` sin tope: Nominatim corre en una cola en serie y una petición colgada frenaba todas las búsquedas siguientes; Calendar y `userinfo` igual | `conTope()` (`AbortSignal.timeout`) en `geo.js` (12 s), `gcal.js` (30 s) e `ingreso.js` (10 s). En `pedir()` del puente el reloj ahora cubre también la lectura del cuerpo |
 | M8 | Publicar sin subir `APP_VERSION` deja los teléfonos instalados con el código viejo (el service worker sirve caché primero) | `pruebas/publicacion.mjs` falla si cambió un archivo de `APP_FILES` y la versión no subió; CI baja la historia para poder comparar |
+| M6 | El CSP del cotizador permitía `script-src 'unsafe-inline'` y todo cdnjs; comparte origen con la plataforma, y los tokens de Google y del puente viven en `localStorage`: un XSS futuro los habría alcanzado | Los ~290 manejadores en línea (marcado y plantillas) pasaron a `data-acc="accion(literales)"`, que un solo oyente por evento reparte contra una lista blanca y sin evaluar nada (`js/cotizador/nucleo.js`, «Los botones del marcado»). Los guiones en línea que quedan corren por huella sha256, también el del visor del PDF, que hereda la política. De cdnjs, solo los dos archivos de pdf.js 3.11.174. Igual en el anidador y en `verificar.html` (su guion pasó a `js/verificar.js`). Ninguna página conserva `'unsafe-inline'` en `script-src`. Prueba: `csp.mjs` y `defensas-del-cotizador.mjs` 5 |
 
 **Descartado (falso positivo):** «Registrar venta» desde un teléfono que entró solo con Google.
 `puenteCfg()` en `venta.js` exige token, pero sin él la venta queda en el buzón
@@ -33,7 +34,6 @@ Google; el aviso que se ve es el verde.
 
 | # | Sev. | Hallazgo | Dónde |
 |---|---|---|---|
-| M6 | Medio | El CSP del cotizador permite `script-src 'unsafe-inline'` y todo cdnjs; comparte origen con la plataforma y los tokens de Google y del puente viven en `localStorage`. Hoy no hay XSS, pero uno futuro los alcanzaría. Arreglo: los ~135 `onclick=` a delegación y pdf.js por ruta exacta | `cotizador.html:10`, `nucleo/ingreso.js` |
 | M7 | Medio | Tokens de dispositivo: uno por rol, compartido, sin caducidad. Un teléfono robado no se revoca solo | `hoja-apps-script.gs` (emisión de `PUENTE_TOKENS`) |
 | M9 | Medio | Las 45 pruebas de navegador (PDF, service worker) no corren en CI | `.github/workflows/pruebas.yml` |
 | B1 | Bajo | Un precio autorizado inalcanzable por subtotal × 1.16 (p. ej. 11,600.04) deja 1 centavo de saldo en la hoja | `historial.js`, `notario.js` |

@@ -6,8 +6,24 @@
      A la hoja y a nada más: desde septiembre de 2026 la IA también sale por ella, así que ni
      Qwen ni DeepSeek ni Gemini aparecen aquí. pdf.js viene de cdnjs y arma su worker desde un
      blob:; los PDF de referencia se enseñan en un <iframe> con data:. Ver la nota de
-     index.html y pruebas/csp.mjs. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+     index.html y pruebas/csp.mjs.
+
+     Sin 'unsafe-inline' en script-src desde octubre de 2026 (M6 de la auditoría técnica). Este
+     documento vive en el mismo origen que la plataforma, y ahí están en localStorage el token
+     de Google y el del puente: con 'unsafe-inline', un marcado que se colara en cualquier
+     innerHTML —un `<img onerror=…>` en un nombre de proyecto de un respaldo restaurado— era
+     código corriendo con esos tokens a la mano. Ahora:
+       · los botones nombran su acción con data-acc y un solo oyente la reparte (ver «Los
+         botones del marcado» en js/cotizador/nucleo.js): no queda ni un on…= en el marcado;
+       · los cuatro guiones en línea que siguen corren por su huella sha256: los tres de esta
+         página y el del visor del PDF, que se abre como blob: y hereda ESTA política (ver
+         GUION_VISOR en js/cotizador/entrega.js). Cambiarles un carácter sin rehacer su huella
+         los deja sin correr; pruebas/csp.mjs las recalcula y lo dice;
+       · de cdnjs, solo los dos archivos de pdf.js 3.11.174 que se piden con su SRI (el lector
+         y su worker, que pdf.js carga con importScripts desde el blob:), no todo cdnjs.
+     style-src sigue con 'unsafe-inline': los style="…" del marcado son cientos y un estilo
+     colado no ejecuta código. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-jVvb2MjgnsIInwyCz3IpK5r6CQQMJeY1ZIa1GNw5h1A=' 'sha256-hGsWu5S/PnMxgj0mM5R2/qJqB0d8yxFy+X5gK7itLwQ=' 'sha256-yFZNkOrIkPdwrJpr2c5mEPBxUtN8zM/cyJ2eaYQWLB0=' 'sha256-THiOcCRHnwqoX6vk2C/l5qVQJy0OJgOD5y9fU5QPUeE=' https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob: https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cotizador AL3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,7 +34,7 @@
      al terminar de bajar se pasa a all y la tipografía entra. La pila de reserva del body
      ya nombra Segoe UI, Roboto y Helvetica, así que mientras tanto se lee bien, y
      ajustarTopbarMovil() ya se re-ejecuta en document.fonts.ready. -->
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
 <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <!-- Los iconos son archivos, no dos data-URI de 15 KB pegados uno detrás del otro. El que
      había era el mismo string dos veces —31 KB en la cabecera de cada carga— sobre un lienzo
@@ -65,15 +81,7 @@
      No es una frontera de seguridad y no pretende serlo —los datos de este aparato están en su
      almacenamiento y quien lo tenga en la mano los lee—: es la misma cerradura de la casa que
      pone js/nucleo/puerta.js, puesta también en la otra puerta de la casa. -->
-<script>(function(){try{
-  if(parent!==window)return;
-  var h=location.hostname;
-  if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;
-  var p=null;
-  try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}
-  if(p&&p.correo&&Number(p.hasta)>Date.now())return;
-  location.replace('./#/cotizador');
-}catch(_){}})();</script>
+<script>(function(){try{if(parent!==window)return;var h=location.hostname;if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;var p=null;try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}if(p&&p.correo&&Number(p.hasta)>Date.now())return;location.replace('./#/cotizador');}catch(_){}})();</script>
 <!-- El tema, ANTES de la hoja: pone data-tema en <html> leyendo localStorage, para que una
      apertura en oscuro no parpadee en claro. -->
 <script src="js/tema.js"></script>
@@ -88,16 +96,19 @@
      cadena de consulta: así la página suelta se comporta BYTE POR BYTE como hoy —lo que
      mantiene verdes su manifiesto, el candado de pruebas/publicacion.mjs y la ruta sin señal
      del service worker, que resuelve el respaldo del cotizador SIN ignoreSearch—. Y va antes
-     que todo el marcado para que el CSS pinte ya con la clase puesta. -->
-<script>if(parent!==window)document.documentElement.classList.add('empotrado');
-/* ARRANCANDO. La página pinta su marcado antes de que corran los doce guiones del cotizador, y
-   ese marcado sin datos —el riel sin paso encendido, la tarjeta con los campos vacíos, la
-   columna del dinero sin importes— se veía unos cientos de milisegundos como si fuera la app.
-   Con esta clase puesta, css/sistema.css enseña un esqueleto en su lugar y esconde el
-   contenido hasta que init() la quita al final de arranque.js. Dos salidas de emergencia
-   para que nunca se quede pegada: un tope de ocho segundos y el primer error de script. */
-document.documentElement.classList.add('arrancando');
-(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
+     que todo el marcado para que el CSS pinte ya con la clase puesta.
+
+     ARRANCANDO. La página pinta su marcado antes de que corran los doce guiones del cotizador, y
+     ese marcado sin datos —el riel sin paso encendido, la tarjeta con los campos vacíos, la
+     columna del dinero sin importes— se veía unos cientos de milisegundos como si fuera la app.
+     Con esta clase puesta, css/sistema.css enseña un esqueleto en su lugar y esconde el
+     contenido hasta que init() la quita al final de arranque.js. Dos salidas de emergencia
+     para que nunca se quede pegada: un tope de ocho segundos y el primer error de script.
+
+     Va en UNA línea, como los dos guiones del <head>: corre por su huella sha256 en la política
+     (ver la nota de arriba de todo), y una huella de varias líneas cambiaría con el fin de línea
+     —Windows guarda CRLF en la copia de trabajo y el sitio publica LF—. -->
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');document.documentElement.classList.add('arrancando');(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
 <!-- Primer elemento del recorrido: con la barra de arriba entera por delante, llegar a
      las partidas con teclado o con VoiceOver costaba una docena de pasos. -->
 <a class="salto" href="#contenido">Saltar al contenido</a>
@@ -159,13 +170,13 @@ document.documentElement.classList.add('arrancando');
 <div class="topbar">
   <div class="topbar-in">
     <div class="brand" id="brandLogo">
-      <button type="button" class="logobtn" id="logoslot" onclick="pickLogo()" aria-label="Cambiar el logotipo de tu empresa" title="Clic para subir tu logotipo real (PNG o SVG)"><img class="logoimg" src="logo-al3d.svg" width="260" height="130" alt="AL3D"></button>
+      <button type="button" class="logobtn" id="logoslot" data-acc="pickLogo()" aria-label="Cambiar el logotipo de tu empresa" title="Clic para subir tu logotipo real (PNG o SVG)"><img class="logoimg" src="logo-al3d.svg" width="260" height="130" alt="AL3D"></button>
       <h1 class="t">Cotizador <small>Anuncios Luminosos 3D</small></h1>
     </div>
     <div class="rolewrap">
-      <button class="btn-hist btn-undo oculto" id="undobtn" data-tecla="Ctrl+Z" onclick="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
-      <button class="btn-hist" onclick="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
-      <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
+      <button class="btn-hist btn-undo oculto" id="undobtn" data-tecla="Ctrl+Z" data-acc="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
+      <button class="btn-hist" data-acc="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
+      <button class="btn-hist" data-acc="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
       <!-- El interruptor del tema. Empotrado se apaga (html.empotrado .btn-tema): el de la barra
            de la app manda, y los dos documentos se enteran del cambio por el evento storage. -->
       <button type="button" class="btn-hist btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
@@ -205,8 +216,8 @@ document.documentElement.classList.add('arrancando');
            que nada se pierde: la cotización se guarda aquí en cada tecla. -->
       <span class="isla" id="isla" role="status"><span class="isla-ic" aria-hidden="true"></span><span class="isla-t"></span></span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
-        <button class="on" aria-pressed="true" data-rol="vendedor" onclick="cambiarRol('vendedor')">Vendedor</button>
-        <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
+        <button class="on" aria-pressed="true" data-rol="vendedor" data-acc="cambiarRol('vendedor')">Vendedor</button>
+        <button aria-pressed="false" data-rol="autorizador" data-acc="cambiarRol('autorizador')">Autorizador</button>
       </div>
     </div>
   </div>
@@ -251,22 +262,22 @@ document.documentElement.classList.add('arrancando');
        documento que se entrega es el de esas mismas partidas. Tocarlos lleva a la columna
        donde se hacen; cuando todavía no toca, lo dicen. -->
   <nav class="pasos" id="pasos" aria-label="Pasos de la cotización">
-    <button type="button" class="paso-tab" id="tab-1" onclick="irAPaso(1)">
+    <button type="button" class="paso-tab" id="tab-1" data-acc="irAPaso(1)">
       <span class="n" id="tab-1-n" aria-hidden="true">1</span>
       <span class="tx">Cliente<small id="tab-1-sub"></small></span>
     </button>
     <span class="paso-flecha" aria-hidden="true">›</span>
-    <button type="button" class="paso-tab" id="tab-2" onclick="irAPaso(2)">
+    <button type="button" class="paso-tab" id="tab-2" data-acc="irAPaso(2)">
       <span class="n" id="tab-2-n" aria-hidden="true">2</span>
       <span class="tx">Partidas<small id="tab-2-sub"></small></span>
     </button>
     <span class="paso-flecha" aria-hidden="true">›</span>
-    <button type="button" class="paso-tab" id="tab-3" onclick="irAPaso(3)">
+    <button type="button" class="paso-tab" id="tab-3" data-acc="irAPaso(3)">
       <span class="n" id="tab-3-n" aria-hidden="true">3</span>
       <span class="tx">Precio<small id="tab-3-sub"></small></span>
     </button>
     <span class="paso-flecha" aria-hidden="true">›</span>
-    <button type="button" class="paso-tab" id="tab-4" onclick="irAPaso(4)">
+    <button type="button" class="paso-tab" id="tab-4" data-acc="irAPaso(4)">
       <span class="n" id="tab-4-n" aria-hidden="true">4</span>
       <span class="tx">Entrega<small id="tab-4-sub"></small></span>
     </button>
@@ -318,8 +329,8 @@ document.documentElement.classList.add('arrancando');
                arranque.js y le da el formato «33 1234 5678» y el contador del borde. El contador se come el
                final del texto de ejemplo en este campo angosto —«33 0000 0000» se leía «33 0000 000(»—,
                así que el ejemplo dice lo que se pide, «10 dígitos», y el formato lo enseña el campo al llenarse. -->
-          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="10 dígitos" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
-          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="cli-lista" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)">
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="10 dígitos" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" data-al-escribir="upd('tel')"></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="cli-lista" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" data-al-escribir="upd('cliente')">
             <!-- La lista de clientes que ya tienen cuaderno (C6). Sustituye al <datalist> nativo, que en
                  Android salía como una tira sobre el teclado, sin teléfono y sin decir cuál de dos
                  «Farmacia San Juan» era. Es un popover manual: va en la capa superior, así que no la
@@ -328,7 +339,7 @@ document.documentElement.classList.add('arrancando');
             <div class="combo-menu" id="cli-menu" popover="manual"><div class="combo-lista"><span class="combo-pil" aria-hidden="true"></span><div role="listbox" id="cli-lista" aria-label="Clientes con cuaderno"></div></div></div></div>
         </div>
         <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
-        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
+        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" data-al-escribir="upd('proy')">
           <!-- El asterisco de la etiqueta ya dice que es obligatorio, y el paso 2 lo dice otra
                vez —con los campos que falten por nombre— en el momento en que estorba. Un
                párrafo aquí era la tercera vez, y la única que nadie había pedido. Se queda
@@ -337,18 +348,18 @@ document.documentElement.classList.add('arrancando');
         </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
-          <textarea id="f-dir-raw" autocomplete="off" placeholder="Como te la mandaron — «Urban Center en López Mateos Sur»" rows="4" oninput="updDirRaw(this.value)"></textarea>
+          <textarea id="f-dir-raw" autocomplete="off" placeholder="Como te la mandaron — «Urban Center en López Mateos Sur»" rows="4" data-al-escribir="updDirRaw"></textarea>
           <div class="dir-raw-actions" id="dir-raw-actions" style="display:none">
-            <button class="btn-maps" onclick="abrirDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir en Maps</button>
-            <button class="btn-maps copy" onclick="copiarLinkDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar link</button>
+            <button class="btn-maps" data-acc="abrirDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir en Maps</button>
+            <button class="btn-maps copy" data-acc="copiarLinkDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar link</button>
           </div>
           <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Ábrelo para verificar la ubicación antes de compartirla.</div>
         </div>
         <div class="fld">
           <label for="f-maps">Ubicación · link de Google Maps</label>
           <div style="display:flex;gap:8px;align-items:stretch">
-            <input id="f-maps" autocomplete="off" placeholder="Pega el link de Maps" oninput="updMaps(this.value)" style="flex:1">
-            <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
+            <input id="f-maps" autocomplete="off" placeholder="Pega el link de Maps" data-al-escribir="updMaps" style="flex:1">
+            <button class="btn btn-gho" id="mapsbtn" data-acc="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
           </div>
           <div class="hintnote" id="maps-hint" style="margin-top:7px;display:none">Pega el link completo, empezando con <b>https://</b> — o escribe la dirección en el campo de arriba y usa «Abrir en Maps».</div>
         </div>
@@ -356,8 +367,8 @@ document.documentElement.classList.add('arrancando');
           <summary>Datos que salen en el PDF (opcional)</summary>
           <div style="margin-top:12px">
             <div class="grid2">
-              <div class="fld"><label for="f-entrecalles">Entre calles</label><input id="f-entrecalles" autocomplete="off" placeholder="Ej. entre Av. Vallarta y López Mateos" oninput="upd('entrecalles',this.value)"></div>
-              <div class="fld"><label for="f-entrega">Límite de fabricación</label><input id="f-entrega" autocomplete="off" placeholder="Ej. Viernes 15 de Agosto" oninput="upd('entrega',this.value)"></div>
+              <div class="fld"><label for="f-entrecalles">Entre calles</label><input id="f-entrecalles" autocomplete="off" placeholder="Ej. entre Av. Vallarta y López Mateos" data-al-escribir="upd('entrecalles')"></div>
+              <div class="fld"><label for="f-entrega">Límite de fabricación</label><input id="f-entrega" autocomplete="off" placeholder="Ej. Viernes 15 de Agosto" data-al-escribir="upd('entrega')"></div>
             </div>
             <!-- El plazo de taller, en cubos. El «Límite de fabricación» de arriba es lo que se le
                  dijo al cliente y se queda como texto: la plataforma tiene prohibido parsearlo,
@@ -372,7 +383,7 @@ document.documentElement.classList.add('arrancando');
             </div>
             <div class="fld" style="margin-bottom:0">
               <label for="f-nota-cli">Nota para el cliente</label>
-              <textarea id="f-nota-cli" rows="2" placeholder="El cliente debe proporcionar salidas eléctricas." oninput="upd('notaCliente',this.value)"></textarea>
+              <textarea id="f-nota-cli" rows="2" placeholder="El cliente debe proporcionar salidas eléctricas." data-al-escribir="upd('notaCliente')"></textarea>
               <div class="hintnote" style="margin-top:7px">Se imprime en la cotización. Vacía, sale la de arriba.</div>
             </div>
           </div>
@@ -384,7 +395,7 @@ document.documentElement.classList.add('arrancando');
          ya frenaba la captura, ahora con la forma que le corresponde —un botón que dice qué
          sigue— en vez de un aviso que aparece cuando chocas con él. -->
     <div class="p1-cierre" id="p1-cierre">
-      <button class="btn btn-pri" id="p1-btn" onclick="continuarAPartidas()">Continuar a partidas <span aria-hidden="true">→</span></button>
+      <button class="btn btn-pri" id="p1-btn" data-acc="continuarAPartidas()">Continuar a partidas <span aria-hidden="true">→</span></button>
     </div>
 
     <div class="card" id="card-partidas">
@@ -392,14 +403,14 @@ document.documentElement.classList.add('arrancando');
         <h2>Partidas</h2>
         <div class="ph-acts">
           <span class="folio" id="pcount">0 partidas</span>
-          <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev" aria-hidden="true">▾</span></button>
+          <button class="card-fold oculto" id="fold-all-btn" data-acc="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev" aria-hidden="true">▾</span></button>
         </div>
       </div>
       <div class="card-b">
         <!-- El candado de las partidas. Es un botón y no un aviso a secas porque enterarse
              de que falta algo sin que te lleven ahí es la mitad del trabajo: lleva al
              primer hueco, igual que la barra de completitud de la derecha. -->
-        <button type="button" class="cand-partidas" id="cand-partidas" onclick="irAlCandado()" hidden>
+        <button type="button" class="cand-partidas" id="cand-partidas" data-acc="irAlCandado()" hidden>
           <svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg>
           <span class="cp-txt" id="cand-partidas-txt" aria-live="polite" aria-atomic="true"></span>
           <span class="cp-go" aria-hidden="true">›</span>
@@ -412,16 +423,16 @@ document.documentElement.classList.add('arrancando');
              a la vista, porque leerla nunca estuvo prohibido. -->
         <div id="paso2-tools" hidden>
         <div class="scaler-ai-row">
-          <button class="ai-btn" id="aibtn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
-          <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
-          <button class="btn-vector-open" onclick="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
+          <button class="ai-btn" id="aibtn" data-acc="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
+          <button class="btn-scaler-open" data-acc="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
+          <button class="btn-vector-open" data-acc="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
         </div>
         <div id="scPreviewBox"></div>
         <div id="items"></div>
         <div class="addrow" id="paso2-addrow">
-          <button class="addbtn" id="addbtn" onclick="agregarPartida()">+ Agregar partida</button>
-          <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
+          <button class="addbtn" id="addbtn" data-acc="agregarPartida()">+ Agregar partida</button>
+          <button class="addbtn igual" id="dupbtn" data-acc="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
         </div>
         <!-- Renders y propuesta visual del PDF (imagenes.js). El plano va en cada partida. -->
         <div id="imgsPdf"></div>
@@ -433,14 +444,14 @@ document.documentElement.classList.add('arrancando');
   <aside class="side" id="sidebox" aria-label="Resumen y autorización">
     <div id="aiPreview"></div>
     <div class="sum">
-      <button class="prog-box" onclick="irAPendiente()" title="Ir a lo primero que falta por capturar">
+      <button class="prog-box" data-acc="irAPendiente()" title="Ir a lo primero que falta por capturar">
         <div class="prog-label"><span>Completitud</span><span id="prog-pct" class="rueda-cifra">0%</span></div>
         <div class="prog-track"><div id="prog-bar"></div></div>
         <div class="prog-next" id="prog-next"></div>
       </button>
       <div class="sum-rows">
         <div class="srow ivt" style="border-top:none;margin-top:0">
-          <button type="button" class="switch" role="switch" id="ivabtn" aria-checked="true" style="margin:0" onclick="toggleIva(event)"><span class="tg on" id="ivatg" aria-hidden="true"></span> IVA 16%</button>
+          <button type="button" class="switch" role="switch" id="ivabtn" aria-checked="true" style="margin:0" data-acc="toggleIva"><span class="tg on" id="ivatg" aria-hidden="true"></span> IVA 16%</button>
           <span class="v" id="s-iva">$0.00</span>
         </div>
       </div>
@@ -465,7 +476,7 @@ document.documentElement.classList.add('arrancando');
         <div class="srow subtotal" id="s-sub-box">
           <div class="sub-top">
             <span class="sub-lab" id="s-sub-lab">Precio Subtotal</span>
-            <button type="button" class="sub-copiar" id="s-sub-copiar" onclick="copiarSubtotal()" title="Copiar el subtotal para pegarlo en Canva" aria-label="Copiar el precio subtotal">Copiar</button>
+            <button type="button" class="sub-copiar" id="s-sub-copiar" data-acc="copiarSubtotal()" title="Copiar el subtotal para pegarlo en Canva" aria-label="Copiar el precio subtotal">Copiar</button>
           </div>
           <!-- Con el precio ya ajustado por el autorizador, el que va en el documento es el
                subtotal AUTORIZADO y no el calculado: aquí manda ése y el calculado se queda al
@@ -506,7 +517,7 @@ document.documentElement.classList.add('arrancando');
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
       <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span id="precios-nota-txt">Mantén tocado para ver un importe</span>
-        <button type="button" class="precios-ver" id="precios-ver" aria-pressed="false" onclick="togglePreciosALaVista()">Ver precios</button></div>
+        <button type="button" class="precios-ver" id="precios-ver" aria-pressed="false" data-acc="togglePreciosALaVista()">Ver precios</button></div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span class="adj-label">Precio autorizado</span>
@@ -520,10 +531,9 @@ document.documentElement.classList.add('arrancando');
   </aside>
 
 </div>
-<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA"
-  ondragenter="aiDragEntra(event)" ondragover="aiDragSobre(event)" ondragleave="aiDragSale(event)" ondrop="aiSoltar(event)">
+<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA">
   <div class="modal">
-    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button data-acc="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <div class="ai-src" id="ai-src-box" style="display:none">
         <div class="ia-marco">
@@ -534,7 +544,7 @@ document.documentElement.classList.add('arrancando');
         <div class="ai-src-b">
           <div class="ai-src-t"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Imagen del escalador</div>
           <div class="ai-src-n" id="ai-src-n"></div>
-          <button type="button" class="key-btn" onclick="aiUsarArchivo()">Analizar otro archivo</button>
+          <button type="button" class="key-btn" data-acc="aiUsarArchivo()">Analizar otro archivo</button>
         </div>
       </div>
       <p id="ai-intro" style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5"></p>
@@ -549,8 +559,7 @@ document.documentElement.classList.add('arrancando');
       <div class="fld" id="ai-file-fld">
         <div class="fld-lab" id="lab-ai-file">Archivo (JPG, PNG o PDF)</div>
         <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
-          onclick="$('ai-file').click()"
-          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
+          data-acc="clicEn('ai-file')" data-tecla-clic>
           <div class="ai-carpeta" aria-hidden="true">
             <svg class="cp-cuerpo" viewBox="0 0 160 120"><path d="M8 4h42q4 0 6.5 3l7 8h88.5a8 8 0 0 1 8 8v89a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8z"/></svg>
             <span class="cp-hoja">Suéltalo aquí</span>
@@ -563,16 +572,16 @@ document.documentElement.classList.add('arrancando');
           </div>
         </div>
         <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
-          aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
+          aria-labelledby="lab-ai-file" data-al-cambiar="aiArchivoElegido">
         <div class="ai-pick" id="ai-pick" style="display:none"></div>
       </div>
       <div class="ai-merge" id="ai-merge-box" style="display:none">
-        <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
+        <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" data-acc="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
         <div class="ai-merge-note" id="ai-merge-note"></div>
         <ul class="ai-merge-lista" id="ai-merge-lista"></ul>
       </div>
-      <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
-      <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
+      <button class="btn btn-pri" id="ai-go-btn" data-acc="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
+      <button class="btn btn-gho" id="ai-cancel-btn" data-acc="aiCancelar()" hidden>Cancelar el análisis</button>
       <div class="ai-status" id="ai-status" role="status"></div>
       <div class="ai-traza" id="ai-traza" hidden></div>
       <div class="ai-resumen" id="ai-resumen" role="group" aria-label="Lo que leyó la IA" hidden></div>
@@ -580,8 +589,8 @@ document.documentElement.classList.add('arrancando');
   </div>
 </div>
 <input type="file" id="logoin" accept="image/png,image/svg+xml,image/jpeg,image/webp" style="display:none">
-<div class="modal-bg" id="lightbox" onclick="closeLightbox()" role="dialog" aria-modal="true" aria-label="Vista a pantalla completa">
-  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Cerrar">×</button>
+<div class="modal-bg" id="lightbox" data-acc="closeLightbox()" role="dialog" aria-modal="true" aria-label="Vista a pantalla completa">
+  <button class="lightbox-close" data-acc="closeLightbox()" aria-label="Cerrar">×</button>
   <div id="lightboxBody"></div>
 </div>
 <!-- ----- Cuadernos de cliente -----
@@ -589,16 +598,16 @@ document.documentElement.classList.add('arrancando');
      si no hay teléfono, un nombre—, y su cuaderno junta todo lo que se le ha cotizado
      más una nota que no cabe en ninguna cotización: cómo paga, con quién se habla, qué
      quedó pendiente. Se arma solo del historial, así que no hay nada que dar de alta. -->
-<div class="modal-bg" id="climodal" onclick="if(event.target===this)cerrarCuadernos()" role="dialog" aria-modal="true" aria-label="Cuadernos de cliente" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
+<div class="modal-bg" id="climodal" data-acc="alFondo('cerrarCuadernos')" role="dialog" aria-modal="true" aria-label="Cuadernos de cliente" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
       <b><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> <span id="cua-titulo">Cuadernos de cliente</span></b>
-      <button class="hist-close" onclick="cerrarCuadernos()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+      <button class="hist-close" data-acc="cerrarCuadernos()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div id="cua-lista-vista">
       <p class="hist-ayuda">Cada cliente es un <b>teléfono</b>; sin teléfono, el <b>nombre</b>. Se agrupan solas las cotizaciones que ya autorizaste.</p>
       <div class="hist-search-bar">
-        <input id="cua-search" type="search" aria-label="Buscar un cuaderno por cliente o teléfono" placeholder="Buscar por cliente o teléfono…" autocomplete="off" oninput="pintarCuadernos()">
+        <input id="cua-search" type="search" aria-label="Buscar un cuaderno por cliente o teléfono" placeholder="Buscar por cliente o teléfono…" autocomplete="off" data-al-escribir="pintarCuadernos()">
         <span class="hist-count" id="cua-count"></span>
       </div>
     </div>
@@ -606,15 +615,15 @@ document.documentElement.classList.add('arrancando');
     <div class="hist-foot" id="cua-foot"></div>
   </div>
 </div>
-<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
+<div class="modal-bg" id="histmodal" data-acc="alFondo('cerrarHistorial')" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
       <b><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
-      <button class="hist-close" onclick="cerrarHistorial()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+      <button class="hist-close" data-acc="cerrarHistorial()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
-      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorialPronto()">
+      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" data-al-escribir="pintarHistorialPronto()">
       <span class="hist-count" id="hist-count"></span>
     </div>
     <!-- Las fichas de «lo que falta» (H8): Todas · Sin PDF · Sin enviar · Sin venta · Este mes. Las
@@ -635,10 +644,10 @@ document.documentElement.classList.add('arrancando');
       </div>
     </div>
     <div class="hist-foot">
-      <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
-      <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
-      <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
-      <button onclick="delHistorialALosClientes()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
+      <button data-acc="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
+      <button data-acc="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
+      <button data-acc="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
+      <button data-acc="delHistorialALosClientes()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
       <!-- «Todo se guarda solo en este dispositivo» ya lo dicen el pie de cuadernos y la nota
            de la cola de autorización. En su lugar va el dato que no está en ninguna parte:
            cuánto lleva sin respaldarse. La segunda frase se queda tal cual: el README la
@@ -653,51 +662,51 @@ document.documentElement.classList.add('arrancando');
 <!-- Una solicitud que llegó de OTRO teléfono, por la hoja. Se revisa aquí y no se carga en la
      pantalla: no es una cotización de este aparato, no ocupa su folio ni entra a su historial.
      Ver notario.js. -->
-<div class="modal-bg" id="remotamodal" onclick="if(event.target===this)cerrarRevisionRemota()" role="dialog" aria-modal="true" aria-labelledby="rem-titulo">
+<div class="modal-bg" id="remotamodal" data-acc="alFondo('cerrarRevisionRemota')" role="dialog" aria-modal="true" aria-labelledby="rem-titulo">
   <div class="modal">
-    <div class="modal-h"><b id="rem-titulo">Solicitud</b><button onclick="cerrarRevisionRemota()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b id="rem-titulo">Solicitud</b><button data-acc="cerrarRevisionRemota()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <p class="mini" id="rem-quien" style="text-align:left;margin-bottom:10px"></p>
       <div id="rem-partidas"></div>
       <div class="fld" style="margin-top:12px">
         <label for="rem-precio" id="rem-lab">Precio final autorizado</label>
         <div class="precio-desl"><input type="range" id="rem-precio-r" class="precio-r" min="0" max="1" step="any" value="0" aria-label="Ajustar el precio autorizado, subtotal sin IVA" aria-describedby="rem-ajuste"></div>
-        <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" oninput="pintarRemotaNeto()"></div>
+        <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" data-al-escribir="pintarRemotaNeto()"></div>
         <div class="precio-auth-neto" id="rem-neto"></div>
         <div class="descuento-info" id="rem-ajuste"></div>
       </div>
       <div class="fld"><label for="rem-nota">Nota para quien la pidió (opcional)</label><textarea id="rem-nota" placeholder="Comentario para el vendedor…"></textarea></div>
       <div class="authnote auth-quien" id="rem-autoriza"></div>
       <p class="mini" id="rem-estado" role="status" style="text-align:left;min-height:1.2em"></p>
-      <button class="btn btn-ok" id="rem-autorizar" onclick="autorizarRemota()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
-      <button class="btn btn-dgr" id="rem-rechazar" onclick="rechazarRemota()">Rechazar</button>
+      <button class="btn btn-ok" id="rem-autorizar" data-acc="autorizarRemota()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
+      <button class="btn btn-dgr" id="rem-rechazar" data-acc="rechazarRemota()">Rechazar</button>
     </div>
   </div>
 </div>
 
 <!-- La pregunta de la app, en vez del confirm() del navegador (confirmar() en nucleo.js). Va
      arriba de todas las capas: se abre encima del historial, del escalador o de la cola. -->
-<div class="modal-bg" id="confmodal" onclick="if(event.target===this)confirmarNo()" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-texto">
+<div class="modal-bg" id="confmodal" data-acc="alFondo('confirmarNo')" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-texto">
   <div class="modal modal-conf">
-    <div class="modal-h"><b id="conf-titulo">¿Continuar?</b><button onclick="confirmarNo()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b id="conf-titulo">¿Continuar?</b><button data-acc="confirmarNo()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <p class="conf-texto" id="conf-texto"></p>
       <p class="conf-pista" id="conf-pista" aria-hidden="true" hidden>Mantén presionado el botón para confirmar.</p>
-      <button class="btn btn-pri" id="conf-si" onclick="confirmarSi()">Continuar</button>
-      <button class="btn btn-gho" id="conf-no" onclick="confirmarNo()">Cancelar</button>
+      <button class="btn btn-pri" id="conf-si" data-acc="confirmarSi()">Continuar</button>
+      <button class="btn btn-gho" id="conf-no" data-acc="confirmarNo()">Cancelar</button>
     </div>
   </div>
 </div>
 
 <!-- Revisión previa: partidas que valdrían $0 si se autorizan así -->
-<div class="modal-bg" id="faltmodal" onclick="if(event.target===this)cerrarFaltantes()" role="dialog" aria-modal="true" aria-label="Hay partidas sin terminar">
+<div class="modal-bg" id="faltmodal" data-acc="alFondo('cerrarFaltantes')" role="dialog" aria-modal="true" aria-label="Hay partidas sin terminar">
   <div class="modal">
-    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Hay partidas sin terminar</b><button onclick="cerrarFaltantes()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Hay partidas sin terminar</b><button data-acc="cerrarFaltantes()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <p class="falt-intro" id="falt-intro"></p>
       <div class="falt-list" id="falt-list"></div>
-      <button class="btn btn-gho" id="falt-seguir" onclick="faltSeguir()"></button>
-      <button class="btn btn-pri" onclick="cerrarFaltantes()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a completarlas</button>
+      <button class="btn btn-gho" id="falt-seguir" data-acc="faltSeguir()"></button>
+      <button class="btn btn-pri" data-acc="cerrarFaltantes()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a completarlas</button>
     </div>
   </div>
 </div>
@@ -715,24 +724,23 @@ document.documentElement.classList.add('arrancando');
       <div><div style="font-size:14px;font-weight:700;color:var(--ink)">Vectorizador Pro</div><div class="sp-brand-sub" style="font-size:10.5px;color:var(--muted)">Imagen a trazo de corte</div></div>
     </div>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <input type="file" id="vt-img-input" accept="image/*,.pdf" style="display:none" onchange="vtCargarImagen(this)">
-    <button class="sp-tb-btn" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
-    <button class="sp-tb-btn" id="vt-use-ai-btn" onclick="vtUsarImagenAI()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
-    <button class="sp-tb-btn" id="vt-use-sc-btn" onclick="vtUsarImagenScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> La del escalador</button>
+    <input type="file" id="vt-img-input" accept="image/*,.pdf" style="display:none" data-al-cambiar="vtCargarImagen">
+    <button class="sp-tb-btn" data-acc="clicEn('vt-img-input')"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
+    <button class="sp-tb-btn" id="vt-use-ai-btn" data-acc="vtUsarImagenAI()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
+    <button class="sp-tb-btn" id="vt-use-sc-btn" data-acc="vtUsarImagenScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> La del escalador</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <div class="tool-seg" role="group" aria-label="Vista del vectorizador">
-      <button id="vt-view-orig" aria-pressed="false" onclick="vtSetVista('orig')" disabled>Original</button>
-      <button id="vt-view-cmp"  aria-pressed="false" onclick="vtSetVista('cmp')"  disabled>Comparar</button>
-      <button id="vt-view-vec"  aria-pressed="false" onclick="vtSetVista('vec')"  disabled>Vector</button>
+      <button id="vt-view-orig" aria-pressed="false" data-acc="vtSetVista('orig')" disabled>Original</button>
+      <button id="vt-view-cmp"  aria-pressed="false" data-acc="vtSetVista('cmp')"  disabled>Comparar</button>
+      <button id="vt-view-vec"  aria-pressed="false" data-acc="vtSetVista('vec')"  disabled>Vector</button>
     </div>
     <div class="sp-spacer" style="flex:1"></div>
     <span class="sp-calib-badge" id="vt-badge"><span class="dot"></span><span id="vt-badge-txt">Sin vectorizar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-close" onclick="cerrarVector()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
+    <button class="sp-close" data-acc="cerrarVector()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
   </div>
   <div class="sp-main">
-    <div class="sp-canvas-area" id="vt-canvas-area"
-      ondrop="vtOnDrop(event)" ondragover="event.preventDefault();this.style.outline='3px dashed var(--brand)'" ondragleave="this.style.outline=''">
+    <div class="sp-canvas-area" id="vt-canvas-area">
       <div class="vt-stage-wrap" id="vt-stage-wrap">
         <div class="vt-stage" id="vt-stage" style="display:none">
           <canvas id="vt-cvs-src" class="base"></canvas>
@@ -741,8 +749,7 @@ document.documentElement.classList.add('arrancando');
       </div>
       <span class="vt-tag l hide" id="vt-tag-l">Original</span>
       <span class="vt-tag r hide" id="vt-tag-r">Vector</span>
-      <div class="vt-split" id="vt-split"
-        onmousedown="vtSplitDown(event)" ontouchstart="vtSplitDown(event)"></div>
+      <div class="vt-split" id="vt-split"></div>
       <div class="sp-overlay" id="vt-overlay">
         <!-- Dos caras del mismo recuadro, como en el escalador: la invitación de siempre y,
              mientras se abre un PDF, los pasos con su reloj (H12). Antes el PDF se anunciaba en
@@ -753,7 +760,7 @@ document.documentElement.classList.add('arrancando');
           <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
           <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
           <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
-          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" data-acc="clicEn('vt-img-input')"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
         </div>
         <div class="sp-overlay-cara sp-overlay-pdf" id="vt-overlay-pdf" hidden>
           <div class="sp-overlay-tarjeta">
@@ -773,9 +780,9 @@ document.documentElement.classList.add('arrancando');
         <div class="vt-prog-track"><div class="vt-prog-bar" id="vt-prog-bar"></div></div>
       </div>
       <div class="sp-zoom" id="vt-zoom">
-        <button onclick="vtZoomBy(1.4)" title="Acercar" aria-label="Acercar la imagen">+</button>
-        <button onclick="vtZoomBy(1/1.4)" title="Alejar" aria-label="Alejar la imagen">−</button>
-        <button onclick="vtZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
+        <button data-acc="vtZoomBy(1.4)" title="Acercar" aria-label="Acercar la imagen">+</button>
+        <button data-acc="vtZoomMenos" title="Alejar" aria-label="Alejar la imagen">−</button>
+        <button data-acc="vtZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
     </div>
     <aside class="sp-side">
@@ -784,9 +791,9 @@ document.documentElement.classList.add('arrancando');
         <div class="sp-sec-h"><h3>Qué se está vectorizando</h3></div>
         <div class="sp-sec-b">
           <div class="vt-modo ficha-transparente" role="group" aria-label="Qué se va a vectorizar">
-            <button id="vt-modo-bn"   class="on" aria-pressed="true" onclick="vtSetModo('bn')"><svg class="svgi" aria-hidden="true"><use href="#i-corte"/></svg>Corte<small>1 color</small></button>
-            <button id="vt-modo-logo" aria-pressed="false" onclick="vtSetModo('logo')"><svg class="svgi" aria-hidden="true"><use href="#i-colores"/></svg>Logotipo<small>pocos colores</small></button>
-            <button id="vt-modo-foto" aria-pressed="false" onclick="vtSetModo('foto')"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg>Foto<small>muchos colores</small></button>
+            <button id="vt-modo-bn"   class="on" aria-pressed="true" data-acc="vtSetModo('bn')"><svg class="svgi" aria-hidden="true"><use href="#i-corte"/></svg>Corte<small>1 color</small></button>
+            <button id="vt-modo-logo" aria-pressed="false" data-acc="vtSetModo('logo')"><svg class="svgi" aria-hidden="true"><use href="#i-colores"/></svg>Logotipo<small>pocos colores</small></button>
+            <button id="vt-modo-foto" aria-pressed="false" data-acc="vtSetModo('foto')"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg>Foto<small>muchos colores</small></button>
           </div>
           <p class="vt-esc-note" id="vt-modo-help">Una sola silueta en negro: es lo que se manda a cortar el acrílico o el aluminio y de donde salen las letras y su altura.</p>
         </div>
@@ -797,18 +804,18 @@ document.documentElement.classList.add('arrancando');
         <div class="sp-sec-b">
           <div id="vt-fld-colores" style="display:none">
             <div class="vt-row"><label for="vt-colores">Colores (máximo)</label><span class="vt-val" id="vt-colores-v">6</span></div>
-            <input type="range" id="vt-colores" min="2" max="24" step="1" value="6" oninput="vtOpt('colores',+this.value)">
+            <input type="range" id="vt-colores" min="2" max="24" step="1" value="6" data-al-escribir="vtOpt('colores')">
           </div>
           <div class="vt-row"><label for="vt-detalle">Detalle</label><span class="vt-val" id="vt-detalle-v">Medio</span></div>
-          <input type="range" id="vt-detalle" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('detalle',+this.value)">
+          <input type="range" id="vt-detalle" min="0" max="2" step="1" value="1" aria-valuetext="Medio" data-al-escribir="vtOpt('detalle')">
           <div class="vt-row" style="margin-top:13px"><label for="vt-ruido">Quitar motas menores a</label><span class="vt-val" id="vt-ruido-v">4 px</span></div>
-          <input type="range" id="vt-ruido" min="0" max="40" step="1" value="4" aria-valuetext="4 px" oninput="vtOpt('despeckle',+this.value)">
+          <input type="range" id="vt-ruido" min="0" max="40" step="1" value="4" aria-valuetext="4 px" data-al-escribir="vtOpt('despeckle')">
           <div class="vt-row" style="margin-top:13px"><label for="vt-esq">Esquinas vivas</label><span class="vt-val" id="vt-esq-v">Medio</span></div>
-          <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('esquinas',+this.value)">
-          <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
+          <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" aria-valuetext="Medio" data-al-escribir="vtOpt('esquinas')">
+          <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" data-acc="vtToggleFondo"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
           <div class="hintnote" style="margin-top:8px">El color que domina el borde de la imagen se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
-          <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
-          <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
+          <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" data-acc="vtToggleInvertir"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
+          <button class="vt-go" id="vt-go" data-acc="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
       </div>
       <!-- Resultado -->
@@ -837,10 +844,10 @@ document.documentElement.classList.add('arrancando');
           </div>
           <p class="vt-esc-note" style="margin-top:0;margin-bottom:11px">Dile cuánto mide el diseño de verdad y el SVG sale a escala: se abre en Illustrator o en el software de corte con las medidas puestas, sin reescalar a ojo.</p>
           <div style="display:flex;gap:8px">
-            <div class="fld" style="flex:1;margin:0"><label for="vt-alto-cm">Alto real (cm)</label><input id="vt-alto-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 40" oninput="vtEscala('alto',this.value)"></div>
-            <div class="fld" style="flex:1;margin:0"><label for="vt-ancho-cm">Ancho real (cm)</label><input id="vt-ancho-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 120" oninput="vtEscala('ancho',this.value)"></div>
+            <div class="fld" style="flex:1;margin:0"><label for="vt-alto-cm">Alto real (cm)</label><input id="vt-alto-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 40" data-al-escribir="vtEscala('alto')"></div>
+            <div class="fld" style="flex:1;margin:0"><label for="vt-ancho-cm">Ancho real (cm)</label><input id="vt-ancho-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 120" data-al-escribir="vtEscala('ancho')"></div>
           </div>
-          <button class="btn btn-gho" id="vt-esc-usar-sc" onclick="vtUsarEscalaScaler()" style="margin-top:9px;display:none;font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Usar la escala calibrada del escalador</button>
+          <button class="btn btn-gho" id="vt-esc-usar-sc" data-acc="vtUsarEscalaScaler()" style="margin-top:9px;display:none;font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Usar la escala calibrada del escalador</button>
           <div id="vt-esc-res" style="display:none;margin-top:12px">
             <div class="vt-stats">
               <div class="vt-stat hl"><span class="k">Alto de letra</span><span class="v" id="vt-st-alto">—<small>cm</small></span></div>
@@ -853,25 +860,25 @@ document.documentElement.classList.add('arrancando');
       <!-- Acciones -->
       <div class="sp-actions">
         <div class="vt-dl">
-          <button class="btn btn-gho" id="vt-dl-svg" onclick="vtDescargarSVG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> SVG</button>
-          <button class="btn btn-gho" id="vt-dl-png" onclick="vtDescargarPNG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> PNG</button>
+          <button class="btn btn-gho" id="vt-dl-svg" data-acc="vtDescargarSVG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> SVG</button>
+          <button class="btn btn-gho" id="vt-dl-png" data-acc="vtDescargarPNG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> PNG</button>
         </div>
-        <button class="sp-addall" id="vt-btn-partidas" onclick="vtUsarComoPartidas()" disabled style="margin:0 0 8px;width:100%">→ Agregar como partida de letras 3D</button>
-        <button class="sp-ai" id="vt-btn-scaler" onclick="vtEnviarAEscalador()" disabled style="margin:0 0 7px;width:100%"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Medir el vector en el escalador</button>
+        <button class="sp-addall" id="vt-btn-partidas" data-acc="vtUsarComoPartidas()" disabled style="margin:0 0 8px;width:100%">→ Agregar como partida de letras 3D</button>
+        <button class="sp-ai" id="vt-btn-scaler" data-acc="vtEnviarAEscalador()" disabled style="margin:0 0 7px;width:100%"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Medir el vector en el escalador</button>
         <div class="sp-ai-note" id="vt-acc-note">El trazo limpio se manda al escalador para sacar de ahí cada medida, o entra directo como partida con su altura y su número de letras.</div>
-        <button class="sp-back-m" onclick="cerrarVector()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
+        <button class="sp-back-m" data-acc="cerrarVector()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
       <!-- Salida -->
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Exportar</h3></div>
         <div class="sp-sec-b">
-          <button class="btn btn-gho" id="vt-copy-svg" onclick="vtCopiarSVG()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar el código SVG</button>
+          <button class="btn btn-gho" id="vt-copy-svg" data-acc="vtCopiarSVG()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar el código SVG</button>
           <!-- El paso que sigue al trazo cuando el trabajo ya se vendió: acomodar las letras
                en la hoja de material para cortarlas. El anidador vive en su propia página —es del
                taller, no de la venta— y el trazo le llega sin pasar por el disco. -->
-          <button class="btn btn-gho" id="vt-anidar" onclick="vtAnidar()" disabled style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-anidar"/></svg> Acomodar en hoja · anidador</button>
+          <button class="btn btn-gho" id="vt-anidar" data-acc="vtAnidar()" disabled style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-anidar"/></svg> Acomodar en hoja · anidador</button>
           <div class="hintnote" style="margin-top:8px">Abre el anidador con este trazo puesto para acomodar las piezas en la hoja de material antes de cortar.</div>
-          <button class="btn btn-gho" onclick="cerrarVector()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
+          <button class="btn btn-gho" data-acc="cerrarVector()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
         </div>
       </div>
     </aside>
@@ -888,30 +895,27 @@ document.documentElement.classList.add('arrancando');
       <div><div style="font-size:14px;font-weight:700;color:var(--ink)">Escalador Pro</div><div class="sp-brand-sub" style="font-size:10.5px;color:var(--muted)">Medición con cotas</div></div>
     </div>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <input type="file" id="scaler-img-input" accept="image/*,.svg,.pdf" style="display:none" onchange="cargarImagenScaler(this)">
-    <button class="sp-tb-btn" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
-    <button class="sp-tb-btn" id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
+    <input type="file" id="scaler-img-input" accept="image/*,.svg,.pdf" style="display:none" data-al-cambiar="cargarImagenScaler">
+    <button class="sp-tb-btn" data-acc="clicEn('scaler-img-input')"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
+    <button class="sp-tb-btn" id="sc-use-ai-btn" data-acc="usarImagenAIEnScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-tb-btn" id="sc-btn-ref" aria-pressed="false" onclick="scSetMode('ref')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-regla"/></svg> Calibrar escala</button>
+    <button class="sp-tb-btn" id="sc-btn-ref" aria-pressed="false" data-acc="scSetMode('ref')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-regla"/></svg> Calibrar escala</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <div class="tool-seg" role="group" aria-label="Cómo se mide">
-      <button id="sc-btn-libre" aria-pressed="false" onclick="scSetMeasMode('libre')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-libre"/></svg> Libre</button>
-      <button id="sc-btn-h" aria-pressed="false" onclick="scSetMeasMode('h')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
-      <button id="sc-btn-v" aria-pressed="false" onclick="scSetMeasMode('v')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
+      <button id="sc-btn-libre" aria-pressed="false" data-acc="scSetMeasMode('libre')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-libre"/></svg> Libre</button>
+      <button id="sc-btn-h" aria-pressed="false" data-acc="scSetMeasMode('h')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
+      <button id="sc-btn-v" aria-pressed="false" data-acc="scSetMeasMode('v')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
     </div>
     <div class="sp-spacer" style="flex:1"></div>
     <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-close" onclick="cerrarScaler()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
+    <button class="sp-close" data-acc="cerrarScaler()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
   </div>
   <!-- Main -->
   <div class="sp-main">
     <!-- Canvas -->
-    <div class="sp-canvas-area" id="sp-canvas-area"
-      ondrop="scOnDrop(event)" ondragover="event.preventDefault();this.style.outline='3px dashed var(--brand)'" ondragleave="this.style.outline=''">
-      <canvas id="scalerCanvas"
-        onmousedown="scDown(event)" onmousemove="scMove(event)" onmouseup="scUp(event)" onmouseleave="scLeave(event)"
-        ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
+    <div class="sp-canvas-area" id="sp-canvas-area">
+      <canvas id="scalerCanvas">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
         <!-- Dos caras del mismo recuadro: la invitación de siempre y, mientras se abre un
@@ -922,7 +926,7 @@ document.documentElement.classList.add('arrancando');
           <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
           <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
           <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
-          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" data-acc="clicEn('scaler-img-input')"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
         </div>
         <div class="sp-overlay-cara sp-overlay-pdf" id="sc-overlay-pdf" hidden>
           <!-- Una sola tarjeta oscura con los pasos, el motivo y las salidas: con la foto ya
@@ -946,12 +950,12 @@ document.documentElement.classList.add('arrancando');
            que desplazarlo, justo con la mano que está midiendo. Aparece con la segunda
            medida (scUpdateCotasUI). -->
       <div class="sp-cotas-fab" id="sc-cotas-fab">
-        <button type="button" id="sc-btn-cotas" onclick="scCotasCiclo()" title="Cotas: todas — toca para cambiar" aria-label="Cotas: todas — toca para cambiar"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg></button>
+        <button type="button" id="sc-btn-cotas" data-acc="scCotasCiclo()" title="Cotas: todas — toca para cambiar" aria-label="Cotas: todas — toca para cambiar"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg></button>
       </div>
       <div class="sp-zoom" id="sp-zoom">
-        <button onclick="scZoomBy(1.5)" title="Acercar" aria-label="Acercar la foto">+</button>
-        <button onclick="scZoomBy(1/1.5)" title="Alejar" aria-label="Alejar la foto">−</button>
-        <button onclick="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
+        <button data-acc="scZoomBy(1.5)" title="Acercar" aria-label="Acercar la foto">+</button>
+        <button data-acc="scZoomMenos" title="Alejar" aria-label="Alejar la foto">−</button>
+        <button data-acc="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
       <!-- La cifra viva de la lupa (H4). Va FUERA del círculo y no dentro: .sp-loupe
@@ -975,7 +979,7 @@ document.documentElement.classList.add('arrancando');
                aparecía. El riel los nombra y marca en cuál vas (H11, pieza 16). -->
           <div class="sc-calib-riel" id="sc-calib-riel"></div>
           <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida —una puerta mide <span data-sc-puerta>200</span> cm, una persona 175 cm—. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
-          <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
+          <button class="btn btn-pri" id="sc-btn-calib" data-acc="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
             <!-- La etiqueta es el mango: arrastrarla de lado mueve los centímetros sin abrir
                  el teclado (H26 #3, pieza 3). El campo se sigue tecleando igual. -->
@@ -986,11 +990,11 @@ document.documentElement.classList.add('arrancando');
             <div class="ref-known" id="sc-ref-rapidos">
               <span class="ref-known-title" id="sc-ref-rapidos-l">Medidas de siempre</span>
             </div>
-            <button class="btn btn-ok" id="sc-btn-confirm-calib" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
+            <button class="btn btn-ok" id="sc-btn-confirm-calib" data-acc="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
           </div>
           <div id="sc-calib-done" style="display:none">
             <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Escala calibrada</div>
-            <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Re-calibrar</button>
+            <button class="btn btn-gho" data-acc="scResetCalib()" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Re-calibrar</button>
           </div>
         </div>
       </details>
@@ -1001,13 +1005,13 @@ document.documentElement.classList.add('arrancando');
         <div class="sp-sec-b">
           <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Cada guía se mueve arrastrando su <b>pestaña del borde</b>, así el resto de la imagen queda libre para medir.</p>
           <div class="btn-fila">
-            <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
-            <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
+            <button class="btn btn-gho" id="sc-btn-guide-h" data-acc="scAddGuide('h')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
+            <button class="btn btn-gho" id="sc-btn-guide-v" data-acc="scAddGuide('v')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
           </div>
-          <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:12px;font-size:12.5px" onclick="toggleSnapGuias(event)"><span class="tg on" id="sc-snap-tg" aria-hidden="true"></span> Pegar los puntos a las guías</button>
+          <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:12px;font-size:12.5px" data-acc="toggleSnapGuias"><span class="tg on" id="sc-snap-tg" aria-hidden="true"></span> Pegar los puntos a las guías</button>
           <div class="hintnote" style="margin-top:8px">Al medir, los puntos que caigan cerca de una guía se pegan a ella, así las medidas arrancan justo en el borde que marcaste.</div>
           <div id="sc-guides-list" style="margin-top:10px"></div>
-          <button class="sp-gclear" id="sc-guides-clear" onclick="scClearGuides()" style="display:none">Quitar todas las guías</button>
+          <button class="sp-gclear" id="sc-guides-clear" data-acc="scClearGuides()" style="display:none">Quitar todas las guías</button>
         </div>
       </details>
       <!-- Medidas -->
@@ -1020,9 +1024,9 @@ document.documentElement.classList.add('arrancando');
       <div class="sp-cotas" id="sc-cotas-fila" style="display:none">
         <span class="sp-cotas-lbl">Cotas sobre la imagen</span>
         <div class="tool-seg" role="group" aria-label="Cuánto se enseña de las cotas sobre la imagen">
-          <button type="button" id="sc-cotas-todas" aria-pressed="true" class="active" onclick="scSetCotas('todas')">Todas</button>
-          <button type="button" id="sc-cotas-foco" aria-pressed="false" onclick="scSetCotas('foco')">La elegida</button>
-          <button type="button" id="sc-cotas-ninguna" aria-pressed="false" onclick="scSetCotas('ninguna')">Ninguna</button>
+          <button type="button" id="sc-cotas-todas" aria-pressed="true" class="active" data-acc="scSetCotas('todas')">Todas</button>
+          <button type="button" id="sc-cotas-foco" aria-pressed="false" data-acc="scSetCotas('foco')">La elegida</button>
+          <button type="button" id="sc-cotas-ninguna" aria-pressed="false" data-acc="scSetCotas('ninguna')">Ninguna</button>
         </div>
         <!-- La tranquilidad de que no se borró nada. En el celular no va: ahí el panel
              mide poco más de la mitad de la pantalla y esta nota le comía tres renglones
@@ -1032,11 +1036,11 @@ document.documentElement.classList.add('arrancando');
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">
-        <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
-        <button class="sp-ai" id="sc-btn-ia" onclick="scCotizarConIA()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar estas medidas con IA</button>
+        <button class="sp-addall" id="sc-btn-addall" data-acc="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
+        <button class="sp-ai" id="sc-btn-ia" data-acc="scCotizarConIA()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar estas medidas con IA</button>
         <div class="sp-ai-note" id="sc-ia-note">La IA lee la foto con tus cotas y devuelve las partidas ya con material, tipo y número de letras.</div>
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
-        <button class="sp-back-m" onclick="cerrarScaler()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
+        <button class="sp-back-m" data-acc="cerrarScaler()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
       <!-- El letrero sobre la foto del local (función 32). Abrirla lo enciende sobre la
            foto; plegarla lo apaga y devuelve el lienzo entero a medir. -->
@@ -1066,8 +1070,8 @@ document.documentElement.classList.add('arrancando');
       <details class="sp-sec sp-fold" id="sc-sec-export">
         <summary class="sp-sec-h"><h3>Exportar</h3></summary>
         <div class="sp-sec-b">
-          <button class="btn btn-gho" id="sc-btn-export" onclick="scExportImg()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Descargar imagen con cotas</button>
-          <button class="btn btn-gho" onclick="cerrarScaler()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
+          <button class="btn btn-gho" id="sc-btn-export" data-acc="scExportImg()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Descargar imagen con cotas</button>
+          <button class="btn btn-gho" data-acc="cerrarScaler()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
         </div>
       </details>
     </aside>
@@ -1108,11 +1112,11 @@ document.documentElement.classList.add('arrancando');
 <script src="js/cotizador/arranque.js"></script>
 
 <!-- Modal: Registrar Venta -->
-<div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()" role="dialog" aria-modal="true" aria-label="Registrar la venta en la hoja de finanzas">
+<div class="rv-modal-bg" id="rv-modal-bg" data-acc="alFondo('cerrarRegistrarVenta')" role="dialog" aria-modal="true" aria-label="Registrar la venta en la hoja de finanzas">
   <div class="rv-modal">
     <div class="rv-header">
       <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</h2>
-      <button class="btn btn-gho" onclick="cerrarRegistrarVenta()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+      <button class="btn btn-gho" data-acc="cerrarRegistrarVenta()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div class="rv-body">
       <div class="rv-aviso" id="rv-aviso-auth" style="display:none"></div>
@@ -1168,13 +1172,13 @@ document.documentElement.classList.add('arrancando');
         </div>
         <div class="rv-field">
           <label for="rv-anticipo">Anticipo ($)</label>
-          <input type="number" inputmode="decimal" id="rv-anticipo" min="0" oninput="rvRecalc()">
+          <input type="number" inputmode="decimal" id="rv-anticipo" min="0" data-al-escribir="rvRecalc()">
         </div>
         <div class="rv-field">
           <!-- De solo lectura también en el marcado, no solo desde venta.js: la hoja de finanzas
                paga el 10 % fijo del subtotal (fórmula R) y no lee lo que se ponga aquí. -->
           <label for="rv-pct">% Comisión · fija</label>
-          <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" readonly title="La comisión es 10 % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas" oninput="rvRecalc()">
+          <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" readonly title="La comisión es 10 % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas" data-al-escribir="rvRecalc()">
         </div>
         <div class="rv-field">
           <label for="rv-estatus">Estatus</label>
@@ -1182,7 +1186,7 @@ document.documentElement.classList.add('arrancando');
                Ventas. Antes decían ANTICIPO, CANCELADO y PENDIENTE, que no existen allá:
                coincidía uno de cuatro, y una venta con un estatus inventado se queda fuera
                de las vistas de cobranza sin avisar. Hoy el puente lo rechaza con su razón. -->
-          <select id="rv-estatus" onchange="rvRecalc()">
+          <select id="rv-estatus" data-al-cambiar="rvRecalc()">
             <option>FABRICACION</option>
             <option>REPARANDO</option>
             <option>COBRANDO</option>
@@ -1240,9 +1244,9 @@ document.documentElement.classList.add('arrancando');
            material, la agenda y el mapa— y escribe el renglón en la hoja de finanzas, que
            es el libro mayor del dinero. El de copiar se queda como respaldo para el
            teléfono que todavía no tiene el puente, o para el día que no haya señal. -->
-      <button class="btn btn-pri" id="rv-registrar" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar venta</button>
-      <button class="btn btn-gho" id="rv-copiar" onclick="copiarDatosVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para la hoja</button>
-      <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
+      <button class="btn btn-pri" id="rv-registrar" data-acc="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar venta</button>
+      <button class="btn btn-gho" id="rv-copiar" data-acc="copiarDatosVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para la hoja</button>
+      <button class="btn btn-gho" data-acc="cerrarRegistrarVenta()">Cancelar</button>
     </div>
   </div>
 </div>

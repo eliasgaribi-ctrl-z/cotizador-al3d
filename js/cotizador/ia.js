@@ -7,9 +7,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -543,7 +543,7 @@ function aiPintarArchivo(){
   if(esImg){
     try{
       const u=URL.createObjectURL(f); _aiThumbs.push(u);
-      mini='<img class="ai-pick-img" src="'+u+'" alt="" onload="aiThumbLista(this)" onerror="aiThumbLista(this)">';
+      mini='<img class="ai-pick-img" src="'+u+'" alt="" data-al-cargar="aiThumbLista">';
     }catch(_){}
   }
   el.style.display='flex';
@@ -551,7 +551,7 @@ function aiPintarArchivo(){
   el.innerHTML=aiMarcoHTML(mini)
     +'<div class="ai-pick-b"><div class="ai-pick-n">'+esc(f.name||'archivo')+'</div>'
     +'<div class="ai-pick-m">'+(esImg?'Imagen':'PDF')+' · '+aiPeso(f.size)+'</div></div>'
-    +'<button type="button" class="ai-pick-x" onclick="aiQuitarArchivo()" title="Quitar este archivo" aria-label="Quitar el archivo elegido">×</button>';
+    +'<button type="button" class="ai-pick-x" data-acc="aiQuitarArchivo()" title="Quitar este archivo" aria-label="Quitar el archivo elegido">×</button>';
 }
 
 /* ----- Arrastrar y pegar -----
@@ -1543,3 +1543,23 @@ async function aiVerPartidas(){
   const el=id?document.getElementById('p-'+id):null;
   if(el){ try{ el.scrollIntoView({block:'start',behavior:Piezas.sinMovimiento()?'auto':'smooth'}); }catch(_){} }
 }
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['aiAnalyze','aiCancelar','aiClose','aiOpen','aiQuitarArchivo','aiUsarArchivo',
+  'toggleAiMerge']);
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+Object.assign(ACC,{
+  aiArchivoElegido:el=>aiArchivoElegido(el.files[0]),
+  aiThumbLista:el=>aiThumbLista(el)
+});
+/* Soltar un archivo en cualquier parte del modal de IA: era ondragenter/ondragover/ondragleave/
+   ondrop escritos en el <div id="aimodal">. */
+(function(){
+  const m=$('aimodal'); if(!m) return;
+  m.addEventListener('dragenter',aiDragEntra);
+  m.addEventListener('dragover',aiDragSobre);
+  m.addEventListener('dragleave',aiDragSale);
+  m.addEventListener('drop',aiSoltar);
+})();

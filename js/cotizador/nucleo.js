@@ -5,9 +5,9 @@
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
-   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
-   ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
+   línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
+   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
@@ -63,14 +63,17 @@ const plCot=n=>n+(n===1?' cotización':' cotizaciones');
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 /* esc() escapa para HTML, y con eso basta para el TEXTO y para el valor de un atributo. */
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-/* ----- Un texto que viaja DENTRO de un onclick -----
-   Aquí decía que escapar el apóstrofo con esc() arreglaba onclick="f('${esc(x)}')", y no lo
+/* ----- Un texto que viaja DENTRO de un data-acc -----
+   Era un onclick (ver «Los botones del marcado», más abajo) y la historia sigue valiendo:
+   aquí decía que escapar el apóstrofo con esc() arreglaba onclick="f('${esc(x)}')", y no lo
    arregla: el navegador DESCODIFICA el atributo antes de correrlo, así que &#39; vuelve a ser
    un apóstrofo y cierra el literal. Con un cliente sin teléfono llamado «Domino's Pizza» el
    botón de su cuaderno era un SyntaxError —no hacía nada—, y un folio con apóstrofo que llegara
    en un respaldo restaurado corría lo que viniera detrás. jsArg() arma el literal COMPLETO
    —comillas incluidas— con JSON.stringify y lo escapa para el atributo: se escribe sin
-   comillas alrededor, onclick="f(${jsArg(x)})". */
+   comillas alrededor, data-acc="f(${jsArg(x)})". Hoy el atributo ya no se corre —lo lee
+   _accLeer, que solo acepta literales—, pero el literal sigue teniendo que estar bien
+   cerrado: un apóstrofo suelto ya no ejecuta nada, deja el botón sin hacer nada. */
 const jsArg=s=>esc(JSON.stringify(String(s==null?'':s)));
 
 /* ----- URLs de imagen que vienen del almacenamiento -----
@@ -123,8 +126,119 @@ function tgAria(id){
 }
 /* Lo mismo para lo que abre algo en vez de conmutar: las miniaturas que abren el
    lightbox eran <img> con onclick y nada más, o sea invisibles para el teclado. Sin
-   aria-pressed, que aquí no hay estado que anunciar. */
-const _ABRIBLE=`role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
+   aria-pressed, que aquí no hay estado que anunciar. El Enter y el Espacio los traduce a
+   clic la delegación de abajo (`data-tecla-clic`), no un onkeydown escrito en el marcado. */
+const _ABRIBLE='role="button" tabindex="0" data-tecla-clic';
+
+/* ----- Los botones del marcado, sin un solo guion en línea (M6, octubre de 2026) -----
+   Hasta aquí cada botón del cotizador llevaba su código escrito en el atributo:
+   onclick="reabrirDeHistorial('F-1')", oninput="upd('tel',this.value)", unos 290 entre
+   cotizador.html y las plantillas de JS. Para que el navegador corra eso, la política de la
+   página tiene que decir 'unsafe-inline' en script-src, y esa misma palabra es la que
+   convierte cualquier marcado que se cuele en un innerHTML —un nombre de proyecto con
+   `<img src=x onerror=…>` que llegó en un respaldo restaurado— en código que corre en este
+   origen. Y este origen es el de la plataforma: el token de Google (al3d_pf_gtok) y el del
+   puente (al3d_pf_puente) viven en su localStorage, a un `fetch` de distancia. Hoy el
+   escapado es consistente y no se conoce ningún agujero; esto es para que el día que se
+   escape algo, lo escapado no pueda hacer nada.
+
+   Ahora el marcado solo NOMBRA lo que quiere: data-acc="reabrirDeHistorial('F-1')". Un
+   listener por tipo de evento, puesto aquí en el documento, busca el atributo y llama a la
+   acción. Lo que lo hace seguro y no un eval disfrazado:
+     · El texto del atributo NO se ejecuta. _accLeer lo parte en un nombre y argumentos
+       LITERALES —números, 'texto', "texto", true, false, null— y si trae cualquier otra cosa
+       (una variable, un punto, un paréntesis de más) no se llama nada.
+     · El nombre tiene que estar en ACC, una lista blanca que llena cada archivo con
+       accionesDirectas() o con una función propia. Un marcado colado puede, a lo más, pedir
+       una acción que ya tenía un botón, con argumentos que no son código.
+   Se escribe igual que antes y en el mismo sitio —el argumento con jsArg(), que ya arma un
+   literal JSON escapado para el atributo—, así que leer el marcado sigue diciendo qué hace.
+
+   Por tipo de evento, un atributo:
+     data-acc          click        (el que usan casi todos)
+     data-al-escribir  input
+     data-al-cambiar   change
+     data-al-salir     focusout     (era onblur; blur no sube, focusout sí)
+     data-al-cargar    load y error de una imagen (no suben: se oyen en captura)
+     data-tecla-clic   Enter o Espacio sobre un role="button" que no es <button>: lo toca
+   Los manejadores de arrastre y de ratón de los dos lienzos (el escalador y la división del
+   vectorizador) no pasan por aquí: se cuelgan directo en su elemento al arrancar, porque un
+   touchmove oído en el documento es pasivo por omisión y su preventDefault ya no frenaría el
+   desplazamiento de la página, y porque mouseleave no sube.
+
+   La acción recibe (el, ev, ...argumentos): el elemento que la lleva, el evento y lo que
+   venía entre paréntesis. accionesDirectas() registra las que solo pasan los argumentos a la
+   función del mismo nombre; las que leen el campo (this.value) se escriben a mano en su archivo.
+
+   Se respeta el orden de antes: se recorre del elemento tocado hacia arriba y se llama a cada
+   ancestro que tenga el atributo, como subía el evento entre manejadores en línea, y se para
+   si una acción llamó a stopPropagation(). Un botón deshabilitado no recibía el clic: aquí
+   tampoco, ni los que tiene encima. */
+const ACC=Object.create(null);
+function accionesDirectas(nombres){
+  nombres.forEach(n=>{ ACC[n]=(el,ev,...a)=>window[n](...a); });
+}
+/* «nombre» o «nombre(lit, lit, …)» → {nombre, args}, o null si hay algo que no sea un literal. */
+function _accLeer(s){
+  const m=/^\s*([A-Za-z_$][\w$]*)\s*(?:\(([\s\S]*)\))?\s*$/.exec(s||'');
+  if(!m) return null;
+  const args=[], LIT={'true':true,'false':false,'null':null,'undefined':undefined};
+  let r=(m[2]||'').trim(), t;
+  while(r){
+    if((t=/^"(?:[^"\\]|\\.)*"/.exec(r))) args.push(JSON.parse(t[0]));
+    else if((t=/^'((?:[^'\\]|\\.)*)'/.exec(r))) args.push(t[1].replace(/\\(.)/g,'$1'));
+    else if((t=/^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?(?![\w$.])/i.exec(r))) args.push(+t[0]);
+    else if((t=/^(true|false|null|undefined)(?![\w$])/.exec(r))) args.push(LIT[t[0]]);
+    else return null;
+    r=r.slice(t[0].length).trim();
+    if(r[0]===',') r=r.slice(1).trim(); else if(r) return null;
+  }
+  return {nombre:m[1],args};
+}
+function _accCorrer(el,ev,texto){
+  const p=_accLeer(texto), f=p&&ACC[p.nombre];
+  if(!f){ console.warn('Acción desconocida en el marcado: '+texto); return; }
+  f(el,ev,...p.args);
+}
+function _accRepartir(attr){
+  return ev=>{
+    let el=ev.target;
+    if(el&&el.nodeType!==1) el=el.parentElement;
+    for(;el&&el.nodeType===1;el=el.parentElement){
+      if(el.disabled===true) return;
+      const texto=el.getAttribute(attr);
+      if(texto==null) continue;
+      _accCorrer(el,ev,texto);
+      if(ev.cancelBubble) return;
+    }
+  };
+}
+document.addEventListener('click',_accRepartir('data-acc'));
+document.addEventListener('input',_accRepartir('data-al-escribir'));
+document.addEventListener('change',_accRepartir('data-al-cambiar'));
+document.addEventListener('focusout',_accRepartir('data-al-salir'));
+/* load y error no suben: se oyen en captura, y solo cuentan en el elemento que cargó. */
+['load','error'].forEach(tipo=>document.addEventListener(tipo,ev=>{
+  const el=ev.target;
+  if(el&&el.nodeType===1&&el.hasAttribute('data-al-cargar')) _accCorrer(el,ev,el.getAttribute('data-al-cargar'));
+},true));
+document.addEventListener('keydown',ev=>{
+  if(ev.key!=='Enter'&&ev.key!==' ') return;
+  const el=ev.target&&ev.target.closest&&ev.target.closest('[data-tecla-clic]');
+  if(!el) return;
+  ev.preventDefault(); el.click();
+});
+/* Las que no son de una función sola. */
+Object.assign(ACC,{
+  /* onclick="if(event.target===this)cerrarX()": el fondo de un modal cierra, lo de adentro no. */
+  alFondo:(el,ev,n,...a)=>{ if(ev.target===el) ACC[n](el,ev,...a); },
+  /* onclick="event.stopPropagation()" y "event.stopPropagation();f(…)": lo de adentro de un
+     renglón tocable no toca también el renglón. */
+  parar:(el,ev)=>ev.stopPropagation(),
+  aparte:(el,ev,n,...a)=>{ ev.stopPropagation(); ACC[n](el,ev,...a); },
+  /* onclick="$('ai-file').click()": el botón bonito que abre el <input type=file> escondido. */
+  clicEn:(el,ev,id)=>{ const x=$(id); if(x) x.click(); }
+});
 /* Los cuatro segmentados decían cuál está puesto solo con el color de fondo: se oía
    «Letras botón, Recorte botón, Bastidor botón…» sin ninguna pista del tipo de la
    partida. segAria copia al aria-pressed la MISMA clase que ya usaba el CSS (.on o
@@ -1775,3 +1889,9 @@ window.addEventListener('message',ev=>{
     aplicarPliegue(d.pliegue||null);
   }catch(_){}
 });
+
+/* ----- Lo que el marcado puede pedirle a este archivo -----
+   Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
+   está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
+accionesDirectas(['confirmarNo','confirmarSi','deLosClientesAlHistorial',
+  'delHistorialALosClientes','irAResumen','togglePreciosALaVista']);

@@ -81,6 +81,7 @@ function montarNotario() {
     huellaTrabajo: () => 'H1', money: n => '$' + n, dispositivo: () => 'AAA',
     loadQueueEntry: async folio => { llamadas.push('abrir ' + folio); },
     puenteCfg: () => null, totals: () => ({ sub: 0 }), _CAMPOS_PRECIO: [], addEventListener() {},
+    accionesDirectas() {}, ACC: {},
   });
   ctx.window = ctx; ctx.parent = ctx;
   vm.runInContext(COT.notario, ctx, { filename: 'notario.js' });
@@ -235,17 +236,30 @@ console.log('\n4. EL AVISO DEL NOTARIO CON EL MARCO ESCONDIDO LO DA LA PLATAFORM
   cierto('  y lo pinta con el toast de la plataforma, que va por textContent', /toast\(String\(msg \|\| ''\)/.test(mod));
 }
 
-console.log('\n5. EL FOLIO DE OTRO TELÉFONO VIAJA AL onclick COMO LITERAL DE JS');
+console.log('\n5. EL FOLIO DE OTRO TELÉFONO VIAJA AL data-acc COMO LITERAL, Y NADA DEL ATRIBUTO SE EJECUTA');
+/* Era un onclick y se probaba corriéndolo con new Function. Desde M6 el atributo ya no se corre:
+   lo lee _accLeer (nucleo.js), que solo acepta un nombre y literales. Se prueba lo mismo —que el
+   folio llega entero y como dato— y además que un atributo con código no se lee como acción. */
 {
   const { ctx, correr } = montarNotario();
-  vm.runInContext(linea(COT.nucleo, /const esc=.*;/) + '\n' + linea(COT.nucleo, /const jsArg=.*;/) + '\nconst _ABRIBLE="";\nfunction lineTotal(){return 0;}', ctx);
+  vm.runInContext(linea(COT.nucleo, /const esc=.*;/) + '\n' + linea(COT.nucleo, /const jsArg=.*;/) + '\nconst _ABRIBLE="";\nfunction lineTotal(){return 0;}\n' +
+    /* Hasta la función que le sigue: sus expresiones regulares traen comillas y llaves sueltas
+       que confunden a fuente(), que cuenta llaves. */
+    COT.nucleo.slice(COT.nucleo.indexOf('function _accLeer('), COT.nucleo.indexOf('function _accCorrer(')), ctx);
   vm.runInContext(`_remotas=[{folio:"COT-1'); alert(1); ('@ZZZ",cotizacion:{}}]`, ctx);
   const html = correr('remotasHTML()');
-  const onclick = /onclick="([^"]*)"/.exec(html)[1];
-  const js = onclick.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-  let pedido = null;
-  new Function('abrirRevisionRemota', js)(f => { pedido = f; });
-  eq('el manejador, ya descodificado, pide exactamente ese folio y no corre nada más', pedido, "COT-1'); alert(1); ('@ZZZ");
+  const atr = /data-acc="([^"]*)"/.exec(html)[1];
+  ctx.__texto = atr.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  eq('la acción, ya descodificada, pide exactamente ese folio y no corre nada más',
+     vm.runInContext('_accLeer(__texto)', ctx), { nombre: 'abrirRevisionRemota', args: ["COT-1'); alert(1); ('@ZZZ"] });
+  for (const malo of ["abrirRevisionRemota(alert(1))", "abrirRevisionRemota('x');alert(1)", "abrirRevisionRemota(x)",
+                      "window.alert(1)", "abrirRevisionRemota('x'),alert(1)", "f('a'+'b')"]) {
+    ctx.__texto = malo;
+    eq('  y «' + malo + '» no es una acción', vm.runInContext('_accLeer(__texto)', ctx), null);
+  }
+  ctx.__texto = `setItem(3,'material',"acero \\"inox\\"",-1.5,true,null)`;
+  eq('  los literales que sí: números, los dos tipos de comilla, true y null',
+     vm.runInContext('_accLeer(__texto)', ctx), { nombre: 'setItem', args: [3, 'material', 'acero "inox"', -1.5, true, null] });
 }
 
 console.log('\n6. EL PROYECTO TAMBIÉN SE FIRMÓ: CAMBIARLO APAGA EL QR');
