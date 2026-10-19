@@ -29,6 +29,8 @@ import * as Agenda from '../datos/agenda.js';
    (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
 import * as Sync from '../datos/sync.js';
 import * as Carpetas from '../datos/carpetas.js';
+import * as Ventas from '../datos/ventas.js';
+import * as Logo from '../datos/logo.js';
 import * as DE from './datos-entrega.js';
 import { ENTREGAS, ENTREGA_NOMBRE, ENTREGA_FECHA, TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from '../datos/entrega.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
@@ -63,6 +65,12 @@ let SEM = new Map();        // proyecto_id -> {estado, palabra, detalle}
 let HUELLA = new Map();     // proyecto_id -> 'igual'|'cambio'|'desaparecio'|'sin_huella'
 let REQS = new Map();       // proyecto_id -> requerimientos[]
 let MATS = new Map();       // material_id -> fila del catálogo
+/* Los renglones de la hoja (`ventas_hoja`), indexados como los ata Control (`Ventas.indiceHoja`),
+   para los depósitos de la ficha. Solo se leen con dinero a la vista: fabricación no los tiene. */
+let IDX_HOJA = null;
+/* La imagen de la cotización de cada proyecto, del historial de ESTE aparato (folio_global → data
+   URL). Se lee una vez por carga: el historial trae imágenes y parsearlo por tarjeta es caro. */
+let IMG_COT = new Map();
 
 let filtro = { etapa: 'todas', texto: '' };
 let fichaId = null;         // el proyecto abierto en 'pf-ficha'
@@ -110,10 +118,10 @@ let _bordesRiel = null;         // y sus bordes que se desvanecen: siete etapas 
 let _viaje = null;              // el id cuya tarjeta tiene que viajar de columna (P8)
 let _obsFicha = null;           // mira cuándo se cierra la ficha, para soltar el viaje
 
-function on(el, tipo, fn) {
+function on(el, tipo, fn, captura = false) {
   if (!el) return;
-  el.addEventListener(tipo, fn);
-  _oyentes.push([el, tipo, fn]);
+  el.addEventListener(tipo, fn, captura);
+  _oyentes.push([el, tipo, fn, captura]);
 }
 
 /* Soltar una pieza sin que un fallo suyo tire el repintado que la estaba reemplazando. */
@@ -207,6 +215,10 @@ export async function montar(c, ctx) {
     _tBuscar = setTimeout(() => { filtro.texto = v; aplicar(); }, 220);
   });
   on($('pf-ficha'), 'click', clicFicha);
+  /* Una miniatura de Drive que no carga (sin señal, o el archivo se volvió privado) no deja el
+     icono roto del navegador: se cambia por el aviso de siempre. `error` no burbujea; va en captura. */
+  on(cont, 'error', logoRoto, true);
+  on($('pf-ficha'), 'error', logoRoto, true);
   on($('pf-hoja'), 'click', clicHoja);
   on($('pf-pide'), 'click', clicPide);
   on(window, 'afterprint', trasImprimir);
@@ -234,8 +246,8 @@ export async function montar(c, ctx) {
 
 export function desmontar() {
   _desmontadoEn = Date.now();
-  for (const [el, tipo, fn] of _oyentes) {
-    try { el.removeEventListener(tipo, fn); } catch (_) {}
+  for (const [el, tipo, fn, captura] of _oyentes) {
+    try { el.removeEventListener(tipo, fn, !!captura); } catch (_) {}
   }
   _oyentes.length = 0;
   clearTimeout(_tBuscar);
@@ -270,6 +282,7 @@ export function desmontar() {
 
   TODOS = []; VISTA = []; SIN_DECIDIR = [];
   FECHA = new Map(); SEM = new Map(); REQS = new Map(); MATS = new Map(); HUELLA = new Map();
+  IDX_HOJA = null; IMG_COT = new Map(); _logos = { lista: null, mapa: new Map() };
   fichaId = null;
   cont = null; CTX = null;
 }
@@ -306,15 +319,23 @@ async function leerDatos() {
      vuelve esta pantalla una que tarda. Con `hastaDias` largo porque aquí la pregunta no
      es «qué compro esta semana» sino «a este proyecto le falta algo», y hay proyectos
      ganados con instalación a dos meses. */
-  const [proys, insts, compra, mats] = await Promise.all([
+  const [proys, insts, compra, mats, hoja] = await Promise.all([
     Proy.listar({}),
     Agenda.listar({ vivas: true }),
     Stock.listaCompra({ hastaDias: 3650 }),
     Material.listarMateriales({}),
+    Prefs.veDinero() ? DB.listar('ventas_hoja').catch(() => []) : Promise.resolve(null),
   ]);
 
   TODOS = Array.isArray(proys) ? proys : [];
   MATS = new Map((mats || []).map(m => [m.id, m]));
+  IDX_HOJA = Array.isArray(hoja) ? Ventas.indiceHoja(hoja) : null;
+  IMG_COT = new Map();
+  _logos = { lista: null, mapa: new Map() };
+  for (const e of Cot.historial()) {
+    const img = Logo.imagenDeCotizacion(e);
+    if (img && e.folio) IMG_COT.set(Cot.folioGlobal(e.folio, e.disp), img);
+  }
 
   /* La fecha que manda es la instalación viva MÁS PRÓXIMA. Una reagendada a diciembre no
      puede seguir diciendo que se instala el martes. */
@@ -789,18 +810,60 @@ function marcaCarpeta(p) {
   return m ? '<span class="pf-sem ' + m[0] + '">' + esc(m[1]) + '</span>' : '';
 }
 
+/* ----- El logotipo del proyecto (js/datos/logo.js) -----
+   De la carpeta de Drive que ya se sabe (`Carpetas.ultima()`, sin red) o de la imagen de la
+   cotización en este aparato. Emparejar carpeta y proyecto recorre todas las carpetas, y el
+   tablero ya lo hace una vez por tarjeta para su marca: aquí se guarda lo emparejado mientras la
+   lista de Drive sea la misma. */
+let _logos = { lista: null, mapa: new Map() };
+function logoDeProyecto(p, carpetas = Carpetas.ultima()) {
+  if (!p) return null;
+  if (_logos.lista !== carpetas) _logos = { lista: carpetas, mapa: new Map() };
+  if (!_logos.mapa.has(p.id)) {
+    const carpeta = Array.isArray(carpetas) ? Carpetas.carpetaDe(p, carpetas) : null;
+    _logos.mapa.set(p.id, Logo.logoDe(p, { carpeta, cotizacion: IMG_COT.get(p.folio_global) || '' }));
+  }
+  return _logos.mapa.get(p.id);
+}
+
+/* La miniatura de la lista y del tablero. Sin `alt` que leer: el nombre del proyecto va al lado. */
+function logoMini(p, clase) {
+  const l = logoDeProyecto(p);
+  return l ? '<span class="pj-logo ' + clase + '"><img src="' + esc(l.src) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></span>' : '';
+}
+
+/* Una miniatura que no cargó: fuera la imagen. En la lista y el tablero se va el hueco entero; en
+   la ficha queda el aviso de cómo poner el logo. */
+function logoRoto(ev) {
+  const img = ev && ev.target;
+  if (!img || img.tagName !== 'IMG') return;
+  const caja = img.closest('.pj-logo');
+  if (!caja) return;
+  if (caja.classList.contains('pj-logo-ficha')) {
+    caja.outerHTML = '<p class="hintnote">No se pudo cargar la imagen del logo' +
+      (navigator.onLine === false ? ' (sin señal).' : '. Revisa que siga en su carpeta de Drive.') + '</p>';
+  } else {
+    caja.remove();
+  }
+}
+
+/* Los pagos del proyecto: su renglón de la hoja, si lo hay, y la cuenta (`Ventas.pagosDe`). */
+const pagosDeProyecto = p => Ventas.pagosDe(p, IDX_HOJA ? Ventas.filaDeLaHoja(p, IDX_HOJA) : null);
+
 function tarjeta(p) {
   const inst = FECHA.get(p.id) || null;
   const sem = SEM.get(p.id) || null;
   const tipos = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo : [];
   const dinero = Prefs.veDinero() ? esc(money(p.precio_auth || p.neto)) : '';
+  const resta = Prefs.veDinero() && p.etapa !== 'cancelado' ? pagosDeProyecto(p).restante : 0;
 
   /* La tarjeta entera es el botón. En un tablero, el destino de un clic en cualquier parte
      de una tarjeta es abrirla; un botón «Abrir» dentro de una tarjeta de 200 px de ancho
      gasta un renglón para decir lo que el cursor ya dice. */
   return '<button type="button" class="pj-tarj ' + claseEtapa(p.etapa) + '" data-abrir="' + esc(p.id) + '"' +
       ' aria-label="Abrir ' + esc(p.nombre || p.folio_local || 'proyecto') + '">' +
-    '<span class="pj-tarj-t">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</span>' +
+    '<span class="pj-tarj-cab">' + logoMini(p, 'pj-logo-tarj') +
+      '<span class="pj-tarj-t">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</span></span>' +
     '<span class="pj-tarj-d">' + (tipos.length ? esc(tipos.join(' · ')) : 'Sin tipo derivado') + '</span>' +
     '<span class="pj-tarj-f">' +
       /* En el teléfono no hay columna que diga en qué etapa está, así que la ficha de etapa
@@ -821,7 +884,8 @@ function tarjeta(p) {
     '</span>' +
     '<span class="pj-tarj-pie">' +
       '<span class="pj-tarj-folio">' + esc(Cot.folioVisible(p.folio_global) || p.folio_local || '—') + '</span>' +
-      (dinero ? '<span class="pj-tarj-monto">' + dinero + '</span>' : '') +
+      (dinero ? '<span class="pj-tarj-monto">' + dinero +
+        (resta > 0 ? '<small class="pj-resta-mini">resta ' + esc(money(resta)) + '</small>' : '') + '</span>' : '') +
     '</span>' +
   '</button>';
 }
@@ -839,13 +903,17 @@ function fila(p) {
   /* El importe es lo único que cambia con el rol, y no se difumina: no se pinta. El
      difuminado del cotizador es una mampara contra el cliente sentado enfrente y encima es
      inerte para una cotización autorizada, que es lo que TODO proyecto ganado es. */
+  const resta = Prefs.veDinero() && p.etapa !== 'cancelado' ? pagosDeProyecto(p).restante : 0;
   const dinero = Prefs.veDinero()
-    ? ' · Vendido <b>' + esc(money(p.precio_auth || p.neto)) + '</b>'
+    ? ' · Vendido <b>' + esc(money(p.precio_auth || p.neto)) + '</b>' +
+      (resta > 0 ? ' · <span class="pj-resta-mini">Resta <b>' + esc(money(resta)) + '</b></span>' : '')
     : '';
+  const logo = logoMini(p, 'pj-logo-fila');
 
   return '<div class="pf-fila">' +
-    '<div class="pf-fila-ico' + (sem && sem.estado === 'grave' ? ' mal' : cambio ? ' urge' : '') + '">' +
-      ico(ICO_ETAPA[p.etapa] || 'i-proyectos') + '</div>' +
+    /* El logo va ENCIMA del icono de la etapa: si la miniatura no carga, se quita y queda el icono. */
+    '<div class="pf-fila-ico' + (sem && sem.estado === 'grave' ? ' mal' : cambio ? ' urge' : '') + (logo ? ' con-logo' : '') + '">' +
+      ico(ICO_ETAPA[p.etapa] || 'i-proyectos') + logo + '</div>' +
     '<div class="pf-fila-tx">' +
       '<div class="pf-fila-t">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</div>' +
       '<div class="pf-fila-d">' +
@@ -1190,6 +1258,16 @@ async function pintarCarpeta() {
   const [p, r] = await Promise.all([Proy.obtener(id), Carpetas.listar()]);
   const caja = $('pj-carpeta');
   if (!caja || fichaId !== id || !p) return;
+  /* Con la lista fresca, el logo también: pudo subirse uno desde la última vez. Solo si cambió,
+     para no recargar la imagen que ya se ve. */
+  const logo = $('pj-logo');
+  if (logo && r && r.ok) {
+    const l = logoDeProyecto(p, r.carpetas);
+    if ((l ? l.src : '') !== logo.dataset.src) {
+      logo.dataset.src = l ? l.src : '';
+      logo.innerHTML = logoFichaHTML(p, r.carpetas);
+    }
+  }
   const lab = '<div class="fld-lab">Carpeta de Drive</div>';
   const raiz = linkSeguro(r && r.raiz) || Carpetas.RAIZ_TRABAJOS;
   const aRaiz = raiz ? '<div class="btn-fila"><a class="btn btn-gho pj-carpeta-abrir" href="' + esc(raiz) +
@@ -1425,7 +1503,12 @@ function htmlFicha(p) {
      catorce datos, con el dinero y la cuenta de cobro antes que la dirección. Ahora arriba va solo
      eso —las imágenes, cómo es, el material, dónde y cuándo, y el paso que sigue— y todo lo demás
      queda en «Más detalles», plegado para Dirección y Fabricación (ver `tallerHTML`). */
+  /* Los pagos, a la vista y no plegados: cada depósito con su fecha y su cuenta, y lo que resta.
+     Para Pagos van primero —es su trabajo—; para Dirección, después de lo del taller. */
+  const pagos = ve ? pagosHTML(p) : '';
+  if (rol === 'pagos') partes.push(pagos);
   partes.push(tallerHTML(p, { inst, sem, ent, dir, tel, rol }));
+  if (rol !== 'pagos') partes.push(pagos);
 
   /* La carpeta de Drive con los diseños, justo debajo: es lo otro que fabricación abre la ficha a
      buscar —el .cdr y las órdenes—. Se llena sola después de abrir (`pintarCarpeta`), porque hay
@@ -1567,6 +1650,11 @@ function tallerHTML(p, x) {
   const { inst, sem, ent, dir, tel, rol } = x;
   const b = [];
 
+  /* El logotipo que se está trabajando, arriba de todo: la referencia visual de qué trabajo es. */
+  const logo = logoDeProyecto(p);
+  b.push('<section class="pj-t-bloque pj-logo-bloque" id="pj-logo" data-src="' + esc(logo ? logo.src : '') + '">' +
+    logoFichaHTML(p) + '</section>');
+
   /* Las imágenes de la cotización (el plano de cada partida, los renders y la propuesta), desde la
      nube: Q-02 bis, decidido por Elías el 2026-10-16 (Fabricación las ve para fabricar; no llevan
      precios). APAGADO: el hueco sale solo si la lectura en vivo puso la ventanilla con `obra`
@@ -1649,6 +1737,56 @@ function tallerHTML(p, x) {
   b.push('<div class="pj-t-bloque pj-t-etapa">' + pasosDeEtapa(p, rol, acomodar) + '</div>');
 
   return '<section class="pj-taller" aria-label="Para el taller">' + b.join('') + '</section>';
+}
+
+/* El contenido del bloque del logo en la ficha. Se vuelve a pintar cuando llega la lista fresca de
+   Drive (`pintarCarpeta`), por si la carpeta cambió desde la última vez. */
+function logoFichaHTML(p, carpetas) {
+  const l = logoDeProyecto(p, carpetas);
+  const lab = '<div class="fld-lab">Logotipo</div>';
+  if (!l) {
+    return lab + '<p class="hintnote">' + ico('i-imagen') + ' Todavía no hay imagen del logo. Sube una imagen con ' +
+      '<b>«logo»</b> en el nombre a la carpeta de Drive de este proyecto y aparece aquí y en el tablero. ' +
+      'Mientras, sale la primera hoja de las órdenes de fabricación, cuando ya estén.</p>';
+  }
+  const abrir = l.abrir ? linkSeguro(l.abrir) : '';
+  const fig = '<img src="' + esc(l.src) + '" alt="' + esc('Logotipo de ' + (p.nombre || 'el proyecto')) + '" decoding="async" referrerpolicy="no-referrer">';
+  return lab +
+    '<figure class="pj-logo pj-logo-ficha">' +
+      (abrir ? '<a href="' + esc(abrir) + '" target="_blank" rel="noopener" aria-label="Abrir la imagen en Drive">' + fig + '</a>' : fig) +
+      '<figcaption>' + (l.fuente === 'drive'
+        ? 'De su carpeta de Drive: ' + esc(l.nombre)
+        : 'La imagen de la cotización (solo está en este aparato). Para que la vea todo el equipo, súbela a su carpeta de Drive con «logo» en el nombre.') +
+      '</figcaption>' +
+    '</figure>';
+}
+
+/* ----- Los pagos del proyecto (Ventas.pagosDe) -----
+   Lo que la hoja sabe de cada depósito —el anticipo y la liquidación— con la fecha como se lee
+   («lun 14 oct 2026») y la cuenta que lo recibió, y lo que resta, grande. */
+function pagosHTML(p) {
+  const g = pagosDeProyecto(p);
+  const cuenta = c => c ? esc(c) : '<span class="pf-sem falta">cuenta sin capturar</span>';
+  const deps = g.depositos.map(d =>
+    '<li><span class="pj-dep-que">' + esc(d.que) + '</span>' +
+      '<b class="pj-dep-monto">' + esc(money(d.monto)) + '</b>' +
+      '<span class="pj-dep-meta">' + (d.fecha ? esc(fmtFechaDia(d.fecha)) : '<span class="pf-sem falta">sin fecha</span>') +
+        ' · a ' + cuenta(d.cuenta) + '</span></li>').join('');
+  const nada = g.pactado > 0
+    ? 'Esta venta todavía no está en la hoja: no hay depósitos registrados. Se pactó un anticipo de ' + esc(money(g.pactado)) +
+      (g.cuenta ? ', a ' + esc(g.cuenta) : '') + '.'
+    : 'Todavía no hay depósitos registrados en la hoja.';
+  const liquidado = g.restante <= 0 && g.total > 0;
+  return '<section class="pj-t-bloque pj-pagos" aria-label="Pagos">' +
+    '<div class="fld-lab">Pagos</div>' +
+    '<div class="pj-resta' + (liquidado ? ' ok' : '') + '">' +
+      '<span class="pj-resta-lab">' + (liquidado ? 'Pagado completo' : 'Resta por pagar') + '</span>' +
+      '<b class="pj-resta-monto">' + esc(money(g.restante)) + '</b>' +
+      '<span class="pj-resta-det">de ' + esc(money(g.total)) + ' · pagado ' + esc(money(g.pagado)) +
+        (g.deHoja ? '' : ' · <span class="pf-sem nada">estimado</span>') + '</span>' +
+    '</div>' +
+    (deps ? '<ul class="pj-depositos">' + deps + '</ul>' : '<p class="hintnote">' + nada + '</p>') +
+  '</section>';
 }
 
 const bloqueTaller = (titulo, html) =>

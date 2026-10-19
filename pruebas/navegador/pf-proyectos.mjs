@@ -1199,7 +1199,7 @@ if (activa('taller')) {
       pie: [...document.querySelectorAll('#pf-ficha .pf-panel-f .btn')].map(b => b.textContent.trim()),
     };
   });
-  que(f.hay && f.bloques.join(' · ') === 'Cómo es · Material · Dónde se instala · Etapa de obra', 'arriba, en su orden: ' + f.bloques.join(' · '));
+  que(f.hay && f.bloques.join(' · ') === 'Logotipo · Cómo es · Material · Dónde se instala · Etapa de obra', 'arriba, en su orden: ' + f.bloques.join(' · '));
   que(/letras/.test(f.como), 'cómo es: la partida con sus palabras de siempre («' + f.como.trim().slice(0, 50) + '»)');
   que(f.sigue.trim() === 'Ya se cortó', 'y el paso que sigue, arriba: «' + f.sigue.trim() + '»');
   que(f.dinero === false, 'sin un peso en lo de arriba: lo lee quien corta y quien instala');
