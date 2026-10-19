@@ -4423,3 +4423,39 @@ button.tb-nec:focus-visible{outline:2.5px solid var(--a);outline-offset:-4px}
 .pj-mas>summary{font-weight:600;color:var(--a-tx)}
 .pf-panel-b>.hintnote+.pj-taller{margin-top:var(--e3)}
 .pj-raros{margin-top:var(--e4)}
+
+/* ----- El logotipo del proyecto (js/datos/logo.js) -----
+   Una miniatura en la tarjeta, en el renglón y arriba de la ficha. Fondo blanco en los dos temas:
+   un logo es un dibujo sobre papel, y un PNG con transparencia sobre el fondo oscuro se perdía. */
+.pj-logo img{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
+.pj-tarj-cab{display:flex;align-items:center;gap:var(--e2);min-width:0}
+.pj-tarj-cab .pj-tarj-t{min-width:0}
+.pj-logo-tarj{flex:0 0 auto;width:40px;height:40px;border-radius:var(--rr1);overflow:hidden;
+  border:1px solid var(--linea);background:#fff}
+.pf-fila-ico.con-logo{position:relative;overflow:hidden;background:#fff}
+.pj-logo-fila{position:absolute;inset:0}
+.pj-logo-ficha{margin:var(--e1) 0 0}
+.pj-logo-ficha img{width:auto;max-width:100%;height:auto;max-height:220px;border-radius:var(--rr2);border:1px solid var(--linea)}
+.pj-logo-ficha a{display:inline-block;max-width:100%}
+.pj-logo-ficha figcaption{margin-top:var(--e1);font-size:var(--t1);color:var(--muted);overflow-wrap:anywhere}
+
+/* ----- Los pagos del proyecto -----
+   Lo que resta va grande: es la pregunta con la que se abre la ficha para cobrar. Debajo, cada
+   depósito en su renglón: qué fue, cuánto, cuándo y a qué cuenta. */
+.pj-pagos{margin:0 0 var(--e4)}
+.pj-resta{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px var(--e2);
+  padding:var(--e3);border:1px solid var(--av-borde);border-radius:var(--rr2);background:var(--av-bg)}
+.pj-resta.ok{border-color:var(--ok-borde);background:var(--ok-bg)}
+.pj-resta-lab{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.pj-resta-monto{font-family:var(--f-cifra);font-size:var(--t6);font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.pj-resta-det{flex-basis:100%;font-size:var(--t1);color:var(--tinta2)}
+.pj-depositos{list-style:none;margin:var(--e2) 0 0;padding:0;display:flex;flex-direction:column;gap:var(--e1)}
+.pj-depositos li{display:grid;grid-template-columns:1fr auto;gap:2px var(--e2);padding:var(--e2) 0;
+  border-bottom:1px solid var(--linea2)}
+.pj-depositos li:last-child{border-bottom:0}
+.pj-dep-que{font-weight:600;color:var(--ink)}
+.pj-dep-monto{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--ink);text-align:right}
+.pj-dep-meta{grid-column:1/-1;font-size:var(--t2);color:var(--tinta2)}
+.pj-resta-mini{color:var(--av)}
+small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align:right}

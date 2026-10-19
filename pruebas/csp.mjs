@@ -106,6 +106,12 @@ eq('  y ninguna otra página le abre la puerta a Cloudflare',
   PAGINAS.filter(p => p !== 'index.html' && POL[p] && permite(POL[p], 'script-src', 'https://challenges.cloudflare.com/turnstile/v0/api.js')), []);
 cierto('  y empotra el cotizador y el anidador, que son de aquí', (POL['index.html']['frame-src'] || []).includes("'self'"));
 cierto('  y pinta los dos mapas', permite(POL['index.html'], 'img-src', 'https://tile.openstreetmap.org/1/1/1.png') && permite(POL['index.html'], 'img-src', 'https://a.basemaps.cartocdn.com/rastertiles/voyager/1/1/1.png'));
+cierto('  y la miniatura del logotipo de cada proyecto: /thumbnail de Drive y su redirección a lh3',
+  permite(POL['index.html'], 'img-src', 'https://drive.google.com/thumbnail?id=abc&sz=w320') &&
+  permite(POL['index.html'], 'img-src', 'https://lh3.googleusercontent.com/d/abc=w320') &&
+  /'https:\/\/drive\.google\.com\/thumbnail\?id='/.test(leer('js/datos/logo.js')));
+eq('  y Drive no entra a connect-src: solo se le piden imágenes',
+  ['drive.google.com', 'googleusercontent.com/d'].filter(h => (POL['index.html']['connect-src'] || []).some(f => f.includes(h))), []);
 cierto('el cotizador habla con la hoja, y la redirección de Apps Script', permite(POL['cotizador.html'], 'connect-src', HOJA) && permite(POL['cotizador.html'], 'connect-src', REDIRECCION));
 cierto('  y carga pdf.js con su worker', permite(POL['cotizador.html'], 'script-src', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js') && permite(POL['cotizador.html'], 'worker-src', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'));
 cierto('  y enseña el PDF de referencia, que va en data:', (POL['cotizador.html']['frame-src'] || []).includes('data:'));

@@ -9,7 +9,7 @@
  */
 import { resumenMensual, indicadores, saldoDe, porCobrar, conversion, csvProyectos, csvCampo,
          mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV, ventaDesdeHoja, unificar,
-         grupoFinanzas, finanzasVivas } from '../js/datos/ventas.js';
+         grupoFinanzas, finanzasVivas, indiceHoja, filaDeLaHoja, pagosDe } from '../js/datos/ventas.js';
 import { desdeVentaDeHoja } from '../js/datos/proyectos.js';
 import { VIVAS_EN_TALLER } from '../js/datos/puente.js';
 
@@ -370,6 +370,30 @@ console.log('\nLAS FINANZAS DE LO VIVO: en fabricación y cobrando');
   eq('por orden de entrada: lo más nuevo arriba, lo más antiguo abajo, y sin fecha al final', f.fabricacion.lista.map(x => x.proyecto.id), ['b', 'a', 'z']);
   eq('cobrando', [f.cobrando.n, f.cobrando.vendido, f.cobrando.cobrado, f.cobrando.saldo, f.cobrando.estimados], [1, 11600, 10600, 1000, 0]);
   eq('lista vacía', finanzasVivas(null).cobrando, { n: 0, vendido: 0, cobrado: 0, saldo: 0, estimados: 0, lista: [] });
+}
+
+console.log('\nLOS PAGOS DE LA FICHA: cada depósito con su fecha y su cuenta, y lo que resta');
+{
+  const fila = { id: 'hoja:V-042', folio_hoja: 'V-042', folio_cotizacion: 'COT-0001@AAAA', nombre: 'Uno',
+    cuenta: 'Elias BBVA', estatus: 'FABRICACION', neto: 11600, anticipo: 5800, liquidacion: 2000,
+    fecha_anticipo: '2026-10-14', fecha_liquidacion: '', pago_pendiente: 3800 };
+  const idx = indiceHoja([fila, { id: 'hoja:V-043', folio_hoja: 'V-043', nombre: 'Otro' }]);
+  eq('se ata por el folio de cotización, como en Control', (filaDeLaHoja(proy(), idx) || {}).id, 'hoja:V-042');
+  eq('y la importada de la hoja, por su folio interno', (filaDeLaHoja(proy({ folio_global: '', folio_hoja: 'V-043', de_hoja: true }), idx) || {}).id, 'hoja:V-043');
+  eq('sin renglón no inventa uno', filaDeLaHoja(proy({ folio_global: 'COT-0099@AAAA' }), idx), null);
+  const g = pagosDe(proy(), fila);
+  eq('dos depósitos, con su fecha y la cuenta de la venta', g.depositos, [
+    { que: 'Anticipo', monto: 5800, fecha: '2026-10-14', cuenta: 'Elias BBVA' },
+    { que: 'Liquidación', monto: 2000, fecha: '', cuenta: 'Elias BBVA' }]);
+  eq('lo pagado y lo que resta, de la fórmula de la hoja', [g.total, g.pagado, g.restante, g.deHoja], [11600, 7800, 3800, true]);
+  const est = pagosDe(proy(), { ...fila, pago_pendiente: null });
+  eq('sin la fórmula, el total menos lo depositado, marcado estimado', [est.restante, est.deHoja], [3800, false]);
+  eq('liquidado en la hoja no debe nada aunque falte la fórmula', pagosDe(proy(), { ...fila, pago_pendiente: null, estatus: 'LIQUIDADO' }).restante, 0);
+  eq('un depósito en cero no es un renglón', pagosDe(proy(), { ...fila, liquidacion: 0 }).depositos.map(d => d.que), ['Anticipo']);
+  const sin = pagosDe(proy({ cuenta: 'Moni MPago' }), null);
+  eq('sin hoja: ningún depósito, el anticipo es solo lo pactado, y el saldo estimado',
+    [sin.depositos.length, sin.pactado, sin.restante, sin.cuenta, sin.deHoja], [0, 5800, 5800, 'Moni MPago', false]);
+  eq('un cancelado no debe nada', pagosDe(proy({ etapa: 'cancelado' }), fila).restante, 0);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

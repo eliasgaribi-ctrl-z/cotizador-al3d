@@ -128,6 +128,85 @@ export function ventaDesdeHoja(v) {
 }
 
 /**
+ * Los dos índices del espejo de la hoja: por «Folio cotizacion» y por el folio interno (V-214).
+ * El segundo lo necesitan los proyectos que el puente IMPORTÓ de la hoja porque estaban en
+ * fabricación y no habían nacido en el cotizador (ver `proyectos.desdeVentaDeHoja`): no tienen
+ * folio de cotización, así que por el primero no se atarían a su renglón.
+ *
+ * Y no atarlos no sería un detalle cosmético: la misma venta se contaría DOS VECES —una como
+ * proyecto del tablero y otra como fila del récord— y el vendido del mes saldría al doble. Con
+ * dieciséis proyectos importados, eso son dieciséis ventas fantasma. PURA.
+ */
+export function indiceHoja(ventasHoja) {
+  const porFolio = new Map(), porHoja = new Map();
+  for (const v of (Array.isArray(ventasHoja) ? ventasHoja : [])) {
+    if (!v) continue;
+    const fg = String(v.folio_cotizacion || '').trim();
+    if (fg && !porFolio.has(fg)) porFolio.set(fg, v);
+    const fh = String(v.folio_hoja || '').trim();
+    if (fh && !porHoja.has(fh)) porHoja.set(fh, v);
+  }
+  return { porFolio, porHoja };
+}
+
+/* La misma venta en DOS filas (`hoja_doble`, ver proyectos.revisarContraLaHoja): los folios, o null. */
+const dobleDe = p => (!p.de_hoja && p.hoja_doble && Array.isArray(p.hoja_doble.folios) && p.hoja_doble.folios.length > 1
+  ? p.hoja_doble.folios.map(String) : null);
+
+/**
+ * El renglón de la hoja de un proyecto de aquí, o null. Es la atadura de `unificar` y la usa
+ * también la ficha para enseñar los depósitos: una sola regla, no una parecida. PURA.
+ */
+export function filaDeLaHoja(p, idx) {
+  if (!p || !idx) return null;
+  const { porFolio, porHoja } = idx;
+  const doble = dobleDe(p);
+  const laSuya = doble && doble.includes(String(p.notion_page_id || '')) ? porHoja.get(String(p.notion_page_id)) : null;
+  /* Por el folio de la hoja, la venta de aquí solo se ata a una fila que no diga ser de OTRA
+     cotización: `folio_hoja` es de una atadura por el nombre, y si después la fila trae el folio
+     de otra venta, ésa ya no es la suya (la revisión lo limpia; aquí no se cuenta mientras
+     tanto). Sin esto, Control contaba dos veces la venta del otro y ésta dejaba de contarse. */
+  const porSuHoja = p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null;
+  return laSuya || (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
+    || (porSuHoja && (p.de_hoja || !filaDeOtraCotizacion(p, porSuHoja)) ? porSuHoja : null) || null;
+}
+
+/**
+ * Los pagos de un proyecto, para la ficha: cada depósito con su fecha y la cuenta que lo recibió,
+ * lo pagado y lo que resta.
+ *
+ * La hoja guarda DOS depósitos por venta —«Anticipo» con «Fecha Anticipo e Instalacion» y
+ * «Liquidacion» con «Fecha Liquidacion»— y UNA cuenta, «Cuenta», que es a donde se depositan los
+ * dos. El restante es la fórmula de la hoja («Pago Pendiente» = neto − anticipo − liquidación)
+ * cuando ya bajó; sin ella, el total menos lo depositado, y se dice que es estimado.
+ *
+ * Sin renglón en la hoja no hay depósitos registrados: el anticipo del proyecto es lo que se
+ * PACTÓ en la cotización, no lo que llegó, y va marcado así. PURA.
+ *
+ * @param {Object} p      el proyecto
+ * @param {Object|null} v su renglón de `ventas_hoja` (`filaDeLaHoja`)
+ * @returns {{total:number, pagado:number, restante:number, deHoja:boolean, cuenta:string,
+ *            depositos:{que:string, monto:number, fecha:string, cuenta:string}[], pactado:number}}
+ */
+export function pagosDe(p, v) {
+  const cuenta = String((v && v.cuenta) || (p && p.cuenta) || '');
+  const total = v && num(v.neto) > 0 ? red2(v.neto) : red2(vendidoDe(p));
+  const depositos = [];
+  if (v) {
+    if (num(v.anticipo) > 0) depositos.push({ que: 'Anticipo', monto: red2(v.anticipo), fecha: esISO(v.fecha_anticipo) ? v.fecha_anticipo : '', cuenta });
+    if (num(v.liquidacion) > 0) depositos.push({ que: 'Liquidación', monto: red2(v.liquidacion), fecha: esISO(v.fecha_liquidacion) ? v.fecha_liquidacion : '', cuenta });
+  }
+  const pagado = red2(depositos.reduce((s, d) => s + d.monto, 0));
+  const deHoja = !!v && hayNum(v.pago_pendiente);
+  let restante;
+  if (p && p.etapa === 'cancelado') restante = 0;
+  else if (deHoja) restante = Math.max(0, red2(v.pago_pendiente));
+  else if (v) restante = String(v.estatus || '').toUpperCase() === 'LIQUIDADO' ? 0 : Math.max(0, red2(total - pagado));
+  else restante = saldoDe(p);
+  return { total, pagado, restante, deHoja, cuenta, depositos, pactado: v ? 0 : red2(p && p.anti_pactado) };
+}
+
+/**
  * Los proyectos de este teléfono y el espejo de la hoja, en UNA lista. Ver la cabecera.
  *
  * @param {Object[]} proyectos   los de `Proy.listar({})`, con cancelados
@@ -138,22 +217,8 @@ export function unificar(proyectos, ventasHoja) {
   const P = (Array.isArray(proyectos) ? proyectos : []).filter(Boolean);
   const H = (Array.isArray(ventasHoja) ? ventasHoja : []).filter(Boolean);
 
-  const porFolio = new Map();
-  /* Y el segundo índice, por el folio interno de la hoja (V-214). Lo necesitan los proyectos
-     que el puente IMPORTÓ de la hoja porque estaban en fabricación y no habían nacido en el
-     cotizador (ver `proyectos.desdeVentaDeHoja`): no tienen folio de cotización, así que por
-     el índice de arriba no se atarían a su renglón.
-
-     Y no atarlos no sería un detalle cosmético: la misma venta se contaría DOS VECES —una
-     como proyecto del tablero y otra como fila del récord— y el vendido del mes saldría al
-     doble. Con dieciséis proyectos importados, eso son dieciséis ventas fantasma. */
-  const porHoja = new Map();
-  for (const v of H) {
-    const fg = String(v.folio_cotizacion || '').trim();
-    if (fg && !porFolio.has(fg)) porFolio.set(fg, v);
-    const fh = String(v.folio_hoja || '').trim();
-    if (fh && !porHoja.has(fh)) porHoja.set(fh, v);
-  }
+  const idx = indiceHoja(H);
+  const porHoja = idx.porHoja;
 
   const usadas = new Set();
   const ventas = [];
@@ -180,16 +245,8 @@ export function unificar(proyectos, ventasHoja) {
     /* La misma venta en DOS filas (`hoja_doble`, ver proyectos.revisarContraLaHoja): se cuenta
        una vez, con la fila a la que este teléfono le manda sus cambios. Las dos filas traen la
        misma venta, y sin esto la otra se contaba sola abajo, como otra venta de la hoja. */
-    const doble = !p.de_hoja && p.hoja_doble && Array.isArray(p.hoja_doble.folios) && p.hoja_doble.folios.length > 1
-      ? p.hoja_doble.folios.map(String) : null;
-    const laSuya = doble && doble.includes(String(p.notion_page_id || '')) ? porHoja.get(String(p.notion_page_id)) : null;
-    /* Por el folio de la hoja, la venta de aquí solo se ata a una fila que no diga ser de OTRA
-       cotización: `folio_hoja` es de una atadura por el nombre, y si después la fila trae el folio
-       de otra venta, ésa ya no es la suya (la revisión lo limpia; aquí no se cuenta mientras
-       tanto). Sin esto, Control contaba dos veces la venta del otro y ésta dejaba de contarse. */
-    const porSuHoja = p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null;
-    const v = laSuya || (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
-      || (porSuHoja && (p.de_hoja || !filaDeOtraCotizacion(p, porSuHoja)) ? porSuHoja : null);
+    const doble = dobleDe(p);
+    const v = filaDeLaHoja(p, idx);
     if (!v) {
       /* Un proyecto IMPORTADO de la hoja (`de_hoja`) sin su renglón es una fila que se borró
          allá: el barrido ya la quitó de `ventas_hoja`, y el proyecto se quedaba contado como
