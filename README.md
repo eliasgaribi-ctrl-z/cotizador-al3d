@@ -261,8 +261,10 @@ cuenta. En el teléfono la barra de abajo lleva Tablero · Calendario · Proyect
     cotizador.html            solo el marcado (unas 1 100 líneas)
     css/sistema.css           EL sistema de diseño: tokens, estructura, las ocho capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
-    css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
-                              las dos familias y el cromado. Si se quita, la app vuelve a como estaba
+    css/vidrio.css            la capa de vidrio: repinta el cromado sobre las de arriba
+    css/estudio.css           la capa Estudio (20/10/2026), y va LA ÚLTIMA: Plus Jakarta Sans,
+                              lienzo gris plano, tarjetas redondas, menú de iconos, fondos pastel
+                              por tema y el bloque azul. Si se quita, la app vuelve al vidrio
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
     js/piezas.js              las piezas compartidas de la interfaz, una sola vez para las cuatro
                               superficies: el aviso con mecha y pila, el botón que dice que está
@@ -384,7 +386,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento cuarenta y dos archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento cuarenta y tres archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 

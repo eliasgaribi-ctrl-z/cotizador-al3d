@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 137;
+const APP_VERSION = 138;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -65,6 +65,9 @@ const APP_FILES = [
      ella lo que queda no es la app de antes sino la app SIN cromado —barras sin fondo y
      pastillas a medio radio—, que es peor que cualquiera de las dos versiones enteras. */
   './css/vidrio.css',
+  /* La capa Estudio (20/10/2026), que va después del vidrio en todas las páginas que lo enlazan.
+     Sin ella se ve la app de antes, entera: no se rompe nada, pero tampoco es el look nuevo. */
+  './css/estudio.css',
   /* Las tres páginas públicas y su hoja. Se guardan porque la puerta las enlaza al pie: una
      política de privacidad que solo se puede leer con señal es una política de privacidad a
      medias, y son ocho kilobytes. */

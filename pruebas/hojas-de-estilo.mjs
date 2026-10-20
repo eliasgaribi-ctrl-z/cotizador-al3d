@@ -65,18 +65,38 @@ for (const [f, propia, otras] of [
     cierto(iOtra > -1 && iVid > iOtra, f + ': el vidrio se lee después de ' + otra);
   }
 }
-/* Y las dos familias nuevas se piden de verdad: el token dice Sora y Manrope, pero quien las
-   baja es el <link> de Google Fonts, y son dos sitios distintos que ya se desincronizaron una
-   vez con Outfit y Figtree. Si el <link> se queda atrás, la app cae a la reserva y nadie lo
-   nota hasta que alguien compara dos capturas. */
+/* LA CAPA ESTUDIO (20/10/2026) VA DESPUÉS DEL VIDRIO, por la misma razón por la que el vidrio va
+   después de las demás: repinta tokens y cromado con selectores de una clase, y con la misma
+   especificidad gana la última. Se comprueba en las mismas siete páginas. */
+const estudio = leer('css/estudio.css');
+for (const [f, vid, est] of [
+  ['cotizador.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['index.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['anidador-vectores/index.html', '../css/vidrio.css', '../css/estudio.css'],
+  ['acerca.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['privacidad.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['condiciones.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['verificar.html', 'css/vidrio.css', 'css/estudio.css'],
+]) {
+  const t = leer(f);
+  const iV = t.indexOf('<link rel="stylesheet" href="' + vid + '">');
+  const iE = t.indexOf('<link rel="stylesheet" href="' + est + '">');
+  cierto(iE > -1 && iE > iV, f + ': la capa Estudio se lee después del vidrio');
+}
+/* Y la familia se pide de verdad. El token dice Plus Jakarta Sans (antes Sora y Manrope, y antes
+   Outfit y Figtree), pero quien la baja es el <link> de Google Fonts, y son dos sitios distintos
+   que ya se desincronizaron una vez. Si el <link> se queda atrás, la app cae a la reserva y nadie
+   lo nota hasta que alguien compara dos capturas. */
 for (const f of ['cotizador.html', 'index.html', 'anidador-vectores/index.html',
                  'acerca.html', 'privacidad.html', 'condiciones.html']) {
   const t = leer(f);
-  cierto(/family=Sora:/.test(t) && /family=Manrope:/.test(t), f + ' pide Sora y Manrope a Google Fonts');
-  cierto(!/family=(Outfit|Figtree):/.test(t), f + ' ya no pide Outfit ni Figtree');
+  cierto(/family=Plus\+Jakarta\+Sans:/.test(t), f + ' pide Plus Jakarta Sans a Google Fonts');
+  cierto(!/family=(Outfit|Figtree|Sora|Manrope):/.test(t), f + ' ya no pide Outfit, Figtree, Sora ni Manrope');
 }
-cierto(/--f-cifra:\s*'Sora'/.test(vidrio) && /--f-texto:\s*'Manrope'/.test(vidrio),
-  'y los tokens de css/vidrio.css nombran esas mismas dos familias');
+cierto(/--f-cifra:\s*'Plus Jakarta Sans'/.test(estudio) && /--f-texto:\s*'Plus Jakarta Sans'/.test(estudio),
+  'y los tokens de css/estudio.css nombran esa misma familia');
+cierto(/--f-texto:[^;]*'Noto Color Emoji'[^;]*'Noto Sans Symbols 2'/.test(estudio),
+  'la capa Estudio conserva la reserva de emoji y símbolos en --f-texto');
 /* La reserva de --f-texto es la que lleva las familias de emoji y de símbolos. La entrega la
    cortaba a `system-ui,sans-serif` y ahí se perdían: se conserva la de sistema.css. */
 cierto(/--f-texto:[^;]*'Noto Color Emoji'[^;]*'Noto Sans Symbols 2'/.test(vidrio),

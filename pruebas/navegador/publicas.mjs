@@ -195,7 +195,7 @@ async function verificarTodo(cfg, modo, etiqueta) {
   cierto(/\blogoimg\b/.test(logo.clase), d + ': el logo lleva .logoimg (falla 4: de noche el «AL» se perdía)', logo);
   cierto(logo.src === (cfg.tema === 'oscuro' ? 'logo-al3d-oscuro.svg' : 'logo-al3d.svg'), d + ': y tema.js le puso el logo de ' + cfg.tema, logo);
   const fuente = await p.evaluate(() => getComputedStyle(document.querySelector('h1')).fontFamily);
-  cierto(/Sora/.test(fuente), d + ': la página usa la letra de la marca (vidrio.css enlazada)', fuente);
+  cierto(/Plus Jakarta Sans/.test(fuente), d + ': la página usa la letra de la marca (estudio.css enlazada)', fuente);
   await reposo(p, errs, d + ' (sin código)');
 
   /* ── el código: mayúsculas, O→0, I/L→1, y lo que no es hexadecimal se rechaza ── */
