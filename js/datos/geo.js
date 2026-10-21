@@ -213,10 +213,26 @@ export async function resolverLink(texto, expandir) {
 }
 
 /* ---------------------------------------------------------------------------
-   TILES — tres proveedores, la misma interfaz. Cambiar de proveedor es cambiar
-   `al3d_pf_tiles`, no reescribir este módulo.
+   TILES — cuatro proveedores. Cambiar de proveedor es cambiar `al3d_pf_tiles`, no
+   reescribir este módulo. Los tres de cuadros de imagen comparten interfaz (`url`); el
+   de calles es de vectores (`estilo`) y lo arma js/mod/mapa.js.
    --------------------------------------------------------------------------- */
 export const TILES = {
+  /* El de todos los días (Elías, 21 de octubre de 2026: «quiero que el mapa tenga una vista como
+     Google Maps»). No son cuadros de imagen sino VECTORES que dibuja MapLibre sobre el mismo
+     Leaflet, con el estilo de js/datos/mapa-estilo.js. Por eso no lleva `url`: lleva `estilo`, y
+     capaBase() devuelve null para él —la arma js/mod/mapa.js, que es quien carga MapLibre—.
+     `respaldo` es a dónde cae si no se puede: sin WebGL2, o MapLibre que no bajó. */
+  calles: {
+    nombre: 'Calles',
+    estilo: 'https://tiles.openfreemap.org/styles/liberty',
+    url: null,
+    respaldo: 'osm',
+    maxZoom: 20,
+    sub: '',
+    attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+    nota: 'Gratis, sin llave y con uso comercial permitido. Necesita WebGL2; sin él usa OpenStreetMap.',
+  },
   osm: {
     nombre: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

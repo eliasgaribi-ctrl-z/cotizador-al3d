@@ -613,7 +613,7 @@ function cardMapa() {
   const t = Prefs.tiles();
   /* Solo los proveedores que funcionan: Google Maps sigue en la estructura (js/datos/geo.js) pero
      sin llave no hace nada, y un botón apagado aquí solo era ruido. */
-  const opciones = Object.keys(Geo.TILES).filter(k => Geo.TILES[k].url).map(k => ({ v: k, t: Geo.TILES[k].nombre }));
+  const opciones = Object.keys(Geo.TILES).filter(k => Geo.TILES[k].url || Geo.TILES[k].estilo).map(k => ({ v: k, t: Geo.TILES[k].nombre }));
 
   return tarjeta('i-mapa', 'El mapa',
     '<div class="fld"><div class="fld-lab" id="aj-tiles-lab">Cómo se ve el mapa</div>' +
