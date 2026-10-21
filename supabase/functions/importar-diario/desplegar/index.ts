@@ -11,8 +11,8 @@
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   e726712a4de79d0b  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
-//   b09ca0e66203e2f2  js/datos/geo.js
-//   9d911b25b1f6b360  js/datos/prefs.js
+//   eaf5bb4c2a840916  js/datos/geo.js
+//   71dc554fabaf8870  js/datos/prefs.js
 //   b3e7610b983b33fb  js/datos/proyectos.js
 //   b15d7cfb0eab4cd6  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js

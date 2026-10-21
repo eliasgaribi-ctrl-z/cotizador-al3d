@@ -40,8 +40,9 @@
    Leaflet va vendorizado y con `import * as`: la 1.9.4 quitó el entrypoint ESM del
    package.json y NO tiene export default —`import L from` da undefined, comprobado—. Y no
    se hace `window.L = L`: el objeto de namespace de un módulo ES es no extensible por
-   especificación, así que un plugin UMD que intentara colgarse ahí lanzaría TypeError. No
-   usamos plugins.
+   especificación, así que un plugin UMD que intentara colgarse ahí lanzaría TypeError. El
+   único plugin, el puente con MapLibre del mapa de calles (vendor/leaflet-maplibre-gl.js), va
+   en su versión de módulo, con los import cambiados a los archivos de vendor.
    ============================================================================ */
 
 import * as L from '../../vendor/leaflet-src.esm.js';
@@ -728,14 +729,65 @@ const hayLeaflet = () => !!L && typeof L.map === 'function' && typeof L.divIcon 
  *  renglón de `Geo.TILES` que usaría ella: la URL, el maxZoom, los subdominios y —lo que
  *  no se negocia— la misma atribución. Que salga de `proveedorActivo` es lo que impide que
  *  el crédito de OpenStreetMap se quede viejo o se pierda al cambiar de proveedor. */
-function capaBase() {
-  const prov = Prefs.tiles();
+function capaBase(prov = Prefs.tiles()) {
   const capa = Geo.capaBase(prov);
   if (capa) return capa;
   const t = Geo.proveedorActivo(prov);
   if (!t || !t.url) return null;
   return L.tileLayer(t.url, {
     maxZoom: t.maxZoom, attribution: t.attribution, subdomains: t.sub || 'abc',
+  });
+}
+
+/* MapLibre 6 dibuja con WebGL2 y sin él no arranca. Se pregunta antes de bajar 1.6 MB. */
+function hayWebGL2() {
+  try { return !!document.createElement('canvas').getContext('webgl2'); } catch (_) { return false; }
+}
+
+/** El fondo del mapa. Para el de calles (vectores, `Geo.TILES.calles`) es asíncrono: MapLibre y su
+ *  puente con Leaflet se bajan aquí y no al abrir la app —pesan 1.6 MB y solo esta pantalla los
+ *  usa—, y el estilo se pide a OpenFreeMap y se repinta con js/datos/mapa-estilo.js. Mientras
+ *  llega, el lienzo enseña su gris de fondo y los pines, que ya están. Si algo falla —sin WebGL2,
+ *  sin señal para el estilo, el archivo que no bajó— cae a los cuadros de `respaldo` (OSM) y lo
+ *  dice en la consola: un mapa con las calles de antes sirve; uno gris, no. */
+async function ponerFondo(m) {
+  const prov = Prefs.tiles();
+  const t = Geo.TILES[prov];
+  let base = null;
+  if (t && t.estilo) {
+    try {
+      if (!hayWebGL2()) throw new Error('sin WebGL2');
+      const [puente, Estilo, estilo] = await Promise.all([
+        import('../../vendor/leaflet-maplibre-gl.js'),
+        import('../datos/mapa-estilo.js'),
+        fetch(t.estilo).then(r => { if (!r.ok) throw new Error('estilo ' + r.status); return r.json(); }),
+        cargarHoja('vendor/maplibre-gl.css'),
+      ]);
+      if (m !== mapa) return;              // se desmontó mientras bajaba
+      base = puente.maplibreGL({ style: Estilo.estiloCalles(estilo), attribution: t.attribution });
+      m.setMaxZoom(t.maxZoom);
+    } catch (e) {
+      console.warn('el mapa de calles no cargó; va OpenStreetMap', e);
+      if (m !== mapa) return;
+      base = capaBase(t.respaldo);
+    }
+  } else base = capaBase(prov);
+  /* Sin capa de fondo el mapa es un rectángulo gris con pines flotando, y eso se lee como
+     «se rompió». `proveedorActivo` siempre cae a OSM, así que llegar aquí sin capa
+     significa que el archivo de Leaflet está incompleto: se dice. */
+  if (base) base.addTo(m);
+  else toast('El fondo del mapa no cargó. Los pines se ven, las calles no', 'err', 5000);
+}
+
+/* La hoja de MapLibre, una vez y solo cuando hace falta. Resuelve aunque falle: sin ella el mapa
+   se dibuja igual (son los controles de MapLibre, que aquí no se usan), solo avisa en la consola. */
+function cargarHoja(href) {
+  if (document.querySelector('link[href="' + href + '"]')) return Promise.resolve();
+  return new Promise(ok => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href;
+    l.onload = l.onerror = () => ok();
+    document.head.appendChild(l);
   });
 }
 
@@ -803,12 +855,7 @@ function crearMapa() {
       mapa.attributionControl.setPosition('bottomleft');
     }
     mapa.setView([Geo.centroGDL.lat, Geo.centroGDL.lng], 11);
-    const base = capaBase();
-    /* Sin capa de fondo el mapa es un rectángulo gris con pines flotando, y eso se lee como
-       «se rompió». `proveedorActivo` siempre cae a OSM, así que llegar aquí sin capa
-       significa que el archivo de Leaflet está incompleto: se dice. */
-    if (base) base.addTo(mapa);
-    else toast('El fondo del mapa no cargó. Los pines se ven, las calles no', 'err', 5000);
+    ponerFondo(mapa);
     capaPines = L.layerGroup().addTo(mapa);
     capaRuta = L.layerGroup().addTo(mapa);
     mapa.on('click', alTocarMapa);

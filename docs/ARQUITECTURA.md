@@ -189,7 +189,7 @@ Prefijo `al3d_pf_` (pf = plataforma). Todas son **cortas y de tamaño acotado**;
 | `al3d_pf_rol` | string | `'direccion'` \| `'fabricacion'` \| `'pagos'` | `'direccion'` |
 | `al3d_pf_nombre` | string | nombre humano, para el sello de los movimientos | `''` |
 | `al3d_pf_ganadas` | JSON array | **buzón de entrega** de `index.html` → plataforma. La plataforma lo drena a IndexedDB al abrir y lo vacía. Máximo unos KB | `[]` |
-| `al3d_pf_tiles` | string | `'osm'` \| `'carto'` \| `'google'` | `'osm'` |
+| `al3d_pf_tiles` | string | `'calles'` (vectores de OpenFreeMap con colores de Google, js/datos/mapa-estilo.js) \| `'osm'` \| `'carto'` \| `'google'` | `'calles'` (desde 2026-10-21; antes `'osm'`) |
 | `al3d_pf_gcal` | JSON | `{clientId, calendarioId}` (Fase 2) | `null` |
 | `al3d_pf_puente` | JSON | `{url, token}` del puente —la implementación `/exec` del Apps Script—, en claro. Sin `url` guardada vale la de fábrica (`URL_PUENTE`); el `token` es el de dispositivo, la salida de emergencia (Fase 3) | `null` |
 | `al3d_pf_ult_export` | string ISO | último respaldo de la plataforma. Alimenta el aviso de desalojo | `''` |

@@ -217,14 +217,14 @@ export function sello() {
 /** ¿Ya se presentó quien usa este dispositivo? Si no, la plataforma lo pregunta una vez. */
 export const sinPresentar = () => !nombre();
 
-/* Por omisión sigue OpenStreetMap, y no CARTO Voyager, aunque Voyager se parece más a Google Maps.
-   Se intentó en octubre de 2026 y no se puede: CARTO ya no sirve sus cuadros sin llave —cada uno
-   llega con la marca «API KEY REQUIRED» encima, con cualquier Referer, comprobado—, así que
-   cambiar la omisión habría dejado el mapa de todos tachado. El parecido con Google se le da a los
-   cuadros de OSM en la hoja de estilos (`#mapa-lienzo .leaflet-tile-pane`). */
+/* Por omisión, las calles de OpenFreeMap con los colores de Google (js/datos/mapa-estilo.js), desde
+   el 21 de octubre de 2026. Antes era OpenStreetMap con un filtro encima, porque CARTO Voyager —que
+   se parecía más a Google— ya pide llave: sin ella cada cuadro llega con «API KEY REQUIRED» encima.
+   OpenStreetMap se queda en Ajustes, y es también a donde cae el mapa si el teléfono no puede
+   dibujar vectores (sin WebGL2). */
 export function tiles() {
-  const t = get(CLAVES.TILES, 'osm');
-  return ['osm', 'carto', 'google'].includes(t) ? t : 'osm';
+  const t = get(CLAVES.TILES, 'calles');
+  return ['calles', 'osm', 'carto', 'google'].includes(t) ? t : 'calles';
 }
 export function setTiles(t) { return set(CLAVES.TILES, t); }
 

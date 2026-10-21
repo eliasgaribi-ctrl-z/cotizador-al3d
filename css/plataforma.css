@@ -761,15 +761,17 @@ html[data-tema="oscuro"] .cal-dia.hoy .cal-n{color:var(--nav)}
    mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
 .leaflet-container{font-family:inherit;background:var(--n1)}
 .leaflet-bar a{color:var(--n7)}
-/* Los cuadros de OpenStreetMap, con el tono de Google Maps. Los de OSM son los de un mapa de
-   cartógrafo —cada parque en verde fuerte, cada edificio con su borde, las avenidas en naranja— y
-   quien usa esta pantalla para ir a la obra lee Google Maps o Waze: colores apagados, calles
-   claras y los pines como lo único que grita. CARTO Voyager se parecía más, pero ya pide llave
-   (ver `tiles()` en js/datos/prefs.js), así que el parecido se le da aquí, con un filtro sobre la
-   capa de los cuadros y nada más: los pines, la ruta y el crédito no se tocan. De noche el mapa
-   se voltea a oscuro, como el de Google con el tema oscuro: un rectángulo blanco en medio de una
-   app oscura deslumbra en la cabina de la camioneta a las seis de la mañana. */
-#mapa-lienzo .leaflet-tile-pane{filter:saturate(.62) brightness(1.04) contrast(.94)}
+/* Los cuadros de OpenStreetMap —el respaldo, y la opción de Ajustes—, con el tono de Google Maps.
+   Los de OSM son los de un mapa de cartógrafo —cada parque en verde fuerte, cada edificio con su
+   borde, las avenidas en naranja— y quien usa esta pantalla para ir a la obra lee Google Maps o
+   Waze: colores apagados, calles claras y los pines como lo único que grita. Va sobre
+   `.leaflet-tile-container`, que es donde viven los cuadros de imagen: el mapa de calles de todos
+   los días (un <canvas> de MapLibre) ya trae esos colores de js/datos/mapa-estilo.js y no se toca.
+   De noche se voltea TODO el fondo a oscuro, los dos mapas, como el de Google con el tema oscuro:
+   un rectángulo blanco en medio de una app oscura deslumbra en la cabina de la camioneta a las seis
+   de la mañana. Los pines, la ruta y el crédito no se tocan. */
+#mapa-lienzo .leaflet-tile-container{filter:saturate(.62) brightness(1.04) contrast(.94)}
+html[data-tema="oscuro"] #mapa-lienzo .leaflet-tile-container{filter:none}
 html[data-tema="oscuro"] #mapa-lienzo .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) saturate(.5) brightness(.92) contrast(.88)}
 /* La atribución de los cuadros es obligatoria por su licencia y se queda visible.
    No se esconde ni se encoge hasta que no se lea. Con la hoja de abajo puesta, los controles de
