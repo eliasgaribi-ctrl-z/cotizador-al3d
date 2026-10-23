@@ -88,7 +88,8 @@ function gsDe() {
   vm.runInContext('(function () { var D = Date; Date = class extends D { constructor(...a) { if (a.length) super(...a); else super(__reloj()); } static now() { return __reloj(); } }; })();', ctx);
   vm.runInContext(leer('puente', 'hoja-apps-script.gs'), ctx);
   const api = vm.runInContext('({ rutaAutorizar_, limpiarCotizacion, cotSubtotal, cotLineTotal, cotHuella, cotTotalFinal, cotPrecioFinal, cotPreciosCliente, renglonesDe, renglonesDeTexto,' +
-    ' limpiarItemsAuth, itemsAuthCanon, folioValido, cotPiezas, COT_MATERIALES, COT_COMPLEJIDAD, COT_RECORTES, COT_RECORTE_COMP_EXTRA, COT_BASTIDORES, COT_M2_MINIMO, MAX_PARTIDAS, CELDA_MAX, RENGLON_DESC_MAX })', ctx);
+    ' limpiarItemsAuth, itemsAuthCanon, folioValido, cotPiezas, COT_MATERIALES, COT_COMPLEJIDAD, COT_RECORTES, COT_RECORTE_COMP_EXTRA, COT_BASTIDORES, COT_M2_MINIMO, MAX_PARTIDAS, CELDA_MAX, RENGLON_DESC_MAX,' +
+    ' cotNormalizarTabla_, poner: t => { _cotTablaMemo = t; _cotMapasMemo = null; } })', ctx);
   return { e, api };
 }
 const GS = gsDe();
@@ -104,8 +105,8 @@ function autorizarEnGs(cuerpo, ahora) {
 }
 
 /* La reescritura, sin HTTP: la decisión pura, la hora y la firma. Devuelve la respuesta del .gs y los argumentos de la RPC. */
-async function autorizarAqui(cuerpo, ahora) {
-  const prep = Aut.prepararAutorizacion(plano(cuerpo), CORREO);
+async function autorizarAqui(cuerpo, ahora, mapas) {
+  const prep = Aut.prepararAutorizacion(plano(cuerpo), CORREO, mapas);
   if (!prep.ok) return { resp: prep };
   prep.r.ts = Sello.tsIso(ahora);
   let sello;
@@ -198,6 +199,35 @@ eq('los topes: 80 partidas, 45 000 caracteres por celda, 120 por renglón', [Pre
     }
   }
   eq('4000 cotizaciones al azar (' + n + ' válidas): limpieza, ajustes por partida, cada partida y sus piezas, subtotal, huella, total final, precio final, renglones del papel', malos.slice(0, 10), []);
+}
+{
+  /* Los precios editables (23-oct-2026): con una tabla CAMBIADA —el aluminio a $34, la cursiva a $6, el sándwich complejo a $7,
+     la lámina a $990— la hoja (pestaña «Tarifas») y la nube (tabla tarifas, mapasDeTarifas) siguen cobrando lo mismo, partida por
+     partida, y arman los mismos renglones. Con la tabla de fábrica, lo de siempre (las secciones de arriba). */
+  const t = plano(GS.api.cotNormalizarTabla_([
+    { grupo: 'material', clave: 'al-paint', nombre: 'Aluminio', precio: 34 }, { grupo: 'complejidad', clave: 'cursiva', nombre: 'Cursiva', precio: 6 },
+    { grupo: 'recorte-extra', clave: 'sandwich', nombre: 'Complejidad', precio: 7 }, { grupo: 'bastidor', clave: 'lamina', nombre: 'Lámina', precio: 990 }]));
+  GS.api.poner(t);
+  const M = Precio.mapasDeTarifas(t);
+  const malos = [];
+  let n = 0;
+  for (let i = 0; i < 4000; i++) {
+    const c = cuerpoAlAzar(i);
+    const a = Precio.limpiarCotizacion(plano(c.cotizacion));
+    if (a.error) continue;
+    n++;
+    const items = plano(a.items);
+    for (const it of items) if (Precio.linea(it, M) !== GS.api.cotLineTotal(it)) malos.push(['partida', i, it.id]);
+    const sub = Precio.subtotal(items, M);
+    if (sub !== GS.api.cotSubtotal(items)) malos.push(['subtotal', i]);
+    const fin = Precio.precioFinal(sub, a.iva, 0);
+    if (Precio.renglonesDe(items, a.iva, {}, fin, M) !== GS.api.renglonesDe(items, a.iva, {}, fin)) malos.push(['renglones', i]);
+  }
+  eq('con la tabla cambiada, 4000 cotizaciones al azar (' + n + ' válidas): cada partida, el subtotal y los renglones, iguales en la hoja y en la nube', malos.slice(0, 10), []);
+  const letras = { tipo: 'letras', material: 'al-paint', comp: 'recta', luz: true, altura: 40, n: 9 };
+  eq('9 letras de 40 cm de aluminio con la tabla cambiada: $34 × 40 × 9, en los dos', [Precio.linea(letras, M), GS.api.cotLineTotal(letras)], [12240, 12240]);
+  eq('sin tabla (no llegó), la nube cobra con la de fábrica', Precio.linea(letras, Precio.mapasDeTarifas(null)), 10800);
+  GS.api.poner(null);
 }
 {
   /* Medidas que no son número o son negativas: «abc» volvía NaN el subtotal y NaN pasa el cuadre
@@ -328,7 +358,7 @@ async function llamar(cuerpo, o = {}) {
   const esp = autorizarEnGs(BUENO, Date.UTC(2026, 9, 16, 20, 0, 0, 0)).resp;
   eq('Dirección autoriza: 200 y EL MISMO TEXTO que contestaría el .gs; con CORS de su origen', [r.status, r.texto, r.cors], [200, JSON.stringify(esp), ORIGEN]);
   const a = r.base.llamadas.find(x => x.nombre === 'registrar_autorizacion');
-  eq('escribe SOLO por registrar_autorizacion, con la empresa, el uid y los textos firmados', [r.base.llamadas.length, a.args.p_empresa, a.args.p_usuario, a.args.p_autorizo, a.args.p_codigo, a.args.p_sub_calc_txt, a.args.p_codificacion],
+  eq('escribe SOLO por registrar_autorizacion, con la empresa, el uid y los textos firmados', [r.base.llamadas.filter(x => x.nombre !== 'tarifas_de').length, a.args.p_empresa, a.args.p_usuario, a.args.p_autorizo, a.args.p_codigo, a.args.p_sub_calc_txt, a.args.p_codificacion],
     [1, 'al3d', 'uid-dir', CORREO, esp.sello.codigo, '2400.00', 'ascii-?']);
   eq('los argumentos son exactamente los de la firma de 0008 (ni uno más)', Object.keys(a.args), ['p_empresa', 'p_usuario', 'p_folio_global', 'p_ts_iso', 'p_proyecto', 'p_cliente', 'p_sub_calc_txt', 'p_precio_auth_txt',
     'p_total_txt', 'p_ajuste_pct', 'p_items_auth', 'p_huella', 'p_autorizo', 'p_codigo', 'p_firma', 'p_nota', 'p_renglones', 'p_cotizacion', 'p_clave_id', 'p_codificacion']);
@@ -356,11 +386,23 @@ async function llamar(cuerpo, o = {}) {
   const sinClave = await llamar(BUENO, { entorno: { SELLO_AUTORIZACION: undefined } });
   eq('sin SELLO_AUTORIZACION: 503 CONFIGURACION que nombra la variable, y NO se inventa una clave ni se firma', [sinClave.status, sinClave.cuerpo.codigo, /SELLO_AUTORIZACION/.test(sinClave.cuerpo.mensaje), sinClave.base.llamadas.length], [503, 'CONFIGURACION', true, 0]);
   eq('un cuerpo que no es JSON y uno de más de 512 KB: 200 DATO_INVALIDO, como el .gs', [(await llamar('{no')).cuerpo.mensaje, (await llamar('x'.repeat(600 * 1024))).cuerpo.mensaje], ['El cuerpo no es JSON.', 'El cuerpo es demasiado grande.']);
-  eq('un error del .gs (subtotal que no cuadra) llega tal cual, sin escribir', await (async () => { const x = await llamar({ ...BUENO, cotizacion: { ...BUENO.cotizacion, subtotal: 1 } }); return [x.status, x.cuerpo.codigo, x.base.llamadas.length]; })(), [200, 'CATALOGO_DESINCRONIZADO', 0]);
+  eq('un error del .gs (subtotal que no cuadra) llega tal cual, sin escribir', await (async () => { const x = await llamar({ ...BUENO, cotizacion: { ...BUENO.cotizacion, subtotal: 1 } }); return [x.status, x.cuerpo.codigo, x.base.llamadas.filter(y => y.nombre !== 'tarifas_de').length]; })(), [200, 'CATALOGO_DESINCRONIZADO', 0]);
   const caida = await llamar(BUENO, { base: baseFalsa({ rpc: () => { throw new Error('fetch failed ' + SECRETA); } }) });
   eq('la base no contesta: 503 SIN_RED transitorio (no «no autorizada»)', [caida.status, caida.cuerpo.codigo, caida.cuerpo.transitorio], [503, 'SIN_RED', true]);
   const sinRpc = await llamar(BUENO, { base: baseFalsa({ rpc: () => ({ data: null, error: { code: 'PGRST202', message: 'no existe' } }) }) });
   eq('la RPC no existe (falta la migración): 503 CONFIGURACION', [sinRpc.status, sinRpc.cuerpo.codigo], [503, 'CONFIGURACION']);
+  /* Los precios de la empresa (0019): la función los pide con tarifas_de y cobra con ellos. BUENO son 8 letras de 10 cm de
+     aluminio: $2,400 con la de fábrica, $2,720 con el aluminio a $34. */
+  const conTabla = rpcTarifas => baseFalsa({ rpc: (nombre, args) => nombre === 'tarifas_de' ? rpcTarifas(args)
+    : ({ data: { ok: true, repetida: false, sello: {} }, error: null, status: 200 }) });
+  const tabla34 = () => ({ data: { filas: [{ grupo: 'material', clave: 'al-paint', precio: 34 }] }, error: null, status: 200 });
+  const viejo = await llamar(BUENO, { base: conTabla(tabla34) });
+  eq('con el aluminio a $34 en la tabla, un teléfono que cobra $2,400 no cuadra', [viejo.status, viejo.cuerpo.codigo, viejo.cuerpo.subtotal_hoja], [200, 'CATALOGO_DESINCRONIZADO', 2720]);
+  const nuevo = await llamar({ ...BUENO, cotizacion: { ...BUENO.cotizacion, subtotal: 2720 } }, { base: conTabla(tabla34) });
+  eq('y uno que ya cobra $2,720 se sella, con la empresa que pidió', [nuevo.status, nuevo.cuerpo.ok, nuevo.base.llamadas.find(x => x.nombre === 'tarifas_de').args],
+    [200, true, { p_empresa: 'al3d' }]);
+  const sinTabla = await llamar(BUENO, { base: conTabla(() => ({ data: null, error: { code: 'PGRST202', message: 'no existe' }, status: 404 })) });
+  eq('sin la migración 0019 (tarifas_de no existe) se cobra con la de fábrica: $2,400 se sella', [sinTabla.status, sinTabla.cuerpo.ok], [200, true]);
   const niega = await llamar(BUENO, { base: baseFalsa({ rpc: () => ({ data: { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Solo una cuenta de Dirección activa de esa empresa autoriza.', definitivo: true }, error: null }) }) });
   eq('la base revalida y dice que no (p. ej. la baja llegó entre medias): 403 con SU mensaje', [niega.status, niega.cuerpo.codigo], [403, 'ROL_SIN_PERMISO']);
   eq('origen ajeno: 403 sin tocar nada; GET: 405', [(await llamar(BUENO, { origen: 'https://malo.example' })).status, (await llamar(null, { metodo: 'GET' })).status], [403, 405]);

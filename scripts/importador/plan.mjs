@@ -58,6 +58,10 @@ const TIPOS = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion', 'Le
 const ETAPAS = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia', 'cancelado'];
 const AREAS = ['direccion', 'fabricacion', 'pagos'];
 const UNIDADES_COMPRA = ['unidad', 'bolsa', 'caja', 'lamina', 'litro', 'metro'];
+/* Las claves de fábrica de cada grupo de tarifas (las de COT_TARIFAS_FABRICA del .gs y de interno.tarifas_fabrica() de 0019;
+   pruebas/tarifas.mjs compara las tres). */
+export const FABRICA_TARIFAS = Object.freeze({ material: ['al-paint', 'al-brush', 'acr-vol', 'acr-vinil', 'acero'], complejidad: ['recta', 'cursiva', 'compleja'],
+  recorte: ['sencillo', 'vinil', 'sandwich'], 'recorte-extra': ['sandwich'], bastidor: ['lamina', 'alucobond'], caja: ['std', 'nube'] });
 const NORM_CONSUMO = { 'm²': 'm2', 'm2': 'm2', 'm² limpiados': 'm2', 'm de cordón': 'm', 'm de cordon': 'm',
   'm': 'm', 'cm': 'cm', 'pieza': 'pieza', 'piezas': 'pieza', 'litro': 'litro' };
 const TIPOS_MOV = ['entrada', 'salida', 'ajuste', 'conteo', 'merma', 'devolucion'];
@@ -155,7 +159,7 @@ export async function planear(entrada) {
   const rep = nuevoReporte();
   const tels = (entrada.telefonos || []).map(leerTelefono);
   const T = { proyectos: [], ventas_dinero: [], abonos: [], miembros: [], instalaciones: [], materiales: [], almacen_costos: [],
-    requerimientos: [], almacen_movimientos: [], constantes: [], cotizaciones: [], autorizaciones: [] };
+    requerimientos: [], almacen_movimientos: [], constantes: [], cotizaciones: [], autorizaciones: [], tarifas: [] };
   const esperado = [];
   const remapeo = {};
   const ref = (donde, fila) => `${donde}!${fila}`;
@@ -576,6 +580,38 @@ export async function planear(entrada) {
     }
   }
   for (const { fila } of ctes.values()) T.constantes.push(fila);
+
+  /* ----- Las tarifas (pestaña «Tarifas», 23-oct-2026): los precios que Dirección cambió desde el cotizador ----- */
+  /* Entran tal cual las guardó el .gs (cotMezclarTarifas_), con la regla con la que él las lee (cotFilaLimpia_): lo que no se
+     entiende se queda fuera con un AVISO —no con un rechazo: una celda tocada a mano en esa pestaña no debe frenar la copia de las
+     ventas— y ese precio queda el de fábrica, que es lo que cobra la hoja con ese renglón. */
+  const tar = P['Tarifas'];
+  if (tar) {
+    const h = encabezados(tar), k = n => h.indexOf(n), vistas = new Set();
+    for (const { fila, celdas } of filas(tar)) {
+      const v = n => (k(n) >= 0 ? celdas[k(n)] : '');
+      const grupo = texto(v('Grupo')).trim(), clave = texto(v('Clave')).trim();
+      if (!grupo && !clave) continue;
+      const fab = FABRICA_TARIFAS[grupo];
+      const gratis = grupo === 'complejidad' || grupo === 'recorte-extra';
+      const p = numero(v('Precio'));
+      const nombre = texto(v('Nombre')).trim().slice(0, 60), como = fab && fab.includes(clave) ? '' : texto(v('Se fabrica como')).trim();
+      let por = '';
+      if (!fab || !/^[a-z0-9-]{2,24}$/.test(clave)) por = 'grupo o clave que no sirven';
+      else if (vistas.has(grupo + '|' + clave)) por = 'la clave viene dos veces';
+      else if (!p.ok || p.vacia || p.n < 0 || (!gratis && p.n <= 0) || p.n > 1000000) por = 'el precio no sirve';
+      else if (!fab.includes(clave) && (gratis || !fab.includes(como))) por = 'un renglón nuevo sin «se fabrica como» de fábrica';
+      else if (!nombre) por = 'sin nombre';
+      if (por) { rep.avisar('Tarifas', fila, clave || '?', por + ': se queda el de fábrica'); continue; }
+      vistas.add(grupo + '|' + clave);
+      const vis = v('Visible'), act = v('Actualizado');
+      const actMs = esFecha(act) ? Date.parse(act.$fecha + (act.$hora ? 'T' + act.$hora : '')) : Date.parse(texto(act));
+      T.tarifas.push({ empresa_id: empresa, grupo, clave, nombre, precio: Math.round(p.n * 100) / 100, como,
+        visible: grupo === 'recorte-extra' || (grupo === 'complejidad' && clave === 'recta') || !(vis === false || /^(false|no|0)$/i.test(texto(vis).trim())),
+        orden: numero(v('Orden')).ok ? Math.trunc(numero(v('Orden')).n) : 0, detalle: texto(v('Detalle')).slice(0, 120),
+        actualizado_por: texto(v('Por')).slice(0, 120), actualizado_ms: ms(actMs) });
+    }
+  }
 
   /* ----- 7. Requerimientos: (proyecto canónico, material) único (§3.5, M03 H7) ----- */
   const proyectoDeVenta = f => { const p = proyectoDeFolio.get(String(f || '').trim().toUpperCase()); return p ? p.id : null; };

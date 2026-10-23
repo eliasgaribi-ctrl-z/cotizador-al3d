@@ -31,7 +31,7 @@
    ============================================================================ */
 
 import { dinero2, huellaDe, itemsAuthCanon, itemsAuthDeCanon } from './sello.js';
-import { descuadre, folioValido, limpiarCotizacion, limpiarItemsAuth, neto, precioFinal, renglonesDe, renglonesDeTexto, subtotal, totalFinal } from './precio.js';
+import { FABRICA, descuadre, folioValido, limpiarCotizacion, limpiarItemsAuth, neto, precioFinal, renglonesDe, renglonesDeTexto, subtotal, totalFinal } from './precio.js';
 
 const invalido = mensaje => ({ ok: false, codigo: 'DATO_INVALIDO', mensaje });
 
@@ -40,12 +40,12 @@ const invalido = mensaje => ({ ok: false, codigo: 'DATO_INVALIDO', mensaje });
  * Devuelve { ok:false, … } (la respuesta del .gs, tal cual) o
  *   { ok:true, r, cotizacion, cliente, pct, nota } con `r` = el registro que se firma, SIN `ts` (lo pone quien firma).
  */
-export function prepararAutorizacion(cuerpo, correo) {
+export function prepararAutorizacion(cuerpo, correo, mapas = FABRICA) {
   const folio = String((cuerpo && cuerpo.folio) || '');
   if (!folioValido(folio)) return invalido('El folio no se entiende.');
   const c = limpiarCotizacion(cuerpo.cotizacion);
   if (c.error) return invalido(c.error);
-  const subCalc = subtotal(c.items);
+  const subCalc = subtotal(c.items, mapas);
   if (!isFinite(subCalc) || !isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
   if (!(subCalc > 0)) return invalido('Una cotización en $0 no se autoriza.');
   const precioAuth = Number(cuerpo.precioAuth || 0);
@@ -57,7 +57,7 @@ export function prepararAutorizacion(cuerpo, correo) {
   const r = { folio, huella: huellaDe(c.iva, c.items), subCalc: +dinero2(subCalc), precioAuth: +dinero2(precioAuth),
               itemsAuth: itemsAuthCanon(ia.valor), total: totalFinal(subCalc, c.iva, precioAuth), proyecto: c.proyecto,
               correo, ts: '' };
-  r.renglones = renglonesDe(c.items, c.iva, itemsAuthDeCanon(r.itemsAuth), precioFinal(subCalc, c.iva, r.precioAuth));
+  r.renglones = renglonesDe(c.items, c.iva, itemsAuthDeCanon(r.itemsAuth), precioFinal(subCalc, c.iva, r.precioAuth), mapas);
   const netoCalc = neto(subCalc, c.iva);
   const pct = netoCalc > 0 ? Math.round((netoCalc - r.total) / netoCalc * 1000) / 10 : 0;
   return { ok: true, r, cotizacion: c, cliente: c.cliente, pct, nota };

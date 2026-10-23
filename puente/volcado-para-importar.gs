@@ -22,7 +22,7 @@
 
 var VOLCADO_PESTANAS = ['Ventas', 'Abonos comisión', 'Accesos', 'Autorizaciones', 'Solicitudes de autorización',
   'Almacén', 'Catálogo de material', 'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)',
-  'Ventas (antes de realinear)'];
+  'Ventas (antes de realinear)', 'Tarifas'];
 
 function volcarParaImportar() {
   var libro = SpreadsheetApp.getActive();

@@ -46,9 +46,9 @@ const RE_FOLIO = /^V-\d{3,7}$/;
 const RE_TEMA = /^[a-záéíóúñü ]{1,80}$/i;                    // los temas de plan.mjs: solo palabras
 const COLUMNAS_CUADRE = ['fila', 'H', 'K', 'R', 'S', 'T', 'X', 'O', 'V', 'W'];
 const TABLAS_PLAN = ['proyectos', 'ventas_dinero', 'abonos', 'miembros', 'instalaciones', 'materiales', 'almacen_costos', 'requerimientos',
-  'almacen_movimientos', 'constantes', 'cotizaciones', 'autorizaciones'];
+  'almacen_movimientos', 'constantes', 'cotizaciones', 'autorizaciones', 'tarifas'];
 const PESTANAS = ['Ventas', 'Abonos comisión', 'Accesos', 'Autorizaciones', 'Solicitudes de autorización', 'Almacén', 'Catálogo de material',
-  'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)', 'Ventas (antes de realinear)'];
+  'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)', 'Ventas (antes de realinear)', 'Tarifas'];
 
 const entero = v => (Number.isInteger(v) && v >= 0 ? v : 0);
 const folioDe = s => { const m = /V-\d{3,7}/.exec(String(s || '')); return m ? m[0] : null; };

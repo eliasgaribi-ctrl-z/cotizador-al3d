@@ -80,6 +80,10 @@ console.log('\nEL CATÁLOGO DE FÁBRICA DE LA HOJA ES EL DE catalogo.js');
   eq('cajas', del('caja'), plano(T.CAJAS).map(c => [c.key, c.label, c.tarifa]));
   eq('el extra del sándwich', del('recorte-extra').map(f => f[2]), [T.extra()]);
   eq('sin pestaña ni Google, la hoja cobra con la de fábrica', plano(H.rutaTarifas_().tabla.filas).length, fab.length);
+  /* Y las otras dos copias, la de la nube (0019, interno.tarifas_fabrica) y la del importador (las claves). */
+  const mig = leer('supabase/migrations/0019_tarifas.sql');
+  const nube = JSON.parse(/interno\.tarifas_fabrica\(\)[\s\S]*?select '(\[[\s\S]*?\])'::jsonb/.exec(mig)[1]);
+  eq('la de la nube (0019) es la misma, renglón por renglón', nube, plano(H.COT_TARIFAS_FABRICA));
 }
 
 /* ============================================================================ */
@@ -201,6 +205,14 @@ console.log('\nLA PLATAFORMA LEE LA MISMA TABLA QUE GUARDÓ EL COTIZADOR');
   const letra = m => ({ id: 1, tipo: 'letras', material: m, comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 9 });
   cierto('el material de compra del anodizado es el del pintado (canto incluido)', ids(letra('xanod1')) === ids(letra('al-paint')) && ids(letra('al-paint')).length > 0,
     ids(letra('xanod1')) + ' vs ' + ids(letra('al-paint')));
+}
+
+/* Al final a propósito: el importador carga js/datos/catalogo-precios.js, y la plataforma (arriba) tenía que cargarlo YA con la tabla. */
+{
+  const { FABRICA_TARIFAS } = await import('../scripts/importador/plan.mjs');
+  const claves = {};
+  plano(H.COT_TARIFAS_FABRICA).forEach(r => { (claves[r[0]] = claves[r[0]] || []).push(r[1]); });
+  eq('el importador de la copia diaria conoce las mismas claves de fábrica', plano(FABRICA_TARIFAS), claves);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

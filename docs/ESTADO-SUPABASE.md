@@ -229,7 +229,7 @@ Un revisor que **no escribió** las migraciones intentó romperlas en el arnés:
 | La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`) | aceptado | **Aceptado por Elías el 2026-10-16**: gana el más reciente con 10 min para todos, como el `.gs`. `0013` lo había cerrado de forma provisional; `0014` lo regresa |
 | ~~`almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material~~ | — | **Cerrado en `0013`** (2026-10-16) |
 | ~~Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`)~~ | — | **Cerrado en `0013`** (2026-10-16) |
-| Los precios editables (23-oct-2026): el cotizador y la hoja cobran con la pestaña «Tarifas» (`js/cotizador/tarifas.js`, «Las tarifas, editables» en el `.gs`), pero `supabase/functions/_shared/precio.js` sigue con el catálogo de fábrica escrito a mano | un sello de Supabase saldría con «no cuadra» en cuanto Dirección cambie un precio | Antes de encender **autorizar** en Supabase (piezas 6-7): una tabla `tarifas` con la misma forma, que lean `precio.js` y el teléfono |
+| ~~Los precios editables (23-oct-2026): la hoja cobra con su pestaña «Tarifas» y `precio.js` seguía con el catálogo de fábrica~~ | — | **Cerrado en `0019`** (2026-10-23): ver «Precios editables», al final. Falta que el **teléfono** los lea de Supabase cuando se encienda la lectura (pieza 6): hoy los pide a la hoja |
 | Ids y contadores globales entre empresas (oráculo de existencia, `folio_cot:*` sin tope), invitación cruzada | baja hoy (solo existe `al3d`) | Antes de dar de alta una segunda empresa |
 | `origen_obra`: la lista blanca es de primer nivel y `contiene_dinero` es una lista de nombres | baja hoy (`renders` y `propuesta` son listas de imágenes) | Cuando el cliente mande `origen` |
 | ~~Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales~~ | — | **Cerrado en `0013`** (2026-10-16) |
@@ -436,3 +436,20 @@ No se hizo por una razón concreta, no por olvido: cada pieza necesita datos rea
 - [x] La CI de Linux cazó una prueba vieja del espejo (comparaba el texto de un `REVOKE` que el endurecimiento cambió): corregida.
 - [ ] Segunda opinión con otro modelo (prompt en `docs/REVISION-INDEPENDIENTE-SUPABASE.md`): pendiente, a cargo de Elías.
 - [ ] Que Elías revise, confirme o cambie las decisiones (`DECISIONES-SUPABASE.md`) y apruebe el PR en GitHub.
+
+## Precios editables (2026-10-23)
+
+Elías pidió (nota de voz del 2026-10-23) que Dirección cambie los precios del cotizador y agregue u oculte materiales. Hoy la hoja
+manda: la tabla vive en su pestaña «Tarifas» y la escribe el cotizador por `/guardar_tarifas` (PR #154). Para que la nube esté lista
+el día que se encienda, decidió que también exista aquí («Deja la hoja como está y agrega también la tabla de tarifas en Supabase»):
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `supabase/migrations/0019_tarifas.sql`: tabla `tarifas`, catálogo de fábrica, `tarifas_leer`, `tarifas_guardar` (solo Dirección, todo o nada, nunca borra, con bitácora), `tarifas_de` (servicio). Auditoría limpia con las tres en sus listas | hecho y verificado en PGlite, **sin aplicar** | `supabase/tests/tarifas/tarifas.mjs` (TA-01 a TA-04), `supabase/tests/auditoria/auditoria.mjs` |
+| La función `autorizar` cobra con la tabla de su empresa (`tarifas_de` → `mapasDeTarifas`); sin la tabla, con la de fábrica (un precio que no conoce da «no cuadra», nunca un sello con otro importe) | hecho con dobles, apagada como siempre | `pruebas/supabase-autorizar.mjs`: 4000 cotizaciones al azar con una tabla cambiada, iguales a la hoja partida por partida |
+| La copia diaria trae la pestaña «Tarifas» (`copia-diaria.gs` y `volcado-para-importar.gs` la mandan; `scripts/importador` la escribe; lo que no se entiende se avisa sin frenar la copia) | hecho, **sin publicar** | TA-04; `pruebas/supabase-importar-diario.mjs` |
+| El teléfono lee los precios de Supabase | **pendiente** (pieza 6, con la lectura) | Hoy los pide a la hoja (`js/cotizador/tarifas.js`) |
+
+**Para aplicar, en este orden** (si se invierte, la copia diaria intentaría escribir en una tabla que no existe y esa noche no se
+aplicaría): 1) `0019` en el Editor SQL de `al3d-produccion`; 2) volver a pegar `supabase/functions/importar-diario/desplegar/index.ts`
+en la función `importar-diario`; 3) pegar el `Código.gs` nuevo (PR #154) y el `copia-diaria.gs` nuevo en la hoja y publicar la versión.
