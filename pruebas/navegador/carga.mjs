@@ -97,6 +97,11 @@ console.log('\nEL ARRANQUE DE LA PLATAFORMA');
 console.log('\nUNA TRANSICIÓN RÁPIDA NO ENSEÑA NADA');
 {
   const { ctx, p, errores } = await plataformaLimpia();
+  /* Se arranca desde el reposo. Desde 1c3f391 la carga del Tablero que acaba de terminar remata
+     su barra: lleno un instante y luego se desvanece (.fin y .sale, unos 440 ms). Si el cambio
+     de pantalla cae dentro de ese remate, la barra ya estaba a la vista ANTES de empezar, y eso
+     no dice nada del retardo de 150 ms que se mide aquí. */
+  await p.waitForFunction(() => !/\b(on|fin|sale)\b/.test(document.getElementById('pf-progreso').className), null, { timeout: 5000 });
   const r = await p.evaluate(async () => {
     location.hash = '#/agenda';
     await new Promise(r => setTimeout(r, 20));

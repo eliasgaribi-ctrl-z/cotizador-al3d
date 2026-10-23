@@ -802,10 +802,15 @@ async function enLasApps() {
     cierto(r.hermano === 'toast' && r.b0 !== r.b1, 'la regla .scaler-modal-bg.show+.toast sigue subiendo la pila sobre el pie del escalador', { b0: r.b0, b1: r.b1 });
     cierto(/no es el que selló/.test(r.voz), 'y el error se dijo en la región asertiva');
     if (ancho === 360) {
-      /* copiarTexto() de siempre, desde el onclick de un botón: confirma en el botón y avisa abajo. */
+      /* copiarTexto() de siempre, desde el clic de un botón: confirma en el botón y avisa abajo.
+         Antes se colgaba con un onclick en línea; desde la auditoría M6 (0ce0033) el cotizador
+         ya no admite 'unsafe-inline' en script-src y el navegador se negaba a correrlo, así que
+         la prueba medía un clic que no llamaba a nada. Los botones de verdad llaman por data-acc,
+         que el documento reparte DENTRO del clic (window.event es ese clic, que es lo que lee
+         botonDelEvento()); un addEventListener hace exactamente eso. */
       const cp = await p.evaluate(async () => {
         const b = document.createElement('button'); b.className = 'btn btn-gho'; b.id = 'prueba-copiar'; b.textContent = 'Copiar link';
-        b.setAttribute('onclick', "copiarTexto('https://maps.app.goo.gl/x','Link de Maps copiado · listo para compartir')");
+        b.addEventListener('click', () => copiarTexto('https://maps.app.goo.gl/x', 'Link de Maps copiado · listo para compartir'));
         document.querySelector('.wrap').prepend(b);
         return true;
       });

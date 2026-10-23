@@ -846,6 +846,36 @@ const RONDAS = [
 /* Para depurar: SOLO=2 corre únicamente la tercera ronda, SOLO=s la de la silueta y SOLO=s,0 las dos.
    Sin SOLO, todo. */
 const solo = process.env.SOLO === undefined ? null : process.env.SOLO.split(',');
+
+/* Material está en mantenimiento desde 7dabd21 (9 de octubre de 2026): `EN_MANTENIMIENTO` en
+   js/mod/material.js apaga la pantalla —no lee ni escribe nada— y pinta un solo aviso. Mientras
+   siga así, todo lo de abajo prueba una pantalla que no se pinta: la primera sección se colgaba
+   esperando #mt-cuerpo y la prueba tronaba sin decir por qué. Se comprueba lo que sí hay (el aviso,
+   sin errores y sin el cuerpo del almacén) y lo demás se salta diciéndolo; el día que se encienda
+   otra vez, la prueba vuelve entera sola. */
+{
+  const ctx = await nav.newContext({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true, locale: 'es-MX',
+    timezoneId: 'America/Mexico_City', serviceWorkers: 'block' });
+  await ctx.addInitScript(() => { try { localStorage.setItem('al3d_pf_rol', 'direccion'); localStorage.setItem('al3d_pf_nombre', 'Beto'); } catch (_) {} });
+  await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+  const p = await ctx.newPage();
+  const errores = [];
+  p.on('pageerror', e => errores.push(e.message));
+  await p.goto(B + '/#/material', { waitUntil: 'load' });
+  await p.waitForFunction(() => { const m = document.getElementById('mod-material'); return m && !m.hidden && m.querySelector('#mt-cuerpo, .vacio-t'); }, null, { timeout: 30000 });
+  const m = await p.evaluate(() => ({ aviso: (document.querySelector('#mod-material .vacio-t') || {}).textContent || '', cuerpo: !!document.getElementById('mt-cuerpo') }));
+  await ctx.close();
+  if (/mantenimiento/i.test(m.aviso)) {
+    console.log('\nMATERIAL EN MANTENIMIENTO');
+    cierto(!m.cuerpo, 'la pantalla dice «' + m.aviso + '» y no pinta el almacén', m);
+    cierto(errores.length === 0, 'sin errores de página', errores);
+    console.log('  · las rondas de Material se saltan mientras EN_MANTENIMIENTO siga en true (js/mod/material.js)');
+    await nav.close();
+    console.log('\n' + (fallos ? fallos + ' fallo(s) en pf-material.' : 'Material en mantenimiento: el aviso se ve y no hay errores.'));
+    process.exit(fallos ? 1 : 0);
+  }
+}
+
 if (!solo || solo.includes('s')) await siluetaSinHueco();
 for (let i = 0; i < RONDAS.length; i++) if (!solo || solo.includes(String(i))) await ronda(...RONDAS[i]);
 

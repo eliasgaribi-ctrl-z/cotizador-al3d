@@ -317,30 +317,41 @@ async function vitrina(ancho, tema, mov) {
     const est = id => p.evaluate(i => { const f = document.getElementById(i); const c = f.querySelector('.desliza-cara'); return { abierta: f.classList.contains('abierta'), tf: getComputedStyle(c).transform, x: c.style.transform }; }, id);
     const acciones = () => p.evaluate(() => window.__v.acciones.slice());
     let f1 = await centro(p, '#f1 .desliza-cara');
+    /* Con el RATÓN el renglón ya no se arma (77264c7, auditoría de la plataforma 2026-10,
+       tablero-1 y tablero-5): con ratón sus botones ya están a la vista, y armado, arrastrar sobre
+       el nombre para copiarlo avanzaba el proyecto de etapa. Lo que aquí se probaba con el ratón
+       se prueba con el dedo, que es de quien es el gesto; con el ratón se prueba que no pasa nada. */
     await raton(p, f1.x + 60, f1.y, f1.x - 140, f1.y, { pasos: 10 });
     await p.waitForTimeout(350);
     let e = await est('f1');
-    ok(e.abierta && /translateX\(-\d+/.test(e.x), 'con el ratón, arrastrar a la izquierda descubre sus acciones', e);
+    ok(!e.abierta && e.x === '', 'con el ratón, arrastrar a la izquierda NO descubre las acciones (el gesto es del dedo)', e);
+    const f2 = await centro(p, '#f2 .desliza-cara span');
+    const antesP = await p.evaluate(() => window.__v.principal);
+    await raton(p, f2.x - 40, f2.y, f2.x + 200, f2.y, { pasos: 12 });
+    await p.waitForTimeout(300);
+    ok((await p.evaluate(() => window.__v.principal)) === antesP && !(await est('f2')).abierta, 'ni arrastrar a la derecha corre la acción principal');
+    await dedo(p, cdp, f1.x + 60, f1.y, f1.x - 140, f1.y, { pasos: 10 });
+    await p.waitForTimeout(350);
+    e = await est('f1');
+    ok(e.abierta && /translateX\(-\d+/.test(e.x), 'con el dedo, deslizar a la izquierda descubre sus acciones', e);
     const bor = await centro(p, '#f1 [data-acc="bor"]');
-    await p.mouse.click(bor.x, bor.y); await p.waitForTimeout(100);
+    await p.touchscreen.tap(bor.x, bor.y); await p.waitForTimeout(100);
     ok((await acciones()).includes('bor'), 'y su botón corre el código de la pantalla');
     await p.waitForTimeout(300);
     ok(!(await est('f1')).abierta, 'el renglón se cierra después de la acción');
-    const f2 = await centro(p, '#f2 .desliza-cara span');
-    const antesP = await p.evaluate(() => window.__v.principal);
-    const lista = await raton(p, f2.x - 40, f2.y, f2.x + 200, f2.y, { pasos: 12, alMedio: () => p.evaluate(() => document.getElementById('f2').classList.contains('lista')) });
+    const lista = await dedo(p, cdp, f2.x - 40, f2.y, f2.x + 200, f2.y, { pasos: 12, alMedio: () => p.evaluate(() => document.getElementById('f2').classList.contains('lista')) });
     await p.waitForTimeout(120);
     ok(lista, 'pasado el umbral, el renglón avisa que soltar hará la acción principal');
     ok((await p.evaluate(() => window.__v.principal)) === antesP + 1, 'y al soltar, la corre (una vez)');
     await p.waitForTimeout(300);
     ok(!(await est('f2')).abierta && (await est('f2')).x === '', 'y la cara vuelve a su sitio');
-    await raton(p, f2.x - 40, f2.y, f2.x - 10, f2.y, { pasos: 6, ms: 40 });
+    await dedo(p, cdp, f2.x - 40, f2.y, f2.x - 10, f2.y, { pasos: 6, ms: 40 });
     await p.waitForTimeout(300);
     ok((await p.evaluate(() => window.__v.principal)) === antesP + 1, 'un poco a la derecha no dispara nada');
-    /* El clic que sigue a un arrastre no es un toque: el «Abrir» visible de la cara no se corre. */
+    /* Lo que sigue a un arrastre no es un toque: el «Abrir» visible de la cara no se corre. */
     const ab = await centro(p, '#f2 [data-acc="abrir-visible"]');
     const n0 = (await acciones()).filter(x => x === 'abrir-visible').length;
-    await raton(p, ab.x, ab.y, ab.x - 150, ab.y, { pasos: 10 });
+    await dedo(p, cdp, ab.x, ab.y, ab.x - 150, ab.y, { pasos: 10 });
     await p.waitForTimeout(250);
     ok((await acciones()).filter(x => x === 'abrir-visible').length === n0, 'arrastrar empezando sobre un botón de la cara no lo pulsa');
     ok((await est('f2')).abierta, 'y abre el renglón');

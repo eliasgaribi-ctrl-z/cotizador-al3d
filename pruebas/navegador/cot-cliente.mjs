@@ -681,7 +681,11 @@ async function ronda(R, indice) {
     cierto(/Duplicar/i.test(nd || '') && /PDF/.test(no || ''), 'pasar al botón vecino cambia la etiqueta al instante (caliente): «' + nd + '» → «' + no + '»');
     /* Con el teclado. */
     await p.mouse.move(10, 400); await p.waitForTimeout(900);
-    await p.focus('.btn-hist[aria-label="Historial de cotizaciones"]'); await p.keyboard.press('Tab'); await p.waitForTimeout(150);
+    /* Se arranca en el botón que va justo antes del tema. Desde #154 ese ya no siempre es
+       «Historial»: con la identidad de Dirección (la de la hoja de mentiras) entre los dos sale
+       «Precios» (#tarbtn), que lleva su palabra a la vista y por eso no pide etiqueta. */
+    await p.focus(await ev(() => document.getElementById('tarbtn') && !document.getElementById('tarbtn').hidden ? '#tarbtn' : '.btn-hist[aria-label="Historial de cotizaciones"]'));
+    await p.keyboard.press('Tab'); await p.waitForTimeout(150);
     const nk = await tip();
     cierto(/tema/i.test(nk || '') && (await ev(() => document.activeElement.classList.contains('btn-tema'))), 'con Tab sale al momento: «' + nk + '»');
     await p.keyboard.press('Escape'); await p.waitForTimeout(150);
