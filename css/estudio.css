@@ -173,7 +173,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
   .pf-tab .tx{flex:none;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;hyphens:manual}
   .pf-tab .svgi{width:22px;height:22px;color:inherit}
   .pf-tab.on{background:var(--es-act);color:var(--es-act-tx);font-weight:800;box-shadow:none}
-  .pf-tab.on::before{display:none}
+  /* `content:none` y no `display:none`: la ficha que viaja entre pestañas (piezas.js,
+     fichaQueViaja) copia como «adorno» el ::before que tenga contenido y fondo, aunque no se vea,
+     y con display:none se llevaba el filete azul de 3 px pegado a la pastilla negra. */
+  .pf-tab.on::before{content:none}
   .pf-tab.on .svgi{color:inherit}
   @media(hover:hover){
     .pf-tab:hover{background:var(--es-chip);color:var(--tinta)}
@@ -391,6 +394,21 @@ body.pf .btn-ok{box-shadow:none}
 .sub-copiar{border-color:rgba(255,255,255,.55);color:#fff;border-radius:999px}
 @media(hover:hover){.sub-copiar:hover{background:rgba(255,255,255,.16)}}
 .sub-copiar:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* La barra de arriba del cotizador suelto (de 561 px para arriba, donde va en un renglón).
+   Iba al ras con los botones en Arial; con la letra del estudio —que ahora también llega a los
+   botones (ver «Los controles heredan la letra», abajo)— cada pastilla creció unos píxeles y la
+   suma partía la barra en dos renglones en cuanto aparecía «Deshacer» (Dirección, 1440 px), y la
+   isla ya no cabía para decir «Sin señal». Se recupera ese ancho apretando el hueco entre
+   botones y el relleno de las pastillas con palabra, no quitando nada.
+   Lo mismo en la cabecera de cada partida, que también va pegada arriba: los cinco tipos
+   («Letras 3D», «Caja de luz»…) crecieron 18 px y empujaban Duplicar · PDF · Borrar a un
+   segundo renglón, 44 px más de cabecera pegada que tapaban la fórmula de la partida. */
+@media(min-width:561px){
+  .topbar-in .rolewrap{gap:8px}
+  .topbar-in .btn-hist:not(.btn-tema){padding:0 9px;gap:6px}
+  .partida-top .tipo-seg button{padding-left:9px;padding-right:9px}
+}
 
 /* ==========================================================================
    10. Todas las pantallas (23/10/2026)
