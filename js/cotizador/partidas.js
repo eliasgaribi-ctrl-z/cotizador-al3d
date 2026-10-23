@@ -1682,6 +1682,9 @@ function descFld(it){
 
 function bodyFor(it){
   const dis=capturaBloqueada()?'disabled':'';
+  /* Con opciones, lo que distingue a cada una —material, acabado, medidas— va en su tarjeta
+     (_opCamposHTML) con estos mismos ids, y aquí se queda lo que comparten. */
+  const op=!!opcionesDe(it);
   if(it.tipo==='letras'){
     const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio,false,_peekAttrs(it,'material',m.key,m.label))).join('');
     const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
@@ -1706,15 +1709,15 @@ function bodyFor(it){
       : '';
     return `
       ${descFld(it)}
-      ${grupo(matTitulo,mat?mat.label:'',matChips,avisos,true)}
+      ${op?'':grupo(matTitulo,mat?mat.label:'',matChips,avisos,true)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
         `<button type="button" class="switch" role="switch" data-foco="luz-${it.id}" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`data-acc="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
       ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
-        <div class="fld">
+        ${op?'':`<div class="fld">
           <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} data-al-escribir="typeNum(${it.id},'altura')" data-al-salir="saneaNum(${it.id},'altura',0.5)">
-        </div>
+        </div>`}
         <div class="fld">
           <label class="arrastrable" for="n-${it.id}"># Letras</label>
           <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} data-al-escribir="typeNum(${it.id},'n')" data-al-salir="saneaNum(${it.id},'n',1)">
@@ -1741,13 +1744,13 @@ function bodyFor(it){
       : '';
     return `
       ${descFld(it)}
-      ${grupo('Acabado del recorte',recOf(it.acab)?recOf(it.acab).label:'',recChips,hint)}
-      ${compRow}
+      ${op?'':grupo('Acabado del recorte',recOf(it.acab)?recOf(it.acab).label:'',recChips,hint)}
+      ${op?'':compRow}
       <div class="grid3" style="margin-top:12px">
-        <div class="fld">
+        ${op?'':`<div class="fld">
           <label class="arrastrable" for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} data-al-escribir="typeNum(${it.id},'altura')" data-al-salir="saneaNum(${it.id},'altura',0.5)">
-        </div>
+        </div>`}
         <div class="fld"><label class="arrastrable" for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} data-al-escribir="typeNum(${it.id},'n')" data-al-salir="saneaNum(${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
@@ -1756,6 +1759,7 @@ function bodyFor(it){
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²',false,_peekAttrs(it,'bas',b.key,b.label))).join('');
     const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>'+_peekFila(it);
+    if(op) return descFld(it);
     return `
       ${descFld(it)}
       ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint,true)}
@@ -1768,6 +1772,7 @@ function bodyFor(it){
     const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²',false,_peekAttrs(it,'tarifa',c.tarifa,c.label))).join('');
     const hint='<div class="hintnote">Mínimo 1 m²</div>'+_peekFila(it);
     const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
+    if(op) return descFld(it);
     return `
       ${descFld(it)}
       ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint,true)}
@@ -1782,7 +1787,7 @@ function bodyFor(it){
     <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} data-al-escribir="typeItem(${it.id},'desc')"></div>
     <div class="grid2">
       <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} data-al-escribir="typeNum(${it.id},'pz')" data-al-salir="saneaNum(${it.id},'pz',1)"></div>
-      <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} data-al-escribir="typeNum(${it.id},'pu')" data-al-salir="saneaNum(${it.id},'pu')"></div></div>
+      ${op?'':`<div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} data-al-escribir="typeNum(${it.id},'pu')" data-al-salir="saneaNum(${it.id},'pu')"></div></div>`}
     </div>`;
 }
 
@@ -2029,8 +2034,42 @@ const _FALTA_OPCION_DICE=FALTA_OPCION.replace(/^Faltan? /,'').toLowerCase();
 /* Lo que NO cambia al pasar de una opción a otra: la identidad de la partida, si sale en el PDF y
    las propias opciones. */
 const _OPC_FUERA=['id','showInPdf','opciones'];
+/* ----- Cada tarjeta lleva lo suyo; lo demás se captura una vez (23-oct-2026) -----
+   Elías no la entendió: «se me hizo confuso». Lo que confundía era editar las opciones de una en
+   una: «Editar» abría una opción y TODO el formulario de abajo pasaba a ser de ella, con un
+   «Estás editando la opción B» que había que leer para saber qué se estaba cambiando, y la copia
+   nacía abierta con el precio de la cotización moviéndose con ella.
+   Ahora la partida es la opción A y no cambia de dueño. Cada tarjeta trae ahí mismo lo que hace
+   distinta a su opción —el tipo, el material y la medida— y lo demás —cuántas letras, la
+   complejidad, la luz, la descripción— se captura una vez en el cuerpo de la partida y vale para
+   todas: las opciones lo leen de la partida al pintarse, no se copia (dos fuentes de la misma
+   cifra se desfasan en cuanto alguien teclea).
+     · `_OPC_PROPIOS`: lo que cambia de una opción a otra, por tipo. Va en la tarjeta y sale del
+       cuerpo de la partida mientras haya opciones.
+     · `_OPC_COMUNES`: lo que la partida le presta a una opción. Solo si las dos lo tienen: una
+       caja no tiene cuántas letras, así que unas letras propuestas contra una caja llevan su
+       cuenta en su tarjeta (`_opCamposDe`). */
+const _OPC_PROPIOS={letras:['material','altura'],recorte:['acab','recComp','altura'],
+  bastidor:['bas','ancho','alto'],caja:['tarifa','ancho','alto'],manual:['pu']};
+const _OPC_COMUNES={letras:['n','nManual','textoAuto','comp','luz','ilumTipo','desc','descAi','descAuto'],
+  recorte:['n','nManual','textoAuto','desc','descAi','descAuto'],
+  bastidor:['desc','descAi','descAuto'],caja:['desc','descAi','descAuto'],manual:['pz','desc','descAi','descAuto']};
 
 function _opCopia(v){ return (v!==null&&typeof v==='object')?JSON.parse(JSON.stringify(v)):v; }
+/* Los campos de una opción con lo que la partida le presta. */
+function _opConComunes(it,d){
+  const suyos=_OPC_COMUNES[it.tipo]||[], r=Object.assign({},d);
+  (_OPC_COMUNES[d.tipo]||[]).forEach(k=>{ if(suyos.includes(k)&&it[k]!==undefined) r[k]=_opCopia(it[k]); });
+  return r;
+}
+/* Lo que la tarjeta de una opción tiene que dejar capturar: lo propio y, si la partida no se lo
+   presta, la cuenta de letras o de piezas que hace falta para cotizar. */
+function _opCamposDe(tipo,tipoPartida){
+  const c=(_OPC_PROPIOS[tipo]||[]).slice(), suyos=_OPC_COMUNES[tipoPartida]||[];
+  if((tipo==='letras'||tipo==='recorte')&&!suyos.includes('n')) c.push('n');
+  if(tipo==='manual'&&!suyos.includes('pz')) c.push('pz');
+  return c;
+}
 /* Copia de los campos de la opción que está en la partida. */
 function _opDatos(it){
   const d={};
@@ -2069,8 +2108,16 @@ function opcionesVivas(it){
   const o=opcionesDe(it); if(!o) return null;
   return o.lista.map((x,i)=>{
     const abierta=x.k===o.activa;
-    return {k:x.k,letra:OPC_LETRAS[i],abierta,d:Object.assign({id:it.id},_opNormal(abierta?_opDatos(it):x.d,it.id))};
+    return {k:x.k,letra:OPC_LETRAS[i],abierta,d:Object.assign({id:it.id},_opNormal(abierta?_opDatos(it):_opConComunes(it,x.d),it.id))};
   });
+}
+/* Qué cambia de una opción a otra: los campos propios que no valen lo mismo en todas. */
+function _opVaria(v){
+  const s=new Set();
+  ['tipo','material','acab','recComp','bas','tarifa','altura','ancho','alto','pu','n'].forEach(k=>{
+    if(new Set(v.map(x=>String(x.d[k]===undefined?'':x.d[k]))).size>1) s.add(k);
+  });
+  return s;
 }
 /* ¿Dos opciones dicen lo mismo? Lo que mueve el precio, más lo que se imprime. */
 function _opFirma(d){
@@ -2078,10 +2125,21 @@ function _opFirma(d){
 }
 /* Qué es la opción, dicho con el catálogo: el material (o el tipo) como título y, debajo, la
    medida y la iluminación. La iluminación se LEE del catálogo —aluminio posterior, acrílico
-   frontal—, no se deduce del nombre. */
-function _opRotulo(d){
+   frontal—, no se deduce del nombre.
+   Con `varia` (de _opVaria) el título dice lo que DISTINGUE a la opción: tres opciones del mismo
+   aluminio en 40, 50 y 60 cm se llamaban las tres «Aluminio pintado», y la diferencia quedaba en
+   letra chica. Si solo cambia la medida, la medida es el título y el material baja al renglón. */
+function _opRotulo(d,varia){
   const tipo=TIPO_NOMBRE[d.tipo]||'Partida';
   const num=v=>Number(v)||0;
+  const soloMedida=varia&&varia.size&&[...varia].every(k=>k==='altura'||k==='ancho'||k==='alto'||k==='n');
+  if(soloMedida){
+    const med=(d.tipo==='letras'||d.tipo==='recorte')
+      ? (num(d.altura)>0?num(d.altura)+' cm de altura':'Altura sin capturar')+(varia.has('n')&&num(d.n)>0?' × '+num(d.n):'')
+      : (num(d.ancho)>0&&num(d.alto)>0?num(d.ancho)+' × '+num(d.alto)+' cm':'Medidas sin capturar');
+    const base=_opRotulo(d);
+    return {titulo:med,sub:[base.titulo,tipo].concat(d.tipo==='letras'?[base.sub.split(' · ').pop()]:[]).join(' · ')};
+  }
   if(d.tipo==='letras'){
     const m=matOf(d.material);
     const med=[num(d.altura)>0?num(d.altura)+' cm de altura':'',num(d.n)>0?'× '+num(d.n):''].filter(Boolean).join(' ');
@@ -2108,27 +2166,35 @@ function _opRotulo(d){
 /* ----- Las operaciones, sobre la partida y sin tocar la pantalla -----
    Cada una devuelve true si cambió algo. Separadas de las que repintan para que se puedan probar en
    node (pruebas/cot-opciones-logica.mjs) y para que la pantalla no pueda dejar una a medias. */
-/* Convierte una partida en una propuesta de dos: la que ya estaba y una copia, que queda abierta
-   para cambiarle el material o el tipo. La copia es IGUAL a la original a propósito: elegir un
-   material por la persona es decidir un precio por ella, y esta app no lo hace. */
+/* Convierte una partida en una propuesta de dos: la que ya estaba, que sigue siendo la partida
+   (la A), y una copia para cambiarle la medida, el material o el tipo en su tarjeta. La copia es
+   IGUAL a la original a propósito: elegir un material por la persona es decidir un precio por
+   ella, y esta app no lo hace. */
 function _opProponer(it){
   if(opcionesDe(it)) return false;
   const base=_opDatos(it);
-  it.opciones={lista:[{k:1,d:base},{k:2,d:_opCopia(base)}],activa:2};
+  it.opciones={lista:[{k:1,d:base},{k:2,d:_opCopia(base)}],activa:1};
   return true;
 }
+/* La nueva parte de la última, que es la que se acaba de capturar: la de 60 cm después de la de
+   50 está más cerca de lo que se busca que una copia de la A. */
 function _opAgregar(it){
   const o=opcionesDe(it); if(!o||o.lista.length>=OPC_MAX) return false;
   const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
+  const ult=o.lista[o.lista.length-1];
   const k=Math.max(...o.lista.map(x=>x.k))+1;
-  o.lista.push({k,d:_opCopia(cur.d)}); o.activa=k;
+  o.lista.push({k,d:_opCopia(ult.k===o.activa?cur.d:_opConComunes(it,ult.d))});
   return true;
 }
+/* Cambiar de opción abierta: la pantalla ya no lo pide —cada tarjeta se edita sola—, pero lo usan
+   quitar la abierta y las cotizaciones guardadas antes del 23-oct-2026 con la B abierta. */
 function _opIr(it,k){
   const o=opcionesDe(it); if(!o||k===o.activa) return false;
   const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
-  const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
-  _opCargar(it,dest.d); o.activa=k;
+  const cur=o.lista.find(x=>x.k===o.activa);
+  const llega=_opConComunes(it,dest.d);
+  cur.d=_opDatos(it);
+  _opCargar(it,llega); o.activa=k;
   return true;
 }
 /* Con una sola opción restante ya no hay propuesta: la partida vuelve a ser una de las de siempre. */
@@ -2136,20 +2202,31 @@ function _opQuitar(it,k){
   const o=opcionesDe(it); if(!o) return false;
   const i=o.lista.findIndex(x=>x.k===k); if(i<0) return false;
   o.lista.find(x=>x.k===o.activa).d=_opDatos(it);
-  o.lista.splice(i,1);
   if(o.activa===k){
-    o.activa=o.lista[Math.min(i,o.lista.length-1)].k;
-    _opCargar(it,o.lista.find(x=>x.k===o.activa).d);
+    const sig=o.lista[i+1<o.lista.length?i+1:i-1];
+    _opCargar(it,_opConComunes(it,sig.d));
+    o.activa=sig.k;
   }
+  o.lista.splice(i,1);
   if(o.lista.length<2) delete it.opciones;
   return true;
 }
-/* La elegida pasa a ser la partida; las demás se descartan. */
+/* La elegida pasa a ser la partida, con lo que tenía en común con ella; las demás se descartan. */
 function _opElegir(it,k){
   const o=opcionesDe(it); if(!o) return false;
   const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
-  if(k!==o.activa) _opCargar(it,dest.d);
+  if(k!==o.activa) _opCargar(it,_opConComunes(it,dest.d));
   delete it.opciones;
+  return true;
+}
+/* Escribir un campo en una opción que no es la partida, desde su tarjeta. Devuelve true si cambió
+   algo. La regla de los 10 cm la aplica opSanea() al soltar el campo, como saneaNum(). */
+function _opEscribir(it,k,campo,v){
+  const o=opcionesDe(it); if(!o||k===o.activa) return false;
+  const x=o.lista.find(y=>y.k===k); if(!x) return false;
+  if(x.d[campo]===v) return false;
+  x.d[campo]=v;
+  if(campo==='material') x.d.matAuto=false;
   return true;
 }
 
@@ -2172,25 +2249,58 @@ function deshacerOpciones(){
 }
 
 /* ----- Lo que se ve ----- */
-/* La ficha de la cara plegada: cuál está abierta y que falta elegir. */
+/* La ficha de la cara plegada: cuántas opciones hay y que falta elegir. */
 function opcionFichaPlegada(it,tok){
   const v=opcionesVivas(it); if(!v) return '';
-  const a=v.find(x=>x.abierta);
-  return tok(`Opción ${a.letra} de ${v.length} · por elegir`,'falta');
+  return tok(`${v.length} opciones · por elegir`,'falta');
 }
-/* Lo que cambia con cada tecla de una tarjeta: título, cuenta, importe. Los botones no, para no
+/* Lo que cambia con cada tecla de una tarjeta: título, cuenta, importe. Los campos no, para no
    quitarle el foco a nadie. */
 function _opCuerpoHTML(it,x,v){
   const d=x.d, tot=lineTotal(d), faltan=faltantesDe(d);
-  const r=_opRotulo(d);
+  const r=_opRotulo(d,_opVaria(v));
   const igual=v.find(y=>y.k!==x.k&&y.letra<x.letra&&_opFirma(y.d)===_opFirma(d));
   return `<div class="op-cab"><span class="op-letra" aria-hidden="true">${x.letra}</span><span class="op-etq">Opción ${x.letra}</span>`
-      +(x.abierta?'<span class="op-tag">Abierta</span>':'')+`</div>
+      +(x.abierta?'<span class="op-tag">En el total</span>':'')+`</div>
     <h4 class="op-t" id="opt-${it.id}-${x.k}">${esc(r.titulo)}</h4>
     <p class="op-sub">${esc(r.sub)}</p>
     <p class="op-cuenta">${formulaHTML(d)}</p>`
-    +(igual?`<p class="op-igual">Igual que la opción ${igual.letra}: cámbiale el material o el tipo.</p>`:'')
+    +(igual?`<p class="op-igual">Igual que la opción ${igual.letra}: cámbiale la medida o el material aquí abajo.</p>`:'')
     +`<span class="op-precio" id="opp-${it.id}-${x.k}">${faltan.length||!(tot>0)?'—':money(tot)}</span>`;
+}
+/* Los campos de la tarjeta: el tipo y lo que distingue a la opción (_opCamposDe). La tarjeta de
+   la partida —la que cuenta en el total— usa los MISMOS ids y manejadores que el cuerpo de
+   siempre (h-, n-, an-…; typeNum, saneaNum, setItem), que mientras hay opciones ya no los pinta:
+   así deshacer, el espiado de precios, la regla de los 10 cm y quien escribe la altura desde el
+   escalador siguen saliendo de un solo sitio. Las otras escriben en su copia (opSet, opNum…). */
+function _opCamposHTML(it,x,bloq){
+  const d=x.d, id=it.id, k=x.k, ab=x.abierta, dis=bloq?' disabled':'';
+  const lit=v=>typeof v==='string'?`'${v}'`:String(v);
+  const pon=(campo,v)=>`opSet(${id},${k},'${campo}',${lit(v)})`;
+  const sufijo=ab?`-${id}`:`-${id}-${k}`;
+  const nums=[];
+  const num=(campo,etq,pref,paso,modo)=>{
+    const iid=pref+sufijo, p=paso?','+paso:'';
+    const manejo=ab?`data-al-escribir="typeNum(${id},'${campo}')" data-al-salir="saneaNum(${id},'${campo}'${p})"`
+                   :`data-al-escribir="opNum(${id},${k},'${campo}')" data-al-salir="opSanea(${id},${k},'${campo}'${p})"`;
+    nums.push(`<div class="fld"><label for="${iid}">${etq}</label><input id="${iid}" type="number" inputmode="${modo||'decimal'}" min="0"${paso?` step="${paso}"`:''} value="${d[campo]||''}"${dis} ${manejo}></div>`);
+  };
+  const partes=[`<div class="fld op-tipo"><label for="opti${sufijo}">Tipo</label><select id="opti${sufijo}"${dis} data-al-cambiar="opTipo(${id},${k})">`
+    +_TIPOS_PARTIDA.map(t=>`<option value="${t}"${d.tipo===t?' selected':''}>${esc(TIPO_NOMBRE[t]||t)}</option>`).join('')+`</select></div>`];
+  _opCamposDe(d.tipo,it.tipo).forEach(campo=>{
+    if(campo==='material'){ const m=matOf(d.material); partes.push(grupo('Material',m?m.label:'',MATERIALES.map(c=>chip(d.material===c.key,pon('material',c.key),c.label,'$'+c.precio)).join(''),'',true)); }
+    else if(campo==='acab'){ const r=recOf(d.acab); partes.push(grupo('Acabado',r?r.label:'',RECORTES.map(c=>chip(d.acab===c.key,pon('acab',c.key),c.label,'$'+c.precio)).join(''))); }
+    else if(campo==='recComp'){ if(d.acab==='sandwich') partes.push(`<button type="button" class="switch op-sw" role="switch" aria-checked="${d.recComp?'true':'false'}"${bloq?' disabled':` data-acc="${pon('recComp',!d.recComp)}"`}><span class="tg ${d.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`); }
+    else if(campo==='bas'){ const b=basOf(d.bas); partes.push(grupo('Material',b?b.label:'',BASTIDORES.map(c=>chip(d.bas===c.key,pon('bas',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
+    else if(campo==='tarifa'){ const c0=cajaOf(d.tarifa); partes.push(grupo('Tipo de caja',c0?c0.label:(d.tarifa>0?'$'+d.tarifa+'/m²':''),CAJAS.map(c=>chip(d.tarifa===c.tarifa,pon('tarifa',c.tarifa),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
+    else if(campo==='altura') num('altura','Altura (cm)','h',0.5);
+    else if(campo==='n') num('n',d.tipo==='recorte'?'# Piezas':'# Letras','n',1,'numeric');
+    else if(campo==='ancho') num('ancho','Ancho (cm)','an');
+    else if(campo==='alto') num('alto','Alto (cm)','al');
+    else if(campo==='pu') num('pu','Precio unitario','pu');
+    else if(campo==='pz') num('pz','Piezas','pz',1,'numeric');
+  });
+  return partes.join('')+(nums.length?`<div class="op-nums">${nums.join('')}</div>`:'');
 }
 function _opCompleta(d){ return !faltantesDe(d).length&&lineTotal(d)>0; }
 function _opCardHTML(it,x,v,bloq){
@@ -2198,10 +2308,10 @@ function _opCardHTML(it,x,v,bloq){
   const sello=window.Piezas&&Piezas.palomitaHTML?Piezas.palomitaHTML({circulo:true,dibujar:false}):'';
   return `<article class="op-card${x.abierta?' abierta':''}" id="opc-${it.id}-${x.k}" data-k="${x.k}" role="group" aria-labelledby="opt-${it.id}-${x.k}">
     <div class="op-cuerpo" id="opcu-${it.id}-${x.k}">${_opCuerpoHTML(it,x,v)}</div>
+    <div class="op-campos">${_opCamposHTML(it,x,bloq)}</div>
     <span class="op-sello" aria-hidden="true">${sello} Elegida</span>`
     +(bloq?'':`<div class="op-acc">
       <button type="button" class="btn btn-pri op-elegir" data-foco="op-elegir-${it.id}-${x.k}"${ok?'':' aria-disabled="true"'} aria-label="Elegir la opción ${x.letra}" data-acc="elegirOpcion(${it.id},${x.k})">Elegir esta</button>
-      ${x.abierta?'':`<button type="button" class="btn btn-gho op-ed" data-foco="op-ed-${it.id}-${x.k}" aria-label="Editar la opción ${x.letra}" data-acc="abrirOpcion(${it.id},${x.k})">Editar</button>`}
       <button type="button" class="op-quita" data-foco="op-quita-${it.id}-${x.k}" aria-label="Quitar la opción ${x.letra}" title="Quitar la opción ${x.letra}" data-acc="quitarOpcion(${it.id},${x.k})"><span aria-hidden="true">×</span></button>
     </div>`)
     +`</article>`;
@@ -2211,27 +2321,28 @@ function opcionesHTML(it,v){
   const a=v.find(x=>x.abierta);
   return `<section class="opciones" id="opciones-${it.id}" aria-labelledby="oph-${it.id}">
     <div class="op-barra">
-      <h3 class="op-h" id="oph-${it.id}">Propuesta con ${v.length} opciones</h3>
+      <h3 class="op-h" id="oph-${it.id}">Comparando ${v.length} opciones</h3>
       ${(!bloq&&v.length<OPC_MAX)?`<button type="button" class="op-mas" data-foco="op-mas-${it.id}" data-acc="agregarOpcion(${it.id})">+ Otra opción</button>`:''}
     </div>
+    ${bloq?'':'<p class="op-guia">En cada tarjeta cambia la medida o el material y el precio sale solo. Cuando el cliente decida, toca «Elegir esta».</p>'}
     <div class="opciones-rej">${v.map(x=>_opCardHTML(it,x,v,bloq)).join('')}<span class="resalte-mos" aria-hidden="true"></span></div>
-    <p class="op-nota">${Q.iva?'Importes antes de I.V.A.':'Importes sin I.V.A.'} El total de la cotización suma solo la opción abierta; al elegir una, las demás se descartan.</p>
-    <h4 class="op-edita" id="opced-${it.id}" tabindex="-1">Estás editando la opción ${a.letra}</h4>
-  </section>`;
+    <p class="op-nota">${Q.iva?'Importes antes de I.V.A.':'Importes sin I.V.A.'} El total de la cotización cuenta la opción ${a.letra} hasta que el cliente elija; al elegir una, las demás se descartan.</p>
+  </section>
+  <h4 class="op-comun">Para todas las opciones</h4>`;
 }
 /* El botón que convierte una partida en propuesta. Una partida en blanco no tiene nada que
    comparar, y con el candado puesto no se puede proponer. */
 function _opPieHTML(it){
   if(capturaBloqueada()||itemVacio(it)) return '';
-  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" data-acc="proponerOpciones(${it.id})">Proponer otra opción</button><small>El mismo trabajo en otro material o tipo, lado a lado.</small></div>`;
+  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" data-acc="proponerOpciones(${it.id})">Comparar otra medida o material</button><small>¿El cliente no se decide? Ponle lado a lado el mismo trabajo en otra medida o en otro material, cada uno con su precio, sin abrir otra cotización.</small></div>`;
 }
 /* Lo que renderItems() pone dentro del cuerpo de la partida. */
 function cuerpoConOpciones(it){
   const v=opcionesVivas(it);
   return v?opcionesHTML(it,v)+bodyFor(it):bodyFor(it)+_opPieHTML(it);
 }
-/* Cada tecla en el editor cambia el importe de la opción abierta: su tarjeta lo sigue sin
-   repintar nada más. */
+/* Cada tecla en el cuerpo de la partida o en una tarjeta cambia importes: las tarjetas los siguen
+   sin repintar sus campos. Lo común mueve el precio de todas, no solo el de la A. */
 function opcionesRepintar(it){
   const v=opcionesVivas(it); if(!v) return;
   v.forEach(x=>{
@@ -2246,34 +2357,73 @@ function _opPartida(id){
   if(capturaBloqueada()) return null;
   return Q.items.find(x=>x.id===id)||null;
 }
-/* Después de repintar, el foco al encabezado «Estás editando…»: es lo que se acaba de abrir y
-   lo que un lector de pantalla tiene que leer. Y a la vista: las tarjetas miden unas tres
-   pantallas apiladas en un teléfono, así que el editor de la opción que se tocó queda lejos de
-   donde estaba el dedo. Solo se desplaza si de verdad quedó fuera de la parte alta de la pantalla. */
-function _opAlEditor(id){
-  const h=$('opced-'+id);
-  if(!h) return;
-  try{ h.focus({preventScroll:true}); }catch(_){ h.focus(); }
-  const y=h.getBoundingClientRect().top;
-  if(y<altoTopbarFija()||y>window.innerHeight*0.55) irA(h,56);
+/* Después de repintar, el foco al primer campo de la tarjeta: la medida, que es lo primero que se
+   le cambia a una copia. Y a la vista: en un teléfono las tarjetas van apiladas y la nueva queda
+   abajo, lejos de donde estaba el dedo. Solo se desplaza si de verdad quedó fuera. */
+function _opAlCampo(id,k){
+  const c=$('opc-'+id+'-'+k); if(!c) return;
+  const el=c.querySelector('.op-nums input:not([disabled])')||c.querySelector('.op-campos [tabindex="0"]')||c;
+  try{ el.focus({preventScroll:true}); }catch(_){ if(el.focus) el.focus(); }
+  const r=c.getBoundingClientRect();
+  if(r.top<altoTopbarFija()||r.top>window.innerHeight*0.6) irA(c,56);
 }
 function proponerOpciones(id){
   const it=_opPartida(id); if(!it||!_opProponer(it)) return;
   _plegadas.delete(id);
-  repintarConViaje(()=>_opAlEditor(id));
-  voz('Propuesta con 2 opciones: la segunda quedó abierta para cambiarla');
+  const k=opcionesDe(it).lista[1].k;
+  repintarConViaje(()=>_opAlCampo(id,k));
+  voz('Opción B agregada: cámbiale la medida o el material en su tarjeta');
 }
 function agregarOpcion(id){
   const it=_opPartida(id); if(!it||!_opAgregar(it)) return;
-  const n=opcionesDe(it).lista.length;
-  repintarConViaje(()=>_opAlEditor(id));
-  voz('Opción '+OPC_LETRAS[n-1]+' agregada y abierta');
+  const l=opcionesDe(it).lista, k=l[l.length-1].k;
+  repintarConViaje(()=>_opAlCampo(id,k));
+  voz('Opción '+OPC_LETRAS[l.length-1]+' agregada: cámbiale la medida o el material');
 }
-function abrirOpcion(id,k){
-  const it=_opPartida(id); if(!it||!_opIr(it,k)) return;
-  const l=opcionesVivas(it).find(x=>x.k===k).letra;
-  repintarConViaje(()=>_opAlEditor(id));
-  voz('Editando la opción '+l);
+/* ----- Lo que se escribe en una tarjeta -----
+   La de la partida pasa por setItem/setTipo, como el cuerpo de siempre; las demás escriben en su
+   copia y repintan sus tarjetas, que es lo único que cambia: no cuentan en el total. */
+function _opOtra(id,k){
+  const it=_opPartida(id), o=it&&opcionesDe(it);
+  if(!o) return null;
+  return {it,o,x:o.lista.find(y=>y.k===k)||null,abierta:k===o.activa};
+}
+function opSet(id,k,campo,v){
+  const r=_opOtra(id,k); if(!r||!r.x) return;
+  if(r.abierta){ setItem(id,campo,v); return; }
+  if(_opEscribir(r.it,k,campo,v)) renderItems();
+}
+function opTipo(id,k,t){
+  const r=_opOtra(id,k); if(!r||!r.x) return;
+  if(r.abierta){ setTipo(id,t); return; }
+  if(t==='letras'&&alturaDeRecorte(r.x.d.altura)){
+    toast(`${r.x.d.altura} cm no se fabrica en 3D: por debajo de ${ALTURA_MIN_LETRAS} cm va como recorte de acrílico. Sube la altura para poder cotizarla como letras.`,'err',6400);
+    renderItems(); return;
+  }
+  if(_opEscribir(r.it,k,'tipo',t)) repintarConViaje();
+}
+function opNum(id,k,campo,v){
+  const r=_opOtra(id,k); if(!r||!r.x||r.abierta) return;
+  undoJuntar('op:'+id+':'+k+':'+campo);
+  if(!_opEscribir(r.it,k,campo,v)) return;
+  opcionesRepintar(r.it); saveState();
+}
+/* saneaNum() de una copia: lo que el campo leyó de verdad, redondeado a su paso, y la regla de
+   los 10 cm al soltarlo. */
+function opSanea(el,id,k,campo,paso){
+  const r=_opOtra(id,k); if(!r||!r.x||r.abierta) return;
+  const v=+el.value, n=(v>0)?(paso?Math.round(v/paso)*paso:v):0;
+  el.value=n||'';
+  _opEscribir(r.it,k,campo,n);
+  const d=r.x.d;
+  if(campo==='altura'&&d.tipo==='letras'&&alturaDeRecorte(d.altura)){
+    d.tipo='recorte'; if(!recOf(d.acab)) d.acab='';
+    const l=OPC_LETRAS[r.o.lista.indexOf(r.x)];
+    renderItems();
+    toast(`${d.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no se fabrica en 3D — la opción ${l} pasó a recorte de acrílico.`+(recOf(d.acab)?'':' Falta elegir el acabado.'),'',6400);
+    return;
+  }
+  opcionesRepintar(r.it); saveState();
 }
 function quitarOpcion(id,k){
   const it=_opPartida(id); if(!it) return;
@@ -2296,11 +2446,11 @@ function elegirOpcion(id,k){
   const v=opcionesVivas(it); if(!v) return;
   const x=v.find(y=>y.k===k); if(!x) return;
   /* Una opción a medias no se elige: la partida quedaría sin material o sin medidas, que es lo
-     que esta función existe para evitar. Se dice qué falta y se abre para completarla. */
+     que esta función existe para evitar. Se dice qué falta y el foco va a su tarjeta. */
   if(!_opCompleta(x.d)){
     const f=faltantesDe(x.d);
     toast(`La opción ${x.letra} no está completa: `+(f.length?'falta '+f.join(', '):'no tiene importe')+'.','err',5200);
-    if(!x.abierta) abrirOpcion(id,k); else _opAlEditor(id);
+    _opAlCampo(id,k);
     return;
   }
   _opRecordar(it);
@@ -2354,9 +2504,9 @@ function opcionesParaPdf(it){
 /* ----- Lo que el marcado puede pedirle a este archivo -----
    Los data-acc, data-al-escribir… de cotizador.html y de las plantillas de aquí: solo lo que
    está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
-accionesDirectas(['abrirOpcion','agregarOpcion','agregarPartida','clearAiFile','closeLightbox',
+accionesDirectas(['agregarOpcion','agregarPartida','clearAiFile','closeLightbox',
   'delItem','dupItem','duplicarUltima','elegirOpcion','empezarConTipo','guardarCambiosEdicion',
-  'irAPendiente','irAlCandado','moverPartida','openAiFile','proponerOpciones','quitarOpcion',
+  'irAPendiente','irAlCandado','moverPartida','opSet','openAiFile','proponerOpciones','quitarOpcion',
   'setItem','setShowInPdf','setTipo','toggleEditMode','toggleItemAuth','togglePartida',
   'togglePlegarTodas']);
 /* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
@@ -2365,6 +2515,9 @@ Object.assign(ACC,{
   typeNum:(el,ev,id,k)=>{ if(el.validity.badInput) return; typeItem(id,k,+el.value); },
   saneaNum:(el,ev,...a)=>saneaNum(el,...a),
   autoContarLetras:(el,ev,id)=>autoContarLetras(id,el.value),
+  opNum:(el,ev,id,k,campo)=>{ if(el.validity.badInput) return; opNum(id,k,campo,+el.value); },
+  opSanea:(el,ev,...a)=>opSanea(el,...a),
+  opTipo:(el,ev,id,k)=>opTipo(id,k,el.value),
   abrirDesdeResumen:(el,ev,id)=>abrirDesdeResumen(id,ev),
   updItemAuth:(el,ev,id)=>updItemAuth(id,el.value.length?+el.value:undefined)
 });

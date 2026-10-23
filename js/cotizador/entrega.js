@@ -517,7 +517,13 @@ function copiarParaCanva(){
   /* Igual que el PDF: las ocultas se cobran, así que se enlistan agrupadas para que las
      líneas sumen el subtotal de abajo. */
   const subOcultoC=+(subC-visibles.reduce((s,it)=>s+pc[it.id],0)).toFixed(2);
-  const lineas=visibles.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(pc[it.id])}`).join('\n\n')
+  /* Una partida con opciones (pieza 76) lleva sus opciones debajo, cada una con su importe: sin
+     ellas la plantilla de Canva enseñaba solo la que cuenta en el total, como si fuera la única. */
+  const opcTxt=it=>{
+    const op=opcionesParaPdf(it); if(!op) return '';
+    return '\n   Opciones para elegir:'+op.opciones.map(o=>`\n   ${o.letra}) ${descTxt(o.d)}  ·  Medidas: ${medTxt(o.d)}  ·  ${money(o.abierta?pc[it.id]:o.total)}${o.abierta?' (en el total)':''}`).join('');
+  };
+  const lineas=visibles.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(pc[it.id])}${opcTxt(it)}`).join('\n\n')
     +(Math.abs(subOcultoC)>0.01?`\n\n${visibles.length+1}. Conceptos adicionales\n   Total: ${money(subOcultoC)}`:'');
   const txt=`PROYECTO: ${Q.proy||'—'}
 CLIENTE: ${Q.cliente||'—'}
@@ -1258,6 +1264,10 @@ function generarPDF(){
   const bloqueOpc = ({it,op}) => {
     const mismas = op.opciones.every(o=>(o.d.desc||'')===(op.opciones[0].d.desc||''));
     const titulo = (op.opciones[0].d.desc||'').trim() || ('Partida '+(Q.items.indexOf(it)+1));
+    /* Cada tarjeta dice primero lo que la distingue —«40 cm de altura», «Acrílico + Aluminio»—,
+       con el mismo rótulo que la pantalla (_opRotulo): tres opciones que solo cambian de medida se
+       leían iguales hasta llegar a la letra chica de las medidas. */
+    const varia = _opVaria(op.opciones);
     return `<section class="opc-b">
       <div class="opc-bh"><span class="lbl">Opciones para</span><span class="opc-bt">${esc(titulo)}</span></div>
       <div class="opc-g opc-g${op.opciones.length}">${op.opciones.map(o=>{
@@ -1265,6 +1275,7 @@ function generarPDF(){
         const p = pzas(o.d);
         return `<div class="opc-c${o.abierta?' opc-en':''}">
         <div class="opc-cl"><span class="opc-l">${o.letra}</span>${o.abierta?'<span class="opc-et">Incluida en el total</span>':''}</div>
+        <span class="opc-t">${esc(_opRotulo(o.d,varia).titulo)}</span>
         ${desc(mismas?Object.assign({},o.d,{desc:''}):o.d)}
         <span class="opc-m">${med(o.d)} &middot; ${p} ${p===1?'pieza':'piezas'}</span>
         <span class="opc-p num">${money(importe)}</span>
@@ -1508,6 +1519,7 @@ td.c{color:var(--ink2)}
 .opc-cl{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
 .opc-l{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--brand);color:#fff;font-size:9px;font-weight:800}
 .opc-et{font-size:7px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brandd);text-align:right}
+.opc-t{display:block;margin-bottom:2px;font-size:10.5px;font-weight:800;line-height:1.25;color:var(--ink)}
 .opc-m{display:block;margin-top:auto;font-size:9px;color:var(--ink2)}
 .opc-p{display:block;font-size:14px;font-weight:800;color:var(--ink)}
 
