@@ -4,10 +4,12 @@
    acrílico y caja de luz), los enseña lado a lado con su cuenta delante del cliente, y la que el
    cliente elige pasa a ser la partida. Lo que se defiende, y por qué se mide en un navegador:
 
-   · PROPONER Y EDITAR. «Proponer otra opción» convierte la partida en una propuesta de dos; cada
-     tarjeta trae su cuenta con las tarifas del catálogo (la misma lineTotal() del resto: no hay una
-     aritmética paralela); «+ Otra opción» llega a tres y ya no ofrece más; «Editar» abre una opción
-     en el editor de siempre. Nunca cuenta más de UNA opción en el total: la abierta.
+   · PROPONER Y EDITAR. «Comparar otra medida o material» convierte la partida en una propuesta de
+     dos; cada tarjeta trae ahí mismo su tipo, su material y su medida, y su cuenta con las tarifas del
+     catálogo (la misma lineTotal() del resto: no hay una aritmética paralela); lo común —# Letras, la
+     luz— se captura una vez en el cuerpo y vale para todas; «+ Otra opción» llega a tres y ya no
+     ofrece más. Nunca cuenta más de UNA opción en el total: la A, que es la partida (23-oct-2026:
+     el «Editar» de una en una se quitó porque confundía).
    · FALTA ELEGIR. Mientras el cliente no elige, la partida lo dice —la fórmula sigue siendo la cuenta,
      la cara plegada tiene su ficha, el «qué sigue» lo nombra— y el aviso de partidas sin terminar
      frena el mandar a autorizar (con su «de todos modos»).
@@ -169,58 +171,78 @@ async function ronda(R, indice) {
   await p.waitForTimeout(900);
   await espiarVT();
   const TAR = await ev(() => ({ pintado: MATERIALES.find(m => m.key === 'al-paint').precio, acr: MATERIALES.find(m => m.key === 'acr-vol').precio,
+    cepillado: MATERIALES.find(m => m.key === 'al-brush').precio,
     caja: CAJAS.find(c => c.key === 'std').tarifa }));
 
   /* ============================== 1 · PROPONER, CON EL DEDO ============================== */
   console.log('\n  — proponer —');
   await armar([L(1)]);
   cierto(await ev(() => !document.querySelector('.op-card') && !!document.querySelector('#p-1 .op-proponer')),
-    'una partida normal no enseña tarjetas y sí ofrece «Proponer otra opción»');
+    'una partida normal no enseña tarjetas y sí ofrece «Comparar otra medida o material»');
+  cierto(await ev(() => document.querySelector('#p-1 .op-proponer').textContent === 'Comparar otra medida o material'), 'el botón dice para qué sirve');
   await captura('1-antes', '#p-1');
   const prop = await centro('#p-1 .op-proponer');
   cierto(prop && prop.h >= 43.5, 'el botón mide 44 px de alto con el dedo', prop && String(prop.h));
   await p.touchscreen.tap(prop.x, prop.y);
   await p.waitForTimeout(600);
   let e = await estado();
-  cierto(e.n === 1 && e.ops === 2 && e.tarjetas === 2, 'tocar «Proponer» deja UNA partida con dos opciones y dos tarjetas', JSON.stringify(e));
-  cierto(e.activa === 2 && e.foco === 'opced-1', 'la segunda queda abierta y el foco va a «Estás editando la opción B»', JSON.stringify(e));
+  cierto(e.n === 1 && e.ops === 2 && e.tarjetas === 2, 'tocarlo deja UNA partida con dos opciones y dos tarjetas', JSON.stringify(e));
+  cierto(e.activa === 1 && e.foco === 'h-1-2', 'la partida sigue siendo la A y el foco va a la altura de la B', JSON.stringify(e));
   cierto(e.sub === TAR.pintado * 40 * 9, 'el total sigue siendo el de UNA opción', String(e.sub));
-  cierto(await ev(() => document.getElementById('opced-1').textContent.includes('opción B')), 'el encabezado dice qué opción se edita');
-  cierto(await ev(() => !!document.querySelector('#opc-1-1 .op-igual') === false && !!document.querySelector('#opc-1-2 .op-igual')),
-    'la B, igual que la A, lo dice: «cámbiale el material o el tipo»');
-  cierto(await ev(() => document.querySelector('#p-1 .psum').textContent.includes('Opción B de 2')), 'la cara plegada dice cuál está abierta');
+  const campos = await ev(() => ({ altA: !!document.querySelector('#opc-1-1 #h-1'), altB: !!document.querySelector('#opc-1-2 #h-1-2'),
+    matB: document.querySelectorAll('#opc-1-2 .op-campos .chip').length, tipoB: !!document.querySelector('#opc-1-2 select#opti-1-2'),
+    alturas: document.querySelectorAll('#h-1').length, letras: !!document.querySelector('#pbody-1 > .grid3 #n-1, #pbody-1 #n-1'),
+    editar: document.querySelectorAll('.op-ed, .op-edita').length }));
+  cierto(campos.altA && campos.altB && campos.matB === 5 && campos.tipoB, 'cada tarjeta trae su tipo, su material y su altura', JSON.stringify(campos));
+  cierto(campos.alturas === 1 && campos.letras, 'la altura de la A ya no se repite en el cuerpo, y # Letras se queda ahí, para todas', JSON.stringify(campos));
+  cierto(campos.editar === 0, 'ya no hay «Editar» ni «Estás editando la opción…»');
+  cierto(await ev(() => !document.querySelector('#opc-1-1 .op-igual') && /cámbiale la medida o el material/.test(document.querySelector('#opc-1-2 .op-igual').textContent)),
+    'la B, igual que la A, lo dice: «cámbiale la medida o el material»');
+  cierto(await ev(() => document.querySelector('#p-1 .psum').textContent.includes('2 opciones')), 'la cara plegada dice cuántas opciones hay');
 
   /* ============================== 2 · CADA OPCIÓN, SU CUENTA ============================== */
   console.log('\n  — cada opción, su cuenta —');
-  await p.click('#p-1 .chip[data-peek-v="acr-vol"]');
+  await p.click('#opc-1-2 .chip[data-acc*="acr-vol"]');
   await p.waitForTimeout(400);
   let precios = await ev(() => [1, 2].map(k => document.getElementById('opp-1-' + k).textContent));
   cierto(numero(precios[0]) === TAR.pintado * 40 * 9, `A: aluminio pintado $${TAR.pintado} × 40 cm × 9 (${precios[0]})`);
-  cierto(numero(precios[1]) === TAR.acr * 40 * 9, `B: acrílico + aluminio $${TAR.acr} × 40 cm × 9 (${precios[1]})`);
+  cierto(numero(precios[1]) === TAR.acr * 40 * 9, `B: el material elegido en su tarjeta, acrílico + aluminio $${TAR.acr} × 40 cm × 9 (${precios[1]})`);
   cierto(await ev(() => document.getElementById('opt-1-2').textContent === 'Acrílico + Aluminio (Volumen)'), 'el título de la B sale del catálogo');
   cierto(await ev(() => document.querySelector('#opc-1-2 .op-sub').textContent.includes('LED fría frontal')), 'y la iluminación se lee del catálogo (acrílico: frontal)');
-  cierto((await estado()).sub === TAR.acr * 40 * 9, 'el total es el de la abierta (B), no la suma');
+  cierto((await estado()).sub === TAR.pintado * 40 * 9 && (await estado()).mat === 'al-paint', 'el total sigue siendo el de la A: cambiar la B no lo mueve');
   cierto(await ev(() => !document.querySelector('#opc-1-2 .op-igual')), 'ya no son iguales: se quita el aviso');
+  /* La medida, en la tarjeta: teclear mueve su importe sin repintar el campo (el foco no se pierde). */
+  await p.fill('#h-1-2', '60');
+  await p.waitForTimeout(250);
+  cierto(numero(await ev(() => document.getElementById('opp-1-2').textContent)) === TAR.acr * 60 * 9 && await ev(() => document.activeElement.id === 'h-1-2'),
+    'teclear 60 en la altura de la B mueve su importe y el foco sigue ahí');
+  await p.fill('#h-1-2', '40'); await p.waitForTimeout(200);
+  /* Lo común, una vez: # Letras en el cuerpo mueve las dos. */
+  await p.fill('#n-1', '12'); await p.waitForTimeout(300);
+  precios = (await ev(() => [1, 2].map(k => document.getElementById('opp-1-' + k).textContent))).map(numero);
+  cierto(precios[0] === TAR.pintado * 40 * 12 && precios[1] === TAR.acr * 40 * 12, '12 letras en el cuerpo de la partida valen para las dos opciones', precios.join(' · '));
+  await p.fill('#n-1', '9'); await p.waitForTimeout(300);
 
   /* la tercera, de otro tipo */
   await p.focus('#p-1 .op-mas');
   await p.keyboard.press('Enter');
   await p.waitForTimeout(600);
   e = await estado();
-  cierto(e.ops === 3 && e.tarjetas === 3 && e.activa === 3, 'con el teclado, «+ Otra opción» agrega la C y la abre', JSON.stringify(e));
+  cierto(e.ops === 3 && e.tarjetas === 3 && e.activa === 1 && e.foco === 'h-1-3', 'con el teclado, «+ Otra opción» agrega la C y el foco va a su altura', JSON.stringify(e));
+  cierto(await ev(() => Q.items[0].opciones.lista[2].d.material === 'acr-vol'), 'la C parte de la última (la B)');
   cierto(await ev(() => !document.querySelector('#p-1 .op-mas')), 'con tres ya no se ofrece otra');
-  await tocar('#p-1 .tipo-seg button:nth-child(4)');
+  await p.selectOption('#opti-1-3', 'caja');
   await p.waitForTimeout(500);
-  await p.click('#p-1 .chip[data-peek-v="' + TAR.caja + '"]');
-  await p.fill('#an-1', '240');
-  await p.fill('#al-1', '60');
-  await p.dispatchEvent('#al-1', 'blur');
+  await p.click('#opc-1-3 .chip[data-acc*=",' + TAR.caja + ')"]');
+  await p.waitForTimeout(300);
+  await p.fill('#an-1-3', '240');
+  await p.fill('#al-1-3', '60');
   await p.waitForTimeout(400);
   const caja = Math.round(2.4 * 0.6 * TAR.caja * 100) / 100;
   const txt3 = await ev(() => document.getElementById('opp-1-3').textContent);
   cierto(numero(txt3) === caja, `C: caja de 2.4 × 0.6 m × $${TAR.caja}/m² = ${caja} (${txt3})`);
   cierto(await ev(() => document.getElementById('opt-1-3').textContent.startsWith('Caja de luz')), 'el título de la C es una caja de luz');
-  cierto((await estado()).sub === caja, 'el total sigue siendo UNA opción: la abierta (C)');
+  cierto((await estado()).sub === TAR.pintado * 40 * 9, 'el total sigue siendo UNA opción: la A');
   await captura('2-tres', '#opciones-1');
 
   /* ============================== 3 · FALTA ELEGIR ============================== */
@@ -272,21 +294,18 @@ async function ronda(R, indice) {
   await p.waitForTimeout(250);
   cierto(await ev(() => !document.body.classList.contains('precios-a-la-vista')), 'al soltar vuelve a taparse');
 
-  /* ============================== 6 · EDITAR UNA OPCIÓN, CON EL TECLADO ============================== */
-  console.log('\n  — abrir una opción —');
-  await p.focus('#opc-1-1 .op-ed');
-  await p.keyboard.press('Enter');
-  await p.waitForTimeout(600);
-  e = await estado();
-  cierto(e.activa === 1 && e.mat === 'al-paint' && e.sub === TAR.pintado * 40 * 9, 'Enter en «Editar» de la A la abre, y el total pasa a ser el de la A', JSON.stringify(e));
-  cierto(e.foco === 'opced-1', 'el foco va a «Estás editando la opción A»', JSON.stringify(e));
-  cierto(await ev(() => { const y = document.getElementById('opced-1').getBoundingClientRect().top; return y >= altoTopbarFija() - 2 && y < window.innerHeight * 0.6; }),
-    'y el editor queda a la vista: no hay que buscarlo tres pantallas más abajo');
-  cierto(await ev(() => !document.querySelector('#opc-1-1 .op-ed') && !!document.querySelector('#opc-1-1 .op-tag')), 'la abierta lleva su etiqueta y ya no ofrece «Editar»');
-  cierto(await ev(() => Q.items[0].opciones.lista.find(x => x.k === 3).d.tipo === 'caja'), 'la C se guardó entera mientras estaba cerrada');
-  await tocar('#opc-1-2 .op-ed');
+  /* ============================== 6 · CADA TARJETA SE EDITA SOLA ============================== */
+  console.log('\n  — cada tarjeta se edita sola —');
+  cierto(await ev(() => document.querySelector('#opc-1-1 .op-tag').textContent === 'En el total' && document.querySelectorAll('.op-tag').length === 1),
+    'solo la A lleva «En el total»');
+  cierto(await ev(() => Q.items[0].opciones.lista.find(x => x.k === 3).d.tipo === 'caja' && Q.items[0].tipo === 'letras'), 'la C es una caja y la partida sigue siendo las letras de la A');
+  /* Con el dedo, el material de la A en su tarjeta: es la partida, así que mueve el total. */
+  await tocar('#opc-1-1 .chip[data-acc*="al-brush"]');
   await p.waitForTimeout(500);
-  cierto((await estado()).sub === TAR.acr * 40 * 9, 'con el dedo, «Editar» de la B abre la B');
+  e = await estado();
+  cierto(e.mat === 'al-brush' && e.sub === TAR.cepillado * 40 * 9, 'tocar otro material en la tarjeta de la A cambia la partida y el total', JSON.stringify(e));
+  await tocar('#opc-1-1 .chip[data-acc*="al-paint"]');
+  await p.waitForTimeout(500);
 
   /* ============================== 7 · ELEGIR, CON EL TECLADO ============================== */
   console.log('\n  — elegir —');
@@ -318,8 +337,8 @@ async function ronda(R, indice) {
   else await ev(() => deshacerOpciones());
   await p.waitForTimeout(700);
   e = await estado();
-  cierto(e.ops === 3 && e.tarjetas === 3 && e.activa === 2, '«Deshacer» devuelve las tres opciones y la que estaba abierta', JSON.stringify(e));
-  cierto(e.sub === TAR.acr * 40 * 9, 'y el total de la B', String(e.sub));
+  cierto(e.ops === 3 && e.tarjetas === 3 && e.activa === 1, '«Deshacer» devuelve las tres opciones, con la A como la partida', JSON.stringify(e));
+  cierto(e.sub === TAR.pintado * 40 * 9, 'y el total de la A', String(e.sub));
 
   console.log('\n  — elegir con el dedo —');
   await ev(() => { window.__vt = 0; });
@@ -340,9 +359,8 @@ async function ronda(R, indice) {
   await armar([L(1)]);
   await tocar('#p-1 .op-proponer');
   await p.waitForTimeout(500);
-  await ev(() => setItem(1, 'material', ''));
-  await p.waitForTimeout(400);
-  cierto(await ev(() => document.querySelector('#opc-1-2 .op-elegir').getAttribute('aria-disabled') === 'true'), 'la B sin material trae «Elegir esta» deshabilitado (aria-disabled)');
+  await p.fill('#h-1-2', ''); await p.waitForTimeout(400);
+  cierto(await ev(() => document.querySelector('#opc-1-2 .op-elegir').getAttribute('aria-disabled') === 'true'), 'la B sin altura trae «Elegir esta» deshabilitado (aria-disabled), sin repintar');
   cierto(await ev(() => document.getElementById('opp-1-2').textContent.trim() === '—'), 'y su importe es «—», no un $0.00 que parezca un precio');
   await p.focus('#opc-1-2 .op-elegir');
   await p.keyboard.press('Enter');
@@ -350,17 +368,23 @@ async function ronda(R, indice) {
   e = await estado();
   cierto(e.ops === 2 && e.tarjetas === 2, 'tocarlo no elige nada: la propuesta sigue', JSON.stringify(e));
   cierto(await ev(() => /no está completa/.test(document.body.textContent)), 'y el aviso dice que la opción no está completa');
-  await p.click('#p-1 .chip[data-peek-v="acr-vol"]');
-  await p.waitForTimeout(400);
-  cierto(await ev(() => document.querySelector('#opc-1-2 .op-elegir').getAttribute('aria-disabled') === null), 'al completarla, la tarjeta lo sigue sin repintar todo y «Elegir» se habilita');
+  cierto(e.foco === 'h-1-2', 'y el foco va al campo de su tarjeta que hay que llenar', JSON.stringify(e));
+  await p.fill('#h-1-2', '50'); await p.waitForTimeout(400);
+  cierto(await ev(() => document.querySelector('#opc-1-2 .op-elegir').getAttribute('aria-disabled') === null), 'al completarla, la tarjeta lo sigue y «Elegir» se habilita');
+  cierto(await ev(() => document.getElementById('opt-1-2').textContent === '50 cm de altura'), 'y como solo cambia la medida, el título es la medida: «50 cm de altura»');
+  /* La regla de los 10 cm también vale en una tarjeta: unas letras de 6 cm pasan a recorte. */
+  await p.fill('#h-1-2', '6');
+  await ev(() => document.getElementById('h-1-2').dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+  await p.waitForTimeout(500);
+  cierto(await ev(() => Q.items[0].opciones.lista[1].d.tipo === 'recorte' && Q.items[0].tipo === 'letras'), 'una B de 6 cm pasa a recorte y la A sigue siendo letras');
 
   /* ============================== 9 · QUITAR ============================== */
   console.log('\n  — quitar —');
   await armar([L(1)]);
   await tocar('#p-1 .op-proponer'); await p.waitForTimeout(400);
-  await ev(() => setItem(1, 'material', 'acr-vol')); await p.waitForTimeout(300);
+  await ev(() => opSet(1, 2, 'material', 'acr-vol')); await p.waitForTimeout(300);
   await tocar('#p-1 .op-mas'); await p.waitForTimeout(400);
-  await ev(() => setItem(1, 'material', 'acero')); await p.waitForTimeout(300);
+  await ev(() => opSet(1, 3, 'material', 'acero')); await p.waitForTimeout(300);
   e = await estado();
   cierto(e.ops === 3, 'tres opciones para quitar', JSON.stringify(e));
   const x3 = await centro('#opc-1-3 .op-quita');
@@ -368,7 +392,7 @@ async function ronda(R, indice) {
   await p.touchscreen.tap(x3.x, x3.y);
   await p.waitForTimeout(600);
   e = await estado();
-  cierto(e.ops === 2 && e.activa === 2, 'quitar la C (abierta) deja dos y abre la B', JSON.stringify(e));
+  cierto(e.ops === 2 && e.activa === 1 && e.mat === 'al-paint', 'quitar la C deja dos, y la partida sigue siendo la A', JSON.stringify(e));
   cierto(await ev(() => [...document.querySelectorAll('.op-etq')].map(x => x.textContent).join() === 'Opción A,Opción B'), 'las letras siguen la posición');
   await ev(() => deshacerOpciones());
   await p.waitForTimeout(500);
@@ -378,12 +402,14 @@ async function ronda(R, indice) {
   await p.click('#opc-1-2 .op-quita'); await p.waitForTimeout(600);
   e = await estado();
   cierto(e.ops === 0 && e.tarjetas === 0 && e.n === 1, 'con una sola opción ya no hay propuesta: vuelve a ser una partida', JSON.stringify(e));
-  cierto(await ev(() => !!document.querySelector('#p-1 .op-proponer')), 'y vuelve a ofrecer «Proponer otra opción»');
+  cierto(await ev(() => !!document.querySelector('#p-1 .op-proponer')), 'y vuelve a ofrecer «Comparar otra medida o material»');
+  cierto(await ev(() => document.querySelectorAll('#h-1').length === 1 && !!document.querySelector('#pbody-1 .optgrp .chip[data-acc*="al-paint"]')),
+    'y el cuerpo vuelve a traer su material y su altura');
 
   console.log('\n  — un aviso viejo no toca otra cotización —');
   await armar([L(1)]);
   await tocar('#p-1 .op-proponer'); await p.waitForTimeout(400);
-  await ev(() => setItem(1, 'material', 'acr-vol')); await p.waitForTimeout(300);
+  await ev(() => opSet(1, 2, 'material', 'acr-vol')); await p.waitForTimeout(300);
   await p.focus('#opc-1-2 .op-elegir');
   await p.keyboard.press('Enter');
   await p.waitForTimeout(700);
@@ -396,16 +422,20 @@ async function ronda(R, indice) {
   console.log('\n  — con el candado puesto —');
   await armar([L(1), L(2, { desc: 'Otra' })]);
   await tocar('#p-1 .op-proponer'); await p.waitForTimeout(400);
-  await ev(() => setItem(1, 'material', 'acr-vol')); await p.waitForTimeout(300);
+  await ev(() => opSet(1, 2, 'material', 'acr-vol')); await p.waitForTimeout(300);
   await ev(() => { Q.estado = 'pendiente'; renderItems(); });
   await p.waitForTimeout(400);
   e = await estado();
   const cand = await ev(() => ({ acc: document.querySelectorAll('.op-acc').length, mas: document.querySelectorAll('.op-mas').length,
-    prop: document.querySelectorAll('.op-proponer').length, tarjetas: document.querySelectorAll('.op-card').length }));
-  cierto(cand.tarjetas === 2 && cand.acc === 0 && cand.mas === 0 && cand.prop === 0, 'las tarjetas se leen y no hay botones para cambiarlas', JSON.stringify(cand));
-  await ev(() => { proponerOpciones(2); elegirOpcion(1, 1); abrirOpcion(1, 1); quitarOpcion(1, 1); agregarOpcion(1); });
+    prop: document.querySelectorAll('.op-proponer').length, tarjetas: document.querySelectorAll('.op-card').length,
+    abiertos: [...document.querySelectorAll('.op-campos input, .op-campos select')].filter(x => !x.disabled).length,
+    chips: [...document.querySelectorAll('.op-campos .chip')].filter(x => x.getAttribute('aria-disabled') !== 'true').length }));
+  cierto(cand.tarjetas === 2 && cand.acc === 0 && cand.mas === 0 && cand.prop === 0 && cand.abiertos === 0 && cand.chips === 0,
+    'las tarjetas se leen y no hay botones ni campos para cambiarlas', JSON.stringify(cand));
+  await ev(() => { proponerOpciones(2); elegirOpcion(1, 1); opSet(1, 2, 'material', 'acero'); opNum(1, 2, 'altura', 80); quitarOpcion(1, 1); agregarOpcion(1); });
   e = await estado();
-  cierto(e.ops === 2 && e.activa === 2 && !(await ev(() => Q.items[1].opciones)), 'y las funciones se niegan solas', JSON.stringify(e));
+  cierto(e.ops === 2 && e.activa === 1 && !(await ev(() => Q.items[1].opciones)) && await ev(() => Q.items[0].opciones.lista[1].d.material === 'acr-vol' && Q.items[0].opciones.lista[1].d.altura === 40),
+    'y las funciones se niegan solas', JSON.stringify(e));
   await ev(() => { Q.estado = 'borrador'; renderItems(); });
   await p.waitForTimeout(300);
 
@@ -414,7 +444,7 @@ async function ronda(R, indice) {
   await ev(() => { _plegadas.add(1); renderItems(); });
   await p.waitForTimeout(400);
   const plegada = await ev(() => document.querySelector('#p-1 .psum').textContent);
-  cierto(/Opción B de 2/.test(plegada) && /por elegir/.test(plegada), 'plegada, la partida dice «Opción B de 2 · por elegir»', plegada);
+  cierto(/2 opciones/.test(plegada) && /por elegir/.test(plegada), 'plegada, la partida dice «2 opciones · por elegir»', plegada);
   cierto(!/Falta 1 dato/.test(plegada), 'sin contarlo como un dato que falte capturar', plegada);
   await ev(() => { _plegadas.clear(); renderItems(); });
 
@@ -432,7 +462,8 @@ async function ronda(R, indice) {
       Q.notaCliente = 'El cliente debe dejar salidas eléctricas.';
       Q.estado = 'borrador'; Q.itemsAuth = {}; Q.precioAuth = 0; Q.huellaAuth = ''; Q.entrega = extra.entrega || '';
       const letras = (id, desc, mat) => ({ id, tipo: 'letras', material: mat, comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 9, desc, showInPdf: true });
-      const conOps = (id, desc) => { const it = letras(id, desc, 'al-paint'); _opProponer(it); it.material = 'acr-vol'; _opAgregar(it); Object.assign(it, { tipo: 'caja', tarifa: 3900, ancho: 240, alto: 60 }); return it; };
+      const conOps = (id, desc) => { const it = letras(id, desc, 'al-paint'); _opProponer(it); it.opciones.lista[1].d.material = 'acr-vol'; _opAgregar(it);
+        Object.assign(it.opciones.lista[2].d, { tipo: 'caja', tarifa: 3900, ancho: 240, alto: 60 }); return it; };
       Q.items = [letras(1, 'Letrero normal', 'acero')];
       for (let i = 0; i < extra.partidasConOpciones; i++) Q.items.push(conOps(i + 2, 'Anuncio ' + (i + 1) + ' con opciones'));
       if (extra.larga) { Q.items[1].desc = 'Letrero de fachada con la razón social completa de la farmacia y su leyenda de servicio veinticuatro horas'; }
@@ -482,8 +513,9 @@ async function ronda(R, indice) {
   };
   let r = await generar(null, { partidasConOpciones: 2 });
   let m = await medir(r, { hojas: 1, bloques: 2, tarjetas: 6 }, 'dos partidas con opciones');
-  cierto(r.doc.includes('Opción C de 3: ver la hoja de opciones.') && !r.doc.includes('Ojo: el cliente aún no elige'), 'la fila de la cotización remite a la hoja, y no al taller');
+  cierto(r.doc.includes('Opción A de 3: ver la hoja de opciones.') && !r.doc.includes('Ojo: el cliente aún no elige'), 'la fila de la cotización remite a la hoja, y no al taller');
   cierto(/Incluida en el total/.test(r.doc), 'la tarjeta que cuenta lleva su marca');
+  cierto(/class="opc-t">Aluminio Blanco\/Negro\/Pintado</.test(r.doc) && /class="opc-t">Caja de luz/.test(r.doc), 'cada tarjeta del papel dice primero lo que la distingue');
   cierto(r.wa.includes('Opciones propuestas'), 'el mensaje de WhatsApp avisa de la hoja');
   r = await generar(null, { partidasConOpciones: 3, larga: true });
   m = await medir(r, { hojas: 2, bloques: 3, tarjetas: 9 }, 'tres partidas con opciones (se parte en dos hojas)');
@@ -509,21 +541,22 @@ async function ronda(R, indice) {
   console.log('\n  — la ronda entera —');
   await armar([L(1), L(2, { desc: 'Otra' })]);
   await tocar('#p-1 .op-proponer'); await p.waitForTimeout(500);
-  await ev(() => setItem(1, 'material', 'acr-vol')); await p.waitForTimeout(300);
+  await ev(() => opSet(1, 2, 'material', 'acr-vol')); await p.waitForTimeout(300);
   await tocar('#p-1 .op-mas'); await p.waitForTimeout(500);
-  await ev(() => { Object.assign(Q.items[0], { tipo: 'caja', tarifa: 3900, ancho: 240, alto: 60 }); renderItems(); });
+  await ev(() => { Object.assign(Q.items[0].opciones.lista[2].d, { tipo: 'caja', tarifa: 3900, ancho: 240, alto: 60 }); renderItems(); });
   await p.waitForTimeout(500);
   await ev(() => { Piezas.aviso.limpiar(); });
   await captura('4-tres-opciones', '#opciones-1');
   await contraste('#opciones-1 .op-t', 'el título de la opción');
   await contraste('#opciones-1 .op-sub', 'su subtítulo');
   await contraste('#opciones-1 .op-etq', 'la etiqueta «Opción A»');
-  await contraste('#opciones-1 .op-tag', 'la etiqueta «Abierta»');
+  await contraste('#opciones-1 .op-tag', 'la etiqueta «En el total»');
+  await contraste('#opciones-1 .op-guia', 'la guía de arriba');
   await contraste('#opciones-1 .op-nota', 'la nota de la rejilla');
-  await contraste('#opciones-1 .op-edita', 'el encabezado «Estás editando»');
-  await contraste('#opc-1-1 .op-ed', 'el botón «Editar»');
+  await contraste('#p-1 .op-comun', 'el encabezado «Para todas las opciones»');
+  await contraste('#opc-1-2 .op-campos label', 'el rótulo de un campo de la tarjeta');
   await contraste('#opc-1-1 .op-quita', 'el «×» de quitar');
-  await ev(() => { document.querySelector('#opc-1-1 .op-cuerpo').insertAdjacentHTML('beforeend', '<p class="op-igual" id="x-igual">Igual que la opción B: cámbiale el material o el tipo.</p>'); });
+  await ev(() => { document.querySelector('#opc-1-1 .op-cuerpo').insertAdjacentHTML('beforeend', '<p class="op-igual" id="x-igual">Igual que la opción B: cámbiale la medida o el material aquí abajo.</p>'); });
   await contraste('#x-igual', 'el aviso de «igual que»');
   await ev(() => document.getElementById('x-igual').remove());
   await sinBucles('en la pantalla de opciones');
