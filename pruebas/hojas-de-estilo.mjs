@@ -67,7 +67,8 @@ for (const [f, propia, otras] of [
 }
 /* LA CAPA ESTUDIO (20/10/2026) VA DESPUÉS DEL VIDRIO, por la misma razón por la que el vidrio va
    después de las demás: repinta tokens y cromado con selectores de una clase, y con la misma
-   especificidad gana la última. Se comprueba en las mismas siete páginas. */
+   especificidad gana la última. Se comprueba en las mismas siete páginas y, desde el 23/10, en el
+   editor de Publicaciones, que es otra pantalla de la plataforma (va después de su propia hoja). */
 const estudio = leer('css/estudio.css');
 for (const [f, vid, est] of [
   ['cotizador.html', 'css/vidrio.css', 'css/estudio.css'],
@@ -77,6 +78,7 @@ for (const [f, vid, est] of [
   ['privacidad.html', 'css/vidrio.css', 'css/estudio.css'],
   ['condiciones.html', 'css/vidrio.css', 'css/estudio.css'],
   ['verificar.html', 'css/vidrio.css', 'css/estudio.css'],
+  ['publicaciones/index.html', 'css/publicaciones.css', '../css/estudio.css'],
 ]) {
   const t = leer(f);
   const iV = t.indexOf('<link rel="stylesheet" href="' + vid + '">');
