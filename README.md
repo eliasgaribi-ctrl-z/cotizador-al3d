@@ -169,7 +169,10 @@ material que hay que comprar**. Nada de eso se captura.
   récord de ventas es el de la hoja de finanzas**: el puente baja la pestaña Ventas entera
   —también lo que se registró desde otro teléfono o en la propia hoja— y Control la suma con lo
   de este aparato, dice de cuándo son los datos y los vuelve a traer con un botón (y solo, al
-  entrar, si tienen más de diez minutos).
+  entrar, si tienen más de diez minutos). Y **lo que sale**: la pestaña Gastos captura cada gasto
+  —fecha, concepto, categoría, monto, cuenta y folio opcional—, lo suma por mes y por categoría, y
+  el Resumen dice la utilidad aproximada (vendido menos gastado). Los gastos viven en la pestaña
+  «Gastos» de la hoja (`puente-sheets-15`); sin señal se quedan en el teléfono y salen solos.
 - **El asistente** — un botón que flota en todas las pantallas. Las siete preguntas de siempre se
   contestan **aquí, sin IA y sin señal**; lo que no se puede calcular va a la IA sin teléfonos
   ni direcciones.
@@ -193,6 +196,9 @@ material y las listas de compra tienen su pestaña en la hoja («Almacén», «C
 «Listas de compra»), así que lo que fabricación cuenta o recibe en su teléfono lo ve Dirección en
 el suyo. Un movimiento no se descuenta dos veces —ni por un reintento ni porque dos teléfonos
 corten el mismo proyecto—, el catálogo se escribe campo por campo, y pagos no mueve el almacén.
+Desde `puente-sheets-15` viajan también **los gastos** que dirección y pagos capturan en Control, a
+la pestaña «Gastos» de la hoja: un gasto no se borra ni se corrige, se anula, y un reintento no lo
+duplica.
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
 en su primera línea. Los pasos están en [`puente/README.md`](puente/README.md).
 
@@ -386,7 +392,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento cuarenta y tres archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento cuarenta y cuatro archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -397,8 +403,8 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               78 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   48 más, que piden Chromium y un servidor
+    pruebas/correr.sh               79 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   49 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

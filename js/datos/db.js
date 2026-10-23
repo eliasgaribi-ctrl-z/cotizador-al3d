@@ -25,12 +25,17 @@ export const NOMBRE = 'al3d_pf';
    los demás no se tocan, porque el bucle de abajo solo crea lo que no está.
    Versión 3 (septiembre de 2026): nace `ventas_hoja`, el espejo del récord de ventas de la hoja
    de finanzas —TODAS sus filas, tengan o no proyecto en este teléfono—. Es lo que hace que
-   Control sume lo que la hoja dice y no solo lo que se registró desde este aparato. */
-export const VERSION = 3;
+   Control sume lo que la hoja dice y no solo lo que se registró desde este aparato.
+   Versión 4 (octubre de 2026): nace `gastos`, lo que sale del negocio (js/datos/gastos.js). La
+   migración es la de siempre y por eso es segura: `onupgradeneeded` solo CREA el almacén que falta
+   y no toca ni un renglón de los otros doce; un teléfono con la versión 3 abre la 4 con todo lo
+   que tenía y un almacén vacío más. Si otra pestaña tiene abierta la 3, la nueva espera
+   (`onblocked`) y la vieja suelta su conexión (`onversionchange`): ninguna escribe a medias. */
+export const VERSION = 4;
 
 export const ALMACENES = ['proyectos', 'instalaciones', 'materiales', 'movimientos',
                           'requerimientos', 'avisos', 'constantes', 'pendientes', 'geo', 'blobs',
-                          'bitacora', 'ventas_hoja'];
+                          'bitacora', 'ventas_hoja', 'gastos'];
 
 /* Lo que se vuelve a bajar solo y por eso no entra al respaldo ni se cuenta como dato del
    teléfono: la bandeja de salida (reenviarla duplicaría operaciones) y el espejo de la hoja
@@ -81,6 +86,11 @@ const ESQUEMA = {
      de cotización (para atar la fila al proyecto de este teléfono, cuando lo hay). */
   ventas_hoja:    { keyPath: 'id', indices: [
     ['porFecha', 'fecha_anticipo'], ['porFolio', 'folio_cotizacion']] },
+  /* Los gastos: los capturados aquí y los que bajaron de la pestaña Gastos de la hoja, con su id
+     (`gas-…`, o el que la hoja le puso a uno tecleado allá). Se piden por la fecha en que se
+     pagaron (el mes de Control). NO es un espejo puro como `ventas_hoja`: lo capturado sin señal
+     vive aquí antes que en la hoja, y por eso SÍ entra al respaldo. */
+  gastos:         { keyPath: 'id', indices: [['porFecha', 'fecha']] },
 };
 
 /**

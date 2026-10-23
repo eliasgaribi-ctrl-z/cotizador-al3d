@@ -142,7 +142,9 @@ Y la **`puente-sheets-13`**: lo de la 12 más el teléfono, la entrega, la direc
 Maps en «Registrar nueva venta» de la hoja (al final).
 Y la **`puente-sheets-14`** (10 de octubre de 2026): lo de la 13 más una sola sincronización
 para todo el equipo —la etapa, las notas, el plazo, la cita y las correcciones viajan, y gana el
-cambio más reciente— con tres columnas nuevas en Ventas, AG:AI (al final). Cuál corre la hoja de verdad
+cambio más reciente— con tres columnas nuevas en Ventas, AG:AI (al final).
+Desde el 23 de octubre espera **`puente-sheets-15`**: lo de la 14 más los **gastos** —la pestaña
+«Gastos» y los caminos `/empujar_gastos` y `/jalar_gastos`— (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -438,6 +440,45 @@ Para comprobarlo: en el cotizador, con la cuenta de Dirección, el engrane **Pre
 ventana sin el aviso de «la hoja todavía no tiene esta función». Al guardar aparece la pestaña
 «Tarifas» en la hoja, con un renglón por precio, la fecha y el correo de quien lo cambió. Se puede
 editar a mano ahí también: lo que no se entienda vuelve al precio de fábrica.
+
+### Al pasar a `puente-sheets-15` (los gastos) — dos pasos, hay que volver a publicar
+
+La 15 agrega los **gastos** de Control: una pestaña nueva **«Gastos»** en la hoja y dos caminos,
+`/empujar_gastos` (registrar y anular) y `/jalar_gastos` (leerlos), solo para dirección y pagos. No
+toca Ventas ni ninguna otra pestaña. **Hay que volver a publicar el Apps Script**: guardar no publica,
+y mientras la implementación siga en la versión anterior, la hoja contesta «Camino desconocido» a
+los gastos.
+
+El orden no rompe nada. Si la app nueva sale antes que el puente, los teléfonos ven por `/salud` que
+la hoja corre la 14: todo lo demás funciona igual, y la pestaña Gastos de Control dice **«Falta
+actualizar el puente»**. Lo que se capture mientras tanto se guarda en cada teléfono, apartado en la
+bandeja con su razón —sin perderse— y se manda solo en la primera sincronización después de publicar.
+
+El `puente/hoja-apps-script.gs` de este repositorio parte del `puente-sheets-14` con los precios
+editables (la sección de arriba). Si la hoja ya corre eso, se pega entero; si no, compara antes
+(README, «Antes de pegar nada»).
+
+1. **Pegar y guardar.** En la hoja, **Extensiones → Apps Script → `Código.gs`**: selecciona todo,
+   borra, pega el contenido de `puente/hoja-apps-script.gs` y guarda (💾).
+2. **Publicar la versión.** **Implementar → Gestionar implementaciones → lápiz → Versión: Versión
+   nueva → Implementar.** La URL no cambia. No pide permisos nuevos.
+3. *(Opcional)* **Crear la pestaña de una vez.** Recarga la hoja y usa **⚡ AL3D → 🔧 Actualizar el
+   puente → 3 · Preparar la hoja para el puente**: crea «Gastos» con sus encabezados, el formato de
+   cada columna y los desplegables de Categoría y Cuenta. Si no lo corres, la pestaña se crea sola
+   con el primer gasto que llegue. Es idempotente.
+
+La pestaña tiene estas columnas, que se buscan **por su encabezado** (si alguien mueve una, no se
+escribe en la de al lado): **ID · Fecha · Concepto · Categoría · Monto · Cuenta · Folio del
+proyecto · Registró · Registrado el · Anulado · Anuló · Anulado el · Subió**. Las categorías son
+fijas (Material, Mano de obra, Renta y servicios, Herramienta, Transporte y gasolina, Publicidad,
+Comisiones y nómina, Otros) y las cuentas son las cinco de siempre (`CUENTAS`). Un gasto **no se
+borra ni se corrige** desde la plataforma: se anula («Anulado: Sí», quién y cuándo) y deja de sumar.
+A mano en la hoja sí se puede escribir un gasto: el puente le pone ID la siguiente vez que un
+teléfono los pide.
+
+Para comprobarlo: **Ajustes → El puente → Probar** en un teléfono tiene que decir `puente-sheets-15`.
+Después, **Control → Gastos → Registrar gasto** con uno de prueba: en la siguiente sincronización
+aparece su renglón en «Gastos», y «Anular» le pone «Sí» en la columna Anulado sin borrarlo.
 
 ## Las cabeceras del sitio
 

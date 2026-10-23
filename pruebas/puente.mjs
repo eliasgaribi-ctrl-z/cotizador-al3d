@@ -351,7 +351,12 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 14', VERSION_ESPERADA, 'puente-sheets-14');
+  eq('la plataforma espera la 15', VERSION_ESPERADA, 'puente-sheets-15');
+  /* A la 14 solo le faltan los gastos: lo demás funciona igual, y el aviso no puede asustar con la
+     obra, que la 14 ya sincroniza. */
+  const a14 = avisoVersion('puente-sheets-14');
+  cierto('a la 14 le dice que los gastos no llegan a la hoja y que no se pierden', /gastos/.test(a14) && /«Gastos»/.test(a14) && /sin perderse/.test(a14));
+  cierto('  y no le habla de la etapa ni de las notas, que la 14 ya lleva', !/etapa intermedia/.test(a14) && !/notas/.test(a14));
   /* A la 13 le falta que todos vean lo mismo: la etapa, las notas, el plazo y las correcciones. */
   const a13 = avisoVersion('puente-sheets-13');
   cierto('a la 13 le dice que la etapa, las notas y el plazo no viajan, y qué correr',
@@ -537,9 +542,10 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
   cierto('las notas explican dónde está la puerta: Google, y el token de reserva',
     ins.notas.some(n => /token/i.test(n) && /p(ú|u)blica|puerta/i.test(n) && /Google/.test(n)));
 
-  /* Desde puente-sheets-8 también el almacén; los avisos, las constantes y la caché no. */
-  eq('el relevo lleva la venta, su instalación y el almacén, y nada más',
-     ALMACENES, ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos']);
+  /* Desde puente-sheets-8 también el almacén, y desde la 15 los gastos; los avisos, las constantes
+     y la caché no. */
+  eq('el relevo lleva la venta, su instalación, el almacén y los gastos, y nada más',
+     ALMACENES, ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos', 'gastos']);
 }
 
 console.log('\nLA FILA QUE YA NO ESTÁ: cuál NO_ENCONTRADO es cuál');

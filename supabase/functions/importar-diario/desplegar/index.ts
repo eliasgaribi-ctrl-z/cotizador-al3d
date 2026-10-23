@@ -9,12 +9,12 @@
 //   217bbd02795cbecf  js/datos/agenda.js
 //   b45871e3586bb5a1  js/datos/catalogo-precios.js
 //   64c4eb181e3d381f  js/datos/cotizador.js
-//   e726712a4de79d0b  js/datos/db.js
+//   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
 //   eaf5bb4c2a840916  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
 //   b3e7610b983b33fb  js/datos/proyectos.js
-//   b15d7cfb0eab4cd6  js/datos/puente.js
+//   51362cdf06d05909  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   5d1bdca9d2c8274a  js/nucleo/ingreso.js
