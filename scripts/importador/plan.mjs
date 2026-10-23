@@ -595,7 +595,7 @@ export async function planear(entrada) {
       const fab = FABRICA_TARIFAS[grupo];
       const gratis = grupo === 'complejidad' || grupo === 'recorte-extra';
       const p = numero(v('Precio'));
-      const nombre = texto(v('Nombre')).trim().slice(0, 60), como = fab && fab.includes(clave) ? '' : texto(v('Se fabrica como')).trim();
+      const nombre = texto(v('Nombre')).replace(/[<>&"`]/g, '').trim().slice(0, 60), como = fab && fab.includes(clave) ? '' : texto(v('Se fabrica como')).trim();
       let por = '';
       if (!fab || !/^[a-z0-9-]{2,24}$/.test(clave)) por = 'grupo o clave que no sirven';
       else if (vistas.has(grupo + '|' + clave)) por = 'la clave viene dos veces';

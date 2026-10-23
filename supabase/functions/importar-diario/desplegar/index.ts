@@ -7,7 +7,7 @@
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/supabase-importar-diario.mjs falla si una cambió:
 //   998974899ffa11bc  datos/semilla.json
 //   217bbd02795cbecf  js/datos/agenda.js
-//   b45871e3586bb5a1  js/datos/catalogo-precios.js
+//   d8b415f4d8dcf1ed  js/datos/catalogo-precios.js
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
@@ -20,7 +20,7 @@
 //   5d1bdca9d2c8274a  js/nucleo/ingreso.js
 //   f7eb568b76fdec80  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
-//   cd16ac9e9b981d2d  scripts/importador/plan.mjs
+//   31ae699820ae70ac  scripts/importador/plan.mjs
 //   2d982c4996b6654c  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   1427d39a2d130951  supabase/functions/_shared/respaldo.js
@@ -902,6 +902,7 @@ var BASTIDORES = [
   { key: "lamina", label: "Lámina", tarifa: 950 },
   { key: "alucobond", label: "Alucobond", tarifa: 1500 }
 ];
+var CAJAS_FABRICA = CAJAS.map((c) => ({ key: c.key, tarifa: c.tarifa }));
 function aplicarGuardadas() {
   let t = null;
   try {
@@ -923,7 +924,8 @@ function aplicarGuardadas() {
     if (!lista) continue;
     const base = lista.find((e2) => e2.key === f.clave) || lista.find((e2) => e2.key === f.como);
     if (!base || L[f.grupo].some((e2) => e2.key === f.clave)) continue;
-    const e = Object.assign({}, base, { key: String(f.clave), label: String(f.nombre || base.label) });
+    const nom = String(f.nombre || "").replace(/[<>&"`]/g, "").trim().slice(0, 60);
+    const e = Object.assign({}, base, { key: String(f.clave), label: nom || base.label });
     if (e.key !== base.key) e.como = base.key;
     if (f.visible === false) e.oculto = true;
     const p = Number(f.precio);
@@ -2157,7 +2159,7 @@ async function planear(entrada) {
       const fab = FABRICA_TARIFAS[grupo];
       const gratis = grupo === "complejidad" || grupo === "recorte-extra";
       const p = numero(v("Precio"));
-      const nombre = texto(v("Nombre")).trim().slice(0, 60), como = fab && fab.includes(clave) ? "" : texto(v("Se fabrica como")).trim();
+      const nombre = texto(v("Nombre")).replace(/[<>&"`]/g, "").trim().slice(0, 60), como = fab && fab.includes(clave) ? "" : texto(v("Se fabrica como")).trim();
       let por = "";
       if (!fab || !/^[a-z0-9-]{2,24}$/.test(clave)) por = "grupo o clave que no sirven";
       else if (vistas.has(grupo + "|" + clave)) por = "la clave viene dos veces";

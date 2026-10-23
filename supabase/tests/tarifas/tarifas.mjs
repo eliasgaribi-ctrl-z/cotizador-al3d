@@ -70,6 +70,7 @@ describir('TA-02 guardar: solo Dirección, todo o nada, nunca borra', () => {
       [[{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio', precio: 0 }], /precio/],
       [[{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio', precio: 'treinta' }], /precio/],
       [[{ grupo: 'material', clave: 'al-paint', nombre: ' ', precio: 30 }], /nombre/],
+      [[{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio <b>', precio: 30 }], /no puede llevar/],
       [[{ grupo: 'material', clave: 'Mi Material', nombre: 'X', precio: 30, como: 'al-paint' }], /clave/],
       [[{ grupo: 'material', clave: 'xnuevo', nombre: 'Nuevo', precio: 30 }], /fabrica/],
       [[{ grupo: 'complejidad', clave: 'xrara', nombre: 'Rara', precio: 3, como: 'recta' }], /no se agregan/],

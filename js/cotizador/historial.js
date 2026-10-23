@@ -138,7 +138,15 @@ function guardarEnHistorial(extra){
        vive en este mismo archivo y se edita a mano: sin congelarlo, subir el precio del
        aluminio reescribía hacia atrás lo que ya se le había cotizado a un cliente, y el
        historial enseñaba renglones que no sumaban su propio «Total autorizado». */
-    items:Q.items.map(it=>Object.assign(JSON.parse(JSON.stringify(it)),{_lt:+lineTotal(it).toFixed(2)})),
+    /* Mientras sea la MISMA autorización (la misma huella y el mismo «quién y cuándo»), el `_lt` que
+       se guarda es el de entonces: un precio que cambió después (Precios y materiales, tarifas.js)
+       ya se congeló en itemsAuth, y reescribir aquí el de hoy haría que precioSeMovio() dejara de
+       verlo —y «Reenviar con fecha nueva» renovaría la vigencia sin pasar por Dirección—. */
+    items:Q.items.map(it=>{
+      const prev=(idx>=0&&Q.estado==='autorizada'&&arr[idx].huellaAuth===Q.huellaAuth&&arr[idx].fechaAuth===Q.fechaAuth
+        &&arr[idx].autorizador===Q.autorizador)?(arr[idx].items||[]).find(x=>x.id===it.id&&x._lt!==undefined):null;
+      return Object.assign(JSON.parse(JSON.stringify(it)),{_lt:prev?prev._lt:+lineTotal(it).toFixed(2)});
+    }),
     itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
     aiFile:(Q.aiFile&&Q.aiFile.url)?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:imgPrevia,
     /* Los ids de los renders y de la propuesta visual (imagenes.js). Los planos viajan dentro

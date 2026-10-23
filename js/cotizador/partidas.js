@@ -175,7 +175,8 @@ function addItem(opts){
   if(faltanDatosCliente()){ renderItems(); return null; }
   const id=++pid;
   const heredado=(opts&&opts.heredar)?prefGet(PREF_MATERIAL,''):'';
-  const mat=matOf(heredado)?heredado:'';
+  /* Uno que Dirección ocultó (Precios y materiales) ya no se ofrece: tampoco se hereda. */
+  const mat=(matOf(heredado)&&!matOf(heredado).oculto)?heredado:'';
   /* `opts.tipo` es de los mosaicos del estado vacío (C27): la partida nace ya del tipo que se
      tocó, sin pasar por «Letras 3D» y cambiar. El material heredado solo se pone en las letras,
      que son lo único que lo usa; en las otras sería un campo escrito que nadie ve. */
@@ -1589,7 +1590,7 @@ function resumenPartida(it){
     it.n>0?ok(it.n+(it.n===1?' letra':' letras')):falta('Faltan letras');
   }else if(it.tipo==='recorte'){
     const r=recOf(it.acab); r?ok(r.label):falta('Falta acabado');
-    if(it.acab==='sandwich') it.recComp?ok('Con complejidad +$5'):off('Sin complejidad');
+    if(it.acab==='sandwich') it.recComp?ok('Con complejidad +$'+RECORTE_COMP_EXTRA):off('Sin complejidad');
     it.altura>0?ok(it.altura+' cm de altura'):falta('Falta altura');
     it.n>0?ok(it.n+(it.n===1?' pieza':' piezas')):falta('Faltan piezas');
   }else if(it.tipo==='bastidor'){
@@ -1744,8 +1745,8 @@ function bodyFor(it){
     const hint='<div class="hintnote">Por cm de altura × pieza</div>'+_peekFila(it)
       +(alturaDeRecorte(it.altura)?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no hay letra 3D que fabricar — a esta altura el taller la corta en acrílico.</div>`:'');
     const compRow = it.acab==='sandwich'
-      ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
-          `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`data-acc="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
+      ? grupo('Complejidad',it.recComp?'Con complejidad +$'+RECORTE_COMP_EXTRA+'/cm':'Sencilla',
+          `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`data-acc="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$${RECORTE_COMP_EXTRA}/cm)</button>`)
       : '';
     return `
       ${descFld(it)}
@@ -2297,7 +2298,7 @@ function _opCamposHTML(it,x,bloq){
   _opCamposDe(d.tipo,it.tipo).forEach(campo=>{
     if(campo==='material'){ const m=matOf(d.material); partes.push(grupo('Material',m?m.label:'',ofrecer(MATERIALES,d.material).map(c=>chip(d.material===c.key,pon('material',c.key),c.label,'$'+c.precio)).join(''),'',true)); }
     else if(campo==='acab'){ const r=recOf(d.acab); partes.push(grupo('Acabado',r?r.label:'',ofrecer(RECORTES,d.acab).map(c=>chip(d.acab===c.key,pon('acab',c.key),c.label,'$'+c.precio)).join(''))); }
-    else if(campo==='recComp'){ if(d.acab==='sandwich') partes.push(`<button type="button" class="switch op-sw" role="switch" aria-checked="${d.recComp?'true':'false'}"${bloq?' disabled':` data-acc="${pon('recComp',!d.recComp)}"`}><span class="tg ${d.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`); }
+    else if(campo==='recComp'){ if(d.acab==='sandwich') partes.push(`<button type="button" class="switch op-sw" role="switch" aria-checked="${d.recComp?'true':'false'}"${bloq?' disabled':` data-acc="${pon('recComp',!d.recComp)}"`}><span class="tg ${d.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$${RECORTE_COMP_EXTRA}/cm)</button>`); }
     else if(campo==='bas'){ const b=basOf(d.bas); partes.push(grupo('Material',b?b.label:'',ofrecer(BASTIDORES,d.bas).map(c=>chip(d.bas===c.key,pon('bas',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
     else if(campo==='tarifa'){ const c0=cajaDe(d); partes.push(grupo('Tipo de caja',c0?c0.label:(d.tarifa>0?'$'+d.tarifa+'/m²':''),ofrecer(CAJAS,c0&&c0.key).map(c=>chip(!!c0&&c0.key===c.key,pon('caja',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
     else if(campo==='altura') num('altura','Altura (cm)','h',0.5);
