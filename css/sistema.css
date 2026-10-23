@@ -5349,12 +5349,6 @@ body.precios-ocultos.precios-a-la-vista .op-cuenta .dinero{filter:none}
 .anti-tramo{color:var(--tinta2)}
 .anti-tramo b{color:var(--tinta);font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
 .anti-sobra{flex-basis:100%;color:var(--av);font-weight:600}
-/* La excepción de las condiciones de pago, cuando el total que se cobra pasa de $60,000. Ámbar y con
-   palabras: avisa que el 50 % es solo la referencia. En borrador no sale, porque su sola presencia
-   diría que el total pasa de ese número. */
-.anti-excep{margin:var(--e2) 0 0;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--rr2);
-  background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600;line-height:1.45}
-body.precios-ocultos:not(.precios-a-la-vista) .anti-excep{display:none}
 .anti-r:disabled{cursor:not-allowed;--desl-pulgar:var(--n6)}
 
 /* ----- El deslizador del precio (C18) -----
