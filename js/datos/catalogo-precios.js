@@ -57,7 +57,11 @@ export const matOf  = k => MATERIALES.find(m => m.key === k) || null;
 export const compOf = k => COMPLEJIDAD.find(c => c.key === k) || null;
 export const recOf  = k => RECORTES.find(r => r.key === k) || null;
 export const basOf  = k => BASTIDORES.find(b => b.key === k) || null;
-export const cajaOf = (t, k) => (k && CAJAS.find(c => c.key === k)) || CAJAS.find(c => c.tarifa === Number(t)) || null;
+/* Las tarifas de fábrica de las cajas, antes de aplicar la tabla guardada: una caja de antes de la clave (it.caja)
+   sigue teniendo su tipo aunque Dirección le suba el precio. */
+const CAJAS_FABRICA = CAJAS.map(c => ({ key: c.key, tarifa: c.tarifa }));
+export const cajaOf = (t, k) => (k && CAJAS.find(c => c.key === k)) || CAJAS.find(c => c.tarifa === Number(t)) ||
+  ((f => (f ? CAJAS.find(c => c.key === f.key) : null) || null)(CAJAS_FABRICA.find(c => c.tarifa === Number(t))));
 /* De qué se fabrica una entrada: la de fábrica es ella misma; una agregada desde «Precios y
    materiales» del cotizador dice `como`. La derivación de material decide con esta clave. */
 export const baseDe = e => e ? (e.como || e.key) : '';
@@ -80,7 +84,8 @@ function aplicarGuardadas() {
     const lista = fab[f.grupo]; if (!lista) continue;
     const base = lista.find(e => e.key === f.clave) || lista.find(e => e.key === f.como);
     if (!base || L[f.grupo].some(e => e.key === f.clave)) continue;
-    const e = Object.assign({}, base, { key: String(f.clave), label: String(f.nombre || base.label) });
+    const nom = String(f.nombre || '').replace(/[<>&"`]/g, '').trim().slice(0, 60);
+    const e = Object.assign({}, base, { key: String(f.clave), label: nom || base.label });
     if (e.key !== base.key) e.como = base.key;
     if (f.visible === false) e.oculto = true;
     const p = Number(f.precio);

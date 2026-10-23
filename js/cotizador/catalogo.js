@@ -75,7 +75,15 @@ const matOf=k=>MATERIALES.find(m=>m.key===k);
    $3,900 a $4,200 dejaría sin tipo a todas las cajas ya cotizadas a $3,900. Así que el chip guarda
    además la clave (`it.caja`), que manda cuando está; una tarifa tecleada a mano la quita
    (typeItem), y una partida de antes, sin clave, se sigue buscando por su tarifa. */
-const cajaOf=(t,k)=>(k&&CAJAS.find(c=>c.key===k))||CAJAS.find(c=>c.tarifa===Number(t))||null;
+const cajaOf=(t,k)=>(k&&CAJAS.find(c=>c.key===k))||CAJAS.find(c=>c.tarifa===Number(t))||_cajaDeFabrica(t);
+/* Una caja de antes de la clave, cotizada a $4,600 cuando la nube costaba eso, sigue siendo nube
+   aunque Dirección la haya subido: se busca también entre las tarifas de FÁBRICA (tarifas.js las
+   copia antes de aplicar la tabla de la hoja). */
+function _cajaDeFabrica(t){
+  const fab=(typeof _TAR_FABRICA!=='undefined'&&_TAR_FABRICA.caja)||[];
+  const f=fab.find(c=>c.tarifa===Number(t));
+  return f?(CAJAS.find(c=>c.key===f.key)||null):null;
+}
 const cajaDe=it=>it?cajaOf(it.tarifa,it.caja):null;
 /* De qué se fabrica una entrada del catálogo: la de fábrica es ella misma; una agregada desde
    Ajustes dice `como` (tarifas.js). Lo que no es dinero —la iluminación, el texto del PDF, el

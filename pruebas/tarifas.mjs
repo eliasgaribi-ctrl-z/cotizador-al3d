@@ -114,6 +114,12 @@ malo('un material en $0 no', [{ grupo: 'material', clave: 'al-paint', nombre: 'A
 malo('un precio que no es número no', [{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio', precio: 'treinta' }], /precio/);
 malo('un precio vacío no', [{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio', precio: '' }], /precio/);
 malo('sin nombre no', [{ grupo: 'material', clave: 'al-paint', nombre: '  ', precio: 30 }], /nombre/);
+malo('un nombre con marcado no: el catálogo lo pinta tal cual en los chips y el PDF', [{ grupo: 'material', clave: 'al-paint', nombre: 'Aluminio <b>', precio: 30 }], /no puede llevar/);
+{
+  /* Y si alguien lo teclea a mano en la pestaña, el teléfono y la hoja le quitan lo que es marcado. */
+  const t = plano(H.cotNormalizarTabla_([{ grupo: 'material', clave: 'al-paint', nombre: 'Alum<img src=x>inio', precio: 30 }]));
+  eq('la hoja lo limpia al leer la pestaña', t.filas.find(f => f.clave === 'al-paint').nombre, 'Alumimg src=xinio');
+}
 malo('una clave con mayúsculas o espacios no', [{ grupo: 'material', clave: 'Mi Material', nombre: 'X', precio: 30, como: 'al-paint' }], /clave/);
 malo('un material nuevo sin «se fabrica como» no', [{ grupo: 'material', clave: 'xnuevo', nombre: 'Nuevo', precio: 30 }], /fabrica/);
 malo('ni con uno que no es de fábrica', [{ grupo: 'material', clave: 'xnuevo', nombre: 'Nuevo', precio: 30, como: 'xanod1' }], /fabrica/);
@@ -185,7 +191,8 @@ eq('y trae su iluminación', T.matOf('xanod1').ilum, 'LED posterior (cálida/fr�
 console.log('\nLA CAJA NO PIERDE SU TIPO CUANDO SUBE SU PRECIO');
 eq('la estándar ya es de $4,200', T.cajaOf(4200).key, 'std');
 eq('una caja elegida con el chip guarda su clave y se sigue llamando estándar', T.cajaDe({ tarifa: 3900, caja: 'std' }).key, 'std');
-eq('una caja de antes, sin clave y a $3,900, queda sin apellido: esa tarifa ya no es del catálogo', T.cajaDe({ tarifa: 3900 }), null);
+eq('una caja de antes, sin clave y a $3,900 (la estándar de fábrica), sigue siendo estándar', (T.cajaDe({ tarifa: 3900 }) || {}).key, 'std');
+eq('una tarifa que nunca fue de ninguna caja queda sin apellido', T.cajaDe({ tarifa: 5123 }), null);
 eq('la nube se sigue encontrando por su tarifa', T.cajaDe({ tarifa: 4600 }).key, 'nube');
 
 /* ============================================================================ */
@@ -205,6 +212,34 @@ console.log('\nLA PLATAFORMA LEE LA MISMA TABLA QUE GUARDÓ EL COTIZADOR');
   const letra = m => ({ id: 1, tipo: 'letras', material: m, comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 9 });
   cierto('el material de compra del anodizado es el del pintado (canto incluido)', ids(letra('xanod1')) === ids(letra('al-paint')) && ids(letra('al-paint')).length > 0,
     ids(letra('xanod1')) + ' vs ' + ids(letra('al-paint')));
+}
+
+/* ============================================================================ */
+console.log('\nUNA TABLA NUEVA NO REESCRIBE LO QUE YA SE AUTORIZÓ (revisión de #154)');
+{
+  vm.runInContext('var Q = null; var _sellos = 0, _guardados = 0; function sellarAuth(){ _sellos++; } function saveState(){ _guardados++; }', cot);
+  const aplicar = (t) => vm.runInContext('_tarAplicarCuidando', cot)(t);
+  const conPrecio = (g, k, p) => { const t = plano(tabla); t.filas.find(f => f.grupo === g && f.clave === k).precio = p; return t; };
+  /* Una autorizada al precio calculado: 9 letras de 40 cm de aluminio a $34 = $12,240. */
+  vm.runInContext(`Q = { estado: 'autorizada', huellaAuth: 'h', itemsAuth: {}, items: [
+    { id: 1, tipo: 'letras', material: 'al-paint', comp: 'recta', luz: true, altura: 40, n: 9 },
+    { id: 2, tipo: 'letras', material: 'acr-vol', comp: 'recta', luz: true, altura: 40, n: 9 } ] };`, cot);
+  cierto('la tabla con el aluminio a $40 se aplica', aplicar(conPrecio('material', 'al-paint', 40)) === true);
+  const q = plano(vm.runInContext('Q', cot));
+  eq('la partida de aluminio queda congelada en lo que se autorizó ($12,240)', q.itemsAuth, { 1: 12240 });
+  eq('la de acrílico, que no cambió de precio, no se toca', '2' in q.itemsAuth, false);
+  eq('y se guarda', vm.runInContext('_guardados', cot) > 0, true);
+  /* Un borrador sí sigue al catálogo, y la caja con su tipo elegido toma el precio nuevo. */
+  vm.runInContext(`Q = { estado: 'borrador', itemsAuth: {}, items: [{ id: 3, tipo: 'caja', caja: 'std', tarifa: 4200, ancho: 100, alto: 100 },
+    { id: 4, tipo: 'caja', tarifa: 5123, ancho: 100, alto: 100 }] };`, cot);
+  aplicar(conPrecio('caja', 'std', 4500));
+  const b = plano(vm.runInContext('Q', cot));
+  eq('en un borrador, la caja estándar pasa a $4,500 y no se congela nada', [b.items[0].tarifa, b.itemsAuth], [4500, {}]);
+  eq('y una caja con tarifa a mano se queda con la suya', b.items[1].tarifa, 5123);
+  /* Una caja de antes, sin clave, cotizada a $4,600 de nube, sigue siendo nube cuando la nube sube. */
+  aplicar(conPrecio('caja', 'nube', 4800));
+  eq('una caja de antes a $4,600 se sigue reconociendo como nube por su tarifa de fábrica', (T.cajaDe({ tarifa: 4600 }) || {}).key, 'nube');
+  vm.runInContext('Q = null;', cot);
 }
 
 /* Al final a propósito: el importador carga js/datos/catalogo-precios.js, y la plataforma (arriba) tenía que cargarlo YA con la tabla. */
