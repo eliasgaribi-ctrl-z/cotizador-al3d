@@ -80,10 +80,12 @@ const bloqueConst = (texto, nombre) => {
 const cargar = (codigo, globales = {}) => { const ctx = vm.createContext(Object.assign({ Math, Number, String, Array, Object, JSON, isFinite, Set }, globales)); vm.runInContext(codigo.replace(/^(const|let) /gm, 'var '), ctx); return ctx; };
 
 /* ============================== 1 · EL ANTICIPO PARTIDO (C17) ============================== */
-console.log('\n1. EL ANTICIPO PARTIDO SUMA EL TOTAL, Y LA EXCEPCIÓN SE MIDE SOBRE EL SUBTOTAL');
+console.log('\n1. EL ANTICIPO: 50 % COMO MÍNIMO, DE 15 EN 15, Y EL REPARTO SUMA EL TOTAL');
 {
-  const A = cargar(linea(PROCESO, 'ANTICIPO_EXCEPCION') + '\n' + fuente(PROCESO, 'partirAnticipo'));
-  eq('la excepción de las condiciones de pago es de $60,000', A.ANTICIPO_EXCEPCION, 60000);
+  const A = cargar(linea(PROCESO, 'ANTICIPO_PASOS') + '\n' + fuente(PROCESO, 'anticipoDePct') + '\n' + fuente(PROCESO, 'pasoDeAnticipo')
+    + '\n' + fuente(PROCESO, 'partirAnticipo'));
+  eq('los pasos son 50, 65, 80, 95 y 100', Array.from(A.ANTICIPO_PASOS), [50, 65, 80, 95, 100]);
+  cierto('ya no hay excepción de los $60,000', !/ANTICIPO_EXCEPCION|excepcion/.test(PROCESO));
   let mala = null, n = 0;
   /* Miles de totales (con y sin IVA, con centavos) y de anticipos: siempre suma, nunca negativo, y el
      porcentaje que se dice es el redondeo de lo que se ve. */
@@ -92,22 +94,30 @@ console.log('\n1. EL ANTICIPO PARTIDO SUMA EL TOTAL, Y LA EXCEPCIÓN SE MIDE SOB
     const c = A.partirAnticipo(total, anti); n++;
     const suma = +(c.hoy + c.alInstalar).toFixed(2);
     const ok = c.hoy >= 0 && c.alInstalar >= 0 && (c.supera ? suma >= total - 0.011 && c.alInstalar === 0 : Math.abs(suma - total) < 0.011)
-      && c.pct === (total > 0 ? Math.round(anti / total * 100) : 0) && c.excepcion === (total > 60000) && c.supera === (anti - total > 0.01);
+      && c.pct === (total > 0 ? Math.round(anti / total * 100) : 0) && c.supera === (anti - total > 0.01);
     if (!ok && !mala) mala = { total, anti, c };
   }
   cierto('hoy + al instalar = total, o el anticipo supera y se dice, en ' + n + ' combinaciones', !mala, JSON.stringify(mala));
-  eq('en $60,000 exactos todavía no hay excepción: «mayores a» no incluye al 60,000', A.partirAnticipo(60000, 30000, 60000).excepcion, false);
-  eq('con un centavo más sí', A.partirAnticipo(60000.01, 30000, 60000.01).excepcion, true);
-  /* Lo decidió Dirección: la excepción mira el SUBTOTAL, así que el mismo trabajo cae del mismo lado
-     de la regla se facture o no. Con factura, $53,000 de subtotal son $61,480 de total y NO pasan. */
-  eq('se mide sobre el SUBTOTAL: $53,000 + 16 % = $61,480 de total NO pasa', A.partirAnticipo(53000 * 1.16, 0, 53000).excepcion, false);
-  eq('y $62,000 de subtotal sí pasa, aunque se cobre sin factura', A.partirAnticipo(62000, 0, 62000).excepcion, true);
-  eq('con factura, $62,000 de subtotal ($71,920 de total) también', A.partirAnticipo(62000 * 1.16, 0, 62000).excepcion, true);
-  /* Sin subtotal se cae al total, que es lo mismo cuando no hay factura. */
-  eq('sin tercer dato se mide contra el total', A.partirAnticipo(70000, 0).excepcion, true);
   eq('un anticipo mayor que el total lo dice y deja el resto en cero', (c => [c.supera, c.alInstalar])(A.partirAnticipo(10440, 12760)), [true, 0]);
-  eq('sin total no hay nada que partir', A.partirAnticipo(0, 0), { hoy: 0, alInstalar: 0, supera: false, pct: 0, excepcion: false });
-  eq('basura no truena', A.partirAnticipo(undefined, 'x'), { hoy: 0, alInstalar: 0, supera: false, pct: 0, excepcion: false });
+  eq('sin total no hay nada que partir', A.partirAnticipo(0, 0), { hoy: 0, alInstalar: 0, supera: false, pct: 0 });
+  eq('basura no truena', A.partirAnticipo(undefined, 'x'), { hoy: 0, alInstalar: 0, supera: false, pct: 0 });
+  /* Los pasos: de cualquier monto sale uno permitido, y nunca uno menor que el 50 %. */
+  let malPaso = null;
+  for (let t = 100; t <= 140000; t += 977.13) for (let f = -0.2; f <= 1.4; f += 0.013) {
+    const total = +t.toFixed(2), p = A.pasoDeAnticipo(total, total * f);
+    if (!A.ANTICIPO_PASOS.includes(p) && !malPaso) malPaso = { total, f, p };
+  }
+  cierto('de cualquier monto sale un paso permitido', !malPaso, JSON.stringify(malPaso));
+  eq('abajo del 50 % sube al 50 %', A.pasoDeAnticipo(10000, 3000), 50);
+  eq('un negativo también', A.pasoDeAnticipo(10000, -500), 50);
+  eq('7,000 de 10,000 queda en el 65 %', A.pasoDeAnticipo(10000, 7000), 65);
+  eq('7,300 de 10,000 queda en el 80 %', A.pasoDeAnticipo(10000, 7300), 80);
+  eq('más que el total queda en el total', A.pasoDeAnticipo(10000, 14000), 100);
+  eq('sin total, el 50 %', A.pasoDeAnticipo(0, 5000), 50);
+  eq('el 50 % de $11,136 son $5,568', A.anticipoDePct(11136, 50), 5568);
+  eq('el 65 % va a pesos', A.anticipoDePct(12528.96, 65), 8144);
+  eq('el 100 % es el total exacto, con centavos', A.anticipoDePct(12528.96, 100), 12528.96);
+  cierto('y con el 100 % no queda nada al instalar', A.partirAnticipo(12528.96, A.anticipoDePct(12528.96, 100)).alInstalar === 0);
 }
 
 /* ============================== 2 · EL AJUSTE DEL AUTORIZADOR (C18) ============================== */

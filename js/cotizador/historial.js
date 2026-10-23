@@ -133,7 +133,7 @@ function guardarEnHistorial(extra){
     /* El anticipo se pacta al cerrar y no siempre es el 50%. No se guardaba, así que al
        reabrir la cotización se recalculaba la mitad del total y el WhatsApp le pedía al
        cliente una cifra distinta de la acordada, sobre el mismo folio. */
-    anti:Q.anti||0, antiManual:!!Q.antiManual,
+    anti:Q.anti||0, antiPct:ANTICIPO_PASOS.includes(Q.antiPct)?Q.antiPct:null, antiManual:!!Q.antiManual,
     /* El importe calculado de cada partida se congela al guardar. El catálogo de precios
        vive en este mismo archivo y se edita a mano: sin congelarlo, subir el precio del
        aluminio reescribía hacia atrás lo que ya se le había cotizado a un cliente, y el
@@ -914,7 +914,7 @@ async function reabrirDeHistorial(folio,o){
   Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   /* El anticipo pactado vuelve como se guardó. Solo «Duplicar» lo reinicia, porque ahí
      la cotización es nueva y el anticipo se vuelve a pactar. */
-  Q.anti=e.anti||0; Q.antiManual=!!e.antiManual;
+  Q.anti=e.anti||0; Q.antiPct=ANTICIPO_PASOS.includes(e.antiPct)?e.antiPct:null; Q.antiManual=!!e.antiManual;
   /* La imagen con la que se cotizó vuelve con la cotización. Aquí se ponía en null, y ahí
      estaba la fuga: quien abría un folio viejo para cambiarle una medida se quedaba sin la
      referencia en pantalla y, al volver a autorizar, guardarEnHistorial() escribía ese null
@@ -990,7 +990,7 @@ async function usarComoBase(folio){
   Q.itemsAuth={}; Q.precioAuth=0; Q.huellaAuth=''; Q.sello=null; Q.solicitud=null;
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
   Q.estado='borrador'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
-  Q.anti=0; Q.antiManual=false; Q.aiFile=null;
+  Q.anti=0; Q.antiPct=null; Q.antiManual=false; Q.aiFile=null;
   /* Los renders y la propuesta sí viajan: son del mismo anuncio, que es por lo que se duplica. */
   Q.renders=(e.renders||[]).slice(); Q.propuesta=(e.propuesta||[]).slice();
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });

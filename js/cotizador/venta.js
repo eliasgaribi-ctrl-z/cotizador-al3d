@@ -206,16 +206,18 @@ function cerrarRegistrarVenta(){
    —un cero de más al teclear— dejaba el «pago pendiente» en $0.00 y la venta se registraba
    como liquidada; uno negativo lo inflaba; y una comisión del 1000 % se registraba tal cual.
    Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. La
-   comisión ya no se teclea —es COMISION_PCT—, así que ya no hay nada que acotarle. */
+   comisión ya no se teclea —es COMISION_PCT—, así que ya no hay nada que acotarle.
+   Desde el 23-oct-2026 el anticipo además va en pasos —50 % en adelante, de 15 en 15—, con la
+   misma regla y las mismas frases que #f-anti (proceso.js, «El anticipo, llevado a su paso»). */
 function rvAcotar(){
-  const t=desgloseFinal();
+  const pf=precioFinal();
   const elA=document.getElementById('rv-anticipo');
-  let anti=parseFloat(elA.value); if(!isFinite(anti)) anti=0;
-  let aviso='';
-  if(anti<0){ anti=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
-  if(t.neto>0 && anti>t.neto+0.005){ anti=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
+  let v=parseFloat(elA.value); if(!isFinite(v)) v=0;
+  const paso=pasoDeAnticipo(pf,v);
+  const anti=anticipoDePct(pf,paso);
+  const aviso=pf>0?avisoPasoAnticipo(pf,v,paso):'';
   if(Math.abs(anti-(parseFloat(elA.value)||0))>0.005) elA.value=anti;
-  return {anti,aviso};
+  return {anti,paso,aviso};
 }
 /* `alAbrir` pinta sin rodar: ver rvRecalc más abajo. Lo pasa abrirRegistrarVenta() y nadie más;
    los dos manejadores del marcado (`oninput` del anticipo, `onchange` del estatus) llaman sin
@@ -257,17 +259,17 @@ function rvRecalc(alAbrir){
 
    Se escribe en los dos puntos que COMPROMETEN y no en cada tecla: el modal tiene «Cancelar»,
    y un write-through por teclazo convertiría un cierre por accidente en un cambio del papel.
-   `antiManual` queda en true porque a partir de ahí la cifra la puso una persona y el 50 %
-   automático no debe volver a pisarla. */
+   Lo que se compromete es el paso (`Q.antiPct`), y el monto sale de él. */
 function rvComprometerAnticipo(){
   const acotado=rvAcotar();
   if(acotado.aviso){ toast(acotado.aviso,'err',5200); rvRecalc(); }
   const v=acotado.anti;
-  if(Math.abs(v-(Q.anti||0))<0.01) return;
-  Q.anti=v; Q.antiManual=true;
+  const movio=Math.abs(v-(Q.anti||0))>=0.01;
+  if(!movio&&Q.antiPct===acotado.paso) return;
+  Q.antiPct=acotado.paso; Q.antiManual=acotado.paso!==50; Q.anti=v;
   saveState(); renderSummary();
   if(Q.estado==='autorizada') guardarEnHistorial();
-  toast('Anticipo actualizado a '+money(v)+' — el PDF y el WhatsApp ya lo traen','',4200);
+  if(movio) toast('Anticipo actualizado a '+money(v)+' — el PDF y el WhatsApp ya lo traen','',4200);
 }
 /* ============================================================================
    EL PUENTE A LA HOJA DE FINANZAS

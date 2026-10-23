@@ -27,7 +27,7 @@ const Q = {
   items:[], iva:true,
   estado:'borrador', rol:'vendedor',
   autorizador:'', nota:'', fechaAuth:'',
-  anti:0, antiManual:false,
+  anti:0, antiPct:null, antiManual:false,
   precioAuth:0,
   itemsAuth:{},
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */

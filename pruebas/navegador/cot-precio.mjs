@@ -7,8 +7,8 @@
      rompe fácil— que la palomita se DIBUJE solo al nacer: la barra se repinta en cada tecla del paso 1.
    · EL ANTICIPO PARTIDO (C17) Y EL PRECIO CON IMANES (C18). Dos barras sobre campos que siguen siendo
      la fuente: arrastrarlas escribe el campo y deja correr el `input`/`change` de siempre; teclear en
-     el campo mueve la barra; el imán fuerte cae EXACTO en el 50 %; el 60 000 se mide sobre el total
-     que se cobra; y en los imanes del precio nada vibra (vibrar() es de autorizar, borrar y rechazar).
+     el campo mueve la barra; el anticipo solo se para en 50, 65, 80, 95 y el total
+     y en los imanes del precio nada vibra (vibrar() es de autorizar, borrar y rechazar).
    · SELLAR LO DICE (C5, C23 #7). El botón se vuelve una ficha de estado con reloj, no acepta un segundo
      toque, sobrevive a un repintado del panel a media espera, tiembla y ofrece «Reintentar» si la hoja
      no contestó, y al salir bien se lava en verde con el código ANTES de que el panel cambie, con su
@@ -46,6 +46,7 @@ let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
 const bien = m => console.log('  ✓ ' + m);
 const cierto = (c, m, extra = '') => (c ? bien(m) : mal(m + (extra ? ' — ' + extra : '')));
+const eq = (que, dio, esperado) => cierto(JSON.stringify(dio) === JSON.stringify(esperado), que, 'dio ' + JSON.stringify(dio));
 const espera = ms => new Promise(r => setTimeout(r, ms));
 
 const RONDAS = [
@@ -208,79 +209,79 @@ async function ronda(R, indice) {
     sinErrores(s, 'en el riel'); await s.cierra();
   }
 
-  /* ============================== 2 · EL ANTICIPO PARTIDO (C17) ============================== */
+  /* ============================== 2 · EL ANTICIPO EN PASOS (C17, 23-oct-2026) ============================== */
   {
-    console.log('\n  — el anticipo, partido a la vista —');
+    console.log('\n  — el anticipo: 50 % como mínimo, de 15 en 15 —');
     const s = await sesion(R); const { p, ev } = s;
     await s.datos();
+    await ev(() => { window.__avisos = []; const t0 = window.toast; window.toast = (m, ...a) => { window.__avisos.push(m); return t0(m, ...a); }; });
     await ev(() => irAPaso(2)); await p.waitForTimeout(500);
-    const a0 = await ev(() => ({ total: precioFinal(), campo: $('f-anti').value, r: $('f-anti-r').value, max: +$('f-anti-r').max, rest: $('s-anti-rest').textContent,
+    const a0 = await ev(() => ({ total: precioFinal(), campo: +$('f-anti').value, r: +$('f-anti-r').value, max: +$('f-anti-r').max, rest: $('s-anti-rest').textContent,
       visible: !$('s-anti-partido').hidden, h: Math.round($('f-anti-r').getBoundingClientRect().height), grueso: $('f-anti-r').classList.contains('grueso'),
-      blur: getComputedStyle($('s-anti-rest')).filter, aria: $('f-anti-r').getAttribute('aria-valuetext') }));
-    cierto(a0.visible && a0.grueso && Math.abs(a0.max - a0.total) < 0.01, 'la barra de dos tramos está y llega hasta el total que se cobra (' + a0.max + ')');
-    cierto(+a0.r === +a0.campo && a0.h >= 43.5, 'nace en el anticipo sugerido (' + a0.campo + ') y mide 44 px', JSON.stringify(a0));
+      blur: getComputedStyle($('s-anti-rest')).filter, aria: $('f-anti-r').getAttribute('aria-valuetext'), lbl: $('f-anti-lbl').textContent,
+      marcas: [...document.querySelectorAll('#s-anti-partido .desl-marca')].map(m => m.textContent), excep: !!document.getElementById('s-anti-excep') }));
+    cierto(a0.visible && a0.grueso && a0.max === 4 && a0.r === 0, 'la barra tiene cinco paradas y nace en la primera', JSON.stringify(a0));
+    eq('sus marcas: 50 %, 65 %, 80 %, 95 % y Total', a0.marcas, ['50%', '65%', '80%', '95%', 'Total']);
+    cierto(a0.campo === Math.round(a0.total / 2) && a0.h >= 43.5, 'nace en el 50 % (' + a0.campo + ' de ' + a0.total + ') y mide 44 px');
     cierto(/Hoy \$5,568\.00/.test(a0.rest) && /Al instalar \$5,568\.00/.test(a0.rest), 'dice «Hoy $5,568.00 · Al instalar $5,568.00»: ' + a0.rest);
+    eq('el rótulo dice que el 50 % es el mínimo', a0.lbl, 'Anticipo (50%, el mínimo)');
     cierto(/blur/.test(a0.blur), 'en borrador las dos cifras van difuminadas, como todo importe');
     cierto(/Hoy .* al instalar/.test(a0.aria || ''), 'el lector de pantalla oye las dos mitades: «' + a0.aria + '»');
-    cierto(a0.max > 0 && await ev(() => document.querySelector('#s-anti-partido .desl-marca.iman') !== null), 'lleva sus marcas: 50 % y Total');
+    cierto(!a0.excep, 'ya no existe el aviso de la excepción de los $60,000');
     await s.sinDesborde('en la columna del dinero', '#sidebox');
+    const estado = () => ev(() => ({ campo: +$('f-anti').value, pct: Q.antiPct, manual: Q.antiManual, anti: Q.anti, total: precioFinal(), r: +$('f-anti-r').value,
+      rest: $('s-anti-rest').textContent, lbl: $('f-anti-lbl').textContent }));
     const caja = await s.centro('#f-anti-r');
     const xDe = f => caja.x + 22 + f * (caja.width - 44), yC = caja.y + caja.height / 2;
-    /* El ratón: arrastrar a un punto cualquiera cae a cientos. */
-    await p.mouse.move(xDe(0.5), yC); await p.mouse.down();
-    await p.mouse.move(xDe(0.77), yC, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
-    const a1 = await ev(() => ({ campo: +$('f-anti').value, manual: Q.antiManual, anti: Q.anti, rest: $('s-anti-rest').textContent, lbl: $('f-anti-lbl').textContent }));
-    cierto(a1.campo % 100 === 0 && a1.campo > 7000 && a1.manual && a1.anti === a1.campo, 'arrastrar con el ratón escribe el campo, a cientos (' + a1.campo + ') y deja `antiManual`', JSON.stringify(a1));
-    cierto(/Anticipo \(\d+%\)/.test(a1.lbl), 'el rótulo dice el porcentaje pactado: «' + a1.lbl + '»');
-    /* El imán fuerte del 50 % exacto: con IVA no es redondo (5,568 de 11,136 sí, pero se mide con un total quebrado). */
-    await ev(() => { Q.items[0].n = 7; saveState(); renderItems(); renderSummary(); }); await p.waitForTimeout(300);
-    const t2 = await ev(() => precioFinal());
-    const caja2 = await s.centro('#f-anti-r');
-    const x2 = f => caja2.x + 22 + f * (caja2.width - 44), y2 = caja2.y + caja2.height / 2;
-    await p.mouse.move(x2(0.8), y2); await p.mouse.down(); await p.mouse.move(x2(0.505), y2, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(250);
-    const a2 = await ev(() => +$('f-anti').value);
-    cierto(Math.abs(a2 - t2 / 2) < 0.011, 'arrastrar cerca de la mitad cae EXACTO en el 50 % del total (' + a2 + ' de ' + t2 + ')');
-    /* El tope: jalar más allá del final deja el anticipo igual al total. */
-    await p.mouse.move(x2(0.5), y2); await p.mouse.down(); await p.mouse.move(caja2.x + caja2.width + 30, y2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
-    cierto(Math.abs(await ev(() => +$('f-anti').value) - t2) < 0.011, 'más allá del final el anticipo se queda en el total, no lo pasa');
-    /* El dedo, por CDP. */
-    await ev(() => { $('f-anti').value = ''; $('f-anti').dispatchEvent(new Event('input', { bubbles: true })); }); await p.waitForTimeout(250);
-    const caja3 = await s.centro('#f-anti-r');
-    const x3 = f => caja3.x + 22 + f * (caja3.width - 44), y3 = caja3.y + caja3.height / 2;
-    await s.dedo([[x3(0.5), y3], [x3(0.4), y3], [x3(0.3), y3], [x3(0.22), y3]]); await p.waitForTimeout(300);
-    const a3 = await ev(() => +$('f-anti').value);
-    cierto(a3 % 100 === 0 && a3 < t2 * 0.35 && a3 > 0, 'con el dedo también: arrastrar escribe el campo (' + a3 + ')');
-    /* El teclado: las flechas avanzan de cien en cien. */
-    await ev(() => $('f-anti-r').focus()); const antes = await ev(() => +$('f-anti-r').value);
+    /* El ratón: arrastrar a la mitad cae en la tercera parada, el 80 %. */
+    await p.mouse.move(xDe(0), yC); await p.mouse.down();
+    await p.mouse.move(xDe(0.52), yC, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
+    const a1 = await estado();
+    cierto(a1.pct === 80 && a1.campo === Math.round(a1.total * 0.8) && a1.anti === a1.campo && a1.manual && a1.r === 2,
+      'arrastrar con el ratón a la mitad pacta el 80 % (' + a1.campo + ')', JSON.stringify(a1));
+    eq('el rótulo dice el porcentaje pactado', a1.lbl, 'Anticipo (80%)');
+    /* El tope: jalar más allá del final es el pago total, sin centavos al instalar. */
+    await p.mouse.move(xDe(0.5), yC); await p.mouse.down(); await p.mouse.move(caja.x + caja.width + 30, yC, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
+    const a2 = await estado();
+    cierto(a2.pct === 100 && Math.abs(a2.campo - a2.total) < 0.011 && /Al instalar \$0\.00/.test(a2.rest), 'más allá del final es el total y no queda nada al instalar: ' + a2.rest);
+    /* Y más allá del principio nunca baja del 50 %. */
+    await p.mouse.move(xDe(1), yC); await p.mouse.down(); await p.mouse.move(caja.x - 40, yC, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
+    const a3 = await estado();
+    cierto(a3.pct === 50 && a3.campo === Math.round(a3.total / 2), 'más allá del principio se queda en el 50 %, no menos (' + a3.campo + ')');
+    /* El dedo, por CDP: a un cuarto del riel es la segunda parada, el 65 %. */
+    await s.dedo([[xDe(0), yC], [xDe(0.1), yC], [xDe(0.2), yC], [xDe(0.26), yC]]); await p.waitForTimeout(300);
+    const a4 = await estado();
+    cierto(a4.pct === 65 && a4.campo === Math.round(a4.total * 0.65), 'con el dedo también: un cuarto del riel es el 65 % (' + a4.campo + ')', JSON.stringify(a4));
+    /* El teclado: la flecha avanza una parada. */
+    await ev(() => $('f-anti-r').focus());
     await p.keyboard.press('ArrowRight'); await p.waitForTimeout(150);
-    const desp = await ev(() => +$('f-anti').value);
-    cierto(desp % 100 === 0 && desp > antes && desp - antes <= 100, 'con el teclado, ArrowRight sube a cientos (' + antes + ' → ' + desp + ')');
-    /* El campo manda: teclear mueve la barra y las dos cifras. */
-    await p.fill('#f-anti', '3000'); await p.waitForTimeout(250);
-    const a4 = await ev(() => ({ r: +$('f-anti-r').value, rest: $('s-anti-rest').textContent }));
-    cierto(a4.r === 3000 && /Hoy \$3,000\.00/.test(a4.rest), 'teclear en el campo mueve la barra y el renglón: ' + a4.rest);
-    await p.fill('#f-anti', '99999'); await p.waitForTimeout(250);
-    cierto(await ev(() => document.querySelector('#s-anti-partido .desl-caja').classList.contains('fuera') || +$('f-anti-r').value >= +$('f-anti-r').max - 0.01), 'un anticipo que pasa del total deja la barra en su tope y lo dice (.fuera)');
-    await ev(() => $('f-anti').dispatchEvent(new Event('change', { bubbles: true }))); await p.waitForTimeout(250);
-    /* La excepción de $60,000, sobre el SUBTOTAL: lo decidió Dirección, para que el mismo trabajo
-       caiga del mismo lado de la regla se facture o no. */
-    const ex0 = await ev(() => ({ oculta: $('s-anti-excep').hidden }));
-    cierto(ex0.oculta, 'con un total de $' + Math.round(t2) + ' no hay excepción que avisar');
-    await ev(() => { document.body.classList.add('precios-a-la-vista'); Q.items[0].altura = 80; Q.items[0].n = 30; saveState(); renderItems(); renderSummary(); }); await p.waitForTimeout(300);
-    const ex1 = await ev(() => ({ oculta: $('s-anti-excep').hidden, texto: $('s-anti-excep').textContent, sub: desgloseFinal().sub, total: precioFinal(), disp: getComputedStyle($('s-anti-excep')).display }));
-    cierto(!ex1.oculta && ex1.sub > 60000 && /\$60,000/.test(ex1.texto) && ex1.disp !== 'none', 'con un subtotal de $' + Math.round(ex1.sub) + ' avisa la excepción: «' + ex1.texto + '»');
-    /* Y la prueba que separa las dos reglas: un subtotal DEBAJO de 60 000 cuyo total CON IVA pasa.
-       Con la regla vieja habría avisado; con esta no, y el aviso tampoco depende de si hay factura. */
-    await ev(() => { Q.iva = true; Q.items[0].altura = 80; Q.items[0].n = 22; saveState(); renderItems(); renderSummary(); });
-    await p.waitForTimeout(300);
-    const ex2 = await ev(() => ({ oculta: $('s-anti-excep').hidden, sub: desgloseFinal().sub, total: precioFinal() }));
-    cierto(ex2.sub < 60000 && ex2.total > 60000 && ex2.oculta,
-      'un subtotal de $' + Math.round(ex2.sub) + ' que con IVA da $' + Math.round(ex2.total) + ' NO dispara la excepción: se mide sobre el subtotal');
-    /* Y el mismo trabajo sin factura cae del mismo lado: el aviso no cambia al quitar el IVA. */
-    const ex3 = await ev(() => { Q.iva = false; renderItems(); renderSummary(); return { oculta: $('s-anti-excep').hidden, sub: desgloseFinal().sub }; });
-    await p.waitForTimeout(250);
-    cierto(ex3.oculta === ex2.oculta, 'quitar la factura no cambia el veredicto con el mismo trabajo (subtotal $' + Math.round(ex3.sub) + ')');
-    cierto(await ev(() => { document.body.classList.remove('precios-a-la-vista'); return getComputedStyle($('s-anti-excep')).display === 'none'; }), 'y en borrador el aviso no sale: su sola presencia diría que el subtotal pasa de $60,000');
+    eq('con el teclado, ArrowRight pasa del 65 % al 80 %', (await estado()).pct, 80);
+    /* Si el total cambia, el anticipo sigue al porcentaje pactado. */
+    await ev(() => { Q.items[0].n = 7; saveState(); renderItems(); renderSummary(); }); await p.waitForTimeout(300);
+    const a5 = await estado();
+    cierto(a5.pct === 80 && a5.campo === Math.round(a5.total * 0.8), 'con otro total el anticipo sigue siendo el 80 % (' + a5.campo + ' de ' + a5.total + ')');
+    /* El campo: lo tecleado se lleva al paso permitido al soltarlo, y se dice. */
+    const teclear = async v => {
+      await ev(() => { window.__avisos.length = 0; });
+      await p.fill('#f-anti', v); await ev(() => { $('f-anti').dispatchEvent(new Event('change', { bubbles: true })); $('f-anti').blur(); });
+      await p.waitForTimeout(250);
+      return Object.assign(await estado(), { avisos: await ev(() => window.__avisos.slice()) });
+    };
+    const b1 = await teclear('3000');
+    cierto(b1.pct === 50 && b1.campo === Math.round(b1.total / 2) && b1.r === 0, '3,000 sube al 50 % (' + b1.campo + ') y la barra con él', JSON.stringify(b1));
+    cierto(b1.avisos.some(m => /50% en adelante, de 15 en 15/.test(m)), 'y lo dice: «' + b1.avisos.join(' | ') + '»');
+    const b2 = await teclear(String(Math.round(b1.total * 0.66)));
+    cierto(b2.pct === 65 && b2.campo === Math.round(b2.total * 0.65) && b2.r === 1, 'un 66 % tecleado queda en el 65 % (' + b2.campo + ')');
+    const b3 = await teclear(String(Math.round(b2.total * 0.95)));
+    cierto(b3.pct === 95 && b3.avisos.length === 0, 'el 95 % exacto entra sin aviso');
+    const b4 = await teclear('99999');
+    cierto(b4.pct === 100 && Math.abs(b4.campo - b4.total) < 0.011, 'un anticipo que pasa del total queda en el total');
+    const b5 = await teclear('');
+    cierto(b5.pct === null && !b5.manual && b5.campo === Math.round(b5.total / 2) && b5.lbl === 'Anticipo (50%, el mínimo)', 'borrarlo vuelve al 50 %, el mínimo', JSON.stringify(b5));
+    /* Una cotización de antes de la regla, con un anticipo escrito a mano, se respeta hasta que se toque. */
+    await ev(() => { Q.antiPct = null; Q.antiManual = true; Q.anti = 3000; saveState(); renderSummary(); }); await p.waitForTimeout(200);
+    const c1 = await estado();
+    cierto(c1.anti === 3000 && c1.campo === 3000 && /Anticipo \(\d+%\)/.test(c1.lbl), 'un anticipo viejo de $3,000 se queda como estaba: «' + c1.lbl + '»');
     await s.sinBucles('en la columna del dinero', '#sidebox');
     await s.captura('02-anticipo');
     sinErrores(s, 'en el anticipo'); await s.cierra();
