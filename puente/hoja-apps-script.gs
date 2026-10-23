@@ -3453,7 +3453,7 @@ function cotFilaLimpia_(f, i) {
   if (!bueno) { if (!fab) return null; precio = fab[3]; }
   var como = fab ? '' : String(f.como == null ? '' : f.como).trim();
   if (!fab && (gratis || !cotEsFabrica_(grupo, como))) return null;
-  var nombre = String(f.nombre == null ? '' : f.nombre).trim().slice(0, 60) || (fab ? fab[2] : '');
+  var nombre = String(f.nombre == null ? '' : f.nombre).replace(/[<>&"`]/g, '').trim().slice(0, 60) || (fab ? fab[2] : '');
   if (!nombre) return null;
   var vis = f.visible;
   var visible = !(vis === false || /^(false|no|0)$/i.test(String(vis == null ? '' : vis).trim()));
@@ -3548,6 +3548,7 @@ function cotMezclarTarifas_(actual, pedidas, correo, ahora) {
     vistos[k] = true;
     var nombre = String(p.nombre == null ? '' : p.nombre).trim();
     if (!nombre || nombre.length > 60) return { error: 'Cada renglón lleva un nombre de 1 a 60 letras.' };
+    if (/[<>&"`]/.test(nombre)) return { error: 'El nombre «' + nombre.replace(/[<>&"`]/g, '') + '» no puede llevar < > & " ni `.' };
     var gratis = grupo === 'complejidad' || grupo === 'recorte-extra';
     var precio = (p.precio === '' || p.precio === null || typeof p.precio === 'boolean') ? NaN : Number(p.precio);
     if (!isFinite(precio) || precio < 0 || (!gratis && precio <= 0) || precio > 1000000) return { error: 'El precio de «' + nombre + '» no sirve.' };
@@ -3590,11 +3591,13 @@ function rutaGuardarTarifas_(cuerpo, rol, ingreso) {
     if (r.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: r.error };
     var h = hojaConCabecera(HOJA_TARIFAS, COLS_TAR, false);
     var n = h.getLastRow();
-    if (n > 1) h.getRange(2, 1, n - 1, COLS_TAR.length).clearContent();
     var vals = r.tabla.filas.map(function (f, i) {
       return [f.grupo, f.clave, f.nombre, f.precio, f.como, f.visible, i, f.detalle, f.actualizado, f.por];
     });
+    /* Primero se escribe encima y después se limpia lo que sobra: borrar todo y escribir dejaba un
+       instante la pestaña vacía, y quien la leyera ahí (/tarifas, un sello) cobraba con la de fábrica. */
     h.getRange(2, 1, vals.length, COLS_TAR.length).setValues(vals);
+    if (n - 1 > vals.length) h.getRange(2 + vals.length, 1, n - 1 - vals.length, COLS_TAR.length).clearContent();
     try { CacheService.getScriptCache().remove(TAR_CACHE); } catch (e) {}
     _cotTablaMemo = null; _cotMapasMemo = null;
     return { ok: true, tabla: cotTabla(), cambios: r.cambios };

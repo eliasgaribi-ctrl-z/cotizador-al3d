@@ -60,7 +60,10 @@ function _tarListas(tabla){
     const clave=String(f.clave||''), como=String(f.como||'');
     const base=fab.find(e=>e.key===clave)||fab.find(e=>e.key===como);
     if(!base||!/^[a-z0-9-]{2,24}$/.test(clave)) return null;
-    const e=Object.assign({},base,{key:clave,label:String(f.nombre||base.label).slice(0,60)});
+    /* El nombre llega de la hoja —se puede teclear a mano en la pestaña— y el catálogo lo pinta tal cual en los chips y el PDF:
+       sin < > & " ` no hay marcado que colar. La hoja ya los rechaza al guardar; esto cubre la celda editada a mano. */
+    const nom=String(f.nombre||'').replace(/[<>&"`]/g,'').trim().slice(0,60);
+    const e=Object.assign({},base,{key:clave,label:nom||base.label});
     if(clave!==base.key) e.como=base.key; else delete e.como;
     if(f.visible===false) e.oculto=true; else delete e.oculto;
     if(f.grupo==='material'){ e.precio=precio; if(f.detalle) e.ilum=String(f.detalle); }
@@ -85,6 +88,40 @@ function aplicarTarifas(tabla){
   TARIFAS_INFO=Object.assign({},TARIFAS_INFO,{desde:'hoja',actualizado:String(tabla.actualizado||''),por:String(tabla.por||''),filas:tabla.filas});
   return true;
 }
+/* ----- Una tabla nueva no reescribe lo que ya se autorizó -----
+   Una cotización autorizada al precio calculado (sin precio ni ajustes del autorizador) saca sus
+   importes de lineTotal(), o sea del catálogo de HOY: con la tabla nueva, la que está en pantalla
+   cambiaría de total sin que nadie la autorice, el PDF saldría con otros importes (y sin QR) y el
+   historial congelaría el precio nuevo. Es lo mismo que reabrirDeHistorial() ya resuelve al abrir
+   una del historial: cada partida cuyo importe se movió queda en Q.itemsAuth con el que tenía, y con
+   eso el total, los renglones del papel y el sello siguen siendo los que se autorizaron. Para
+   cobrarla al precio nuevo, se vuelve a autorizar. */
+function _tarAplicarCuidando(tabla){
+  const aut=typeof Q!=='undefined'&&Q&&Q.estado==='autorizada'&&Array.isArray(Q.items);
+  const antes=aut?Q.items.map(it=>({id:it.id,lt:+lineTotal(it).toFixed(2)})):null;
+  if(!aplicarTarifas(tabla)) return false;
+  /* En un borrador lo que manda es el catálogo de hoy, y la caja guarda su precio en la partida: la
+     que tiene su tipo elegido (it.caja) pasa al precio nuevo de ese tipo, en ella y en sus opciones.
+     Solo en borrador: en una pendiente o autorizada cambiar la tarifa soltaría la autorización. */
+  if(typeof Q!=='undefined'&&Q&&Q.estado==='borrador'&&Array.isArray(Q.items)){
+    const alDia=d=>{ if(!d||d.tipo!=='caja'||!d.caja) return; const c=CAJAS.find(x=>x.key===d.caja); if(c) d.tarifa=c.tarifa; };
+    Q.items.forEach(it=>{ alDia(it); if(it.opciones&&Array.isArray(it.opciones.lista)) it.opciones.lista.forEach(o=>alDia(o.d)); });
+  }
+  if(antes){
+    if(!Q.itemsAuth) Q.itemsAuth={};
+    let congelo=false;
+    antes.forEach(a=>{
+      const it=Q.items.find(x=>x.id===a.id); if(!it) return;
+      if(Object.prototype.hasOwnProperty.call(Q.itemsAuth,a.id)) return;   // ya manda un importe autorizado
+      if(Math.abs(lineTotal(it)-a.lt)>0.01){ Q.itemsAuth[a.id]=a.lt; congelo=true; }
+    });
+    if(congelo){
+      if(!Q.huellaAuth) sellarAuth();
+      try{ saveState(); }catch(_){}
+    }
+  }
+  return true;
+}
 /* Lo que cobra el catálogo puesto, para saber si una tabla nueva cambió algo. */
 function _tarFirma(){ return JSON.stringify([MATERIALES,COMPLEJIDAD,RECORTES,BASTIDORES,CAJAS,RECORTE_COMP_EXTRA]); }
 
@@ -103,7 +140,7 @@ function refrescarTarifas(avisar){
     if(!r||!r.ok||!r.tabla){ if(r&&r.codigo==='NO_ENCONTRADO') TARIFAS_INFO.sinRuta=true; return false; }
     TARIFAS_INFO.sinRuta=false;
     const antes=_tarFirma();
-    if(!aplicarTarifas(r.tabla)) return false;
+    if(!_tarAplicarCuidando(r.tabla)) return false;
     try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(r.tabla)); }catch(_){}
     const cambio=_tarFirma()!==antes;
     if(cambio){
@@ -222,6 +259,7 @@ function _tarRevisar(){
     const f=_tarEdit[i], gratis=f.grupo==='complejidad'||f.grupo==='recorte-extra';
     const nom=String(f.nombre||'').trim();
     if(!nom) return {i,campo:'n',msg:'Falta el nombre de un renglón.'};
+    if(/[<>&"`]/.test(nom)) return {i,campo:'n',msg:'El nombre «'+nom.replace(/[<>&"`]/g,'')+'» no puede llevar < > & " ni `.'};
     const p=Number(f.precio);
     if(f.precio===''||!isFinite(p)||p<0||(!gratis&&p<=0)) return {i,campo:'p',msg:'El precio de «'+nom+'» no sirve.'};
   }
@@ -244,7 +282,7 @@ async function guardarTarifas(){
       if(r&&r.codigo==='NO_ENCONTRADO'){ TARIFAS_INFO.sinRuta=true; pintarTarifas(); throw new Error('La hoja todavía no tiene esta función: hay que publicar la versión nueva del Apps Script.'); }
       throw new Error((r&&r.mensaje)||'La hoja no guardó los precios.');
     }
-    if(!aplicarTarifas(r.tabla)) throw new Error('La hoja guardó, pero lo que devolvió no se entiende. Vuelve a abrir el cotizador.');
+    if(!_tarAplicarCuidando(r.tabla)) throw new Error('La hoja guardó, pero lo que devolvió no se entiende. Vuelve a abrir el cotizador.');
     try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(r.tabla)); }catch(_){}
     return r;
   };

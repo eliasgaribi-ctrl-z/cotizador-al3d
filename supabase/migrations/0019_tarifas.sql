@@ -161,6 +161,8 @@ begin
     v_vistos := v_vistos || (v_g || '|' || v_k);
     v_nom := pg_catalog.btrim(coalesce(f ->> 'nombre', ''));
     if v_nom = '' or pg_catalog.length(v_nom) > 60 then return interno.err('DATO_INVALIDO', 'Cada renglón lleva un nombre de 1 a 60 letras.'); end if;
+    if v_nom ~ '[<>&"`]' then
+      return interno.err('DATO_INVALIDO', 'El nombre «' || pg_catalog.regexp_replace(v_nom, '[<>&"`]', '', 'g') || '» no puede llevar < > & " ni `.'); end if;
     v_gratis := v_g in ('complejidad', 'recorte-extra');
     v_p := case when pg_catalog.jsonb_typeof(f -> 'precio') = 'number' then (f ->> 'precio')::numeric
                 when pg_catalog.jsonb_typeof(f -> 'precio') = 'string' and (f ->> 'precio') ~ '^\s*-?[0-9]+(\.[0-9]+)?\s*$' then (f ->> 'precio')::numeric end;
