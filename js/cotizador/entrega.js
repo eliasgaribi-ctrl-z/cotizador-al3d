@@ -1319,7 +1319,7 @@ function generarPDF(){
      del marcado para que los ocho se pinten con la misma plantilla y no haya un apartado con
      el margen de otro. Las etiquetas <u> son literales del documento, no dato de nadie. */
   const TERMINOS = [
-    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por 10 días.']],
+    ['Pagos y Facturación',['Anticipo mínimo del 50% para comenzar fabricación.','El resto al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','Si requiere factura, el anticipo es más IVA.','La cotización es válida por 10 días.']],
     ['Requisitos para Instalación',['En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.','Área limpia, accesible y segura.','El cliente debe gestionar accesos, permisos y condiciones necesarias.','Cualquier retraso por falta de esto será responsabilidad del cliente.']],
     ['Modificaciones',['Cambios al diseño aprobado pueden generar costos y retrasos.','Deben ser autorizados previamente.','AL3D no responde por fallas si el cliente exige cambios fuera de especificación.']],
     ['Garantías',['1 año en material eléctrico.','2 años en colorimetría.','Se atiende según disponibilidad del equipo.','No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.']],

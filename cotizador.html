@@ -495,24 +495,19 @@
         <span class="amt" id="s-neto" data-shared="total">$0.00</span>
       </div>
       <div class="anti">
-        <!-- El rótulo lo reescribe renderSummary() en cuanto el anticipo se teclea a mano:
-             ver js/cotizador/proceso.js. Este es el texto de arranque, con el 50 % sugerido. -->
-        <label for="f-anti" id="f-anti-lbl">Anticipo sugerido (50%)</label>
+        <!-- El rótulo lo reescribe renderSummary() con el porcentaje pactado: ver
+             js/cotizador/proceso.js. Este es el texto de arranque, con el 50 % mínimo. -->
+        <label for="f-anti" id="f-anti-lbl">Anticipo (50%, el mínimo)</label>
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
         <!-- La barra de dos tramos (C17): lo que se paga hoy y lo que se paga al instalar. Es un
-             <input type="range"> nativo que escribe #f-anti y despacha input y change, así el
-             acotado y `Q.antiManual` siguen saliendo del código de siempre y el teclado, el foco
-             y el lector de pantalla vienen del navegador. La monta renderSummary() con la pieza
-             del deslizador con imanes: imán a cientos, imán fuerte en el 50 % y tope en el total
-             que se cobra. Escondida mientras no hay total (no hay nada que partir). -->
+             <input type="range"> nativo con una parada por paso permitido —50 %, 65 %, 80 %, 95 % y
+             Total—, así el teclado, el foco y el lector de pantalla vienen del navegador. La monta
+             renderSummary() con la pieza del deslizador con imanes. Escondida mientras no hay total
+             (no hay nada que partir). -->
         <div class="anti-partido" id="s-anti-partido" hidden>
-          <input type="range" id="f-anti-r" class="anti-r" min="0" max="1" step="any" value="0" aria-label="Anticipo: lo que se paga hoy y lo que se paga al instalar">
+          <input type="range" id="f-anti-r" class="anti-r" min="0" max="4" step="1" value="0" aria-label="Anticipo: lo que se paga hoy y lo que se paga al instalar">
         </div>
         <div class="anti-rest" id="s-anti-rest"></div>
-        <!-- La excepción de las condiciones de pago, dicha donde se pacta el anticipo: arriba de
-             $60,000 el 50 % es solo la referencia. Se mide sobre el total que se cobra, con IVA si
-             lleva (decisión del paquete de UI; la constante vive en proceso.js). -->
-        <p class="anti-excep" id="s-anti-excep" hidden></p>
       </div>
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->

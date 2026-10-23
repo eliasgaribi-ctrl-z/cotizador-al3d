@@ -16,51 +16,74 @@
 /* ===================== Resumen + Autorización ===================== */
 
 /* ----- La cuenta del anticipo, sin pantalla (C17) -----
-   La regla de las condiciones de pago es «50 % de anticipo y el resto a más tardar dos días hábiles
-   después de la instalación», con una excepción para los proyectos mayores a $60,000. La excepción
-   se mide sobre el SUBTOTAL, sin IVA —lo confirmó Dirección—, y no sobre el total que se cobra: el
-   tamaño del proyecto es el trabajo que lleva, y el mismo trabajo no puede caer de un lado o del
-   otro de la regla según se facture o no. Con factura son $69,600 de total los que la disparan.
+   La regla de las condiciones de pago: el anticipo es del 50 % como mínimo y sube de 15 en 15
+   —50, 65, 80, 95— hasta el pago total, y el resto se paga a más tardar dos días hábiles después de
+   la instalación. Lo pidió Elías el 23-oct-2026, y con eso se fue la excepción de los proyectos de
+   más de $60,000, que dejaba pactar menos de la mitad: ya no hay proyecto que arranque con menos.
 
-   Ojo con la cuenta: el subtotal NO es «lo capturado», es el del precio que se va a cobrar, que es
-   el que cambia cuando el autorizador ajusta. Sale de desgloseFinal().sub, que divide entre 1.16 el
-   neto ya redondeado para que los tres números cierren entre sí.
+   El porcentaje es lo que se pacta y se guarda (`Q.antiPct`); el monto (`Q.anti`) sale de él y del
+   precio que se cobra, así que si el autorizador da descuento el anticipo baja con él. Un anticipo
+   escrito a mano antes de esta regla —`antiManual` sin `antiPct`— se respeta tal cual hasta que
+   alguien lo toque: no se cambia solo el número de un papel que ya salió.
 
-   El reparto (hoy / al instalar) sí va sobre el total: es dinero que se cobra. La excepción es lo
-   único que mira el subtotal, y por eso entra como un tercer dato y no cambia el resto. */
-const ANTICIPO_EXCEPCION=60000;
-function partirAnticipo(total,anti,sub){
-  const t=Math.max(0,+total||0), a=Math.max(0,+anti||0), resta=t-a;
-  /* Sin subtotal se mide contra el total: es el caso sin factura, donde valen lo mismo. */
-  const base=(sub===undefined||sub===null||!isFinite(+sub))?t:Math.max(0,+sub);
-  return {hoy:a, alInstalar:Math.max(0,+resta.toFixed(2)), supera:resta<-0.01,
-    pct:t>0?Math.round(a/t*100):0, excepcion:base>ANTICIPO_EXCEPCION};
+   El reparto (hoy / al instalar) va sobre el total: es dinero que se cobra. */
+const ANTICIPO_PASOS=[50,65,80,95,100];
+/* El anticipo de un porcentaje, a pesos. El 100 % es el total exacto, centavos incluidos:
+   redondearlo dejaba $0.48 «al instalar» de un trabajo pagado entero. */
+function anticipoDePct(total,pct){
+  const t=Math.max(0,+total||0);
+  return pct>=100?Math.round(t*100)/100:Math.round(t*pct/100);
 }
-/* La barra de dos tramos del anticipo. Se monta una vez y después solo se le ajusta el rango: el
-   total cambia en cada tecla de una partida y el deslizador conserva el porcentaje pactado al
-   moverse. Imán fuerte en el 50 % exacto —con factura el 50 % no es redondo: $6,264.48— que pesa
-   más que los cientos, y tope en el total. Sin total no hay nada que partir y la barra se esconde. */
+/* El paso permitido más cercano a un monto. Abajo del 50 % el más cercano es el 50 %, así que de
+   aquí nunca sale uno menor. */
+function pasoDeAnticipo(total,anti){
+  const t=Math.max(0,+total||0), a=Math.max(0,+anti||0);
+  if(!(t>0)) return ANTICIPO_PASOS[0];
+  const pct=a/t*100;
+  return ANTICIPO_PASOS.reduce((m,p)=>Math.abs(p-pct)<Math.abs(m-pct)?p:m,ANTICIPO_PASOS[0]);
+}
+/* El anticipo de la cotización al precio que se cobra: el del paso pactado, el 50 % si no hay
+   ninguno, o el escrito a mano de antes de la regla. */
+function anticipoPactado(pf){
+  if(ANTICIPO_PASOS.includes(Q.antiPct)) return anticipoDePct(pf,Q.antiPct);
+  if(!Q.antiManual) return anticipoDePct(pf,50);
+  return Q.anti||0;
+}
+function partirAnticipo(total,anti){
+  const t=Math.max(0,+total||0), a=Math.max(0,+anti||0), resta=t-a;
+  return {hoy:a, alInstalar:Math.max(0,+resta.toFixed(2)), supera:resta<-0.01,
+    pct:t>0?Math.round(a/t*100):0};
+}
+/* Pacta un paso. Lo llaman la barra, el campo al soltarlo y el modal de venta. */
+function fijarPasoAnticipo(pct){
+  if(!ANTICIPO_PASOS.includes(pct)) return;
+  undoJuntar('q:anti');
+  Q.antiPct=pct; Q.antiManual=pct!==50;
+  Q.anti=anticipoPactado(precioFinal());
+  saveState(); renderSummary(); guardarAutorizadaLuego();
+}
+/* La barra de dos tramos del anticipo, con una parada por paso: 50 %, 65 %, 80 %, 95 % y Total.
+   El rango va de 0 a 4 —el lugar del paso, no pesos—, y por eso no lleva `campo`: el espejo
+   escribiría un 2 en #f-anti. El paso nativo de 1 hace que el pulgar solo se pare en las cinco
+   marcas, con el dedo, el ratón y las flechas. Sin total no hay nada que partir y la barra se
+   esconde. */
 let _antiDesl=null, _antiTotal=0;
-function montarAnticipoPartido(pf,sub){
-  const P=window.Piezas, caja=$('s-anti-partido'), r=$('f-anti-r'), ex=$('s-anti-excep');
-  if(ex){
-    const si=partirAnticipo(pf,0,sub).excepcion;
-    if(ex.hidden===si) ex.hidden=!si;
-    if(si&&!ex.textContent) ex.textContent='El subtotal pasa de '+money(ANTICIPO_EXCEPCION).replace(/\.00$/,'')+': aplica la excepción de las condiciones de pago. El 50% es solo la referencia.';
-  }
+function montarAnticipoPartido(pf){
+  const P=window.Piezas, caja=$('s-anti-partido'), r=$('f-anti-r');
   if(!caja||!r) return;
   const hay=pf>0&&!!(P&&P.deslizadorConImanes);
   if(caja.hidden===hay) caja.hidden=!hay;
   if(!hay) return;
   _antiTotal=pf;
-  const imanes=[{v:pf/2,radio:pf*.02,t:'50%'},{v:pf,t:'Total'}];
-  const marcas=[{v:0,t:'$0'}].concat(imanes);
   if(!_antiDesl){
-    r.min='0'; r.max=String(pf);
-    _antiDesl=P.deslizadorConImanes(r,{campo:'f-anti',grueso:true,redondeo:100,pasoTeclado:100,imanes,marcas,
-      texto:v=>{ const c=partirAnticipo(_antiTotal,v); return 'Hoy '+money(c.hoy)+' ('+c.pct+'%), al instalar '+money(c.alInstalar); }});
+    r.min='0'; r.max=String(ANTICIPO_PASOS.length-1); r.step='1';
+    _antiDesl=P.deslizadorConImanes(r,{grueso:true,
+      marcas:ANTICIPO_PASOS.map((p,i)=>({v:i,t:p>=100?'Total':p+'%'})),
+      texto:i=>{ const c=partirAnticipo(_antiTotal,anticipoDePct(_antiTotal,ANTICIPO_PASOS[i])); return 'Hoy '+money(c.hoy)+' ('+c.pct+'%), al instalar '+money(c.alInstalar); },
+      alMover:i=>{ const p=ANTICIPO_PASOS[i]; if(p!==undefined&&p!==Q.antiPct) fijarPasoAnticipo(p); }});
   }
-  if(_antiDesl) _antiDesl.rango(0,pf,{imanes,marcas});
+  const i=ANTICIPO_PASOS.indexOf(pasoDeAnticipo(pf,Q.anti));
+  if(_antiDesl&&+r.value!==i) _antiDesl.fijar(i);
 }
 
 /* ----- Las cifras que ruedan (C23 #1) -----
@@ -148,19 +171,17 @@ function renderSummary(){
      para siempre. El total baja «de verdad» en dos momentos: al teclear el anticipo (el
      `change` de #f-anti lo acota) y al autorizar un precio menor (autorizarConfirmado lo
      acota con ajustarAnticipoAlPrecio). */
-  if(!Q.antiManual){ const auto=Math.round(pf*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
-  else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
-  /* El rótulo dice la verdad del número que tiene debajo. Con el anticipo escrito a mano
-     —8 000 sobre 17 400, o sea 46 %— seguía diciendo «sugerido (50%)», que es el porcentaje
-     que ya nadie está usando. Al borrarlo y volver al automático, vuelve a decir sugerido. */
+  /* Mientras se teclea en #f-anti manda lo tecleado (el `input` quita el paso y deja
+     `antiManual`); al soltarlo, el `change` lo lleva al paso permitido. */
+  if(document.activeElement!==$('f-anti')){ Q.anti=anticipoPactado(pf); $('f-anti').value=Q.anti||''; }
+  /* El rótulo dice el porcentaje del número que tiene debajo. Sin espacio antes del %, que es
+     como lo escribe el resto del cotizador; con espacio, el mismo rótulo cambiaba de forma al
+     teclear. */
   const antiLbl=$('f-anti-lbl');
   if(antiLbl){
-    /* Sin espacio antes del %, que es como lo escribe el resto del cotizador —«(50%)» aquí
-       mismo en la otra rama, y los descuentos de la columna del dinero—. Con espacio, el
-       mismo rótulo cambiaba de forma al teclear. */
-    antiLbl.textContent = (Q.antiManual && pf>0 && Q.anti>0)
-      ? `Anticipo (${Math.round((Q.anti/pf)*100)}%)`
-      : 'Anticipo sugerido (50%)';
+    const pct=ANTICIPO_PASOS.includes(Q.antiPct)?Q.antiPct
+      :(Q.antiManual&&pf>0&&Q.anti>0)?Math.round((Q.anti/pf)*100):50;
+    antiLbl.textContent=pct===50&&!Q.antiManual?'Anticipo (50%, el mínimo)':`Anticipo (${pct}%)`;
   }
   /* ----- El anticipo, partido a la vista (C17) -----
      «Resta al entregar: $X» era un renglón gris que solo decía una mitad de la cuenta. Ahora dice las
@@ -168,13 +189,13 @@ function renderSummary(){
      #f-anti y deja que el `input` y el `change` de siempre hagan el resto (acotado, `antiManual`). */
   const restEl=$('s-anti-rest');
   if(restEl){
-    const c=partirAnticipo(pf,Q.anti,desgloseFinal().sub);
+    const c=partirAnticipo(pf,Q.anti);
     const html=pf>0
       ? `<span class="anti-tramo">Hoy <b>${money(c.hoy)}</b></span><span class="anti-tramo">Al instalar <b>${money(c.alInstalar)}</b></span>${c.supera?'<span class="anti-sobra">El anticipo supera el total</span>':''}`
       : '';
     if(restEl.dataset.firma!==html){ restEl.dataset.firma=html; restEl.innerHTML=html; }
   }
-  montarAnticipoPartido(pf,desgloseFinal().sub);
+  montarAnticipoPartido(pf);
   // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){
@@ -2139,14 +2160,14 @@ async function autorizarConfirmado(){
    pierde; un segundo entero estorba a quien viene a seguir con la entrega. 450 ms alcanzan para leer
    el código y para que la palomita se dibuje casi entera (420 ms). */
 const SELLO_RATO_MS=450;
-/* El anticipo, al precio que se va a cobrar. Sin anticipo a mano, el 50 % de ese precio. Con
-   uno a mano mayor que el total —el autorizador dio descuento después de pactarlo: $12,760
-   contra $10,440—, se deja igual al total, que es lo que el `change` de #f-anti hace al
-   teclearlo; si no, el PDF imprimía «Resta $0.00» con un anticipo mayor que el precio.
+/* El anticipo, al precio que se va a cobrar: el paso pactado (o el 50 %) de ese precio. Con
+   uno escrito a mano de antes de la regla de los pasos y mayor que el total —el autorizador dio
+   descuento después de pactarlo: $12,760 contra $10,440—, se deja igual al total; si no, el PDF
+   imprimía «Resta $0.00» con un anticipo mayor que el precio.
    Devuelve true si tuvo que acotar uno pactado, para decirlo. */
 function ajustarAnticipoAlPrecio(){
   const pf=precioFinal();
-  if(!Q.antiManual){ Q.anti=Math.round(pf*0.5); return false; }
+  if(ANTICIPO_PASOS.includes(Q.antiPct)||!Q.antiManual){ Q.anti=anticipoPactado(pf); return false; }
   if(pf>0&&Q.anti>pf+0.005){ Q.anti=Math.round(pf*100)/100; return true; }
   return false;
 }
@@ -2238,7 +2259,7 @@ function nueva(){
          a medias, que son de aquella captura y no de ésta.
      Así que se sueltan aquí, a mano, sin esperar a un folio que no va a cambiar. */
   _deAntes=null; _vaciadoAMano=null; Q.reauth=null; paBorradorLimpiar();
-  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;Q.renders=[];Q.propuesta=[];
+  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiPct=null;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;Q.renders=[];Q.propuesta=[];
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
@@ -2650,34 +2671,27 @@ function cambiarRol(r){
 [['f-tel','tel'],['f-dir-raw','dirRaw'],['f-maps','maps']].forEach(([id,k])=>{
   const el=$(id); if(el) el.addEventListener('input',()=>marcarVaciado(k,el.value));
 });
-$('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();guardarAutorizadaLuego();});
-/* ----- El anticipo, acotado al soltar el campo -----
-   El `min="0"` del marcado es validación de formulario y aquí no hay formulario: nada lo
-   corre, así que un «-5000» —o un menos de más en el teclado del teléfono— entraba tal cual
-   y «Resta al entregar» salía MAYOR que el total, diciendo en pantalla que el cliente debe
-   más de lo que cuesta el trabajo. Y por arriba tampoco había techo: la pantalla avisaba en
-   chiquito, pero el PDF imprimía el anticipo tal cual con una resta clavada en $0.00 por el
-   Math.max(0,…), sin una palabra. Un cero de más en «Anticipo sugerido (50%)» se le entrega
-   al cliente en papel.
-
-   La regla es la que `rvAcotar()` ya escribió para el modal de venta, con sus mismas frases:
-   una regla, dos sitios. Va en `change` y no en `input` para no pelear con el tecleo —son
-   los mismos motivos por los que saneaNum vive en `blur`—. */
+$('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiPct=null;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();guardarAutorizadaLuego();});
+/* ----- El anticipo, llevado a su paso al soltar el campo -----
+   Lo tecleado se lleva al paso permitido más cercano: abajo del 50 % sube al 50 %, arriba del
+   total se queda en el total, y 7,000 de 10,000 queda en el 65 %. Va en `change` y no en
+   `input` para no pelear con el tecleo —son los mismos motivos por los que saneaNum vive en
+   `blur`—. Borrar el campo vuelve al 50 %. La misma regla, con las mismas frases, la usa el
+   modal de venta (`avisoPasoAnticipo`). */
+function avisoPasoAnticipo(total,v,paso){
+  const a=anticipoDePct(total,paso);
+  if(Math.abs(a-v)<1) return '';
+  return 'El anticipo va del 50% en adelante, de 15 en 15: quedó en '+(paso>=100?'el total':'el '+paso+'%')+' ('+money(a)+').';
+}
 $('f-anti').addEventListener('change',function(){
-  const t=desgloseFinal();
-  let v=parseFloat(this.value);
-  if(!isFinite(v)) v=0;
-  let aviso='';
-  if(v<0){ v=0; aviso='El anticipo no puede ser negativo: vuelve al sugerido del 50%.'; }
-  else if(t.neto>0 && v>t.neto+0.005){ v=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
-  if(!aviso) return;
-  /* Un anticipo acotado a cero no es uno «escrito a mano»: vuelve al sugerido, y el rótulo con
-     él. Quedaba antiManual encendido con $0 y el rótulo diciendo «sugerido (50%)» encima de un
-     cero que nadie sugirió. */
-  Q.anti=v; Q.antiManual=this.value.trim()!==''&&v>0;
-  this.value=v||'';
-  saveState(); renderSummary(); guardarAutorizadaLuego();
-  toast(aviso,'err',4200);
+  const pf=precioFinal();
+  if(this.value.trim()===''){ Q.antiPct=null; Q.antiManual=false; saveState(); renderSummary(); guardarAutorizadaLuego(); return; }
+  let v=parseFloat(this.value); if(!isFinite(v)) v=0;
+  const paso=pasoDeAnticipo(pf,v);
+  const aviso=pf>0?avisoPasoAnticipo(pf,v,paso):'';
+  fijarPasoAnticipo(paso);
+  this.value=Q.anti||'';
+  if(aviso) toast(aviso,'err',4200);
 });
 
 
