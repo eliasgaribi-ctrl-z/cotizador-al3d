@@ -28,7 +28,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
-import { catalogos, cajaOf } from './catalogo-precios.js';
+import { catalogos, cajaOf, baseDe, matOf, recOf, basOf } from './catalogo-precios.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -739,7 +739,9 @@ function derLetras(it, C, pedir, revisarCorte, avisos) {
   const altura = nn(it.altura, 0);
   const n = nn(it.n, 0);
   const comp = String(it.comp || 'recta');
-  const material = String(it.material || '');
+  /* Un material agregado desde «Precios y materiales» se fabrica como uno de fábrica (`como`):
+     se compra lo de ese. */
+  const material = baseDe(matOf(String(it.material || ''))) || String(it.material || '');
   const ilum = (it.ilumTipo || 'fria') === 'calida' ? 'led-3000' : 'led-6500';
 
   /* Sin altura o sin cuántas son no hay receta: se pide UNA línea que nombre el dato que
@@ -846,7 +848,7 @@ function derLetras(it, C, pedir, revisarCorte, avisos) {
 function derRecorte(it, C, pedir, revisarCorte, avisos) {
   const altura = nn(it.altura, 0);
   const n = nn(it.n, 0);
-  const acab = String(it.acab || '');
+  const acab = baseDe(recOf(String(it.acab || ''))) || String(it.acab || '');
   const ilum = (it.ilumTipo || 'fria') === 'calida' ? 'led-3000' : 'led-6500';
 
   let conf = 'estimada', requiere = '', faltaBase = false;
@@ -924,7 +926,7 @@ function derBastidor(it, C, pedir, revisarCorte, avisos) {
   const aprov = nn(C.APROV_NESTING_simple, 0.8);
   const panel = aprov > 0 ? m2 / aprov : 0;
 
-  const panelId = it.bas === 'alucobond' ? 'alucobond' : 'lam-galv';
+  const panelId = (baseDe(basOf(it.bas)) || it.bas) === 'alucobond' ? 'alucobond' : 'lam-galv';
   if (!it.bas) {
     avisos.push('Partida ' + etiqueta(it) + ': no dice si el bastidor es de lámina o de alucobond. Se calculó con lámina galvanizada.');
   }
@@ -963,7 +965,10 @@ function derCaja(it, C, K, pedir, revisarCorte, avisos) {
   /* La tarifa dice la forma: la de silueta desperdicia más que la cuadrada. Una tarifa que
      no está en el catálogo es un precio a mano —pasa— y entonces la geometría es la
      estándar y se dice que el número es estimado. */
-  const cajaCat = (K.CAJAS || []).find(c => Number(c.tarifa) === tarifa) || cajaOf(tarifa);
+  /* La clave del chip manda (it.caja, desde que los precios se editan): la tarifa sola deja de
+     decir la forma en cuanto Dirección cambia el precio. */
+  const cajaCat = (it.caja && (K.CAJAS || []).find(c => c.key === it.caja)) ||
+    (K.CAJAS || []).find(c => Number(c.tarifa) === tarifa) || cajaOf(tarifa, it.caja);
   if (!cajaCat && conf !== 'requiere_dato') conf = 'estimada';
   if (!cajaCat) {
     avisos.push('Partida ' + etiqueta(it) + ': la tarifa de la caja no está en el catálogo, así que se calculó con la geometría estándar.');
@@ -971,7 +976,7 @@ function derCaja(it, C, K, pedir, revisarCorte, avisos) {
   /* La forma la dice la entrada del CATÁLOGO, no un corte de precio. Con `tarifa >= 4600` una
      tarifa a mano de 5,200 se calculaba con el desperdicio de silueta mientras el aviso de
      arriba juraba «geometría estándar»: dos respuestas en la misma partida. */
-  const silueta = !!cajaCat && cajaCat.key === 'nube';
+  const silueta = !!cajaCat && baseDe(cajaCat) === 'nube';
   const aprov = silueta ? nn(C.APROV_NESTING_irregular, 0.72) : nn(C.APROV_NESTING_simple, 0.8);
 
   const m2 = ancho * alto / 10000;

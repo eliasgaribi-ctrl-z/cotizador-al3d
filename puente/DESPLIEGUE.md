@@ -417,6 +417,28 @@ escriben solos en AG y AH (una vez cada uno), y desde ahí cualquier cambio de e
 cita, teléfono, dirección, pin o entrega llega a los demás en la siguiente sincronización (cada 30
 segundos con la app abierta).
 
+### Precios y materiales editables (23-oct-2026) — tres pasos
+
+Agrega dos rutas, `/tarifas` y `/guardar_tarifas`, y la pestaña **«Tarifas»**, que no hay que crear:
+la crea el primer guardado desde el cotizador. La versión sigue siendo `puente-sheets-14` —solo se
+agregan rutas—. Sin la pestaña la hoja cobra con el catálogo de fábrica, así que publicar el `.gs`
+nuevo no cambia ningún precio por sí solo. El orden no rompe nada: si la app nueva sale antes, la
+ventana «Precios y materiales» dice que la hoja todavía no sabe guardar y no cambia nada.
+
+1. **Pegar y guardar** `puente/hoja-apps-script.gs` en `Código.gs`, como siempre (antes, compara
+   la copia de la hoja con la de `main` de antes de este cambio: ver README, «Antes de pegar nada»).
+2. **Publicar la versión.** **Implementar → Gestionar implementaciones → lápiz → Versión: Versión
+   nueva → Implementar.** La URL no cambia. No pide permisos nuevos.
+3. **La copia diaria.** El archivo «Copia diaria» (`puente/copia-diaria.gs`) ahora también manda la
+   pestaña «Tarifas» a Supabase. Antes de pegarlo, la nube tiene que tener la migración `0019` y la
+   función `importar-diario` nueva (`docs/ESTADO-SUPABASE.md`, «Precios editables»): si no, esa noche
+   la copia no se aplicaría. Mientras tanto, el `copia-diaria.gs` de antes sigue sirviendo igual.
+
+Para comprobarlo: en el cotizador, con la cuenta de Dirección, el engrane **Precios** abre la
+ventana sin el aviso de «la hoja todavía no tiene esta función». Al guardar aparece la pestaña
+«Tarifas» en la hoja, con un renglón por precio, la fecha y el correo de quien lo cambió. Se puede
+editar a mano ahí también: lo que no se entienda vuelve al precio de fábrica.
+
 ## Las cabeceras del sitio
 
 En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages ignora.

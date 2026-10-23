@@ -1752,6 +1752,22 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .hist-search-bar input{flex:1;min-width:0}
 .hist-count{font-size:var(--t1);font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.12);padding:5px 12px;border-radius:var(--rr1);white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
+/* Precios y materiales (tarifas.js, 23-oct-2026): la ventana del historial con una tabla por
+   grupo. Cada renglón es nombre, precio, si se ofrece y, si es nuevo, de qué se fabrica. */
+.tar-body{overflow-y:auto;flex:1;padding:0 var(--e5) var(--e4)}
+.tar-g{padding:var(--e4) 0;border-top:1px solid var(--line)}
+.tar-g:first-child{border-top:0}
+.tar-gt{margin:0 0 var(--e3);font:700 var(--t3)/1.25 var(--f-cifra);color:var(--tinta)}
+.tar-gt small{display:block;margin-top:2px;font:600 var(--t1)/1.3 var(--f-texto);color:var(--tinta2)}
+.tar-fila{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:var(--e2) var(--e3);align-items:end;padding:var(--e2) 0}
+.tar-fila .fld{margin:0}
+.tar-fila.oculta .tar-nom input,.tar-fila.oculta .tar-pre input{color:var(--tinta2)}
+.tar-vis{margin:0 0 6px;white-space:nowrap}
+.tar-como{grid-column:1/-1}
+.tar-mas{margin-top:var(--e2)}
+.tar-foot{display:flex;justify-content:flex-end;gap:var(--e3);padding:var(--e4) var(--e5);border-top:1px solid var(--line);flex-shrink:0}
+.tar-foot .btn{width:auto;margin:0}
+@media(max-width:560px){ .tar-fila{grid-template-columns:132px minmax(0,1fr)} .tar-nom{grid-column:1/-1} .tar-vis{justify-self:start} }
 .hentry-acts{display:flex;flex-direction:column;gap:var(--e1);align-self:flex-start;flex-shrink:0}
 .hentry-open{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:var(--t1);font-weight:700;padding:var(--e2) var(--e3);border-radius:var(--rr1);cursor:pointer;white-space:nowrap}
 @media(hover:hover){.hentry-open:hover{border-color:var(--brand);background:var(--soft-2)}}

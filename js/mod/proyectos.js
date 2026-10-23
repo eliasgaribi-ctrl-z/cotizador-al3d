@@ -3157,7 +3157,7 @@ function materialDe(it) {
     return 'Estructura tubular de 1" forrada de ' + (b ? b.label : 'lámina');
   }
   if (it.tipo === 'caja') {
-    const c = cajaOf(it.tarifa);
+    const c = cajaOf(it.tarifa, it.caja);
     return 'Caras de acrílico' + (c ? ' · ' + c.label : '');
   }
   return 'Partida manual';

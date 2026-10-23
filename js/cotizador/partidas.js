@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -298,6 +298,9 @@ function setItem(id,k,v){
   /* Elegir el material a mano lo vuelve decisión propia: se quita la etiqueta de
      heredado y ese material pasa a ser el que hereden las partidas siguientes. */
   if(k==='material'){ it.matAuto=false; if(v) prefSet(PREF_MATERIAL,v); }
+  /* El chip de una caja guarda su clave y pone su tarifa: la clave sobrevive a que Dirección
+     cambie el precio (ver cajaOf en catalogo.js). */
+  if(k==='caja'){ const c=CAJAS.find(x=>x.key===v); if(c) it.tarifa=c.tarifa; else delete it.caja; }
   renderItems();
 }
 /* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
@@ -334,6 +337,8 @@ function typeItem(id,k,v){
     const c=$('acnt-'+it.id); if(c) c.textContent=cuentaDeLetras(it);
   }
   if(k==='desc'){ it.descAi=false; it.descAuto=false; }
+  /* Una tarifa tecleada a mano ya no es la del tipo de caja que se había elegido. */
+  if(k==='tarifa'&&it.caja){ const c=CAJAS.find(x=>x.key===it.caja); if(!c||c.tarifa!==v) delete it.caja; }
   const f=$('formula-'+id), l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
@@ -1591,7 +1596,7 @@ function resumenPartida(it){
     const b=basOf(it.bas); b?ok(b.label+' · $'+b.tarifa+'/m²'):falta('Falta material');
     medidas();
   }else if(it.tipo==='caja'){
-    const c=CAJAS.find(x=>x.tarifa===it.tarifa);
+    const c=cajaDe(it);
     /* La tarifa del catálogo es catálogo; la personalizada la teclea quien cotiza para
        este trabajo, así que esa sí es un precio y se tapa como los demás. */
     it.tarifa>0?push((c?c.label:'Tarifa personalizada')+' · $'+it.tarifa+'/m²','ok',{dinero:!c}):falta('Falta tipo de caja');
@@ -1686,8 +1691,8 @@ function bodyFor(it){
      (_opCamposHTML) con estos mismos ids, y aquí se queda lo que comparten. */
   const op=!!opcionesDe(it);
   if(it.tipo==='letras'){
-    const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio,false,_peekAttrs(it,'material',m.key,m.label))).join('');
-    const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
+    const matChips=ofrecer(MATERIALES,it.material).map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio,false,_peekAttrs(it,'material',m.key,m.label))).join('');
+    const compChips=ofrecer(COMPLEJIDAD,it.comp).map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
     const mat=matOf(it.material);
     /* Material heredado: el título lo dice y la nota explica de dónde salió. Se avisa
        porque es el campo que más pesa en el precio —de $30 a $55 por cm. */
@@ -1700,8 +1705,8 @@ function bodyFor(it){
        abajo en un párrafo, y la iluminación sugerida decía con otras palabras lo mismo que el
        consejo del material que va debajo. */
     const avisos=`
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
-      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote nota-ok"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}
+      ${(baseDe(mat)==='acr-vol'||baseDe(mat)==='acr-vinil')&&!it.luz?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
+      ${(baseDe(mat)==='al-paint'||baseDe(mat)==='acero')&&it.luz?`<div class="hintnote nota-ok"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}
       ${_peekFila(it)}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
@@ -1728,7 +1733,7 @@ function bodyFor(it){
       ${letreroCajaHTML(it)}`;
   }
   if(it.tipo==='recorte'){
-    const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio,false,_peekAttrs(it,'acab',r.key,r.label))).join('');
+    const recChips=ofrecer(RECORTES,it.acab).map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio,false,_peekAttrs(it,'acab',r.key,r.label))).join('');
     /* Los tres precios ya van en los chips; repetirlos en una lista era decir dos veces lo
        mismo dentro del mismo recuadro. Lo único que los chips no dicen es CÓMO se cobra. */
     /* Y cuando el tipo lo puso la regla de los 10 cm, se dice aquí: es la respuesta a
@@ -1757,7 +1762,7 @@ function bodyFor(it){
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} data-al-escribir="autoContarLetras(${it.id})"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
-    const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²',false,_peekAttrs(it,'bas',b.key,b.label))).join('');
+    const chips=ofrecer(BASTIDORES,it.bas).map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²',false,_peekAttrs(it,'bas',b.key,b.label))).join('');
     const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>'+_peekFila(it);
     if(op) return descFld(it);
     return `
@@ -1769,9 +1774,10 @@ function bodyFor(it){
       </div>`;
   }
   if(it.tipo==='caja'){
-    const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²',false,_peekAttrs(it,'tarifa',c.tarifa,c.label))).join('');
+    const cajaYa=cajaDe(it);
+    const chips=ofrecer(CAJAS,cajaYa&&cajaYa.key).map(c=>chip(!!cajaYa&&cajaYa.key===c.key,`setItem(${it.id},'caja','${c.key}')`,c.label,'$'+c.tarifa+'/m²',false,_peekAttrs(it,'tarifa',c.tarifa,c.label))).join('');
     const hint='<div class="hintnote">Mínimo 1 m²</div>'+_peekFila(it);
-    const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
+    const cajaSel=cajaYa;
     if(op) return descFld(it);
     return `
       ${descFld(it)}
@@ -2157,7 +2163,7 @@ function _opRotulo(d,varia){
     return {titulo:b?b.label:'Material sin elegir',sub:tipo+medidas};
   }
   if(d.tipo==='caja'){
-    const c=cajaOf(d.tarifa);
+    const c=cajaDe(d);
     return {titulo:'Caja de luz'+(c?' · '+c.label:''),sub:(c?c.desc:tipo)+medidas};
   }
   return {titulo:(d.desc||'').trim()||'Partida manual',sub:tipo+(num(d.pz)>0?' · '+num(d.pz)+(num(d.pz)===1?' pieza':' piezas'):'')};
@@ -2227,6 +2233,7 @@ function _opEscribir(it,k,campo,v){
   if(x.d[campo]===v) return false;
   x.d[campo]=v;
   if(campo==='material') x.d.matAuto=false;
+  if(campo==='caja'){ const c=CAJAS.find(y=>y.key===v); if(c) x.d.tarifa=c.tarifa; }
   return true;
 }
 
@@ -2288,11 +2295,11 @@ function _opCamposHTML(it,x,bloq){
   const partes=[`<div class="fld op-tipo"><label for="opti${sufijo}">Tipo</label><select id="opti${sufijo}"${dis} data-al-cambiar="opTipo(${id},${k})">`
     +_TIPOS_PARTIDA.map(t=>`<option value="${t}"${d.tipo===t?' selected':''}>${esc(TIPO_NOMBRE[t]||t)}</option>`).join('')+`</select></div>`];
   _opCamposDe(d.tipo,it.tipo).forEach(campo=>{
-    if(campo==='material'){ const m=matOf(d.material); partes.push(grupo('Material',m?m.label:'',MATERIALES.map(c=>chip(d.material===c.key,pon('material',c.key),c.label,'$'+c.precio)).join(''),'',true)); }
-    else if(campo==='acab'){ const r=recOf(d.acab); partes.push(grupo('Acabado',r?r.label:'',RECORTES.map(c=>chip(d.acab===c.key,pon('acab',c.key),c.label,'$'+c.precio)).join(''))); }
+    if(campo==='material'){ const m=matOf(d.material); partes.push(grupo('Material',m?m.label:'',ofrecer(MATERIALES,d.material).map(c=>chip(d.material===c.key,pon('material',c.key),c.label,'$'+c.precio)).join(''),'',true)); }
+    else if(campo==='acab'){ const r=recOf(d.acab); partes.push(grupo('Acabado',r?r.label:'',ofrecer(RECORTES,d.acab).map(c=>chip(d.acab===c.key,pon('acab',c.key),c.label,'$'+c.precio)).join(''))); }
     else if(campo==='recComp'){ if(d.acab==='sandwich') partes.push(`<button type="button" class="switch op-sw" role="switch" aria-checked="${d.recComp?'true':'false'}"${bloq?' disabled':` data-acc="${pon('recComp',!d.recComp)}"`}><span class="tg ${d.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`); }
-    else if(campo==='bas'){ const b=basOf(d.bas); partes.push(grupo('Material',b?b.label:'',BASTIDORES.map(c=>chip(d.bas===c.key,pon('bas',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
-    else if(campo==='tarifa'){ const c0=cajaOf(d.tarifa); partes.push(grupo('Tipo de caja',c0?c0.label:(d.tarifa>0?'$'+d.tarifa+'/m²':''),CAJAS.map(c=>chip(d.tarifa===c.tarifa,pon('tarifa',c.tarifa),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
+    else if(campo==='bas'){ const b=basOf(d.bas); partes.push(grupo('Material',b?b.label:'',ofrecer(BASTIDORES,d.bas).map(c=>chip(d.bas===c.key,pon('bas',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
+    else if(campo==='tarifa'){ const c0=cajaDe(d); partes.push(grupo('Tipo de caja',c0?c0.label:(d.tarifa>0?'$'+d.tarifa+'/m²':''),ofrecer(CAJAS,c0&&c0.key).map(c=>chip(!!c0&&c0.key===c.key,pon('caja',c.key),c.label,'$'+c.tarifa+'/m²')).join(''),'',true)); }
     else if(campo==='altura') num('altura','Altura (cm)','h',0.5);
     else if(campo==='n') num('n',d.tipo==='recorte'?'# Piezas':'# Letras','n',1,'numeric');
     else if(campo==='ancho') num('ancho','Ancho (cm)','an');

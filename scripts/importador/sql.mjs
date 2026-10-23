@@ -86,6 +86,8 @@ const COLS = {
     ['total_txt', 't'], ['proyecto', 't'], ['autorizo', 't'], ['ts_iso', 't'], ['renglones', 't'], ['cliente', 't'], ['ajuste_pct', 'n'], ['solicito', 't'],
     ['codigo', 't'], ['firma', 't'], ['estado', 't'], ['nota', 't'], ['clave_id', 't'], ['codificacion', 't'], ['origen', 't'], ['fila_hoja', 'i']],
   cotizaciones: [['empresa_id', 't'], ['folio_global', 't'], ['folio', 't'], ['disp', 't'], ['estado', 't'], ['datos', 'j'], ['hitos', 'j'], ['procedencia', 'j']],
+  tarifas: [['empresa_id', 't'], ['grupo', 't'], ['clave', 't'], ['nombre', 't'], ['precio', 'n'], ['como', 't'], ['visible', 'b'], ['orden', 'i'], ['detalle', 't'],
+    ['actualizado_por', 't'], ['actualizado_ms', 'ts']],
 };
 
 /* Cómo entra el lote a su tabla. `l` es el lote (temporal). Cada sentencia devuelve (llave, nuevo). */
@@ -320,9 +322,24 @@ const ESCRIBIR = {
     insert into _imp_cambios (tabla, llave, accion) select 'cotizaciones', llave, case when nuevo then 'alta' else 'cambio' end from w;`,
 };
 
+/* Las tarifas de la pestaña «Tarifas» (0019): la hoja manda mientras sea la fuente de verdad, así que un renglón que cambió allá
+   pisa el de la nube. Nunca se borra uno (la tabla no deja): lo que ya no viene se queda como estaba. */
+ESCRIBIR.tarifas = `
+    with w as (
+      insert into public.tarifas as t (empresa_id, grupo, clave, nombre, precio, como, visible, orden, detalle, actualizado_por, actualizado_en)
+      select l.empresa_id, l.grupo, l.clave, l.nombre, l.precio, l.como, l.visible, l.orden, l.detalle, l.actualizado_por, l.actualizado_ms from _lote l
+      on conflict (empresa_id, grupo, clave) do update set nombre = excluded.nombre, precio = excluded.precio, como = excluded.como,
+             visible = excluded.visible, orden = excluded.orden, detalle = excluded.detalle, actualizado_por = excluded.actualizado_por,
+             actualizado_en = excluded.actualizado_en
+       where (t.nombre, t.precio, t.como, t.visible, t.orden, t.detalle, t.actualizado_por, t.actualizado_en)
+             is distinct from (excluded.nombre, excluded.precio, excluded.como, excluded.visible, excluded.orden, excluded.detalle,
+                               excluded.actualizado_por, excluded.actualizado_en)
+      returning t.grupo || ':' || t.clave as llave, (t.xmax = 0) as nuevo)
+    insert into _imp_cambios (tabla, llave, accion) select 'tarifas', llave, case when nuevo then 'alta' else 'cambio' end from w;`;
+
 /* El orden importa: los hijos después de sus padres (FK), los costos después de lo que cuestan. */
 const ORDEN = ['proyectos', 'ventas_dinero', 'abonos', 'miembros', 'instalaciones', 'materiales', 'constantes', 'requerimientos',
-  'almacen_movimientos', 'almacen_costos', 'autorizaciones', 'cotizaciones'];
+  'almacen_movimientos', 'almacen_costos', 'autorizaciones', 'cotizaciones', 'tarifas'];
 
 function lotes(tabla, filas, conTransaccion) {
   const cols = COLS[tabla];

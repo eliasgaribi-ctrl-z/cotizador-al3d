@@ -49,6 +49,7 @@ export function volcado(p = {}, extra = {}) {
   if (p.bitacora) pestanas['Bitácora del puente'] = con(['Cuándo', 'Rol', 'Folio', 'Fila', 'Qué escribió', 'Nota'], p.bitacora);
   if (p.almacen) pestanas['Almacén'] = p.almacen;
   if (p.listas) pestanas['Listas de compra'] = p.listas;
+  if (p.tarifas) pestanas['Tarifas'] = con(['Grupo', 'Clave', 'Nombre', 'Precio', 'Se fabrica como', 'Visible', 'Orden', 'Detalle', 'Actualizado', 'Por'], p.tarifas);
   return { formato: 'al3d-volcado', version: 1, hecho: '2026-10-12T18:00:00.000Z', zona: 'America/Mexico_City', libro: 'Hoja de mentiras',
     puente_version: 'puente-sheets-14', almacen_secuencia: 0, pestanas, ...extra };
 }

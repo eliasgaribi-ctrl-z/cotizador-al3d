@@ -128,6 +128,7 @@
 <symbol id="i-ia" viewBox="0.583 -0.417 23.333 23.333" style="stroke-width:1.847"><path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5 8.3 10.2 4 8.5l4.3-1.7z"/><path d="M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
 <symbol id="i-vector" viewBox="-3.583 -1.333 26.667 26.667" style="stroke-width:2.111"><path d="M4 19.5C12 19.5 15.5 16 15.5 8"/><rect x="1.5" y="17" width="5" height="5" rx="1.2"/><rect x="13" y="2" width="5" height="5" rx="1.2"/></symbol>
 <symbol id="i-cuaderno" viewBox="0 0 24 24"><path d="M7 3.2h11.8A1.2 1.2 0 0 1 20 4.4v15.2a1.2 1.2 0 0 1-1.2 1.2H7"/><path d="M7 3.2A2.4 2.4 0 0 0 4.6 5.6v12.8A2.4 2.4 0 0 0 7 20.8"/><path d="M4.6 8.4h3.2M4.6 12h3.2M4.6 15.6h3.2"/><path d="M11.4 8.2h5.2M11.4 12h5.2M11.4 15.8h3"/></symbol>
+<symbol id="i-engrane" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/></symbol>
 <symbol id="i-historial" viewBox="0 0 24 24"><path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 3.2v4h4"/><path d="M12 7.6V12l3.2 2"/></symbol>
 <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
 <symbol id="i-basura" viewBox="-0.6 -0.15 25.2 25.2" style="stroke-width:1.995"><path d="M3 6.2h18"/><path d="M8.2 6.2V4.3c0-.7.6-1.3 1.3-1.3h5c.7 0 1.3.6 1.3 1.3v1.9"/><path d="M18.7 6.2 17.8 20a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5.3 6.2"/><path d="M10.2 10.8v6.4M13.8 10.8v6.4"/></symbol>
@@ -177,6 +178,9 @@
       <button class="btn-hist btn-undo oculto" id="undobtn" data-tecla="Ctrl+Z" data-acc="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
       <button class="btn-hist" data-acc="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
       <button class="btn-hist" data-acc="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
+      <!-- Precios y materiales (23-oct-2026): solo para Dirección. Nace escondido y lo enseña
+           pintarBotonTarifas() (tarifas.js) cuando la identidad dice dirección. -->
+      <button class="btn-hist" id="tarbtn" hidden data-acc="abrirTarifas()" title="Precios y materiales" aria-label="Precios y materiales"><svg class="svgi" aria-hidden="true"><use href="#i-engrane"/></svg><span class="lbl"> Precios</span></button>
       <!-- El interruptor del tema. Empotrado se apaga (html.empotrado .btn-tema): el de la barra
            de la app manda, y los dos documentos se enteran del cambio por el evento storage. -->
       <button type="button" class="btn-hist btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
@@ -654,6 +658,23 @@
   </div>
 </div>
 
+<!-- Precios y materiales (23-oct-2026). Lo pinta tarifas.js; aquí solo el marco. Sin manejadores
+     en línea: data-acc, como todo el marcado (ver «Los botones del marcado» en nucleo.js). -->
+<div class="modal-bg" id="tarmodal" data-acc="alFondo('cerrarTarifas')" role="dialog" aria-modal="true" aria-labelledby="tar-titulo" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
+  <div class="hist-panel tar-panel">
+    <div class="hist-head">
+      <b id="tar-titulo" tabindex="-1"><svg class="svgi" aria-hidden="true"><use href="#i-engrane"/></svg> Precios y materiales</b>
+      <button class="hist-close" data-acc="cerrarTarifas()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+    </div>
+    <p class="hist-ayuda" id="tar-ayuda"></p>
+    <div class="tar-body" id="tar-body"></div>
+    <div class="tar-foot">
+      <button type="button" class="btn btn-gho" data-acc="cerrarTarifas()">Cancelar</button>
+      <button type="button" class="btn btn-pri" id="tar-guardar" data-acc="guardarTarifas()">Guardar precios</button>
+    </div>
+  </div>
+</div>
+
 <!-- Una solicitud que llegó de OTRO teléfono, por la hoja. Se revisa aquí y no se carga en la
      pantalla: no es una cotización de este aparato, no ocupa su folio ni entra a su historial.
      Ver notario.js. -->
@@ -1094,6 +1115,7 @@
 <script src="js/piezas.js"></script>
 <script src="js/cotizador/catalogo.js"></script>
 <script src="js/cotizador/nucleo.js"></script>
+<script src="js/cotizador/tarifas.js"></script>
 <script src="js/cotizador/partidas.js"></script>
 <script src="js/cotizador/proceso.js"></script>
 <script src="js/cotizador/ia.js"></script>

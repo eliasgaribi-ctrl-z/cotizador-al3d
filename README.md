@@ -285,7 +285,7 @@ cuenta. En el teléfono la barra de abajo lleva Tablero · Calendario · Proyect
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: las 149 acciones que el marcado nombra (`data-acc`) se buscan por su
+eran un solo `<script>`: las 154 acciones que el marcado nombra (`data-acc`) se buscan por su
 nombre en ese ámbito, y portarlos a módulos ES las dejaría mudas sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
@@ -384,7 +384,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento cuarenta y un archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento cuarenta y dos archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -395,8 +395,8 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               77 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   47 más, que piden Chromium y un servidor
+    pruebas/correr.sh               78 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   48 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

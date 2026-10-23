@@ -42,6 +42,7 @@ import { esErrorDeEntorno, leerSelloClave, secretosDelEntorno } from '../_shared
 import { exigirAcceso } from '../_shared/auth.js';
 import { sellar, tsIso, ErrorDeSello } from '../_shared/sello.js';
 import { argumentosDeRegistro, prepararAutorizacion, selloDeRespuesta } from '../_shared/autorizar.js';
+import { FABRICA, mapasDeTarifas } from '../_shared/precio.js';
 
 export const MAX_CUERPO = 512 * 1024;
 const datoInvalido = mensaje => ({ ok: false, codigo: 'DATO_INVALIDO', mensaje });
@@ -95,7 +96,23 @@ export async function manejar(peticion, deps) {
     const correo = String(acceso.usuario.correo || '').trim().toLowerCase();
     if (!correo) return responder(403, sobreDeError('ROL_SIN_PERMISO', 'Tu cuenta no tiene un correo verificado: no se puede firmar a tu nombre.'));
 
-    const prep = prepararAutorizacion(cuerpo, correo);
+    /* 4b. Los precios de esa empresa (0019, `tarifas_de`). Si la tabla no llega —falta la migración, la base no contesta— se
+       cobra con el catálogo de fábrica y se anota: un precio editado que aquí no se conoce sale como «no cuadra»
+       (CATALOGO_DESINCRONIZADO), nunca como un sello con otro importe. */
+    let mapas = FABRICA;
+    try {
+      const t = await deps.clienteBase.rpcServicio('tarifas_de', { p_empresa: emp.empresa });
+      if (t && !t.error && t.data && typeof t.data === 'object') mapas = mapasDeTarifas(t.data);
+      else registrar(deps, 'autorizar', 'aviso', 'tarifas_no_llegaron', { detalle: t && t.error ? String(t.error.code) + ' ' + textoDeError(t.error) : 'sin datos' }, secretos);
+    } catch (e) {
+      if (esErrorDeEntorno(e)) {
+        registrar(deps, 'autorizar', 'error', 'entorno', { detalle: e.message }, secretos);
+        return responder(503, sobreDeError('CONFIGURACION', e.message));
+      }
+      registrar(deps, 'autorizar', 'aviso', 'tarifas_no_llegaron', { detalle: textoDeError(e) }, secretos);
+    }
+
+    const prep = prepararAutorizacion(cuerpo, correo, mapas);
     if (!prep.ok) return responder(200, prep);
 
     /* 5. La hora y la firma (ascii-?, la de Apps Script). Un texto que una columna `text` no guarda tal cual no se firma. */

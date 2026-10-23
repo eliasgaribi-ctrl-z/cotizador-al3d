@@ -46,6 +46,8 @@ function puedeAutorizar(){ const i=identidadVerificada(); return !!(i&&i.rol==='
 /* El botón «Autorizador» del segmentado se queda a la vista —es donde la gente lo busca—, pero
    apagado y diciendo por qué para quien no es dirección. */
 function pintarRolDisponible(){
+  /* Y el engrane de los precios (tarifas.js): la misma puerta que autorizar. */
+  pintarBotonTarifas();
   const b=document.querySelector('#roleseg [data-rol="autorizador"]'); if(!b) return;
   const si=puedeAutorizar(), i=identidadVerificada();
   b.classList.toggle('apagado',!si);
@@ -58,10 +60,17 @@ function pintarRolDisponible(){
    Devuelve lo que la hoja contestó y lanza con un mensaje legible si no contestó. */
 async function hablarHoja(ruta,cuerpo,espera){
   const b=_al3d();
-  if(b) return await b.hablar(ruta,cuerpo||{},espera);
-  const cfg=puenteCfg();
-  if(!cfg){ const e=new Error('Este teléfono no tiene el puente a la hoja. Abre el cotizador desde la plataforma.'); e.codigo='SIN_PUENTE'; throw e; }
-  return await _postHoja(cfg,ruta,cuerpo||{},espera||PUENTE_ESPERA);
+  let r;
+  if(b) r=await b.hablar(ruta,cuerpo||{},espera);
+  else{
+    const cfg=puenteCfg();
+    if(!cfg){ const e=new Error('Este teléfono no tiene el puente a la hoja. Abre el cotizador desde la plataforma.'); e.codigo='SIN_PUENTE'; throw e; }
+    r=await _postHoja(cfg,ruta,cuerpo||{},espera||PUENTE_ESPERA);
+  }
+  /* Un subtotal que no cuadra con la hoja casi siempre es un precio que Dirección cambió desde
+     que se abrió el cotizador (tarifas.js): se traen los de la hoja y se dice. */
+  if(r&&r.codigo==='CATALOGO_DESINCRONIZADO'&&ruta!=='tarifas') refrescarTarifas(true);
+  return r;
 }
 /* El mismo envío que puentePost() de venta.js —POST, text/plain, el token en el cuerpo— pero
    devolviendo la respuesta de la hoja ENTERA aunque diga que no: el notario y la IA necesitan
