@@ -560,6 +560,14 @@ body::before{
    dos renglones a 1100 px (y toda la pantalla bajaba 56 px), y la frase no cabía ni a 1440. Los
    botones no se mueven: van pegados a la derecha. Al irse la isla, la aclaración vuelve. */
 .topbar-in:has(.isla.ver) .brand .t small{display:none}
+/* Lo mismo con «Precios» (#tarbtn, #154), que solo ve Dirección: son 100 px más en la fila y en una
+   laptop (1100 px) la partían en dos renglones desde que se abría el cotizador. Entonces la isla,
+   al quitar la aclaración, la devolvía a uno y la pantalla subía y bajaba 56 px con cada «Sellando»,
+   que es justo lo que la regla de arriba evita. Debajo de 1248 px —donde la barra deja de medir su
+   máximo— la aclaración cede su sitio desde el principio. */
+@media(min-width:561px) and (max-width:1247px){
+  .topbar-in:has(#tarbtn:not([hidden])) .brand .t small{display:none}
+}
 /* MEDIDO: entre 561 y 594 px la página entera se desplazaba de lado. `.topbar-in` sí
    envuelve, así que este bloque se bajaba de renglón completo — pero él no envolvía, y sus
    seis hijos (deshacer, Clientes, Historial, Plataforma, folio y el selector de rol) miden
