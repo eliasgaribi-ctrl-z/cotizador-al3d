@@ -2151,6 +2151,48 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 .ct-quien b{font-weight:600;color:var(--tinta2)}
 .ct-bit .pf-fila-t{font-weight:500}
 
+/* ----- Gastos (octubre de 2026; js/mod/control.js, `pintarGastos`) -----
+   Por categoría: una rejilla de cuatro columnas —el ícono, el nombre con su cuenta debajo, la
+   barra contra la categoría más grande del mes y el importe—, como las doce barras de Ventas. En
+   el teléfono la barra baja a su propio renglón, debajo del nombre, para que el importe no se
+   apriete. Todo con los tokens de siempre: la barra es la del acento, el ícono el de las filas. */
+.ct-gas-cats{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
+.ct-gas-cat{display:grid;grid-template-columns:36px minmax(0,1.2fr) minmax(0,1fr) auto;align-items:center;gap:var(--e3);
+  min-height:44px;padding:4px 0}
+.ct-gas-cat-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--a-suave);color:var(--a-tx)}
+.ct-gas-cat-ico .svgi,.ct-gas-cat-ico svg{width:18px;height:18px}
+.ct-gas-cat-t{min-width:0;font-weight:600;font-size:var(--t3);color:var(--tinta);overflow-wrap:anywhere}
+.ct-gas-cat-t small{display:block;font-weight:400;font-size:var(--t1);color:var(--tinta2)}
+.ct-gas-cat-riel{display:block;height:10px;border-radius:999px;background:var(--sup2);overflow:hidden}
+.ct-gas-cat-riel i{display:block;height:100%;min-width:4px;border-radius:999px;background:var(--a-fill)}
+.ct-gas-cat-v{text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-gas-cat.cero .ct-gas-cat-v{color:var(--tinta2)}
+@media(max-width:560px){
+  .ct-gas-cat{grid-template-columns:36px minmax(0,1fr) auto;row-gap:6px}
+  .ct-gas-cat-riel{grid-column:2 / 4;grid-row:2}
+}
+/* La fila de «Registrar gasto» y el CSV, arriba de la lista; botones de al menos 44 px de alto,
+   como todo lo que se toca con el dedo. */
+.ct-gas-acc{display:flex;flex-wrap:wrap;gap:var(--e2);margin-bottom:var(--e3)}
+.ct-gas-acc .btn{min-height:44px}
+/* Un gasto anulado se queda en la lista, tenue y con su importe tachado (`.ct-monto.cancelado`):
+   la etiqueta «anulado» lo dice con palabra, no solo con el gris. */
+.ct-gas-fila.anulado .pf-fila-t,.ct-gas-fila.anulado .pf-fila-ico{color:var(--tinta2)}
+.ct-gas-fila .pf-fila-acc .btn{min-height:44px}
+.ct-gas-error{color:var(--mal);font-weight:500}
+.ct-gas-aviso{display:flex;width:100%;box-sizing:border-box;margin:0 0 var(--e3)}
+.ct-gas-aviso small{display:block;margin-top:2px;font-size:var(--t1)}
+/* El formulario: el monto y la cuenta lado a lado desde 420 px; uno sobre otro en el teléfono
+   angosto. El aviso de un campo que falta va abajo, con `role="alert"`. */
+.ct-gas-dos{display:grid;gap:0 var(--e3)}
+@media(min-width:420px){ .ct-gas-dos{grid-template-columns:1fr 1fr} }
+.ct-gas-panel .fld label small{font-weight:400;color:var(--tinta2)}
+.ct-gas-panel .fld.falta select{border-color:var(--amber-ico);background:var(--amber-bg)}
+.ct-gas-error-f{display:flex;margin-top:var(--e2)}
+.ct-gas-error-f[hidden]{display:none}
+.ct-gas-panel .pf-panel-f .btn{min-height:44px}
+
 /* ============================================================================
    EL ASISTENTE — nucleo/asistente.js
    ============================================================================ */

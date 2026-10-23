@@ -20,6 +20,9 @@
    /jalar_almacen; ver `subirAlmacen` y `bajarAlmacen`). Hasta la 8 esos tres se apartaban en
    la bandeja de cada teléfono «hasta que exista su pestaña»; el primer bombeo contra una hoja
    que ya las tiene los reincorpora solos, en su orden (`sync.revivirSinDestino`).
+   Y desde puente-sheets-15 los `gastos` (js/datos/gastos.js): lo que sale del negocio, a la
+   pestaña «Gastos» de la hoja, por /empujar_gastos y /jalar_gastos (ver `subirGastos` y
+   `bajarGastos`). Solo los de dirección y pagos: fabricación no ve dinero.
 
    NO lleva los avisos (se calculan en cada teléfono), las constantes del taller ni la caché de
    ubicaciones. Lo que no lleva NO se descarta y NO se cuenta como pendiente de mandar: `sync.js`
@@ -199,7 +202,7 @@ export const ETAPA_DESDE_NOTION = Object.fromEntries(
   Object.entries(ETAPA_A_NOTION).map(([k, v]) => [v, k]));
 
 /** Lo que este relevo sabe llevar. `sync.js` lo consulta ANTES de gastar una petición. */
-export const ALMACENES = ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos'];
+export const ALMACENES = ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos', 'gastos'];
 
 /** Los del almacén: van a sus propias pestañas, en lotes, y solo a una hoja que las tenga.
  *  `sync` los agrupa en un viaje (`agrupa`), porque una compra recibida son diez renglones del
@@ -225,6 +228,12 @@ export const VERSION_DE_LA_ENTREGA = 12;
  *  el plazo no viajan, y la etapa, la dirección y lo demás bajan como bajaban. */
 export const VERSION_DE_LA_OBRA = 14;
 
+/** Desde qué versión la hoja tiene la pestaña «Gastos» y sus dos caminos (/empujar_gastos y
+ *  /jalar_gastos). Con una anterior los gastos se capturan igual y se quedan apartados en la
+ *  bandeja de cada teléfono —«la hoja todavía no tiene la pestaña»—, sin perderse, hasta que la
+ *  hoja se actualiza: entonces vuelven solos a la cola, como el almacén con la 9. */
+export const VERSION_DE_LOS_GASTOS = 15;
+
 /** Lo que este relevo BAJA entero y de lo que la hoja es la única dueña: `sync.jalar` borra
  *  de estos almacenes, al cerrar un barrido completo, lo que la hoja ya no trajo. */
 export const ESPEJOS = ['ventas_hoja'];
@@ -243,6 +252,7 @@ const HOJA_SIN_PESTANA = {
   movimientos:    'El libro del almacén espera aquí: la hoja todavía corre un puente sin la pestaña «Almacén».',
   materiales:     'El catálogo de material espera aquí: la hoja todavía corre un puente sin la pestaña «Catálogo de material».',
   requerimientos: 'Las listas de compra esperan aquí: la hoja todavía corre un puente sin la pestaña «Listas de compra».',
+  gastos:         'Los gastos esperan aquí: la hoja todavía corre un puente sin la pestaña «Gastos».',
 };
 
 /** El texto que Ajustes pinta al lado de lo apartado. Sale de aquí para que la pantalla no
@@ -250,9 +260,9 @@ const HOJA_SIN_PESTANA = {
 export function motivoSinDestino(almacen) {
   if (HOJA_SIN_PESTANA[almacen]) {
     return HOJA_SIN_PESTANA[almacen] + ' Se manda solo en cuanto se actualice el Apps Script de la hoja (puente-sheets-' +
-      VERSION_DEL_ALMACEN + ' o posterior). No se pierde nada.';
+      (almacen === 'gastos' ? VERSION_DE_LOS_GASTOS : VERSION_DEL_ALMACEN) + ' o posterior). No se pierde nada.';
   }
-  return 'El puente lleva a la hoja la venta, el almacén, el catálogo de material y las listas de compra. ' +
+  return 'El puente lleva a la hoja la venta, el almacén, el catálogo de material, las listas de compra y los gastos. ' +
     (NO_LLEVA[almacen] || 'Eso se queda en este dispositivo hasta que exista su pestaña.');
 }
 
@@ -879,7 +889,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-14';
+export const VERSION_ESPERADA = 'puente-sheets-15';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -890,6 +900,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 14 */ 'los gastos que se capturan en Control no llegan a la hoja: esa versión no tiene la pestaña «Gastos» ni sus caminos, y cada teléfono los guarda —sin perderse— hasta que la hoja se actualice. Falta pegar el Apps Script puente-sheets-15',
   /* 13 */ 'cada teléfono ve su propia versión de la obra: la etapa intermedia (En diseño, Cortado, Armado, Listo), las notas, el plazo de taller y las correcciones del teléfono, la dirección y el pin que se hacen en otro dispositivo no llegan, y una cita movida o cancelada en otro no siempre se mueve aquí. Falta pegar el Apps Script puente-sheets-14 y correr «3 · Preparar la hoja para el puente»',
   /* 12 */ '«⚡ AL3D → Registrar nueva venta» de la hoja no pide el teléfono del cliente, cómo se entrega ni la dirección y el link de Maps: la venta que se registra allá llega a los teléfonos sin esos datos y sale en «Faltan datos» del Tablero. Lo demás funciona igual',
   /* 11 */ 'cómo se entrega cada trabajo (instalación, paquetería o recolección en taller) no viaja: esa versión no tiene la columna AF «Entrega», y cada teléfono se queda con la suya —sin perderse— hasta que la hoja se actualice y se corra «3 · Preparar la hoja para el puente»',
@@ -1151,7 +1162,17 @@ export function crear(cfg0) {
   /* La versión de la hoja en número, 0 mientras no se sabe. Decide si el teléfono viaja (ver
      VERSION_DEL_TELEFONO): con una hoja anterior a la 11, `subir` se lo quita a lo que manda. */
   let versionHoja = 0;
-  const notarVersion = v => { if (v) { versionHoja = numeroDeVersion(v); hojaSabeAlmacen = versionHoja >= VERSION_DEL_ALMACEN; sabidoEn = Date.now(); } };
+  /* Si la hoja tiene la pestaña «Gastos» (puente-sheets-15), con la misma regla que el almacén:
+     null mientras no se sabe —y entonces se intenta—, true o false en cuanto /salud dice su
+     versión o un camino de los gastos contesta «Camino desconocido». El «no» caduca igual. */
+  let hojaSabeGastos = null;
+  let gastosSabidoEn = 0;
+  const notarVersion = v => {
+    if (!v) return;
+    versionHoja = numeroDeVersion(v);
+    hojaSabeAlmacen = versionHoja >= VERSION_DEL_ALMACEN; sabidoEn = Date.now();
+    hojaSabeGastos = versionHoja >= VERSION_DE_LOS_GASTOS; gastosSabidoEn = Date.now();
+  };
   const sabeTelefono = () => versionHoja >= VERSION_DEL_TELEFONO;
   const sabeEntrega = () => versionHoja >= VERSION_DE_LA_ENTREGA;
   const sabeObra = () => versionHoja >= VERSION_DE_LA_OBRA;
@@ -1172,6 +1193,11 @@ export function crear(cfg0) {
     return hojaSabeAlmacen;
   };
   const noSabe = () => { hojaSabeAlmacen = false; sabidoEn = Date.now(); };
+  const sabeGastos = () => {
+    if (hojaSabeGastos === false && Date.now() - gastosSabidoEn > MS_VOLVER_A_PREGUNTAR) { hojaSabeGastos = null; escribibles = null; }
+    return hojaSabeGastos;
+  };
+  const noSabeGastos = () => { hojaSabeGastos = false; gastosSabidoEn = Date.now(); };
 
   /* Lo más alto de la secuencia del almacén que trajo la última bajada, para guardarlo cuando
      `sync` ya escribió lo que bajó (ver `despuesDeBajar`). Antes no: si la escritura local se
@@ -1345,6 +1371,118 @@ export function crear(cfg0) {
     } catch (_) {}
   }
 
+  /* ── LOS GASTOS: subir (puente-sheets-15) ─────────────────────────────────────────────
+     Un viaje por lote a /empujar_gastos, como el almacén, y la hoja contesta gasto por gasto. Lo
+     que viaja es el gasto entero tal como quedó en la bandeja (sin `sync`, `en_hoja` ni
+     `subido_en`, que son marcas de este teléfono): un alta y una anulación llevan los mismos
+     campos, y la hoja decide con lo que ya tiene. «Ya estaba» es éxito —es el reintento de uno
+     que sí llegó—, y el id lo puso este teléfono, así que un gasto no se escribe dos veces.
+
+     Lo que sí se hace de este lado al subir: marcar el gasto como `en_hoja` y desde cuándo
+     (`subido_en`). Es lo que deja barrer después lo que alguien borró en la hoja sin barrer lo que
+     nunca llegó (ver `gastos.porBarrer`), y va ANTES de que `sync` saque la operación de la
+     bandeja: en ningún instante un gasto de aquí está sin operación y sin marca. */
+  const sinPestanaGastos = op => ({ id: op.id, ok: false, codigo: 'SIN_DESTINO', mensaje: motivoSinDestino('gastos') });
+
+  async function marcarGastoEnHoja(id) {
+    try {
+      const g = await DB.obtener('gastos', id);
+      if (g) await DB.poner('gastos', { ...g, en_hoja: true, subido_en: Date.now() });
+    } catch (_) { /* sin la marca, la bajada lo trae igual; no se para el bombeo por ella */ }
+  }
+
+  async function subirGastos(lista) {
+    const DEFINITIVOS = ['ROL_SIN_PERMISO', 'NO_ENCONTRADO', 'DATO_INVALIDO'];
+    /* Sin la versión de la hoja, se pregunta UNA vez: una hoja en la 14 contestaría «Camino
+       desconocido» a cada lote. Con el «no» ya sabido, se aparta sin gastar red. */
+    if (sabeGastos() === null && !versionHoja) {
+      try { await asegurarEscribibles(); } catch (e) {
+        return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
+      }
+    }
+    if (hojaSabeGastos === false) return lista.map(sinPestanaGastos);
+
+    const envio = lista.map(op => {
+      const datos = { ...(op.datos || {}) };
+      delete datos.sync; delete datos.en_hoja; delete datos.subido_en;
+      return { id: op.id, tipo: op.tipo, registro_id: op.registro_id, datos,
+               campos: Array.isArray(op.campos) ? op.campos.slice() : null };
+    });
+    let r;
+    try {
+      r = await pedir(cfg, '/empujar_gastos', { method: 'POST', body: JSON.stringify({ ops: envio }) });
+    } catch (e) {
+      return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
+    }
+    const c = r.cuerpo || {};
+    if (c.ok === false) {
+      /* «Camino desconocido»: una hoja anterior a la 15 que no dijo su versión. Se aparta con la
+         razón —no es culpa del gasto— y vuelve sola cuando la hoja se actualice. */
+      if (c.codigo === 'NO_ENCONTRADO') { noSabeGastos(); return lista.map(sinPestanaGastos); }
+      return lista.map(op => ({ id: op.id, ok: false, codigo: c.codigo || 'SIN_RED',
+                                mensaje: c.mensaje || 'La hoja no pudo recibir los gastos.' }));
+    }
+    hojaSabeGastos = true;
+    const res = Array.isArray(c.resultados) ? c.resultados : [];
+    const salida = [];
+    for (const op of lista) {
+      const x = res.find(y => y && y.id === op.id);
+      if (!x) { salida.push({ id: op.id, ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja contestó sin decir qué pasó con ese gasto.' }); continue; }
+      if (x.ok) {
+        await marcarGastoEnHoja(String(op.registro_id || (op.datos && op.datos.id) || ''));
+        salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba });
+        continue;
+      }
+      salida.push({ id: op.id, ok: false, codigo: x.codigo || 'DESCONOCIDO', definitivo: DEFINITIVOS.includes(x.codigo),
+                    mensaje: x.mensaje || 'La hoja rechazó el gasto.' });
+    }
+    return salida;
+  }
+
+  /* ── LOS GASTOS: bajar ───────────────────────────────────────────────────────────────
+     La pestaña ENTERA cada vez: son unos cientos de renglones al año, cabe de sobra en una
+     respuesta, y una sola lectura no puede ver un gasto dos veces ni ninguno (la misma razón por
+     la que /jalar dejó de paginar en la 6). Solo para quien ve el dinero: a fabricación la hoja se
+     los niega, y aquí ni se le pregunta.
+     De cada gasto que baja, la hoja es la dueña (sello de «ahora», como `ventas_hoja`), con la
+     excepción del almacén: uno con una operación todavía en la bandeja se salta esta vez, para no
+     deshacerle en pantalla a quien lo acaba de anular. Lo que la hoja ya no trae se barre al
+     cerrar la bajada (`despuesDeBajar`), con las reglas de `gastos.porBarrer`. */
+  let gastosVistos = null;
+
+  async function bajarGastos() {
+    if (!Prefs.veDinero() || sabeGastos() === false) return [];
+    const G = await import('./gastos.js');
+    const leidoEn = Date.now();
+    let r;
+    try { r = await pedir(cfg, '/jalar_gastos', { method: 'POST', body: '{}' }); }
+    catch (_) { return []; }
+    const c = r.cuerpo || {};
+    if (c.ok !== true) { if (c.codigo === 'NO_ENCONTRADO') noSabeGastos(); return []; }
+    hojaSabeGastos = true;
+    let enBandeja;
+    try { enBandeja = G.idsEnLaBandeja(await DB.listar('pendientes')); } catch (_) { enBandeja = new Map(); }
+    const lista = (Array.isArray(c.gastos) ? c.gastos : []).map(G.gastoDeHoja).filter(Boolean);
+    /* Solo una lectura COMPLETA puede decir qué falta: la hoja manda `completa:false` si se cortó. */
+    gastosVistos = c.completa === false ? null : { ids: new Set(lista.map(g => g.id)), leidoEn };
+    return lista.filter(g => !enBandeja.has(g.id))
+      .map(g => ({ almacen: 'gastos', datos: { ...g, en_hoja: true, actualizado_en: Date.now() } }));
+  }
+
+  async function barrerGastos(vistos) {
+    try {
+      const G = await import('./gastos.js');
+      const locales = await DB.listar('gastos');
+      const enBandeja = G.idsEnLaBandeja(await DB.listar('pendientes'));
+      let n = 0;
+      for (const id of G.porBarrer(locales, vistos, enBandeja)) {
+        const r = await DB.borrar('gastos', id);
+        if (r && r.ok) n++;
+      }
+      return n;
+    } catch (_) { return 0; }
+  }
+
   /** Quita del paquete lo que este rol no puede escribir. Lo quitado se NOMBRA. */
   function filtrar(props, permitidas) {
     const props2 = {}, fuera = [];
@@ -1398,10 +1536,23 @@ export function crear(cfg0) {
      *  del almacén, mientras no se sepa que la hoja NO tiene sus pestañas. */
     lleva(almacen) {
       if (!ALMACENES.includes(almacen)) return false;
+      /* Los gastos, mientras no se sepa que la hoja NO tiene su pestaña (puente-sheets-15). */
+      if (almacen === 'gastos') return sabeGastos() !== false;
       return !DEL_ALMACEN.includes(almacen) || sabeAlmacen() !== false;
     },
-    /** Los que `sync` puede mandar juntos en un viaje (en su orden, hasta 25). */
-    agrupa(almacen) { return DEL_ALMACEN.includes(almacen); },
+    /** Lo que se sabe HOY de la hoja para un almacén que depende de su versión: true (tiene a
+     *  dónde), false (corre un puente anterior: falta actualizarlo) o null (todavía no se le ha
+     *  preguntado). Sin red. Lo lee Control (`Sync.sabeLlevar`) para decir «falta actualizar el
+     *  puente» en Gastos aunque nadie haya capturado uno todavía: sin esto, con la hoja en la 14,
+     *  la pestaña callaba hasta el primer gasto apartado. */
+    sabe(almacen) {
+      if (almacen === 'gastos') return sabeGastos();
+      if (DEL_ALMACEN.includes(almacen)) return sabeAlmacen();
+      return ALMACENES.includes(almacen) ? true : false;
+    },
+    /** Los que `sync` puede mandar juntos en un viaje (en su orden, hasta 25): el almacén y los
+     *  gastos, cada uno a su camino. */
+    agrupa(almacen) { return DEL_ALMACEN.includes(almacen) || almacen === 'gastos'; },
     /** Si una operación apartada como «rechazada» vale la pena volver a mandarla, ya sin que
      *  nadie apriete nada (lo pregunta `sync` al empezar cada bombeo). Hoy, solo los cambios de
      *  puro teléfono que una hoja anterior a la 11 rechazó con «no puede escribir nada», en
@@ -1524,8 +1675,9 @@ export function crear(cfg0) {
      */
     async subir(ops) {
       const lista = Array.isArray(ops) ? ops : [];
-      /* Un lote del almacén (`sync` los arma con `agrupa`) va entero a su camino. */
+      /* Un lote del almacén (`sync` los arma con `agrupa`) va entero a su camino; uno de gastos, al suyo. */
       if (lista.length && lista.every(op => op && DEL_ALMACEN.includes(op.almacen))) return subirAlmacen(lista);
+      if (lista.length && lista.every(op => op && op.almacen === 'gastos')) return subirGastos(lista);
       const salida = [];
 
       let permitidas;
@@ -1550,6 +1702,13 @@ export function crear(cfg0) {
         /* Uno del almacén suelto entre cambios de la venta: por su camino, y en su lugar. */
         if (op && DEL_ALMACEN.includes(op.almacen)) {
           const [x] = await subirAlmacen([op]);
+          salida.push(x);
+          if (x.codigo === 'SIN_RED') break;
+          continue;
+        }
+        /* Y un gasto suelto en un lote mezclado (el almacén y los gastos se agrupan los dos), al suyo. */
+        if (op && op.almacen === 'gastos') {
+          const [x] = await subirGastos([op]);
           salida.push(x);
           if (x.codigo === 'SIN_RED') break;
           continue;
@@ -2068,6 +2227,15 @@ export function crear(cfg0) {
       if (!r.cuerpo.hay_mas && (fuente ? typeof fuente.almacen === 'function' : sabeAlmacen() !== false)) {
         try { for (const x of await bajarAlmacen()) registros.push(x); } catch (_) { /* la venta ya bajó */ }
       }
+      /* 4. Los gastos (puente-sheets-15), también en la última página y en su propio try. Con la
+         lectura en vivo encendida (`fuente`) NO: esa bajada promete no pedirle nada a la hoja, y
+         Supabase todavía no guarda gastos. Mientras esté encendida los de aquí no se mueven —ni
+         bajan ni se barren— y se siguen mandando a la hoja; al apagarla, la siguiente bajada los
+         trae. */
+      gastosVistos = null;
+      if (!r.cuerpo.hay_mas && !fuente) {
+        try { for (const x of await bajarGastos()) registros.push(x); } catch (_) { gastosVistos = null; }
+      }
 
       return { registros, cursor: r.cuerpo.cursor || null, hay_mas: !!r.cuerpo.hay_mas };
     },
@@ -2092,6 +2260,12 @@ export function crear(cfg0) {
         const m = almacenPorGuardar;
         almacenPorGuardar = null;
         await guardarMarcaAlmacen(m);
+      }
+      /* Los gastos que la hoja ya no trae, con lo que bajó ya escrito (ver `bajarGastos`). */
+      if (gastosVistos) {
+        const v = gastosVistos;
+        gastosVistos = null;
+        await barrerGastos(v);
       }
       const ids =(info && info.vistos && Array.isArray(info.vistos.ventas_hoja)) ? info.vistos.ventas_hoja : [];
       const folios = new Set(ids.map(String).filter(x => x.startsWith('hoja:')).map(x => x.slice(5)));

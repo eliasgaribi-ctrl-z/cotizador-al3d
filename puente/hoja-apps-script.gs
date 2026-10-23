@@ -1880,8 +1880,14 @@ function dialogoTokens() {
    dato, con la hora de cada cambio guardada en «Sellos» (AI, nueva y oculta; ver SELLADAS). Lo
    que se teclea a mano en esas columnas también se sella (alEditar). Ninguna pestaña nueva. Una
    hoja sin AG:AI no truena: /jalar baja hasta AF y las notas y el plazo se rechazan con su razón.
-   Las crea «3 · Preparar la hoja para el puente». */
-var PUENTE_VERSION = 'puente-sheets-14';
+   Las crea «3 · Preparar la hoja para el puente».
+   puente-sheets-15 (23 de octubre de 2026): los GASTOS. Pestaña nueva «Gastos» —un renglón por
+   gasto: fecha, concepto, categoría, monto, la cuenta de la que salió, el folio del proyecto si lo
+   hay, quién lo registró y si se anuló— y dos caminos, /empujar_gastos y /jalar_gastos, solo para
+   dirección y pagos (ver la sección de los gastos, al final). La pestaña se crea sola con su
+   primer gasto, o con «3 · Preparar la hoja para el puente». Un gasto no se borra ni se corrige
+   desde la plataforma: se anula, y el renglón se queda. Nada de Ventas cambia. */
+var PUENTE_VERSION = 'puente-sheets-15';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -2275,6 +2281,8 @@ function doPost(e) {
     if (ruta === 'ia')         return responder(rutaIA_(cuerpo, ingreso ? 'g:' + ingreso.correo : 't:' + token));
     if (ruta === 'empujar_almacen') return responder(rutaEmpujarAlmacen_(cuerpo, rol, ingreso ? ingreso.correo : ''));
     if (ruta === 'jalar_almacen')   return responder(rutaJalarAlmacen_(cuerpo, rol));
+    if (ruta === 'empujar_gastos')  return responder(rutaEmpujarGastos_(cuerpo, rol, ingreso ? ingreso.correo : ''));
+    if (ruta === 'jalar_gastos')    return responder(rutaJalarGastos_(cuerpo, rol));
     if (ruta === 'carpetas')        return responder(rutaCarpetas_());
     if (ruta === 'crear_carpeta')   return responder(rutaCrearCarpeta_(cuerpo, rol));
     if (ruta === 'tarifas')         return responder(rutaTarifas_());
@@ -5021,6 +5029,9 @@ function prepararHojaParaElPuente() {
      quedaron listas, y la primera subida del almacén las vuelve a intentar. */
   try { prepararPestanasDelAlmacen(); }
   catch (eAlm) { avisar('Las pestañas del almacén no se crearon (' + (eAlm && eAlm.message) + '). Se crean solas con la primera subida.'); }
+  /* Y la de los gastos (puente-sheets-15), igual: se crearía sola con el primer gasto. */
+  try { gastosPestana_(true); }
+  catch (eGas) { avisar('La pestaña «Gastos» no se creó (' + (eGas && eGas.message) + '). Se crea sola con el primer gasto.'); }
 
   /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
      horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
@@ -6972,4 +6983,342 @@ function espejoAnotar_(ss, anotaciones) {
   if (!anotaciones.length || !ss.getSheetByName(BITACORA)) return false;
   anotar_(anotaciones);
   return true;
+}
+
+
+/* =========================================================================================
+   LOS GASTOS — /empujar_gastos y /jalar_gastos (puente-sheets-15)
+
+   Lo que sale del negocio, en la hoja que ya es el libro mayor de lo que entra. El dueño lo
+   decidió así (octubre de 2026): los gastos viven AQUÍ, en una pestaña «Gastos» al lado de
+   Ventas, y la plataforma los captura en Control y los manda por el puente, igual que las
+   ventas. Un renglón por gasto, con las columnas que lee una persona:
+
+     ID · Fecha · Concepto · Categoría · Monto · Cuenta · Folio del proyecto ·
+     Registró · Registrado el · Anulado · Anuló · Anulado el · Subió
+
+   ── Lo que no se hace, y por qué ─────────────────────────────────────────────────────
+   Un gasto NO se borra ni se corrige desde la plataforma: se ANULA. «Anulado: Sí», quién y
+   cuándo, y el renglón se queda donde estaba. Es dinero que ya salió: borrarlo le quita a alguien
+   la constancia de que lo pagó, y corregirlo desde dos teléfonos sin señal sería decidir aquí
+   quién gana en el monto de un gasto, que es el problema que no hace falta tener. Un error se
+   anula y se vuelve a capturar. La pestaña sí se puede editar a mano —es una hoja—, y lo que se
+   corrija aquí baja a los teléfonos en la siguiente bajada.
+
+   ── Lo tecleado a mano también cuenta ───────────────────────────────────────────────
+   Un renglón escrito aquí sin ID recibe uno («hoja-…») la siguiente vez que un teléfono pide los
+   gastos, bajo el candado: desde ahí es un gasto como cualquier otro, y se puede anular desde la
+   plataforma. La categoría tiene desplegable cerrado; una escrita a mano que no está en la lista
+   baja como «Otros» (la lee js/datos/gastos.js, `gastoDeHoja`).
+
+   ── Quién ────────────────────────────────────────────────────────────────────────────
+   Dirección y pagos, para escribir y para leer: es dinero (GASTOS_ROLES, la misma frontera que
+   VE_EL_DINERO). Fabricación recibe ROL_SIN_PERMISO en los dos caminos. Como en el almacén, la
+   frontera es ésta y no la pantalla.
+
+   ── Que un reintento no lo duplique ─────────────────────────────────────────────────
+   El ID lo pone el teléfono (`gas-…`) y aquí se busca antes de escribir, bajo el candado: un
+   reintento después de una respuesta que se perdió contesta «ya estaba» y no agrega nada.
+   ========================================================================================= */
+var HOJA_GASTOS = 'Gastos';
+/* Las categorías, EN EL ORDEN DEL DESPLEGABLE. Copia a propósito de CATEGORIAS en
+   js/datos/gastos.js —este archivo no importa nada— y pruebas/gastos.mjs compara las dos. */
+var GASTO_CATEGORIAS = ['Material', 'Mano de obra', 'Renta y servicios', 'Herramienta',
+                        'Transporte y gasolina', 'Publicidad', 'Comisiones y nómina', 'Otros'];
+var GASTO_CONCEPTO_MAX = 200;
+var GASTO_FOLIO_MAX = 40;
+var GASTO_MONTO_MAX = 10000000;
+var GASTO_OPS_MAX = 25;
+var GASTOS_ROLES = { direccion: true, pagos: true, fabricacion: false };
+
+/* Las columnas, cada una con { campo, nombre, tipo }. Se buscan POR SU CABECERA, como las del
+   almacén: si alguien mueve una, no se escribe en la de al lado; si falta una (una versión
+   posterior agregó otra), se pone al final sin mover las que hay.
+   Tipos: texto · fecha (el día, «dd/mm/yyyy» en la celda) · dinero · lista (desplegable) ·
+   sí/no («Sí» o vacío) · cuándo (fecha y hora; viaja en milisegundos). */
+var GASTO_COLUMNAS = [
+  { campo: 'id', nombre: 'ID', tipo: 'texto', ancho: 170, para: 'lo pone el teléfono (gas-…) o la hoja (hoja-…); es lo que evita que un reintento lo duplique. No se cambia' },
+  { campo: 'fecha', nombre: 'Fecha', tipo: 'fecha', ancho: 100, para: 'el día en que se pagó: decide en qué mes cuenta' },
+  { campo: 'concepto', nombre: 'Concepto', tipo: 'texto', ancho: 280, para: 'en qué se gastó' },
+  { campo: 'categoria', nombre: 'Categoría', tipo: 'lista', ancho: 160, opciones: GASTO_CATEGORIAS, para: GASTO_CATEGORIAS.join(', ') },
+  { campo: 'monto', nombre: 'Monto', tipo: 'dinero', ancho: 110, para: 'pesos, con IVA si lo llevó' },
+  { campo: 'cuenta', nombre: 'Cuenta', tipo: 'lista', ancho: 120, opciones: CUENTAS, para: 'de cuál salió; vacía es efectivo u otra' },
+  { campo: 'folio', nombre: 'Folio del proyecto', tipo: 'texto', ancho: 130, para: 'si el gasto es de una venta: V-042 o COT-0042. Opcional' },
+  { campo: 'registro_por', nombre: 'Registró', tipo: 'texto', ancho: 200, para: 'nombre, rol y aparato de quien lo capturó' },
+  { campo: 'registrado_en', nombre: 'Registrado el', tipo: 'cuándo', ancho: 140, para: 'cuándo se capturó en el teléfono' },
+  { campo: 'anulado', nombre: 'Anulado', tipo: 'sí/no', ancho: 80, para: '«Sí» si se anuló: deja de sumar, pero el renglón se queda' },
+  { campo: 'anulo', nombre: 'Anuló', tipo: 'texto', ancho: 200, para: 'quién lo anuló' },
+  { campo: 'anulado_en', nombre: 'Anulado el', tipo: 'cuándo', ancho: 140, para: 'cuándo se anuló' },
+  { campo: '_subio', nombre: 'Subió', tipo: 'texto', ancho: 200, para: 'con qué cuenta de Google o con qué token entró: lo pone la hoja' }
+];
+
+/** La pestaña «Gastos» y su mapa campo → columna, o null si no existe y no se pide crearla. */
+function gastosPestana_(crear) {
+  var ss = SpreadsheetApp.getActive();
+  var h = ss.getSheetByName(HOJA_GASTOS);
+  var nueva = false;
+  if (!h) {
+    if (!crear) return null;
+    h = ss.insertSheet(HOJA_GASTOS);
+    nueva = true;
+    try { h.setFrozenRows(1); } catch (e) {}
+  }
+  var ancho = Math.max(1, h.getLastColumn());
+  var cab = h.getRange(1, 1, 1, ancho).getValues()[0].map(function (x) { return String(x).trim(); });
+  var mapa = {}, faltan = [];
+  GASTO_COLUMNAS.forEach(function (c) {
+    var i = cab.indexOf(c.nombre);
+    if (i !== -1) mapa[c.campo] = i + 1; else faltan.push(c);
+  });
+  if (faltan.length) {
+    var libre = cab.every(function (x) { return x === ''; }) ? 1 : ancho + 1;
+    var sobra = libre + faltan.length - 1 - h.getMaxColumns();
+    if (sobra > 0) h.insertColumnsAfter(h.getMaxColumns(), sobra);
+    faltan.forEach(function (c, k) {
+      var col = libre + k;
+      mapa[c.campo] = col;
+      var celda = h.getRange(1, col);
+      celda.setValue(c.nombre);
+      try { if (c.para) celda.setNote(c.para); } catch (e) {}
+      /* El formato de la columna entera ANTES del primer gasto: el ID y los textos como texto —sin
+         eso Sheets vuelve fecha un «1/2» y número un «0042»—, el dinero como dinero y las fechas
+         como fechas. Y los desplegables, cerrados: una celda con otra cosa es una categoría que
+         ningún teléfono entiende. En su try: sin formato la pestaña sirve igual. */
+      try {
+        var cuerpo = h.getRange(2, col, Math.max(1, h.getMaxRows() - 1), 1);
+        if (c.tipo === 'texto') cuerpo.setNumberFormat('@');
+        else if (c.tipo === 'dinero') cuerpo.setNumberFormat(MONEDA);
+        else if (c.tipo === 'fecha') cuerpo.setNumberFormat(FECHA);
+        else if (c.tipo === 'cuándo') cuerpo.setNumberFormat('dd/mm/yyyy HH:mm');
+        if (c.tipo === 'lista') {
+          cuerpo.setDataValidation(SpreadsheetApp.newDataValidation()
+            .requireValueInList(c.opciones, true).setAllowInvalid(false).build());
+        }
+        h.setColumnWidth(col, c.ancho);
+      } catch (e) {}
+    });
+    try {
+      h.getRange(1, 1, 1, libre + faltan.length - 1).setFontWeight('bold').setBackground(AZUL).setFontColor('#ffffff');
+      if (nueva) h.getRange(1, 1).setNote('Los gastos del negocio. Los captura la plataforma (Control → Gastos) y llegan ' +
+        'aquí solos; también se pueden escribir a mano: el puente les pone ID. Un gasto no se borra: se anula ' +
+        '(«Anulado: Sí»), y deja de sumar.');
+    } catch (e) {}
+  }
+  var n = 0;
+  for (var k in mapa) if (mapa[k] > n) n = mapa[k];
+  return { h: h, mapa: mapa, ncol: n };
+}
+
+/** Las filas con algo escrito, con su número de fila. Una sin ID y sin concepto ni monto es un
+ *  renglón vacío (o una nota) y no se cuenta. */
+function gastoFilas_(P) {
+  var n = P.h.getLastRow() - 1;
+  if (n < 1) return [];
+  var valores = P.h.getRange(2, 1, n, P.ncol).getValues();
+  var out = [];
+  var v = function (fila, campo) { return P.mapa[campo] ? fila[P.mapa[campo] - 1] : ''; };
+  for (var i = 0; i < valores.length; i++) {
+    var id = String(v(valores[i], 'id') || '').trim();
+    if (!id && String(v(valores[i], 'concepto') || '').trim() === '' && (v(valores[i], 'monto') === '' || v(valores[i], 'monto') === null)) continue;
+    out.push({ fila: i + 2, id: id, valores: valores[i] });
+  }
+  return out;
+}
+
+/* Un texto para la celda. Lo que empieza con «=», «+», «-» o «@» es una FÓRMULA para Sheets, y un
+   concepto escrito como «=IMPORTXML(…)» saldría a internet solo: se le antepone el apóstrofo,
+   igual que en armarCeldas y en almACelda_. */
+function gastoTexto_(v, max) {
+  var s = String(v == null ? '' : v).trim().slice(0, max || 500);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+function gastoDeTexto_(x) {
+  var s = String(x == null ? '' : x);
+  return (s.charAt(0) === "'" && /^'[=+\-@]/.test(s)) ? s.slice(1) : s;
+}
+function gastoSiNo_(x) {
+  if (x === true) return true;
+  var s = String(x == null ? '' : x).trim().toLowerCase();
+  return s === 'sí' || s === 'si' || s === 'true' || s === 'x' || s === 'anulado' || s === '1';
+}
+function gastoCuando_(ms) { var n = Number(ms); return isFinite(n) && n > 0 ? new Date(n) : ''; }
+
+/** Lo que no puede entrar, venga de quien venga: '' si puede, o el porqué. Las mismas reglas que
+ *  `validar` de js/datos/gastos.js; la de allá avisa junto al campo, ésta es la que no se salta. */
+function gastoValidar_(d) {
+  var id = String(d.id == null ? '' : d.id).trim();
+  if (!id || id.length > 80) return 'el gasto no trae su id, o es demasiado largo';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.fecha || ''))) return 'el gasto no dice qué día se pagó';
+  var c = String(d.concepto == null ? '' : d.concepto).trim();
+  if (!c) return 'el gasto no dice en qué se gastó';
+  if (c.length > GASTO_CONCEPTO_MAX) return 'el concepto es demasiado largo';
+  if (GASTO_CATEGORIAS.indexOf(d.categoria) === -1) return '«' + d.categoria + '» no es una categoría de gasto';
+  var m = Number(d.monto);
+  if (d.monto === null || d.monto === '' || !isFinite(m) || !(m > 0)) return 'el monto no es un número mayor que cero';
+  if (m > GASTO_MONTO_MAX) return 'el monto es de más de diez millones';
+  if (d.cuenta && CUENTAS.indexOf(d.cuenta) === -1) return '«' + d.cuenta + '» no es una de las cuentas de la hoja';
+  if (String(d.folio == null ? '' : d.folio).trim().length > GASTO_FOLIO_MAX) return 'el folio es demasiado largo';
+  return '';
+}
+
+/* ------------------------------------------------------------ /empujar_gastos */
+function rutaEmpujarGastos_(cuerpo, rol, quien) {
+  var ops = (cuerpo && Object.prototype.toString.call(cuerpo.ops) === '[object Array]')
+    ? cuerpo.ops.slice(0, GASTO_OPS_MAX) : [];
+  /* El rol, antes de mirar la hoja. Gasto por gasto y no la petición entera: así el teléfono
+     aparta cada uno con su razón (definitivo) y no se queda reintentando para siempre. */
+  if (!GASTOS_ROLES[rol]) {
+    return { ok: true, resultados: ops.map(function (op) {
+      return { id: (op && op.id) || '?', ok: false, codigo: 'ROL_SIN_PERMISO',
+               mensaje: 'Los gastos son dinero: los registran dirección y pagos, y este teléfono entró como ' + rol + '.' };
+    }) };
+  }
+  /* El mismo candado que /empujar y /empujar_almacen: una escritura a la vez en toda la hoja. Sin
+     él, dos teléfonos que reintentan el mismo gasto lo buscan los dos, no lo encuentran ninguno y
+     lo escriben los dos. */
+  var candado = LockService.getScriptLock();
+  try { candado.waitLock(20000); }
+  catch (e) {
+    return { ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está ocupada con otra escritura. Se vuelve a intentar solo.' };
+  }
+  try {
+    var P = gastosPestana_(true);
+    P.porId = {};
+    gastoFilas_(P).forEach(function (f) { if (f.id) P.porId[f.id] = f; });
+    P.siguiente = Math.max(P.h.getLastRow() + 1, 2);
+    var ctx = { P: P, rol: rol, quien: quien || ('token de ' + rol) };
+    var resultados = [], anotaciones = [];
+    for (var i = 0; i < ops.length; i++) {
+      var r;
+      try { r = gastoUnaOperacion_(ctx, ops[i], anotaciones); }
+      catch (err) {
+        try { console.error('puente gastos: ' + (err && err.stack || err)); } catch (_) {}
+        r = { id: (ops[i] && ops[i].id) || '?', ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja falló al escribir ese gasto.' };
+      }
+      resultados.push(r);
+    }
+    SpreadsheetApp.flush();
+    anotar_(anotaciones);
+    return { ok: true, resultados: resultados };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/**
+ * Un gasto. Si su ID ya está en la pestaña: «ya estaba», salvo que traiga la anulación y la fila
+ * todavía no la tenga —entonces se anula, y nada más: ni el monto ni el concepto se tocan—. Si no
+ * está, se da de alta con lo que trae, anulado o no: así el orden en que lleguen el alta y la
+ * anulación no importa.
+ */
+function gastoUnaOperacion_(ctx, op, anotaciones) {
+  var id = op && op.id;
+  if (!op || !id) return { id: id || '?', ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Operación sin id.' };
+  var d = (op.datos && typeof op.datos === 'object') ? op.datos : null;
+  if (!d) return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La operación no trae el gasto.' };
+  var P = ctx.P;
+  var llave = String(d.id == null ? '' : d.id).trim();
+  var previa = llave ? P.porId[llave] : null;
+  var col = function (campo) { return P.mapa[campo]; };
+
+  if (previa) {
+    var yaAnulado = gastoSiNo_(previa.valores[col('anulado') - 1]);
+    if (d.anulado !== true || yaAnulado) return { id: id, ok: true, ya_estaba: true };
+    var cuando = gastoCuando_(d.anulado_en) || new Date();
+    P.h.getRange(previa.fila, col('anulado')).setValue('Sí');
+    P.h.getRange(previa.fila, col('anulo')).setValue(gastoTexto_(d.anulo || ctx.quien, 200));
+    P.h.getRange(previa.fila, col('anulado_en')).setValue(cuando);
+    previa.valores[col('anulado') - 1] = 'Sí';
+    anotaciones.push({ rol: ctx.rol, folio: HOJA_GASTOS + ' · ' + llave, fila: previa.fila,
+                       campos: ['Anulado', 'Anuló', 'Anulado el'], nota: 'gasto anulado' });
+    return { id: id, ok: true, anulado: true };
+  }
+
+  var malo = gastoValidar_(d);
+  if (malo) return { id: id, ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La hoja no aceptó ese gasto: ' + malo + '.' };
+
+  var valores = new Array(P.ncol);
+  for (var k = 0; k < P.ncol; k++) valores[k] = '';
+  var poner = function (campo, v) { if (col(campo)) valores[col(campo) - 1] = v; };
+  var anulado = d.anulado === true;
+  poner('id', llave);
+  poner('fecha', fechaDe(d.fecha));
+  poner('concepto', gastoTexto_(d.concepto, GASTO_CONCEPTO_MAX));
+  poner('categoria', d.categoria);
+  poner('monto', Math.round(Number(d.monto) * 100) / 100);
+  poner('cuenta', d.cuenta || '');
+  poner('folio', gastoTexto_(d.folio, GASTO_FOLIO_MAX));
+  poner('registro_por', gastoTexto_(d.registro_por || ctx.quien, 200));
+  poner('registrado_en', gastoCuando_(d.registrado_en) || new Date());
+  poner('anulado', anulado ? 'Sí' : '');
+  poner('anulo', anulado ? gastoTexto_(d.anulo || ctx.quien, 200) : '');
+  poner('anulado_en', anulado ? (gastoCuando_(d.anulado_en) || new Date()) : '');
+  poner('_subio', gastoTexto_(ctx.quien, 200));
+
+  var fila = P.siguiente++;
+  if (fila > P.h.getMaxRows()) P.h.insertRowsAfter(P.h.getMaxRows(), Math.max(200, fila - P.h.getMaxRows()));
+  P.h.getRange(fila, 1, 1, P.ncol).setValues([valores]);
+  P.porId[llave] = { fila: fila, id: llave, valores: valores };
+  anotaciones.push({ rol: ctx.rol, folio: HOJA_GASTOS + ' · ' + llave, fila: fila,
+                     campos: ['Fecha', 'Concepto', 'Categoría', 'Monto'].concat(d.cuenta ? ['Cuenta'] : [], anulado ? ['Anulado'] : []),
+                     creada: true });
+  return { id: id, ok: true, creado: true };
+}
+
+/* -------------------------------------------------------------- /jalar_gastos */
+/**
+ * La pestaña entera, un gasto por renglón, en el orden de la hoja. Con el candado aunque casi
+ * solo lee, por los renglones tecleados a mano sin ID: se les pone uno aquí, y ponerlo mientras
+ * otro teléfono agrega un gasto podría escribirlo en la fila equivocada. Si la hoja está ocupada
+ * se dice, y el teléfono pide en la siguiente.
+ */
+function rutaJalarGastos_(cuerpo, rol) {
+  if (!GASTOS_ROLES[rol] || !VE_EL_DINERO[rol]) {
+    return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Los gastos son dinero: este rol no los recibe.' };
+  }
+  /* Sin la pestaña no hay nada que leer ni que escribir: se contesta sin esperar el candado. */
+  if (!SpreadsheetApp.getActive().getSheetByName(HOJA_GASTOS)) return { ok: true, gastos: [], completa: true };
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(10000)) {
+    return { ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está ocupada con otra escritura. Se vuelve a pedir sola.' };
+  }
+  try {
+    /* Ya bajo el candado: si a la pestaña le falta una columna (la puso una versión posterior),
+       `gastosPestana_` la agrega al final, y eso es escribir. */
+    var P = gastosPestana_(false);
+    if (!P || !P.mapa.id) return { ok: true, gastos: [], completa: true };
+    var filas = gastoFilas_(P);
+    filas.forEach(function (f) {
+      if (f.id) return;
+      f.id = 'hoja-' + String(Utilities.getUuid()).replace(/[^0-9a-z]/gi, '').slice(0, 10).toLowerCase();
+      P.h.getRange(f.fila, P.mapa.id).setValue(f.id);
+      f.valores[P.mapa.id - 1] = f.id;
+    });
+    var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+    return { ok: true, completa: true, gastos: filas.map(function (f) { return gastoRegistro_(P, f.valores, tz); }) };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/** Un renglón como gasto de la plataforma. Lo que se tecleó a mano llega como esté —una fecha
+ *  escrita como texto, un monto con «$»— y lo termina de leer `gastoDeHoja` en el teléfono. */
+function gastoRegistro_(P, valores, tz) {
+  var v = function (campo) { return P.mapa[campo] ? valores[P.mapa[campo] - 1] : ''; };
+  var ms = function (x) { return esFecha(x) ? x.getTime() : (isFinite(Number(x)) && Number(x) > 0 ? Number(x) : null); };
+  var f = v('fecha');
+  return {
+    id: String(v('id') || '').trim(),
+    fecha: esFecha(f) ? Utilities.formatDate(f, tz, 'yyyy-MM-dd') : String(f == null ? '' : f).trim(),
+    concepto: gastoDeTexto_(v('concepto')),
+    categoria: String(v('categoria') || ''),
+    monto: typeof v('monto') === 'number' ? v('monto') : String(v('monto') == null ? '' : v('monto')),
+    cuenta: String(v('cuenta') || ''),
+    folio: gastoDeTexto_(v('folio')),
+    registro_por: gastoDeTexto_(v('registro_por')),
+    registrado_en: ms(v('registrado_en')),
+    anulado: gastoSiNo_(v('anulado')),
+    anulo: gastoDeTexto_(v('anulo')),
+    anulado_en: ms(v('anulado_en'))
+  };
 }

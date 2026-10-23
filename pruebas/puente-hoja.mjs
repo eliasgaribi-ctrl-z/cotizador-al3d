@@ -1354,8 +1354,8 @@ console.log('\nREGISTRAR NUEVA VENTA PIDE LOS DATOS PARA LA ENTREGA — puente-s
   eq('sin AE ni AF la venta entra, con su dirección', [V.fila(r7.folio) > 0, V.celda(r7.folio, 'Direccion')], [true, 'Av. Patria 100']);
   cierto('  y dice que el teléfono y la entrega esperan a «Preparar la hoja»', /teléfono ni la entrega/.test(r7.nota) && /Preparar la hoja/.test(r7.nota));
 
-  eq('la versión es la 14', api.PUENTE_VERSION, 'puente-sheets-14');
-  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-14');
+  eq('la versión es la 15', api.PUENTE_VERSION, 'puente-sheets-15');
+  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-15');
 }
 
 console.log('\nLA HOJA LEE EL LINK DE MAPS IGUAL QUE LA PLATAFORMA (coordenadasDeMaps_ = parseGmaps)');

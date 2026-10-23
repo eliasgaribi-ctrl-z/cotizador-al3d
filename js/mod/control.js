@@ -7,7 +7,7 @@
    qué se atrasa»; nadie contestaba «cuánto vendimos este mes, cuánto hay en la calle sin
    cobrar, cuánto dejamos de vender y quién movió esto». Esa es esta pantalla.
 
-   Cuatro pestañas, y las cuatro se apoyan en lo que ya existe:
+   Cinco pestañas, y las cinco se apoyan en lo que ya existe:
      · VENTAS — lo vendido este mes contra el anterior, el pipeline valorizado (autorizadas
        sin decidir), lo perdido, la conversión, el ticket promedio; los últimos doce meses
        en barras; y la lista de ventas filtrable por periodo, con su CSV completo.
@@ -17,17 +17,25 @@
      · COMISIONES — con el dinero que haya, cuántas comisiones completas se pueden liquidar
        empezando por las más chicas (la regla del negocio: bajar el número de pendientes).
        «Pagar estas» ARMA LA LISTA para registrarla en la hoja; esta pantalla no marca pagos.
+     · GASTOS — lo que sale (octubre de 2026): lo gastado este mes contra el anterior, por
+       categoría, y la lista con el mismo filtro de periodo que las ventas. «Registrar gasto» abre
+       el formulario en la capa de siempre (`#pf-pide`) y el gasto se guarda aquí y viaja a la
+       pestaña «Gastos» de la hoja por el puente, como las ventas; sin señal se queda en la bandeja
+       y la fila lo dice. Un gasto no se edita: se ANULA (ver js/datos/gastos.js, que tiene la
+       aritmética pura y la captura). El Resumen dice además lo gastado en el mes y la utilidad
+       aproximada —vendido menos gastado—, con su letra chica.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
-   Y una quinta, «Registrar (Supabase)», que SOLO existe con el interruptor de Supabase encendido
+   Y una sexta, «Registrar (Supabase)», que SOLO existe con el interruptor de Supabase encendido
    en este aparato (Ajustes, `al3d_pf_supa`): los formularios de cobro, abono, reparto y
-   corrección contra la base de pruebas. Apagado, Control es exactamente las cuatro de arriba y
+   corrección contra la base de pruebas. Apagado, Control es exactamente las cinco de arriba y
    js/mod/pagos-supa.js ni se descarga. Ver `supaEncendido` y docs/supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md.
    Desde octubre de 2026 la pestaña Ventas abre con lo que la dirección quiere ver primero: las
    FINANZAS de los proyectos en fabricación y de los que se están cobrando (`htmlFinanzas`) y los
    últimos doce meses. Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes
    o año por año— va hasta el final de esa pestaña. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
 
-   El CSV de ventas (lo que se abre en Excel) solo lo baja la dirección: a pagos no se le pinta.
+   El CSV de ventas (lo que se abre en Excel) solo lo baja la dirección: a pagos no se le pinta. El
+   de gastos, con la misma regla (`puedeBajarCSV`).
 
    De dónde salen los números, desde septiembre de 2026: de la HOJA de finanzas y de este
    teléfono, en una sola lista (`Ventas.unificar`). El puente baja el récord entero de la
@@ -65,14 +73,17 @@ import * as PorTipo from '../datos/ventas-por-tipo.js';
 import { comisionDe, PCT_COMISION } from '../datos/asistente-contexto.js';
 import * as Bitacora from '../datos/bitacora.js';
 import * as Sync from '../datos/sync.js';
+import * as Gastos from '../datos/gastos.js';
+import { CUENTAS, VERSION_DE_LOS_GASTOS } from '../datos/puente.js';
 import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, telWa, descargarArchivo,
-         hoyISO, cifraQueCabe, repintarAlrededor, conservandoFoco, voz, copiarTexto } from '../nucleo/ui.js';
+         hoyISO, cifraQueCabe, repintarAlrededor, conservandoFoco, voz, copiarTexto,
+         abrirCapa, cerrarCapa, confirmarPf } from '../nucleo/ui.js';
 import { masMeses } from '../nucleo/fechas.js';
 
 let cont = null;
 let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
-let TAB = 'ventas';          // ventas | cobrar | comisiones | bitacora (| asientos) — sobrevive a salir y volver
+let TAB = 'ventas';          // ventas | cobrar | comisiones | gastos | bitacora (| asientos) — sobrevive a salir y volver
 let _PS = null;              // js/mod/pagos-supa.js, ya cargado (solo con Supabase encendido)
 let PERIODO = '3m';          // mes | 3m | 12m | todo
 /* Lo vendido por tipo de trabajo, arriba de todo: el periodo de las tarjetas y la gráfica que
@@ -88,6 +99,12 @@ let FIN_TODOS = { fabricacion: false, cobrando: false };
 const FIN_TOPE = 8;
 let ENTIDAD = '';            // filtro de la bitácora
 let BUSCA_BIT = '';
+/* Los gastos: el periodo de la lista —los mismos cuatro que la de ventas, pero arranca en «Este
+   mes», que es la pregunta («¿cuánto se ha ido este mes?»)— y lo que se buscó. Sobreviven a salir
+   y volver, como el periodo de ventas. `_gs` es el formulario abierto en `#pf-pide` (o null). */
+let GPER = 'mes';            // mes | 3m | 12m | todo
+let BUSCA_GAS = '';
+let _gs = null;              // { guardando:boolean }
 let D = null;                // lo leído
 let TRAYENDO = false;        // hay una bajada de la hoja en curso, pedida desde aquí
 /* P16. La bajada que arranca sola al entrar (`refrescarSiToca`) NO enciende el botón: un
@@ -143,6 +160,11 @@ export async function montar(contenedor, ctx) {
   cont.addEventListener('focusin', alEntrarAlCampo);
   cont.addEventListener('focusout', alSalirDelCampo);
   if (_mqTelefono && _mqTelefono.addEventListener) _mqTelefono.addEventListener('change', alCambiarAncho);
+  /* El formulario de «Registrar gasto» vive en `#pf-pide`, la capa que comparten las pantallas
+     (index.html): se escucha mientras Control está montado, por delegación (`data-gs`), y se suelta
+     al desmontar. Ningún `onclick`: la política de contenido no deja guiones en línea. */
+  const pide = $('pf-pide');
+  if (pide) pide.addEventListener('click', alClicPide);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
   if (pase && tabs().includes(pase.tab)) TAB = pase.tab;
@@ -200,6 +222,14 @@ export function desmontar() {
     cont.removeEventListener('focusin', alEntrarAlCampo); cont.removeEventListener('focusout', alSalirDelCampo);
   }
   if (_mqTelefono && _mqTelefono.removeEventListener) _mqTelefono.removeEventListener('change', alCambiarAncho);
+  /* La capa es del documento, no de este módulo: si quedó abierta con el formulario de un gasto
+     —se cambió de pantalla con él enfrente— se cierra y se vacía, o taparía la pantalla siguiente. */
+  const pide = $('pf-pide');
+  if (pide) {
+    pide.removeEventListener('click', alClicPide);
+    if (_gs) { cerrarCapa('pf-pide'); pide.innerHTML = ''; }
+  }
+  _gs = null;
   /* El globo de los meses y el vigilante de las barras son de este montaje: el globo cuelga de
      un contenedor que el router reutiliza, y uno que se queda puesto abriría un globo vacío en
      la pantalla siguiente. */
@@ -270,8 +300,20 @@ async function leer() {
   /* Por tipo de trabajo: la misma lista unificada, repartida. Las series no dependen del
      periodo elegido y se sacan una vez; las tarjetas sí, y se sacan al pintar. */
   const porTipo = { mes: PorTipo.seriePorMes(ventas, { hoy }), anio: PorTipo.seriePorAnio(ventas, { hoy }) };
+  /* Los gastos, solo a quien ve el dinero (dirección y pagos; fabricación no llega aquí). Antes de
+     leerlos se vuelve a encolar el que se haya quedado sin operación en la bandeja —un respaldo
+     restaurado, una bandeja vaciada—: si no, se quedaría «por mandar» para siempre. */
+  let gastos = [], bandejaGastos = new Map();
+  if (Prefs.veDinero()) {
+    await Gastos.reencolarSueltos();
+    [gastos, bandejaGastos] = await Promise.all([Gastos.listar(), Gastos.bandeja()]);
+  }
+  const resGastos = Gastos.resumen(gastos, { hoy });
+  /* Si la hoja tiene la pestaña «Gastos» (puente-sheets-15): true, false o null mientras no se
+     sabe. Con false la pestaña dice «falta actualizar el puente» desde que se abre. */
+  const hojaGastos = Sync.sabeLlevar('gastos');
   return { hoy, proyectos, ventas, union, bajada, sinDecidir, historial, fechaInst, kpi, meses, conv,
-           cartera, finanzas, almacen, bitacora, comisiones, porTipo };
+           cartera, finanzas, almacen, bitacora, comisiones, porTipo, gastos, bandejaGastos, resGastos, hojaGastos };
 }
 
 /* F54. Las comisiones de las ventas del récord UNIFICADO —la hoja paga las de todas, también las
@@ -515,6 +557,7 @@ function htmlPantalla() {
     { v: 'ventas', t: 'Resumen' },
     { v: 'cobrar', t: 'Por cobrar' + (D.kpi.porCobrar.n ? ' · ' + D.kpi.porCobrar.n : '') },
     { v: 'comisiones', t: 'Comisiones' + (nCom ? ' · ' + nCom : '') },
+    { v: 'gastos', t: 'Gastos' },
     { v: 'bitacora', t: 'Bitácora' },
   ];
   if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: 'Registrar (Supabase)' });
@@ -524,6 +567,7 @@ function htmlPantalla() {
   if (TAB === 'asientos') cuerpo = '<div id="ct-asientos" class="pg-supa">' + (_PS ? _PS.html() : '<p class="pf-nota" role="status">Abriendo…</p>') + '</div>';
   else if (TAB === 'cobrar') cuerpo = pintarCobrar();
   else if (TAB === 'comisiones') cuerpo = pintarComisiones();
+  else if (TAB === 'gastos') cuerpo = pintarGastos();
   else if (TAB === 'bitacora') cuerpo = pintarBitacora();
   else cuerpo = pintarVentas();
 
@@ -840,6 +884,17 @@ function pintarVentas() {
   c.push([money(k.perdidoMes.total), 'Perdido en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0, clave: 'perdido',
     va: k.perdidoMes.n > 0 ? { dest: 'mes:' + ymHoy, que: 'ir a ' + k.mes.etiqueta + ' en las doce barras' } : null,
     em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }]);
+  /* Lo que salió este mes y lo que queda: vendido menos gastado. «Aproximada», y la letra chica
+     de abajo dice por qué —lo vendido es lo firmado, no lo cobrado, y los gastos son los que
+     alguien capturó—. La de gastos lleva a su pestaña si hay alguno (P3: con 0 no es puerta); la
+     utilidad es una resta y no lleva a nada. */
+  const G = D.resGastos;
+  const util = Gastos.utilidad(k.mes.total, G.mes.total);
+  c.push([money(G.mes.total), 'Gastado en ' + G.mes.etiqueta, { clave: 'gastado',
+    va: G.mes.n > 0 ? { dest: 'tab:gastos', que: 'abrir Gastos' } : null,
+    em: G.mes.n + (G.mes.n === 1 ? ' gasto' : ' gastos') + (G.variacion === null ? '' : ' · ' + (G.variacion >= 0 ? '+' : '') + G.variacion + ' % vs ' + G.anterior.etiqueta) }]);
+  c.push([money(util), 'Utilidad aproximada de ' + k.mes.etiqueta, { mal: util < 0, clave: 'utilidad',
+    em: 'vendido menos gastado' }]);
 
   /* Lo primero, desde octubre de 2026 y por petición de la dirección: las finanzas de lo que está
      en fabricación y de lo que se está cobrando, y los últimos doce meses. Lo demás —las cuentas
@@ -856,7 +911,10 @@ function pintarVentas() {
     'venta está allá, y el que se firmó aquí cuando todavía no ha salido de este dispositivo. «Por cobrar» es el saldo que calcula ' +
     'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
     'El ticket promedio de los últimos doce meses es ' + money(k.ticket) +
-    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '.'));
+    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '. ' +
+    '«Gastado» suma los gastos del mes por el día en que se pagaron, sin los anulados (pestaña Gastos), y la utilidad ' +
+    'aproximada es lo vendido menos eso: no es la del contador —lo vendido no es lo cobrado, y solo cuenta lo que alguien capturó—, ' +
+    'pero dice hacia dónde va el mes.'));
   partes.push(htmlPorTipo());
   return partes.join('');
 }
@@ -1306,6 +1364,321 @@ function armarLista() {
   voz('Lista armada: ' + r.k + (r.k === 1 ? ' comisión' : ' comisiones') + ' por ' + money(r.suma) + '. Cópiala para registrarla en la hoja.');
 }
 
+/* ----- Gastos: lo que sale (octubre de 2026) -----
+   La pregunta de esta pestaña es la de enfrente de la de Ventas: «¿cuánto se ha ido este mes, y
+   en qué?». Tres piezas, de arriba abajo:
+     · las CUENTAS —gastado este mes, el mes anterior y la utilidad aproximada—, con la misma fila
+       de cifras del mismo tamaño que el resto de Control (`filaCuentas`);
+     · POR CATEGORÍA, el mes en curso: una barra por categoría contra la más grande, con su importe
+       y cuántos gastos, y lo del mes anterior escrito al lado (la barra no va sola: su cifra y su
+       nombre están escritos);
+     · la LISTA con el mismo filtro de periodo que la de ventas, su buscador, «Registrar gasto» y,
+       para la dirección, su CSV.
+   La aritmética es de js/datos/gastos.js (pura, con su prueba); aquí se pinta. Cada renglón dice
+   si el gasto ya está en la hoja o todavía no salió de este teléfono —y por qué, si la hoja lo
+   rechazó—, porque «lo capturé y no aparece en la hoja» es la pregunta que va a llegar el día que
+   no haya señal. */
+const PER_OPCIONES = [{ v: 'mes', t: 'Este mes' }, { v: '3m', t: '3 meses' }, { v: '12m', t: '12 meses' }, { v: 'todo', t: 'Todo' }];
+const nGastos = n => n + (n === 1 ? ' gasto' : ' gastos');
+
+function pintarGastos() {
+  const G = D.resGastos;
+  const util = Gastos.utilidad(D.kpi.mes.total, G.mes.total);
+  const c = [
+    [money(G.mes.total), 'Gastado en ' + G.mes.etiqueta, { dinero: true, clave: 'mes',
+      va: G.mes.n > 0 ? { dest: 'gastos:mes', que: 'ver los gastos de ' + G.mes.etiqueta } : null,
+      em: nGastos(G.mes.n) + (G.variacion === null ? '' : ' · ' + (G.variacion >= 0 ? '+' : '') + G.variacion + ' % vs ' + G.anterior.etiqueta) }],
+    [money(G.anterior.total), 'Gastado en ' + G.anterior.etiqueta, { clave: 'ant', em: nGastos(G.anterior.n) }],
+    [money(util), 'Utilidad aproximada', { mal: util < 0, clave: 'utilidad',
+      em: 'vendido ' + money(D.kpi.mes.total) + ' menos gastado' }],
+  ];
+  return lineaHoja() + avisoGastosPorMandar() + filaCuentas(c) + htmlPorCategoria(G) + listaGastos() +
+    comoSeCuenta('Cada gasto cuenta en el mes del día en que se pagó, no del día en que se capturó. Los anulados no suman: ' +
+      'se quedan en la lista tachados, y en la hoja con «Anulado: Sí». Los gastos viven en la pestaña «Gastos» de la hoja ' +
+      '«Finanzas AL3D»: lo que se captura aquí se manda allá por el puente, y lo que se escribe allá a mano baja aquí con ' +
+      '«Actualizar». La utilidad aproximada es lo vendido en el mes —lo firmado, por la fecha de su anticipo— menos lo gastado; ' +
+      'no es la del contador, pero dice hacia dónde va el mes. Un gasto no se corrige: se anula y se vuelve a capturar.');
+}
+
+/* Si algún gasto de este teléfono todavía no llegó a la hoja, se dice arriba, con la razón cuando
+   la hay: «esperando señal» no es lo mismo que «falta actualizar el puente» ni que «la hoja dijo
+   que no». Sin puente, ni se menciona la hoja: la línea de arriba ya lo dice.
+   «Falta actualizar el puente» va en su propio aviso y sale aunque no haya ningún gasto: con la
+   hoja en la 14 (lo dice `/salud`, o un camino de gastos que contestó «Camino desconocido») la
+   pestaña sirve igual —se captura, se suma, se guarda aquí— y lo único que no pasa es que llegue a
+   la hoja. Que lo diga ANTES de capturar es lo que evita el «lo registré y no está en la hoja». */
+function avisoGastosPorMandar() {
+  if (!D.bajada || !D.bajada.configurado) return '';
+  let pend = 0, apart = 0, rech = 0, razon = '';
+  for (const g of D.gastos) {
+    const e = Gastos.estadoDeEnvio(g, D.bandejaGastos);
+    if (e.estado === 'pendiente' || e.estado === 'local') pend++;
+    else if (e.estado === 'sin_destino') apart++;
+    else if (e.estado === 'rechazada') { rech++; razon = e.error || razon; }
+  }
+  let html = '';
+  if (D.hojaGastos === false || apart) {
+    html += '<p class="hintnote nota-av ct-gas-aviso" role="status" data-gastos-sin-puente>' + ico('i-nube-off') +
+      '<span><b>Falta actualizar el puente.</b> La hoja corre un Apps Script anterior a puente-sheets-' +
+      VERSION_DE_LOS_GASTOS + ' y todavía no tiene la pestaña «Gastos». ' +
+      (apart ? esc(nGastos(apart)) + (apart === 1 ? ' se queda' : ' se quedan') + ' guardados en este teléfono y se mandan solos '
+             : 'Los gastos se capturan y se suman igual, se guardan en este teléfono y se mandan solos ') +
+      'en cuanto Dirección publique la versión nueva. <small>Los pasos están en puente/DESPLIEGUE.md, «Al pasar a puente-sheets-' +
+      VERSION_DE_LOS_GASTOS + '».</small></span></p>';
+  }
+  if (!pend && !rech) return html;
+  const partes = [];
+  if (pend) partes.push(nGastos(pend) + (pend === 1 ? ' espera' : ' esperan') + ' para mandarse a la hoja: ' + (pend === 1 ? 'sale' : 'salen') + ' solos en cuanto haya señal');
+  if (rech) partes.push(nGastos(rech) + ' no ' + (rech === 1 ? 'entró' : 'entraron') + ' a la hoja');
+  return html + '<p class="hintnote ' + (rech ? 'nota-mal' : 'nota-av') + ' ct-gas-aviso" role="status">' + ico(rech ? 'i-aviso' : 'i-reloj') +
+    '<span>' + esc(partes.join('; ') + '.') + (razon ? ' <small>' + esc(razon) + '</small>' : '') +
+    ' No se pierde ninguno: están guardados en este teléfono.</span></p>';
+}
+
+/* Por categoría, el mes en curso. La barra se mide contra la categoría más grande del mes (no
+   contra el total): así la segunda se compara a ojo con la primera. Las categorías en cero este
+   mes y el anterior no se pintan; las que tuvieron algo el mes anterior sí, con su «antes». */
+function htmlPorCategoria(G) {
+  const filas = G.porCategoria.filter(x => x.total > 0 || x.totalAnt > 0);
+  const tope = Math.max(1, ...filas.map(x => x.total));
+  const cuerpo = filas.length
+    ? '<ul class="ct-gas-cats" aria-label="Gastado por categoría en ' + esc(G.mes.etiqueta) + '">' + filas.map(x => {
+        const pc = x.total > 0 ? Math.max(2, Math.round(x.total / tope * 100)) : 0;
+        return '<li class="ct-gas-cat' + (x.total > 0 ? '' : ' cero') + '">' +
+          '<span class="ct-gas-cat-ico" aria-hidden="true">' + ico(Gastos.ICONO_CATEGORIA[x.categoria] || 'i-puntos') + '</span>' +
+          '<span class="ct-gas-cat-t">' + esc(x.categoria) + '<small>' + esc(nGastos(x.n)) +
+            (x.totalAnt > 0 || x.nAnt ? ' · ' + esc(G.anterior.etiqueta) + ': ' + esc(money(x.totalAnt)) : '') + '</small></span>' +
+          '<span class="ct-gas-cat-riel" aria-hidden="true">' + (pc ? '<i style="width:' + pc + '%"></i>' : '') + '</span>' +
+          '<span class="ct-gas-cat-v">' + esc(money(x.total)) + '</span></li>';
+      }).join('') + '</ul>'
+    : vacio('Sin gastos en ' + G.mes.etiqueta, 'Cuando se capture el primero —aquí o en la pestaña «Gastos» de la hoja— aparece por categoría.');
+  return '<section class="card" id="ct-gastos-mes" aria-labelledby="ct-gastos-mes-h"><div class="card-h"><h2 id="ct-gastos-mes-h">' +
+      ico('i-control') + ' Por categoría</h2><span class="folio">' + esc(G.mes.etiqueta) + '</span></div>' +
+    '<div class="card-b">' + cuerpo +
+      (G.anulados ? '<p class="pf-nota">' + esc(nGastos(G.anulados)) + ' de este mes ' + (G.anulados === 1 ? 'está anulado y no suma' : 'están anulados y no suman') + '.</p>' : '') +
+      (G.sinFecha ? '<p class="pf-nota">' + esc(nGastos(G.sinFecha)) + ' de la hoja no ' + (G.sinFecha === 1 ? 'tiene' : 'tienen') + ' fecha y no ' + (G.sinFecha === 1 ? 'cae' : 'caen') + ' en ningún mes: se corrige en la columna «Fecha» de la pestaña Gastos.</p>' : '') +
+    '</div></section>';
+}
+
+function listaGastos() {
+  const lista = Gastos.delPeriodo(D.gastos, GPER, D.hoy, BUSCA_GAS);
+  const vivos = lista.filter(g => !g.anulado);
+  const total = vivos.reduce((t, g) => t + (Number(g.monto) || 0), 0);
+  const filtros = segmento(PER_OPCIONES, GPER, 'data-gper', 'Periodo de los gastos');
+  const csvAqui = puedeBajarCSV()
+    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-csv-gastos>' + ico('i-bajar') + ' Bajar CSV de gastos</button>'
+    : '';
+  const filas = lista.length
+    ? lista.map(filaGasto).join('')
+    : vacio(D.gastos.length ? 'Nada en este periodo' : 'Todavía no hay gastos',
+        D.gastos.length ? 'Prueba con otro periodo u otra palabra.'
+          : 'Registra el primero con el botón de arriba: el material, la renta, la gasolina… Se guarda aquí y se manda a la hoja.');
+  return '<div class="card" id="ct-gastos"><div class="card-h"><h2>' + ico('i-venta') + ' Gastos' +
+      ' <span class="folio">' + vivos.length + '</span></h2>' +
+      '<span class="ct-total">' + esc(money(total)) + '</span></div>' +
+    '<div class="card-b">' +
+      '<div class="ct-gas-acc"><button type="button" class="btn btn-pri pf-btn-corto" data-act="gasto-nuevo">' + ico('i-mas') + ' Registrar gasto</button>' +
+        csvAqui + '</div>' +
+      '<div class="ag-barra">' + filtros +
+        '<input type="search" class="ct-busca" placeholder="Buscar por concepto, categoría, cuenta o folio" value="' + esc(BUSCA_GAS) +
+        '" data-busca-gas aria-label="Buscar gastos"></div>' +
+      filas +
+    '</div></div>';
+}
+
+/* El renglón de un gasto. El estado de envío va en una etiqueta chica y solo cuando aporta, como
+   el «solo aquí» de las ventas: lo que ya está en la hoja es el caso normal y no lleva nada. */
+function filaGasto(g) {
+  const e = Gastos.estadoDeEnvio(g, D.bandejaGastos);
+  const conPuente = !!(D.bajada && D.bajada.configurado);
+  let etiqueta = '';
+  if (g.anulado) etiqueta = ' <span class="pf-sem nada ct-origen">anulado</span>';
+  else if (e.estado === 'rechazada') etiqueta = ' <span class="pf-sem grave ct-origen">la hoja no lo aceptó</span>';
+  else if (e.estado === 'sin_destino') etiqueta = ' <span class="pf-sem falta ct-origen">espera la pestaña</span>';
+  else if (conPuente && (e.estado === 'pendiente' || e.estado === 'local')) etiqueta = ' <span class="pf-sem falta ct-origen">por mandar</span>';
+  const det = [fmtFecha(g.fecha) || 'sin fecha', g.categoria, g.cuenta || 'sin cuenta'].concat(g.folio ? [g.folio] : []);
+  return '<div class="pf-fila ct-fila ct-gas-fila' + (g.anulado ? ' anulado' : '') + '">' +
+    '<span class="pf-fila-ico">' + ico(Gastos.ICONO_CATEGORIA[g.categoria] || 'i-puntos') + '</span>' +
+    '<div class="pf-fila-tx">' +
+      '<p class="pf-fila-t">' + esc(g.concepto || 'Sin concepto') + etiqueta + '</p>' +
+      '<p class="pf-fila-d">' + det.map(esc).join(' · ') + '</p>' +
+      '<p class="pf-fila-d ct-quien">' + (g.registro_por ? 'Registró <b>' + esc(g.registro_por) + '</b>' : 'Escrito en la hoja') +
+        (g.anulado ? ' · anuló <b>' + esc(g.anulo || 'alguien') + '</b>' + (g.anulado_en ? ' el ' + esc(fmtFecha(isoDeMs(g.anulado_en))) : '') : '') + '</p>' +
+      (e.estado === 'rechazada' && e.error ? '<p class="pf-fila-d ct-gas-error">' + esc(e.error) + '</p>' : '') +
+    '</div>' +
+    '<div class="ct-monto' + (g.anulado ? ' cancelado' : '') + '">' + esc(money(g.monto)) +
+      (g.anulado ? '<small>anulado</small>' : '') + '</div>' +
+    (g.anulado ? '' :
+      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-gasto-anular="' + esc(g.id) + '"' +
+      ' aria-label="' + esc('Anular el gasto de ' + money(g.monto) + ': ' + (g.concepto || '')) + '">Anular</button></div>') +
+  '</div>';
+}
+
+const isoDeMs = ms => {
+  const d = new Date(Number(ms) || 0), p = x => String(x).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+};
+
+/* ----- «Registrar gasto»: el formulario en `#pf-pide` -----
+   La misma capa y las mismas piezas que el «Se ganó» de Inicio: `.pf-panel` con cabeza, cuerpo y
+   pie, campos `.fld` con su etiqueta, y los botones de abajo. La capa se registró una vez en app.js
+   (Escape, el cerco del tabulador y el atrás del teléfono la cierran). Lo tecleado se lee al
+   guardar, de los campos; si algo falta, se dice JUNTO al campo (`aria-invalid` y el aviso con
+   `role="alert"`) y el foco va a él, sin cerrar nada. */
+function abrirGasto() {
+  if (!Prefs.veDinero()) return;
+  const capa = $('pf-pide');
+  if (!capa) return;
+  const hoy = D ? D.hoy : hoyISO();
+  /* Los folios de las ventas de los últimos doce meses, para el autocompletado del navegador:
+     el de la hoja (V-042) y el de cotización. Escribir otro también vale. */
+  const desde = (D.meses[0] || {}).mes || '';
+  const folios = [];
+  for (const p of D.ventas) {
+    if (!p || p.etapa === 'cancelado' || String(p.fecha_ganado || '') < desde) continue;
+    const nombre = p.nombre || '';
+    if (p.folio_hoja) folios.push([p.folio_hoja, nombre]);
+    else if (p.folio_local) folios.push([p.folio_local, nombre]);
+  }
+  capa.innerHTML = '<div class="pf-panel ct-gas-panel" aria-labelledby="ct-gas-titulo">' +
+    '<div class="pf-panel-h"><h2 id="ct-gas-titulo">Registrar gasto</h2>' +
+      '<button type="button" class="pf-cerrar" data-gs="cerrar" aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-fila-d">Se guarda en este teléfono y se manda a la pestaña «Gastos» de la hoja de finanzas. Sin señal, sale solo cuando vuelva.</p>' +
+      '<div class="fld"><label for="ct-gas-fecha">¿Qué día se pagó?</label>' +
+        '<input type="date" id="ct-gas-fecha" value="' + esc(hoy) + '" max="' + esc(hoy) + '" required></div>' +
+      '<div class="fld"><label for="ct-gas-concepto">Concepto</label>' +
+        '<input type="text" id="ct-gas-concepto" maxlength="' + Gastos.CONCEPTO_MAX + '" autocomplete="off" required ' +
+        'placeholder="Lámina de acrílico 3 mm, gasolina de la camioneta…"></div>' +
+      '<div class="fld"><label for="ct-gas-cat">Categoría</label><select id="ct-gas-cat" required>' +
+        '<option value="">Elige una</option>' + Gastos.CATEGORIAS.map(c => '<option>' + esc(c) + '</option>').join('') + '</select></div>' +
+      '<div class="ct-gas-dos">' +
+        '<div class="fld"><label for="ct-gas-monto">Monto</label>' +
+          '<input type="text" id="ct-gas-monto" inputmode="decimal" autocomplete="off" placeholder="$0.00" required></div>' +
+        '<div class="fld"><label for="ct-gas-cuenta">Cuenta de la que salió</label><select id="ct-gas-cuenta">' +
+          '<option value="">Efectivo u otra</option>' + CUENTAS.map(c => '<option>' + esc(c) + '</option>').join('') + '</select></div>' +
+      '</div>' +
+      '<div class="fld"><label for="ct-gas-folio">Folio del proyecto <small>(opcional)</small></label>' +
+        '<input type="text" id="ct-gas-folio" maxlength="' + Gastos.FOLIO_MAX + '" autocomplete="off" list="ct-gas-folios" placeholder="V-042 o COT-0042"></div>' +
+      '<datalist id="ct-gas-folios">' + folios.map(([f, n]) => '<option value="' + esc(f) + '">' + esc(n) + '</option>').join('') + '</datalist>' +
+      '<p class="hintnote nota-mal ct-gas-error-f" id="ct-gas-error" role="alert" hidden></p>' +
+    '</div>' +
+    '<div class="pf-panel-f">' +
+      '<button type="button" class="btn btn-gho" data-gs="cerrar">Cancelar</button>' +
+      '<button type="button" class="btn btn-pri" data-gs="guardar">Guardar el gasto</button>' +
+    '</div></div>';
+  _gs = { guardando: false };
+  abrirCapa('pf-pide', { hist: true });
+}
+
+function cerrarGasto() {
+  _gs = null;
+  cerrarCapa('pf-pide');
+  const capa = $('pf-pide');
+  if (capa) capa.innerHTML = '';
+}
+
+/* Los clics de la capa. Solo los de este formulario (`data-gs`): la capa la comparten otras
+   pantallas, pero cada una escucha mientras está montada, y Control solo mientras lo está. */
+async function alClicPide(ev) {
+  const b = ev.target.closest('[data-gs]');
+  if (!b || !_gs) return;
+  ev.preventDefault();
+  if (b.dataset.gs === 'cerrar') { cerrarGasto(); return; }
+  if (b.dataset.gs !== 'guardar' || _gs.guardando) return;
+  _gs.guardando = true;
+  b.disabled = true;
+  try { await guardarGasto(); }
+  catch (e) {
+    console.error('el gasto no se guardó', e);
+    toast('Algo se rompió al guardar el gasto. Recarga la plataforma y vuelve a intentarlo.', 'err', 4600);
+  }
+  if (_gs) _gs.guardando = false;
+  if (b.isConnected) b.disabled = false;
+}
+
+const CAMPO_GASTO = { fecha: 'ct-gas-fecha', concepto: 'ct-gas-concepto', categoria: 'ct-gas-cat', monto: 'ct-gas-monto',
+                      cuenta: 'ct-gas-cuenta', folio: 'ct-gas-folio' };
+
+function avisarCampo(campo, mensaje) {
+  const capa = $('pf-pide');
+  if (!capa) return;
+  capa.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid'));
+  capa.querySelectorAll('.fld.falta').forEach(x => x.classList.remove('falta'));
+  const err = $('ct-gas-error');
+  const el = campo ? $(CAMPO_GASTO[campo]) : null;
+  if (el) {
+    el.setAttribute('aria-invalid', 'true');
+    el.setAttribute('aria-describedby', 'ct-gas-error');
+    const f = el.closest('.fld'); if (f) f.classList.add('falta');
+    try { el.focus(); } catch (_) {}
+  }
+  if (err) { err.textContent = mensaje; err.hidden = false; }
+}
+
+async function guardarGasto() {
+  const val = id => { const e = $(id); return e ? String(e.value || '').trim() : ''; };
+  const datos = {
+    fecha: val('ct-gas-fecha'), concepto: val('ct-gas-concepto'), categoria: val('ct-gas-cat'),
+    monto: Gastos.montoDe(val('ct-gas-monto')), cuenta: val('ct-gas-cuenta'), folio: val('ct-gas-folio'),
+  };
+  /* Primero aquí, para decirlo junto al campo sin pasar por la base. `registrar` vuelve a validar. */
+  const malo = Gastos.validar(datos);
+  if (malo) { avisarCampo(malo.campo, malo.mensaje); voz(malo.mensaje, true); return; }
+  const r = await Gastos.registrar(datos);
+  if (!r.ok) { avisarCampo(r.campo || '', r.mensaje || 'No se pudo guardar el gasto.'); return; }
+  cerrarGasto();
+  const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+  toast('Gasto de ' + money(r.valor.monto) + ' guardado' + (Sync.configurado()
+    ? (sinRed ? '. Sin señal: se manda a la hoja en cuanto vuelva.' : ' y en camino a la hoja.') : ' en este teléfono.'), 'ok', 4200);
+  /* El mes del gasto a la vista: si se capturó uno de otro mes con el periodo en «Este mes», no
+     aparecería en la lista y parecería que no se guardó. */
+  if (GPER === 'mes' && Ventas.mesDe(datos.fecha) !== D.hoy.slice(0, 7)) {
+    const ini = D.hoy.slice(0, 7) + '-01';
+    GPER = datos.fecha >= masMeses(ini, -2) ? '3m' : (datos.fecha >= masMeses(ini, -11) ? '12m' : 'todo');
+  }
+  await recargar();
+  mandarYa();
+}
+
+/* Se manda en el momento, si hay a dónde y hay señal, y la pantalla se vuelve a leer al terminar:
+   sin esto, la etiqueta «por mandar» se quedaba puesta hasta la siguiente vez que algo repintara
+   Control, aunque el gasto ya estuviera en la hoja. */
+function mandarYa() {
+  if (!Sync.configurado() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+  Sync.bombear().catch(() => null).then(() => { if (cont && D) recargar(); });
+}
+
+/* «Anular» pregunta una vez —es dinero, y un dedo que resbala en la lista no puede quitar un gasto
+   del mes— con la pregunta de la app (`confirmarPf`), no el confirm() del navegador. */
+async function anularGasto(id) {
+  const g = D && D.gastos.find(x => x.id === id);
+  if (!g || g.anulado) return;
+  const si = await confirmarPf({
+    titulo: '¿Anular este gasto?',
+    texto: money(g.monto) + ' · ' + (g.concepto || 'sin concepto') + ' · ' + (fmtFecha(g.fecha) || 'sin fecha') +
+      '. Deja de sumar, pero no se borra: en la hoja queda con «Anulado: Sí», quién y cuándo. Si estuvo mal, captúralo otra vez.',
+    si: 'Sí, anular', no: 'Mejor no', peligro: true,
+  });
+  if (!si || !cont) return;
+  const r = await Gastos.anular(id);
+  if (!r.ok) { toast(r.mensaje || 'No se pudo anular el gasto.', 'err', 4200); return; }
+  toast('Gasto anulado: ya no suma', 'ok', 3200);
+  await recargar();
+  mandarYa();
+}
+
+function bajarCSVGastos() {
+  if (!D || !puedeBajarCSV()) return;
+  const lista = Gastos.delPeriodo(D.gastos, 'todo', D.hoy, '');
+  if (!lista.length) { toast('Todavía no hay gastos que exportar', '', 2600); return; }
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const sello = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  if (descargarArchivo(Gastos.csv(lista), 'al3d-gastos-' + sello + '.csv', 'text/csv;charset=utf-8')) {
+    toast(lista.length + (lista.length === 1 ? ' gasto exportado' : ' gastos exportados') + ' a CSV, con los anulados marcados', 'ok', 3600);
+  }
+}
+
 /* ----- Bitácora ----- */
 function pintarBitacora() {
   const q = plano(BUSCA_BIT);
@@ -1355,13 +1728,13 @@ function masDia(iso, n) {
 const ICONO_ACCION = {
   gano: 'i-venta', descarto: 'i-cerrar', etapa: 'i-taller', cambio: 'i-lapiz', agendo: 'i-agenda',
   reagendo: 'i-agenda', marco: 'i-check', cancelo: 'i-cerrar', guardo: 'i-guardar', conteo: 'i-material',
-  compra: 'i-camion', restauro: 'i-subir',
+  compra: 'i-camion', restauro: 'i-subir', registro: 'i-venta', anulo: 'i-cerrar',
 };
 
 function filaBitacora(b) {
   const d = new Date(Number(b.ts) || 0);
   const hora = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  const tono = b.accion === 'descarto' || b.accion === 'cancelo' ? ' mal' : (b.accion === 'gano' || b.accion === 'marco' ? ' bien' : '');
+  const tono = b.accion === 'descarto' || b.accion === 'cancelo' || b.accion === 'anulo' ? ' mal' : (b.accion === 'gano' || b.accion === 'marco' ? ' bien' : '');
   return '<div class="pf-fila ct-bit">' +
     '<span class="pf-fila-ico' + tono + '">' + ico(ICONO_ACCION[b.accion] || 'i-lapiz') + '</span>' +
     '<div class="pf-fila-tx">' +
@@ -1401,6 +1774,12 @@ function alClic(ev) {
   if (ttv) { TT_VISTA = ttv.dataset.ttVista; pintar(); return; }
   const per = t.closest('[data-periodo]');
   if (per) { PERIODO = per.dataset.periodo; pintar(); return; }
+  const gper = t.closest('[data-gper]');
+  if (gper) { GPER = gper.dataset.gper; pintar(); return; }
+  if (t.closest('[data-act="gasto-nuevo"]')) { abrirGasto(); return; }
+  const anu = t.closest('[data-gasto-anular]');
+  if (anu) { anularGasto(anu.dataset.gastoAnular); return; }
+  if (t.closest('[data-csv-gastos]')) { bajarCSVGastos(); return; }
   const ent = t.closest('[data-entidad]');
   if (ent) { ENTIDAD = ent.dataset.entidad || ''; pintar(); return; }
   const ir = t.closest('[data-ir]');
@@ -1420,7 +1799,7 @@ function cambiarTab(tab) {
   pintar();
 }
 
-const TABS = ['ventas', 'cobrar', 'comisiones', 'bitacora'];
+const TABS = ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
 /* La quinta pestaña solo con Supabase encendido en ESTE aparato. Se lee la clave como la lee
    app.js —sin importar js/nucleo/supa.js—: apagado no se carga nada. Fabricación no tiene Control,
    y aun así no se le ofrece. */
@@ -1477,9 +1856,10 @@ function alEscribir(ev) {
     }, 700);
     return;
   }
-  const esProy = t.matches('[data-busca]'), esBit = t.matches('[data-busca-bit]');
-  if (!esProy && !esBit) return;
-  if (esProy) BUSCA = t.value; else BUSCA_BIT = t.value;
+  const esProy = t.matches('[data-busca]'), esBit = t.matches('[data-busca-bit]'), esGas = t.matches('[data-busca-gas]');
+  if (!esProy && !esBit && !esGas) return;
+  if (esProy) BUSCA = t.value; else if (esGas) BUSCA_GAS = t.value; else BUSCA_BIT = t.value;
+  const sel = esProy ? '[data-busca]' : (esGas ? '[data-busca-gas]' : '[data-busca-bit]');
   clearTimeout(_espera);
   /* Se repinta con un respiro, y ALREDEDOR del campo: el <input> en el que se escribe no se
      reemplaza, así que ni pierde el foco ni se le cierra el teclado al iPhone en cada pausa.
@@ -1488,7 +1868,7 @@ function alEscribir(ev) {
     if (!cont || !D) return;
     if (repintarAlrededor(cont, htmlPantalla(), t)) { despuesDePintar(); return; }
     pintar();
-    const campo = cont && cont.querySelector(esProy ? '[data-busca]' : '[data-busca-bit]');
+    const campo = cont && cont.querySelector(sel);
     if (campo) { campo.focus(); try { campo.setSelectionRange(campo.value.length, campo.value.length); } catch (_) {} }
   }, 220);
 }
@@ -1540,7 +1920,14 @@ function irA(dest) {
   if (tipo === 'ir') { if (CTX && typeof CTX.ir === 'function') CTX.ir(arg); return; }
   if (tipo === 'tab') {
     cambiarTab(arg);
-    llevarA(cont && cont.querySelector('#ct-cartera > .card-h'), 'Cartera');
+    if (arg === 'gastos') llevarA(cont && cont.querySelector('#ct-gastos-mes > .card-h'), 'Gastos por categoría');
+    else llevarA(cont && cont.querySelector('#ct-cartera > .card-h'), 'Cartera');
+    return;
+  }
+  if (tipo === 'gastos') {
+    /* Como «lista:mes» de ventas: la lista con el periodo en «Este mes», que es lo que cuenta la cifra. */
+    if (GPER !== 'mes') { GPER = 'mes'; pintar(); }
+    llevarA(cont && cont.querySelector('#ct-gastos > .card-h'), 'Gastos de este mes');
     return;
   }
   if (tipo === 'lista') {

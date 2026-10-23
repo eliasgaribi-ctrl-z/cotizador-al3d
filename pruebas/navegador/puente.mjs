@@ -105,7 +105,7 @@ const servidor = createServer(async (req, res) => {
       /* La versión que la plataforma espera: con una que no dice número, la plataforma la trata
          como una hoja vieja y no manda un cambio de puras notas (puente-sheets-14), que es justo
          con lo que esta prueba descubre más abajo la fila borrada. */
-      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-14', rol: 'direccion',
+      return json({ ok: true, ts: Date.now(), version: 'puente-sheets-15', rol: 'direccion',
                     escribibles: ESCRIBIBLES_DIRECCION, destino: 'google-sheets' });
     }
     /* Sin la pestaña «Accesos», como una hoja que se preparó antes de puente-sheets-5: las

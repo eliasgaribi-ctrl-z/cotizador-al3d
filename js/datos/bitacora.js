@@ -30,11 +30,12 @@ import * as Prefs from './prefs.js';
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 
 /* Las entidades que se anotan. Sirven para filtrar en la pantalla de Control y para que el
-   nombre que se pinta sea uno solo. */
-export const ENTIDADES = ['proyecto', 'instalacion', 'material', 'constante', 'almacen', 'plataforma'];
+   nombre que se pinta sea uno solo. `gasto` (octubre de 2026): quién capturó o anuló un gasto en
+   Control (js/datos/gastos.js); va antes de «plataforma», que es el cajón de lo demás. */
+export const ENTIDADES = ['proyecto', 'instalacion', 'material', 'constante', 'almacen', 'gasto', 'plataforma'];
 export const ENTIDAD_NOMBRE = {
   proyecto: 'Proyectos', instalacion: 'Agenda', material: 'Catálogo', constante: 'Constantes',
-  almacen: 'Almacén', plataforma: 'Plataforma',
+  almacen: 'Almacén', gasto: 'Gastos', plataforma: 'Plataforma',
 };
 
 /**
