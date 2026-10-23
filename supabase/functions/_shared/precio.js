@@ -231,6 +231,6 @@ export function limpiarItemsAuth(ia, items) {
 export function descuadre(sub, delTelefono) {
   return { ok: false, codigo: 'CATALOGO_DESINCRONIZADO',
     mensaje: 'El precio de este teléfono (' + dinero2(delTelefono) + ') no coincide con el catálogo de la hoja (' +
-             dinero2(sub) + '). Actualiza la app y vuelve a intentarlo.',
+             dinero2(sub) + '). Los precios de la hoja cambiaron o la app está vieja: el cotizador ya trajo los de la hoja, revisa la cotización y vuelve a mandarla.',
     subtotal_hoja: +dinero2(sub) };
 }

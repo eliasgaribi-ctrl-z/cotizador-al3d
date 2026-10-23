@@ -15,7 +15,7 @@
    están en ESE teléfono— quedaban inalcanzables por no poder cargar el HTML que los lee.
 
    Durante un año su estrategia fue «red primero, caché de respaldo», porque era UN archivo
-   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más trece guiones
+   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más catorce guiones
    en js/cotizador/ y la hoja css/sistema.css que comparte con la plataforma. Un HTML nuevo con
    un guion viejo no es un cotizador viejo: es uno roto —exactamente el problema que se
    describe abajo para la plataforma—. Así que el cotizador entra al conjunto versionado y se
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 136;
+const APP_VERSION = 137;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -77,7 +77,7 @@ const APP_FILES = [
   './js/tema.js',
   /* Las piezas compartidas: las cargan el cotizador, la plataforma, el anidador y verificar. */
   './js/piezas.js',
-  /* El cotizador: la página y sus trece guiones. Van juntos porque se cargan en orden y se
+  /* El cotizador: la página y sus catorce guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
   './cotizador.html',
   './js/cotizador/catalogo.js',
@@ -92,6 +92,7 @@ const APP_FILES = [
   './js/cotizador/venta.js',
   './js/cotizador/vectorizador.js',
   './js/cotizador/notario.js',
+  './js/cotizador/tarifas.js',
   './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',

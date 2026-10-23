@@ -101,6 +101,20 @@
       /* Las solicitudes de este mismo teléfono ya están en su cola local (el cotizador las filtra
          por el sufijo del aparato), así que la cola que llega de la hoja va vacía. */
       if (ruta === 'pendientes') return Promise.resolve({ ok: true, solicitudes: [] });
+      /* Las tarifas (tarifas.js, 23-oct-2026). Sin `__hoja.tarifas` contesta como una hoja que
+         todavía no tiene la ruta, que es lo que ven todas las pruebas que no son de precios: así
+         ninguna cambia de catálogo a media prueba. Guardar no valida —eso lo prueba
+         pruebas/tarifas.mjs contra el .gs de verdad—: fecha y devuelve lo que llegó. */
+      if (ruta === 'tarifas') {
+        return window.__hoja.tarifas ? Promise.resolve({ ok: true, tabla: window.__hoja.tarifas }) : no('NO_ENCONTRADO', 'Camino desconocido.');
+      }
+      if (ruta === 'guardar_tarifas') {
+        if (window.__hoja.sinTarifas) return no('NO_ENCONTRADO', 'Camino desconocido.');
+        var ahora = new Date().toISOString();
+        var filas = (cuerpo.filas || []).map(function (f) { var x = {}; for (var k in f) x[k] = f[k]; x.actualizado = ahora; x.por = 'Elías'; return x; });
+        window.__hoja.tarifas = { filas: filas, actualizado: ahora, por: 'Elías' };
+        return Promise.resolve({ ok: true, tabla: window.__hoja.tarifas, cambios: filas.length });
+      }
       return no('NO_ENCONTRADO', 'Camino desconocido.');
     }
   };

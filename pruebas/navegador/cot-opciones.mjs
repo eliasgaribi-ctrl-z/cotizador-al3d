@@ -233,7 +233,7 @@ async function ronda(R, indice) {
   cierto(await ev(() => !document.querySelector('#p-1 .op-mas')), 'con tres ya no se ofrece otra');
   await p.selectOption('#opti-1-3', 'caja');
   await p.waitForTimeout(500);
-  await p.click('#opc-1-3 .chip[data-acc*=",' + TAR.caja + ')"]');
+  await p.click(`#opc-1-3 .chip[data-acc*="'caja','std'"]`);
   await p.waitForTimeout(300);
   await p.fill('#an-1-3', '240');
   await p.fill('#al-1-3', '60');

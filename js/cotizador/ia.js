@@ -8,7 +8,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -1293,7 +1293,13 @@ function applyAi(p){
         it.ancho=aiNum(x.ancho_cm); it.alto=aiNum(x.alto_cm);
         it.alto=it.alto||aiNum(x.altura_cm);
       } else if(it.tipo==='caja'){
-        it.tarifa=aiNum(x.tarifa)||3900; it.ancho=aiNum(x.ancho_cm); it.alto=aiNum(x.alto_cm);
+        /* Para el modelo, 3900 y 4600 son los NOMBRES de los dos tipos de caja (así se los
+           enseña el prompt), no un precio: el precio es el de la tabla de hoy (tarifas.js),
+           que Dirección puede haber subido. Una tarifa que no es ninguna de las dos se respeta
+           tal cual: la leyó del archivo. */
+        const tIa=aiNum(x.tarifa)||3900, cIa=tIa===4600?cajaOf(0,'nube'):tIa===3900?cajaOf(0,'std'):null;
+        if(cIa){ it.caja=cIa.key; it.tarifa=cIa.tarifa; } else it.tarifa=tIa;
+        it.ancho=aiNum(x.ancho_cm); it.alto=aiNum(x.alto_cm);
         /* El alto de un elemento de área puede llegar en `altura_cm`: el prompt pide
            ancho_cm y alto_cm, pero cuando el modelo ve un solo corchete escribe el número
            en el campo de altura, que es el que usa en las otras tres cuartas partes de las
@@ -1384,7 +1390,7 @@ function aiMaterialDe(it){
   if(it.tipo==='letras')   return (matOf(it.material)||{}).label||'';
   if(it.tipo==='recorte')  return (recOf(it.acab)||{}).label||'';
   if(it.tipo==='bastidor') return (basOf(it.bas)||{}).label||'';
-  if(it.tipo==='caja')     return (cajaOf(it.tarifa)||{}).label||'';
+  if(it.tipo==='caja')     return (cajaDe(it)||{}).label||'';
   return '';
 }
 /* ¿Esta partida usa esta cifra? Se miran los tres lados con los que una partida puede

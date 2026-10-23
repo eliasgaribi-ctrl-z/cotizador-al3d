@@ -311,7 +311,7 @@ console.log('\nLO DEMÁS');
   cierto('sw.js: /verificar y /verificar.html van con la plataforma, que es donde están guardadas',
          PAGINAS.test('/verificar') && PAGINAS.test('/verificar.html') && PAGINAS.test('/cotizador'));
   const guiones = readdirSync(join(RAIZ, 'js', 'cotizador')).filter(n => n.endsWith('.js')).length;
-  const N = { 10: 'diez', 11: 'once', 12: 'doce', 13: 'trece', 14: 'catorce' };
+  const N = { 10: 'diez', 11: 'once', 12: 'doce', 13: 'trece', 14: 'catorce', 15: 'quince' };
   /* Las dos frases que hablan del cotizador; los «diez guiones» del anidador son otros. */
   const dice = [...sw.matchAll(/cotizador\.html más (\S+) guiones|la página y sus (\S+) guiones/g)].map(m => m[1] || m[2]);
   eq('sw.js cuenta bien los guiones del cotizador: son ' + guiones, dice, [N[guiones], N[guiones]]);

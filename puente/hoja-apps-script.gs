@@ -2277,6 +2277,8 @@ function doPost(e) {
     if (ruta === 'jalar_almacen')   return responder(rutaJalarAlmacen_(cuerpo, rol));
     if (ruta === 'carpetas')        return responder(rutaCarpetas_());
     if (ruta === 'crear_carpeta')   return responder(rutaCrearCarpeta_(cuerpo, rol));
+    if (ruta === 'tarifas')         return responder(rutaTarifas_());
+    if (ruta === 'guardar_tarifas') return responder(rutaGuardarTarifas_(cuerpo, rol, ingreso));
 
     return responder({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
   } catch (err) {
@@ -3351,8 +3353,9 @@ function anotar_(anotaciones) {
    pregunta con `/estado` hasta recibir el sello.
 
    El catálogo de abajo es una COPIA de js/cotizador/catalogo.js y de lineTotal() de
-   js/cotizador/nucleo.js. pruebas/precio-servidor.mjs truena si dejan de coincidir: subir
-   el precio del aluminio es cambiar los dos lados y volver a implementar.
+   js/cotizador/nucleo.js. pruebas/precio-servidor.mjs truena si dejan de coincidir. Desde el
+   23-oct-2026 esa copia es solo el catálogo de fábrica: los precios que mandan son los de
+   la pestaña «Tarifas», que Dirección edita desde el cotizador (ver «Las tarifas, editables»).
    ============================================================================ */
 
 var HOJA_AUTORIZACIONES = 'Autorizaciones';
@@ -3380,8 +3383,226 @@ var COT_CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab
                          'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
 var COT_CAMPOS_NUM = { altura: 1, n: 1, ancho: 1, alto: 1, tarifa: 1, pz: 1, pu: 1 };
 
+/* ----- Las tarifas, editables desde el cotizador (23-oct-2026) -----
+   Hasta aquí el catálogo vivía en dos copias escritas a mano —la de arriba y
+   js/cotizador/catalogo.js— y subir el aluminio era cambiar código y volver a implementar. Elías
+   pidió (23-oct-2026) un apartado de Ajustes donde Dirección mueva los precios y agregue u oculte
+   materiales. La tabla vive en la pestaña «Tarifas» de esta hoja y la leen los dos lados: el
+   teléfono para cotizar (/tarifas) y esta hoja para recalcular antes de sellar. Una sola tabla, un
+   solo precio.
+
+   Las constantes COT_* de arriba se quedan como el catálogo DE FÁBRICA: sin la pestaña, o con un
+   renglón que no se entiende, se usa él, así que nada se cae antes de que alguien la llene. Las
+   claves de fábrica no se borran —las cotizaciones guardadas las nombran—: solo se ocultan, y un
+   material oculto sigue cobrando en las partidas que ya lo llevan.
+
+   Un renglón nuevo dice «se fabrica como» uno de fábrica de su grupo, y de ese hereda todo lo que
+   no es el precio: la iluminación, el texto del PDF, el material que se compra. Así un «Aluminio
+   anodizado» no deja la lista de compra sin canto.
+
+   La caja de luz no la cobra esta hoja —la partida trae su tarifa por m², como siempre—, pero sus
+   tipos viven aquí también, para que el teléfono los ofrezca con el precio de la tabla. */
+var HOJA_TARIFAS = 'Tarifas';
+var COLS_TAR = ['Grupo', 'Clave', 'Nombre', 'Precio', 'Se fabrica como', 'Visible', 'Orden', 'Detalle', 'Actualizado', 'Por'];
+var TAR_GRUPOS = ['material', 'complejidad', 'recorte', 'recorte-extra', 'bastidor', 'caja'];
+var TAR_CACHE = 'tarifas-v1';
+var TAR_MAX_FILAS = 80;
+/* El catálogo de fábrica con sus nombres: lo que se usa sin pestaña y lo que la pestaña lleva al
+   crearse. Los precios son los de las COT_* (pruebas/precio-servidor.mjs lo comprueba contra
+   catalogo.js, nombres incluidos). [grupo, clave, nombre, precio, detalle] */
+var COT_TARIFAS_FABRICA = [
+  ['material', 'al-paint', 'Aluminio Blanco/Negro/Pintado', 30, 'LED posterior (cálida/fría)'],
+  ['material', 'al-brush', 'Aluminio Brush Cepillado', 35, 'LED posterior (cálida/fría)'],
+  ['material', 'acr-vol', 'Acrílico + Aluminio (Volumen)', 40, 'LED fría frontal'],
+  ['material', 'acr-vinil', 'Acrílico + Vinil', 45, 'LED fría frontal'],
+  ['material', 'acero', 'Acero Inoxidable', 55, 'LED posterior (cálida/fría)'],
+  ['complejidad', 'recta', 'Recta', 0, ''],
+  ['complejidad', 'cursiva', 'Cursiva', 5, ''],
+  ['complejidad', 'compleja', 'Compleja', 10, ''],
+  ['recorte', 'sencillo', 'Sencillo', 20, ''],
+  ['recorte', 'vinil', 'Rotulación de vinil', 25, ''],
+  ['recorte', 'sandwich', 'Tipo sándwich c/iluminación', 55, ''],
+  ['recorte-extra', 'sandwich', 'Complejidad del sándwich', 5, ''],
+  ['bastidor', 'lamina', 'Lámina', 950, ''],
+  ['bastidor', 'alucobond', 'Alucobond', 1500, ''],
+  ['caja', 'std', 'Estándar', 3900, 'Cuadrada / rectangular / circular'],
+  ['caja', 'nube', 'Tipo nube / silueta', 4600, 'Silueta de logotipo o personaje']
+];
+function cotEsFabrica_(grupo, clave) {
+  for (var i = 0; i < COT_TARIFAS_FABRICA.length; i++) {
+    if (COT_TARIFAS_FABRICA[i][0] === grupo && COT_TARIFAS_FABRICA[i][1] === clave) return COT_TARIFAS_FABRICA[i];
+  }
+  return null;
+}
+function cotTablaFabrica() {
+  return { filas: COT_TARIFAS_FABRICA.map(function (r, i) {
+    return { grupo: r[0], clave: r[1], nombre: r[2], precio: r[3], como: '', visible: true, orden: i,
+             detalle: r[4], fabrica: true, actualizado: '', por: '' };
+  }), actualizado: '', por: '' };
+}
+/* Lo que se puede leer de un renglón; null si no sirve. Un renglón de fábrica con un precio que no
+   se entiende vuelve al de fábrica: es preferible el precio de siempre a una partida en $0. */
+function cotFilaLimpia_(f, i) {
+  if (!f || typeof f !== 'object') return null;
+  var grupo = String(f.grupo == null ? '' : f.grupo).trim(), clave = String(f.clave == null ? '' : f.clave).trim();
+  if (TAR_GRUPOS.indexOf(grupo) < 0 || !/^[a-z0-9-]{2,24}$/.test(clave)) return null;
+  var fab = cotEsFabrica_(grupo, clave);
+  var precio = (f.precio === '' || f.precio === null || typeof f.precio === 'boolean') ? NaN : Number(f.precio);
+  var gratis = grupo === 'complejidad' || grupo === 'recorte-extra';
+  var bueno = isFinite(precio) && precio >= 0 && (gratis || precio > 0) && precio <= 1000000;
+  if (!bueno) { if (!fab) return null; precio = fab[3]; }
+  var como = fab ? '' : String(f.como == null ? '' : f.como).trim();
+  if (!fab && (gratis || !cotEsFabrica_(grupo, como))) return null;
+  var nombre = String(f.nombre == null ? '' : f.nombre).trim().slice(0, 60) || (fab ? fab[2] : '');
+  if (!nombre) return null;
+  var vis = f.visible;
+  var visible = !(vis === false || /^(false|no|0)$/i.test(String(vis == null ? '' : vis).trim()));
+  if (grupo === 'recorte-extra' || (grupo === 'complejidad' && clave === 'recta')) visible = true;
+  var detalle = String(f.detalle == null ? '' : f.detalle).slice(0, 120);
+  if (!detalle) detalle = fab ? fab[4] : ((cotEsFabrica_(grupo, como) || [])[4] || '');
+  var act = f.actualizado;
+  return { grupo: grupo, clave: clave, nombre: nombre, precio: Math.round(precio * 100) / 100, como: como,
+           visible: visible, orden: isFinite(Number(f.orden)) && f.orden !== '' ? Number(f.orden) : i, detalle: detalle, fabrica: !!fab,
+           actualizado: (act && typeof act.toISOString === 'function') ? act.toISOString() : String(act == null ? '' : act),
+           por: String(f.por == null ? '' : f.por).slice(0, 120) };
+}
+/* La tabla en orden: los grupos como TAR_GRUPOS y, dentro, por «Orden». Lo que falte de fábrica
+   se completa, y un grupo que quedó entero oculto vuelve a enseñar su primer renglón: sin él no
+   habría con qué cotizar ese tipo de partida. */
+function cotNormalizarTabla_(filas) {
+  var vistos = {}, out = [];
+  (filas || []).forEach(function (f, i) {
+    var x = cotFilaLimpia_(f, i);
+    if (!x || vistos[x.grupo + '|' + x.clave]) return;
+    vistos[x.grupo + '|' + x.clave] = true;
+    out.push(x);
+  });
+  cotTablaFabrica().filas.forEach(function (f) {
+    if (!vistos[f.grupo + '|' + f.clave]) { f.orden = 1000 + f.orden; out.push(f); }
+  });
+  out.sort(function (a, b) { return (TAR_GRUPOS.indexOf(a.grupo) - TAR_GRUPOS.indexOf(b.grupo)) || (a.orden - b.orden); });
+  TAR_GRUPOS.forEach(function (g) {
+    var del = out.filter(function (f) { return f.grupo === g; });
+    if (del.length && !del.some(function (f) { return f.visible; })) del[0].visible = true;
+  });
+  var ult = out.reduce(function (m, f) { return f.actualizado > m.actualizado ? f : m; }, { actualizado: '', por: '' });
+  return { filas: out, actualizado: ult.actualizado, por: ult.por };
+}
+function cotTablaDeHoja_() {
+  var h = SpreadsheetApp.getActive().getSheetByName(HOJA_TARIFAS);
+  if (!h) return null;
+  var filas = filasDe(h, COLS_TAR.length).map(function (v) {
+    return { grupo: v[0], clave: v[1], nombre: v[2], precio: v[3], como: v[4], visible: v[5], orden: v[6],
+             detalle: v[7], actualizado: v[8], por: v[9] };
+  });
+  return filas.length ? cotNormalizarTabla_(filas) : null;
+}
+/* La tabla que manda, una vez por ejecución: cada partida que se recalcula la pide, y leer la
+   pestaña o la caché en cada una sería hacerlo ochenta veces por sello. Sin hoja —en las pruebas
+   de node— es la de fábrica. */
+var _cotTablaMemo = null, _cotMapasMemo = null;
+function cotTabla() {
+  if (_cotTablaMemo) return _cotTablaMemo;
+  var t = null;
+  try {
+    var cache = CacheService.getScriptCache();
+    var c = cache.get(TAR_CACHE);
+    if (c) t = JSON.parse(c);
+    if (!t) { t = cotTablaDeHoja_(); if (t) cache.put(TAR_CACHE, JSON.stringify(t), 300); }
+  } catch (e) { t = null; }
+  _cotTablaMemo = t || cotTablaFabrica();
+  _cotMapasMemo = null;
+  return _cotTablaMemo;
+}
+/* Los precios de la tabla, como las COT_* de arriba: un mapa clave → precio por grupo. */
+function cotMapas_() {
+  if (_cotMapasMemo) return _cotMapasMemo;
+  var m = { material: {}, complejidad: {}, recorte: {}, bastidor: {}, caja: {}, extra: COT_RECORTE_COMP_EXTRA };
+  cotTabla().filas.forEach(function (f) {
+    if (f.grupo === 'recorte-extra') { if (f.clave === 'sandwich') m.extra = f.precio; }
+    else m[f.grupo][f.clave] = f.precio;
+  });
+  _cotMapasMemo = m;
+  return m;
+}
+/* Lo que Dirección mandó, sobre lo que ya hay. Lo que no viene se queda como estaba (nunca se
+   borra un renglón), lo que cambió lleva la fecha y el correo de quien lo cambió. Devuelve
+   {tabla, cambios} o {error}: un renglón malo frena todo el guardado, con su razón, porque
+   guardar la mitad de una lista de precios es peor que no guardar ninguna. */
+function cotMezclarTarifas_(actual, pedidas, correo, ahora) {
+  var porClave = {}, orden = [];
+  (actual && actual.filas || []).forEach(function (f) {
+    var k = f.grupo + '|' + f.clave;
+    if (porClave[k]) return;
+    porClave[k] = JSON.parse(JSON.stringify(f)); orden.push(k);
+  });
+  var vistos = {}, cambios = 0;
+  for (var i = 0; i < pedidas.length; i++) {
+    var p = pedidas[i];
+    if (!p || typeof p !== 'object') return { error: 'Un renglón de la tabla no se entiende.' };
+    var grupo = String(p.grupo == null ? '' : p.grupo), clave = String(p.clave == null ? '' : p.clave);
+    if (TAR_GRUPOS.indexOf(grupo) < 0) return { error: 'El grupo «' + grupo.slice(0, 20) + '» no existe.' };
+    if (!/^[a-z0-9-]{2,24}$/.test(clave)) return { error: 'La clave «' + clave.slice(0, 30) + '» no sirve: van minúsculas, números y guiones.' };
+    var k = grupo + '|' + clave;
+    if (vistos[k]) return { error: 'La clave «' + clave + '» viene dos veces.' };
+    vistos[k] = true;
+    var nombre = String(p.nombre == null ? '' : p.nombre).trim();
+    if (!nombre || nombre.length > 60) return { error: 'Cada renglón lleva un nombre de 1 a 60 letras.' };
+    var gratis = grupo === 'complejidad' || grupo === 'recorte-extra';
+    var precio = (p.precio === '' || p.precio === null || typeof p.precio === 'boolean') ? NaN : Number(p.precio);
+    if (!isFinite(precio) || precio < 0 || (!gratis && precio <= 0) || precio > 1000000) return { error: 'El precio de «' + nombre + '» no sirve.' };
+    var previo = porClave[k], fab = !!cotEsFabrica_(grupo, clave);
+    var como = fab ? '' : String(p.como == null ? (previo ? previo.como : '') : p.como);
+    if (!fab && gratis) return { error: 'En «' + grupo + '» no se agregan renglones.' };
+    if (!fab && !cotEsFabrica_(grupo, como)) return { error: '«' + nombre + '» tiene que decir de cuál de fábrica se fabrica.' };
+    var visible = p.visible !== false;
+    var nuevo = { grupo: grupo, clave: clave, nombre: nombre, precio: Math.round(precio * 100) / 100, como: como,
+                  visible: visible, orden: previo ? previo.orden : orden.length,
+                  detalle: previo ? previo.detalle : ((cotEsFabrica_(grupo, como) || [])[4] || ''), fabrica: fab,
+                  actualizado: previo ? previo.actualizado : '', por: previo ? previo.por : '' };
+    if (!previo || previo.nombre !== nuevo.nombre || previo.precio !== nuevo.precio || previo.visible !== nuevo.visible || previo.como !== nuevo.como) {
+      nuevo.actualizado = ahora; nuevo.por = correo; cambios++;
+    }
+    if (!previo) orden.push(k);
+    porClave[k] = nuevo;
+  }
+  return { tabla: cotNormalizarTabla_(orden.map(function (k) { return porClave[k]; })), cambios: cambios };
+}
+
+/* ---------------------------------------------------------------- /tarifas */
+/* Cualquier identidad reconocida: quien cotiza necesita los precios, sea quien sea. */
+function rutaTarifas_() {
+  return { ok: true, tabla: cotTabla() };
+}
+/* ---------------------------------------------------------------- /guardar_tarifas */
+/* Solo Dirección con su cuenta de Google, igual que autorizar: un precio es dinero de todas las
+   cotizaciones de mañana. Se escribe la pestaña entera de una vez, bajo el candado del notario. */
+function rutaGuardarTarifas_(cuerpo, rol, ingreso) {
+  var no = soloDireccionConGoogle(ingreso, 'cambiar los precios');
+  if (no) return no;
+  var pedidas = cuerpo && Object.prototype.toString.call(cuerpo.filas) === '[object Array]' ? cuerpo.filas : null;
+  if (!pedidas || !pedidas.length || pedidas.length > TAR_MAX_FILAS) {
+    return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La tabla de precios no se entiende.' };
+  }
+  return conCandadoNotario(function () {
+    var actual = cotTablaDeHoja_() || cotTablaFabrica();
+    var r = cotMezclarTarifas_(actual, pedidas, ingreso.correo, new Date().toISOString());
+    if (r.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: r.error };
+    var h = hojaConCabecera(HOJA_TARIFAS, COLS_TAR, false);
+    var n = h.getLastRow();
+    if (n > 1) h.getRange(2, 1, n - 1, COLS_TAR.length).clearContent();
+    var vals = r.tabla.filas.map(function (f, i) {
+      return [f.grupo, f.clave, f.nombre, f.precio, f.como, f.visible, i, f.detalle, f.actualizado, f.por];
+    });
+    h.getRange(2, 1, vals.length, COLS_TAR.length).setValues(vals);
+    try { CacheService.getScriptCache().remove(TAR_CACHE); } catch (e) {}
+    _cotTablaMemo = null; _cotMapasMemo = null;
+    return { ok: true, tabla: cotTabla(), cambios: r.cambios };
+  });
+}
+
 function cotPrecioDe(mapa, k) { return Object.prototype.hasOwnProperty.call(mapa, k) ? mapa[k] : 0; }
-function cotFactorOf(it) { return cotPrecioDe(COT_MATERIALES, it.material) + cotPrecioDe(COT_COMPLEJIDAD, it.comp); }
+function cotFactorOf(it) { var m = cotMapas_(); return cotPrecioDe(m.material, it.material) + cotPrecioDe(m.complejidad, it.comp); }
 function cotM2Total(tarifa, m2) { return (tarifa || 0) * Math.max(m2 || 0, COT_M2_MINIMO); }
 /* Línea por línea lo mismo que lineTotalCrudo(): mismas multiplicaciones, en el mismo
    orden, con los mismos `|| 0`. El orden importa en flotante: 30*40*8 y 30*(40*8) no
@@ -3393,14 +3614,14 @@ function cotLineTotalCrudo(it) {
     return p;
   }
   if (it.tipo === 'recorte') {
-    var rate = cotPrecioDe(COT_RECORTES, it.acab);
-    if (it.acab === 'sandwich' && it.recComp) rate += COT_RECORTE_COMP_EXTRA;
+    var rate = cotPrecioDe(cotMapas_().recorte, it.acab);
+    if (it.acab === 'sandwich' && it.recComp) rate += cotMapas_().extra;
     return rate * (it.altura || 0) * (it.n || 0);
   }
   if (it.tipo === 'bastidor') {
     var m2b = (it.ancho || 0) * (it.alto || 0) / 10000;
     if (m2b <= 0) return 0;
-    return cotM2Total(cotPrecioDe(COT_BASTIDORES, it.bas), m2b);
+    return cotM2Total(cotPrecioDe(cotMapas_().bastidor, it.bas), m2b);
   }
   if (it.tipo === 'caja') {
     var m2c = (it.ancho || 0) * (it.alto || 0) / 10000;
@@ -3839,7 +4060,7 @@ function rutaSolicitar_(cuerpo, rol, ingreso) {
 function descuadre(sub, delTelefono) {
   return { ok: false, codigo: 'CATALOGO_DESINCRONIZADO',
     mensaje: 'El precio de este teléfono (' + dinero2(delTelefono) + ') no coincide con el catálogo de la hoja (' +
-             dinero2(sub) + '). Actualiza la app y vuelve a intentarlo.',
+             dinero2(sub) + '). Los precios de la hoja cambiaron o la app está vieja: el cotizador ya trajo los de la hoja, revisa la cotización y vuelve a mandarla.',
     subtotal_hoja: +dinero2(sub) };
 }
 

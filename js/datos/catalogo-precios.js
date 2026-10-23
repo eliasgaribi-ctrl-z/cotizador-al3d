@@ -38,7 +38,7 @@ export const RECORTES = [
   {key:'vinil',    label:'Rotulación de vinil', precio:25},
   {key:'sandwich', label:'Tipo sándwich c/iluminación', precio:55},
 ];
-export const RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
+export let RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
 /* Bastidores: precio por metro cuadrado */
 export const BASTIDORES = [
   {key:'lamina',    label:'Lámina',    tarifa:950},
@@ -57,7 +57,41 @@ export const matOf  = k => MATERIALES.find(m => m.key === k) || null;
 export const compOf = k => COMPLEJIDAD.find(c => c.key === k) || null;
 export const recOf  = k => RECORTES.find(r => r.key === k) || null;
 export const basOf  = k => BASTIDORES.find(b => b.key === k) || null;
-export const cajaOf = t => CAJAS.find(c => c.tarifa === Number(t)) || null;
+export const cajaOf = (t, k) => (k && CAJAS.find(c => c.key === k)) || CAJAS.find(c => c.tarifa === Number(t)) || null;
+/* De qué se fabrica una entrada: la de fábrica es ella misma; una agregada desde «Precios y
+   materiales» del cotizador dice `como`. La derivación de material decide con esta clave. */
+export const baseDe = e => e ? (e.como || e.key) : '';
+
+/* Los precios y materiales que Dirección cambió desde el cotizador (js/cotizador/tarifas.js).
+   Aquí no se cobra nada —ver arriba—, pero un material agregado tiene que tener nombre en la
+   plataforma y saber de qué se fabrica para derivar su material. El cotizador guarda la última
+   tabla de la hoja en este mismo origen (`al3d_tarifas`); se lee de ahí, con la misma regla que
+   allá: una tabla a la que le falta algo de fábrica no se aplica. */
+function aplicarGuardadas() {
+  let t = null;
+  try { t = JSON.parse(localStorage.getItem('al3d_tarifas') || 'null'); } catch (_) { return; }
+  if (!t || !Array.isArray(t.filas)) return;
+  const fab = { material: MATERIALES, complejidad: COMPLEJIDAD, recorte: RECORTES, bastidor: BASTIDORES, caja: CAJAS };
+  const L = { material: [], complejidad: [], recorte: [], bastidor: [], caja: [] };
+  let extra = RECORTE_COMP_EXTRA;
+  for (const f of t.filas) {
+    if (!f || typeof f !== 'object' || !isFinite(Number(f.precio))) return;
+    if (f.grupo === 'recorte-extra') { if (f.clave === 'sandwich') extra = Number(f.precio); continue; }
+    const lista = fab[f.grupo]; if (!lista) continue;
+    const base = lista.find(e => e.key === f.clave) || lista.find(e => e.key === f.como);
+    if (!base || L[f.grupo].some(e => e.key === f.clave)) continue;
+    const e = Object.assign({}, base, { key: String(f.clave), label: String(f.nombre || base.label) });
+    if (e.key !== base.key) e.como = base.key;
+    if (f.visible === false) e.oculto = true;
+    const p = Number(f.precio);
+    if (f.grupo === 'complejidad') e.extra = p; else if (f.grupo === 'material' || f.grupo === 'recorte') e.precio = p; else e.tarifa = p;
+    L[f.grupo].push(e);
+  }
+  for (const g in fab) if (!fab[g].every(b => L[g].some(e => e.key === b.key))) return;
+  for (const g in fab) fab[g].splice(0, fab[g].length, ...L[g]);
+  RECORTE_COMP_EXTRA = extra;
+}
+if (typeof localStorage !== 'undefined') aplicarGuardadas();
 
 export function catalogos() {
   return { MATERIALES, COMPLEJIDAD, RECORTES, BASTIDORES, CAJAS,

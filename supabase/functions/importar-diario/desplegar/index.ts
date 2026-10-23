@@ -7,7 +7,7 @@
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/supabase-importar-diario.mjs falla si una cambió:
 //   998974899ffa11bc  datos/semilla.json
 //   217bbd02795cbecf  js/datos/agenda.js
-//   9a16afb7b8d9b2f2  js/datos/catalogo-precios.js
+//   b45871e3586bb5a1  js/datos/catalogo-precios.js
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   e726712a4de79d0b  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
@@ -873,6 +873,69 @@ var CRUDAS = /* @__PURE__ */ new Set([
   CLAVES.EMPRESA,
   CLAVES.RESTAURAR
 ]);
+
+// js/datos/catalogo-precios.js
+var MATERIALES = [
+  { key: "al-paint", label: "Aluminio Blanco/Negro/Pintado", precio: 30, ilum: "LED posterior (cálida/fría)" },
+  { key: "al-brush", label: "Aluminio Brush Cepillado", precio: 35, ilum: "LED posterior (cálida/fría)" },
+  { key: "acr-vol", label: "Acrílico + Aluminio (Volumen)", precio: 40, ilum: "LED fría frontal" },
+  { key: "acr-vinil", label: "Acrílico + Vinil", precio: 45, ilum: "LED fría frontal" },
+  { key: "acero", label: "Acero Inoxidable", precio: 55, ilum: "LED posterior (cálida/fría)" }
+];
+var COMPLEJIDAD = [
+  { key: "recta", label: "Recta", extra: 0 },
+  { key: "cursiva", label: "Cursiva", extra: 5 },
+  { key: "compleja", label: "Compleja", extra: 10 }
+];
+var CAJAS = [
+  { key: "std", label: "Estándar", tarifa: 3900, desc: "Cuadrada / rectangular / circular" },
+  { key: "nube", label: "Tipo nube / silueta", tarifa: 4600, desc: "Silueta de logotipo o personaje" }
+];
+var RECORTES = [
+  { key: "sencillo", label: "Sencillo", precio: 20 },
+  { key: "vinil", label: "Rotulación de vinil", precio: 25 },
+  { key: "sandwich", label: "Tipo sándwich c/iluminación", precio: 55 }
+];
+var RECORTE_COMP_EXTRA = 5;
+var BASTIDORES = [
+  { key: "lamina", label: "Lámina", tarifa: 950 },
+  { key: "alucobond", label: "Alucobond", tarifa: 1500 }
+];
+function aplicarGuardadas() {
+  let t = null;
+  try {
+    t = JSON.parse(localStorage.getItem("al3d_tarifas") || "null");
+  } catch (_) {
+    return;
+  }
+  if (!t || !Array.isArray(t.filas)) return;
+  const fab = { material: MATERIALES, complejidad: COMPLEJIDAD, recorte: RECORTES, bastidor: BASTIDORES, caja: CAJAS };
+  const L = { material: [], complejidad: [], recorte: [], bastidor: [], caja: [] };
+  let extra = RECORTE_COMP_EXTRA;
+  for (const f of t.filas) {
+    if (!f || typeof f !== "object" || !isFinite(Number(f.precio))) return;
+    if (f.grupo === "recorte-extra") {
+      if (f.clave === "sandwich") extra = Number(f.precio);
+      continue;
+    }
+    const lista = fab[f.grupo];
+    if (!lista) continue;
+    const base = lista.find((e2) => e2.key === f.clave) || lista.find((e2) => e2.key === f.como);
+    if (!base || L[f.grupo].some((e2) => e2.key === f.clave)) continue;
+    const e = Object.assign({}, base, { key: String(f.clave), label: String(f.nombre || base.label) });
+    if (e.key !== base.key) e.como = base.key;
+    if (f.visible === false) e.oculto = true;
+    const p = Number(f.precio);
+    if (f.grupo === "complejidad") e.extra = p;
+    else if (f.grupo === "material" || f.grupo === "recorte") e.precio = p;
+    else e.tarifa = p;
+    L[f.grupo].push(e);
+  }
+  for (const g in fab) if (!fab[g].every((b) => L[g].some((e) => e.key === b.key))) return;
+  for (const g in fab) fab[g].splice(0, fab[g].length, ...L[g]);
+  RECORTE_COMP_EXTRA = extra;
+}
+if (typeof localStorage !== "undefined") aplicarGuardadas();
 
 // js/datos/geo.js
 var MX = { latMin: 14, latMax: 33, lngMin: -118, lngMax: -86 };

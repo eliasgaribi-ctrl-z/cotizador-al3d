@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -477,6 +477,10 @@ function hitoFecha(ts){
 const PDF_ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
 const PDF_BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
 function matPapel(it){ const m=matOf(it&&it.material); return m?m.label:'Aluminio'; }
+/* Un acabado o un forro agregado desde Precios y materiales (tarifas.js) no tiene nombre de papel:
+   sale con el suyo. */
+function acabPapel(it){ return PDF_ACAB[it.acab]||((recOf(it.acab)||{}).label||''); }
+function basPapel(it){ return PDF_BAS[it.bas]||((basOf(it.bas)||{}).label||''); }
 
 /* ===================== Copiar datos para pegar en Canva ===================== */
 function copiarParaCanva(){
@@ -487,8 +491,8 @@ function copiarParaCanva(){
        arregla en el PDF doscientas líneas más abajo, con el porqué escrito al lado— y el acabado
        vacío es un estado normal: la partida nace así y la conversión automática por altura lo
        deja así a propósito, porque el acabado es dinero y lo elige una persona. */
-    else if(it.tipo==='recorte')  d=`Recorte de Acrílico${PDF_ACAB[it.acab]?': '+PDF_ACAB[it.acab]+'.':'.'}`;
-    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${PDF_BAS[it.bas]||'lámina galvanizada'}.`;
+    else if(it.tipo==='recorte')  d=`Recorte de Acrílico${acabPapel(it)?': '+acabPapel(it)+'.':'.'}`;
+    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${basPapel(it)||'lámina galvanizada'}.`;
     else if(it.tipo==='caja'){const tp=cajaTipoPdf(it); d=`Caja de Luz:${tp?' '+tp+',':''} Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?' — ':'')+it.desc;
     return d||'—';
@@ -554,13 +558,17 @@ function copiarParaGemini(){
     const label=it.desc?` "${it.desc}"`:'';
     if(it.tipo==='letras'){
       let fabr='';
-      if(it.material==='al-paint') fabr='Fabricadas en Aluminio Pintado';
+      /* De qué se fabrica: un material agregado desde Precios y materiales hereda la
+         iluminación del de fábrica (baseDe) pero se nombra con el suyo. */
+      const mE=matOf(it.material), mb=baseDe(mE);
+      if(mE&&mE.como) fabr='Fabricadas en '+mE.label;
+      else if(it.material==='al-paint') fabr='Fabricadas en Aluminio Pintado';
       else if(it.material==='al-brush') fabr='Fabricadas en Aluminio Brush Cepillado';
       else if(it.material==='acr-vol') fabr='Fabricadas en Acrílico, Cantos en Aluminio';
       else if(it.material==='acr-vinil') fabr='Fabricadas en Acrílico con Rotulación de Vinil, Cantos en Aluminio';
       else if(it.material==='acero') fabr='Fabricadas en Acrílico, Cantos en Acero Inoxidable acabado espejo';
       else fabr='Fabricadas en Aluminio';
-      const ilumPos=(it.material==='acr-vol'||it.material==='acr-vinil')?'Interna':'Posterior';
+      const ilumPos=(mb==='acr-vol'||mb==='acr-vinil')?'Interna':'Posterior';
       const ilumColor=(it.ilumTipo==='calida')?'Cálida (3000K)':'Fría (6500K)';
       const ilum=it.luz?`, con Iluminación LED ${ilumPos} ${ilumColor}`:' sin iluminación';
       const alt=it.altura?`, altura de ${it.altura}cm`:'';
@@ -568,12 +576,14 @@ function copiarParaGemini(){
     }
     if(it.tipo==='recorte'){
       const alt=it.altura?`, ${it.altura}cm de altura`:'';
+      const rE=recOf(it.acab), rb=baseDe(rE);
+      if(rE&&rE.como) return `Recorte de Acrílico ${rE.label}${label}${rb==='sandwich'?' — Con Iluminación LED Fría':''}${alt}`;
       if(it.acab==='sandwich') return `Recorte de Acrílico Tipo Sándwich${label} — Con Iluminación LED Fría${alt}`;
       if(it.acab==='vinil')    return `Recorte de Acrílico con Rotulación de Vinil${label}${alt}`;
       return `Recorte de Acrílico Sencillo${label}${alt}`;
     }
     if(it.tipo==='bastidor'){
-      const bas=it.bas==='alucobond'?'Alucobond':'Lámina Galvanizada';
+      const bas=basPapel(it)||'Lámina Galvanizada';
       const med=(it.ancho&&it.alto)?`, ${it.ancho}×${it.alto}cm`:'';
       return `Bastidor${label} — Estructura Tubular Forrada de ${bas}${med}`;
     }
@@ -857,10 +867,10 @@ function generarPDF(){
       esp=`Caras en Acrílico, Cantos en ${matPapel(it)}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
     }else if(it.tipo==='recorte'){
       tit='Recorte de Acrílico';
-      esp=PDF_ACAB[it.acab]?`${PDF_ACAB[it.acab]}.`:'';   // sin acabado elegido salía «Recorte de Acrílico: .»
+      esp=acabPapel(it)?`${acabPapel(it)}.`:'';   // sin acabado elegido salía «Recorte de Acrílico: .»
     }else if(it.tipo==='bastidor'){
       tit='Bastidor para Letras 3D';
-      esp=`Estructura tubular de 1" forrada de ${PDF_BAS[it.bas]||'lámina galvanizada'}.`;
+      esp=`Estructura tubular de 1" forrada de ${basPapel(it)||'lámina galvanizada'}.`;
     }else if(it.tipo==='caja'){
       tit='Caja de Luz';
       const tp=cajaTipoPdf(it);

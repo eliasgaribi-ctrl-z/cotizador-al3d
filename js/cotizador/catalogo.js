@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   149 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -36,7 +36,9 @@ const RECORTES = [
   {key:'vinil',    label:'Rotulación de vinil', precio:25},
   {key:'sandwich', label:'Tipo sándwich c/iluminación', precio:55},
 ];
-const RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
+/* `let` y no `const`: es el único precio que no vive en una lista, y la tabla de la hoja lo
+   puede cambiar (js/cotizador/tarifas.js). */
+let RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
 /* ----- Menos de 10 cm no son letras 3D: son recorte de acrílico -----
    Una letra de menos de 10 cm no se fabrica con volumen. No hay canto que doblar, no cabe
    el LED dentro y la cara no se sostiene sobre un costado de esa medida: el taller la corta
@@ -68,13 +70,25 @@ const matOf=k=>MATERIALES.find(m=>m.key===k);
    de 4600, una por encima —que quedaba como «nube» sin serlo— y, desde que la caja dejó de
    autoelegirse su tarifa, una caja a la que nadie le ha elegido el tipo todavía. El papel que
    firma el cliente no puede nombrar un tipo que nadie escogió: si la tarifa no está en el
-   catálogo, la caja se describe sin apellido. */
-const cajaOf=t=>CAJAS.find(c=>c.tarifa===Number(t))||null;
+   catálogo, la caja se describe sin apellido.
+   Desde que los precios se editan en la hoja (23-oct-2026) eso no basta: subir la estándar de
+   $3,900 a $4,200 dejaría sin tipo a todas las cajas ya cotizadas a $3,900. Así que el chip guarda
+   además la clave (`it.caja`), que manda cuando está; una tarifa tecleada a mano la quita
+   (typeItem), y una partida de antes, sin clave, se sigue buscando por su tarifa. */
+const cajaOf=(t,k)=>(k&&CAJAS.find(c=>c.key===k))||CAJAS.find(c=>c.tarifa===Number(t))||null;
+const cajaDe=it=>it?cajaOf(it.tarifa,it.caja):null;
+/* De qué se fabrica una entrada del catálogo: la de fábrica es ella misma; una agregada desde
+   Ajustes dice `como` (tarifas.js). Lo que no es dinero —la iluminación, el texto del PDF, el
+   material de compra— se decide con esta clave y no con la de la entrada. */
+const baseDe=e=>e?(e.como||e.key):'';
 /* «Tipo Nube / Silueta» / «Estándar» — con las mayúsculas del papel, que no son las del chip. */
 function cajaTipoPdf(it){
-  const c=cajaOf(it&&it.tarifa);
-  return c?(c.key==='nube'?'Tipo Nube / Silueta':'Estándar'):'';
+  const c=cajaDe(it);
+  return c?(baseDe(c)==='nube'?'Tipo Nube / Silueta':'Estándar'):'';
 }
+/* Lo que se ofrece en los chips: lo visible, más lo que la partida ya tiene aunque se haya
+   ocultado —una partida no pierde su material de vista porque Dirección lo retiró del catálogo—. */
+const ofrecer=(lista,actual)=>lista.filter(e=>!e.oculto||e.key===actual);
 const compOf=k=>COMPLEJIDAD.find(c=>c.key===k);
 const recOf=k=>RECORTES.find(r=>r.key===k);
 const basOf=k=>BASTIDORES.find(b=>b.key===k);
