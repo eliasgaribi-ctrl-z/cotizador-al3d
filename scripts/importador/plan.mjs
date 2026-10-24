@@ -379,6 +379,9 @@ export async function planear(entrada) {
     if (pt && String(pt.nombre || '').trim() && String(pt.nombre).trim() !== v.nombre) { nombreFinal = String(pt.nombre).trim(); raro('B', v.nombre); }
     const partes = pt && (pt.contacto || pt.negocio) ? { contacto: String(pt.contacto || ''), negocio: String(pt.negocio || '') } : partirNombre(nombreFinal);
     if (!Object.keys(procedencia.celdas).length) delete procedencia.celdas;
+    /* Una venta viva sin «Etapa de obra» en la hoja entra como «ganado» (la base no deja una viva sin etapa), y se dice: la lectura en
+       vivo (js/datos/supa-vivo.js) la enseña sin etapa, como la hoja, mientras siga en «ganado» (2026-10-24). */
+    if (!historica && !ETAPA_DESDE_NOTION[etapaTxt] && obra.etapa === hoja.etapa) procedencia.etapa_vacia = true;
     if (unibles.length) procedencia.telefonos = [...new Set(unibles.map(x => x.tel.etiqueta))];
     if (pt && ms(pt.actualizado_en)) procedencia.actualizado_ms = ms(pt.actualizado_en);
     for (const k of ['hoja_perdida', 'duplicado_de', 'hoja_doble', 'fuera_de_hoja']) if (pt && pt[k]) (procedencia.marcas ||= {})[k] = pt[k];
@@ -408,7 +411,9 @@ export async function planear(entrada) {
       precio_auth: fuente === 'cotizacion' && pt && Number.isFinite(Number(pt.precio_auth)) && pt.precio_auth !== null ? Number(pt.precio_auth) : (neto.ok && !neto.vacia ? neto.n : null),
       origen: proyecto.origen,
       venta_local: pt && (pt.sub !== undefined || pt.neto !== undefined) ? { sub: pt.sub ?? null, neto: pt.neto ?? null } : null,
-      procedencia: { fila_hoja: fila },
+      /* Un importe VACÍO en la hoja entra como 0 (la columna no admite null y las fórmulas lo leen igual), y se dice cuál: «sin capturar»
+         no es «cero» para el teléfono, que con un 0 pisaría el anticipo pactado. La lectura en vivo lo regresa vacío (2026-10-24). */
+      procedencia: { fila_hoja: fila, ...(['G', 'I', 'J'].some(l => vacia(c(l))) ? { vacias: ['G', 'I', 'J'].filter(l => vacia(c(l))) } : {}) },
     });
     // la cita: en las vivas, una instalación; en las históricas ya quedó en fecha_instalacion_hist
     if (!historica && fechaInst) {
