@@ -1310,7 +1310,7 @@ async function pintarSupabase() {
   else html = nota(esc(a.mensaje || 'No se pudo preguntar a la base. Revisa la señal y vuelve a abrir Ajustes.'), 'av');
   if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
   html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
-  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloqueSombra();
+  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloquePantallas(Supa) + await bloqueSombra();
   listo(html);
 }
 
@@ -1336,6 +1336,29 @@ async function bloquePersonas(Supa) {
     '<input type="email" id="aj-supa-correo" autocomplete="off" spellcheck="false" placeholder="nombre@gmail.com"></div>' +
     '<div class="fld"><label for="aj-supa-area">Área</label><select id="aj-supa-area">' + opciones('fabricacion') + '</select></div>' +
     '<div class="pf-acciones"><button type="button" class="btn btn-pri" data-act="supa-alta">Dar de alta</button></div>';
+}
+
+/* ----- Pantallas del taller (taller.html) -----
+   Una TV en la pared con las obras por etapa, sin dinero. La TV enseña un código; Dirección lo
+   escribe aquí y queda vinculada. Desconectarla le cierra la base en su siguiente vuelta (un minuto). */
+const fechaPantalla = ts => ts ? new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'todavía no';
+
+async function bloquePantallas(Supa) {
+  let lista;
+  try { lista = await Supa.pantallas(); }
+  catch (e) { return nota('No se pudo leer la lista de pantallas: ' + esc(Supa.mensajeDe(e)), 'av'); }
+  const filas = lista.map(p => '<li class="aj-supa-persona"><div><b>' + esc(p.nombre) + '</b><br><span class="pf-nota">Vista por última vez: ' +
+      esc(fechaPantalla(p.ultima_vez)) + '</span></div>' +
+      '<button type="button" class="btn btn-gho" data-act="supa-pantalla-fuera" data-id="' + esc(p.id) + '" data-nombre="' + esc(p.nombre) + '">Desconectar</button></li>').join('');
+  return '<h3 class="aj-sub">Pantallas del taller</h3>' +
+    '<p class="pf-nota">Una TV en la pared del taller con las obras por etapa, quién va tarde y las próximas instalaciones, <b>sin dinero</b>. ' +
+    'En la TV abre <b>' + esc(location.origin + location.pathname.replace(/[^/]*$/, '')) + 'taller.html</b>: sale un código de 6 letras. Escríbelo aquí.</p>' +
+    '<ul class="aj-supa-personas">' + (filas || '<li>Ninguna todavía.</li>') + '</ul>' +
+    '<div class="fld"><label for="aj-pantalla-codigo">Código que sale en la TV</label>' +
+    '<input type="text" id="aj-pantalla-codigo" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="ABC 234"></div>' +
+    '<div class="fld"><label for="aj-pantalla-nombre">Nombre (opcional)</label>' +
+    '<input type="text" id="aj-pantalla-nombre" autocomplete="off" maxlength="60" placeholder="TV del taller"></div>' +
+    '<div class="pf-acciones"><button type="button" class="btn btn-pri" data-act="supa-pantalla-alta">Vincular pantalla</button></div>';
 }
 
 async function accionSupabase(b) {
@@ -1364,6 +1387,19 @@ async function accionSupabase(b) {
       if (!si) return;
       await Supa.darDeBaja(correo);
       toast('Baja de ' + correo, 'ok', 2500);
+    } else if (a === 'supa-pantalla-alta') {
+      const codigo = String(($('aj-pantalla-codigo') || {}).value || '').trim();
+      const nombre = String(($('aj-pantalla-nombre') || {}).value || '').trim();
+      if (codigo.replace(/[^A-Za-z0-9]/g, '').length !== 6) { toast('El código son 6 letras y números, como sale en la TV', 'err', 4000); return; }
+      const r = await Supa.vincularPantalla(codigo, nombre);
+      toast('Pantalla vinculada: ' + r.nombre + '. En un momento enseña el taller.', 'ok', 4000);
+    } else if (a === 'supa-pantalla-fuera') {
+      const nombre = b.dataset.nombre || 'esta pantalla';
+      const si = await confirmarPf({ titulo: '¿Desconectar ' + nombre + '?', peligro: true, si: 'Desconectar', no: 'Cancelar',
+        texto: 'Deja de enseñar el taller en su siguiente vuelta (un minuto) y vuelve a pedir un código. Para usarla otra vez, vincúlala de nuevo.' });
+      if (!si) return;
+      await Supa.desconectarPantalla(b.dataset.id || '');
+      toast('Desconectada: ' + nombre, 'ok', 2500);
     }
   } catch (e) { toast(Supa.mensajeDe(e), 'err', 6000); }
   pintarSupabase();

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- Content-Security-Policy: ver la nota de index.html y pruebas/csp.mjs. Esta página solo habla con la función `pantalla`
+     del proyecto de producción, y solo carga imágenes de ese mismo proyecto (el plano de cada orden de trabajo, con una liga
+     firmada de Storage). La dirección es la de js/datos/supabase-config.js; pruebas/taller-tv.mjs lo vigila. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://gwzfdprdrdudfakjsdxf.supabase.co; connect-src https://gwzfdprdrdudfakjsdxf.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taller · AL3D</title>
+<meta name="description" content="La pantalla del taller de AL3D: las obras por etapa, quién va tarde y las próximas instalaciones.">
+<meta name="theme-color" content="#0e0f12">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<link rel="stylesheet" href="css/taller.css">
+</head>
+<!-- ============================================================================
+     TALLER — la pantalla de la pared del taller (pedida por Elías el 2026-10-24).
+
+     Se abre en cualquier TV con navegador (o un Google TV, o una computadora) y se queda ahí todo
+     el día. Enseña las cinco estaciones del Tablero con sus obras, quién va tarde y las próximas
+     instalaciones. SIN DINERO: la ve todo el equipo.
+
+     La primera vez enseña un código de 6 letras; Dirección lo escribe en la app (Ajustes →
+     Supabase → Pantallas del taller) y queda vinculada. Todo lo de la TV está en js/taller-tv.js,
+     escrito como JavaScript VIEJO a propósito (sin módulos, sin flechas, sin let): el navegador de
+     una TV de 2017 no entiende otra cosa. Los atrasos NO se calculan aquí: llegan hechos de la
+     función `pantalla`, que usa la misma regla que el Tablero (js/datos/taller.js).
+     ============================================================================ -->
+<body>
+  <div id="escena">
+    <header class="tv-cabeza">
+      <div class="tv-marca"><img src="logo-al3d-oscuro.svg" width="96" height="48" alt="AL3D"><span>Taller</span></div>
+      <div class="tv-resumen" id="resumen"></div>
+      <div class="tv-hora"><div id="reloj" class="tv-reloj"></div><div id="fecha" class="tv-fecha"></div></div>
+    </header>
+    <main id="contenido" class="tv-contenido" aria-live="polite">
+      <p class="tv-aviso">Abriendo…</p>
+    </main>
+    <footer class="tv-pie">
+      <div id="proximas" class="tv-proximas"></div>
+      <div id="frescura" class="tv-frescura"></div>
+    </footer>
+  </div>
+  <script src="js/taller-tv.js"></script>
+</body>
+</html>

@@ -559,3 +559,21 @@ Con esto la pieza 1 de abajo queda hecha.
 5. Los QR de los PDF impresos: la clave del sello tendría que vivir también en Supabase para autorizar y verificar después del cambio, o
    `/verificar` y `/autorizar` se quedan en el Apps Script. Lo decide Elías.
 6. Siete días seguidos cuadrando (van 1, desde el 2026-10-24) y el día del cambio.
+
+## Décima entrega (2026-10-24): la pantalla del taller
+
+Rama `claude/pantalla-taller`. Pedida por Elías ese día: una TV en la pared del taller con las obras por etapa, quién va tarde y las
+próximas instalaciones, sin dinero; y, rotando, la orden de trabajo de cada obra en diseño, corte o armado. Cómo se publica:
+`supabase/README.md`, «La pantalla del taller».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `0022_pantallas.sql`: la tabla `pantallas`, vincular con un código de 6 letras (Dirección lo aprueba), leer sin dinero y desconectar; la auditoría con las cuatro RPC en sus listas y `pantallas` como excepción de GR-09 (solo borra códigos vencidos) | hecho y verificado en PGlite | `supabase/tests/pantallas/pantallas.mjs` |
+| Función `pantalla`: el secreto lo inventa la función y a la base solo llega su huella; los atrasos con `js/datos/taller.js` (idénticos al Tablero); la orden de trabajo con las reglas de la impresa; el plano con una liga firmada de una hora | hecho y verificado en node | `pruebas/supabase-pantalla.mjs` |
+| `taller.html`: JavaScript viejo (TV de 2017), la hora de México sin horario de verano, rotación tablero 40 s / orden 15 s | hecho, probado en el navegador con datos de mentiras | `pruebas/taller-tv.mjs` |
+| Ajustes → Supabase → «Pantallas del taller» (Dirección): vincular con el código y desconectar | hecho | `js/mod/ajustes.js`, `js/nucleo/supa.js` |
+| La copia hoja → nube cada 3 horas (antes una vez al día), para que la pantalla no enseñe lo de ayer (Elías eligió cada 3 horas) | hecho y publicado el 2026-10-24: pegado en el Apps Script de la hoja; `instalarCopiaDiaria` dejó ocho disparadores (0, 3, 6, … 21 h) en lugar del de las 3 a. m. | `puente/copia-diaria.gs`, `pruebas/supabase-importar-diario.mjs` |
+| Aplicar `0022` en `al3d-pruebas` y `al3d-produccion`, y desplegar la función `pantalla` desde el panel | hecho el 2026-10-24: `0022` en las dos bases (auditoría limpia); `pantalla` desplegada **solo en producción**, con Verify JWT apagado | `curl` a la función: `NO_ENCONTRADO` con un secreto inventado; 403 desde otro origen |
+| El permiso de `service_role` para leer `pantallas` (lo usa el respaldo semanal; entró a `0022` después de aplicarla) | en `al3d-pruebas` sí; **en `al3d-produccion` falta** el `grant` aparte, antes de volver a pegar `importar-diario` | `supabase/tests/rls-y-dinero/rls.mjs` (RL-14) |
+| Que la orden de trabajo salga para las obras de hoy | no sale: las obras en diseño, corte y armado vienen de la hoja (`fuente = 'hoja'`), sin `origen_obra` ni folio global, y las cotizaciones de la nube no están ligadas a la hoja. Sale para las obras que se ganen desde la app con su cotización en la nube | consulta en `al3d-produccion`, 2026-10-24 |
+| Que el plano salga en la TV | depende de que las imágenes de la obra estén en Storage (suben con la sombra, que sigue apagada en los aparatos): sin ellas, la orden sale con «todavía no tiene su plano en la nube» | — |

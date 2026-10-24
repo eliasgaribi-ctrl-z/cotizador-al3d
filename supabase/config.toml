@@ -61,6 +61,10 @@ verify_jwt = false
 [functions.respaldo]
 verify_jwt = false
 
+# `pantalla`: la llama la TV del taller (taller.html), que no tiene sesión; lo que la protege es el secreto de cada pantalla (0022).
+[functions.pantalla]
+verify_jwt = false
+
 # `importar-diario`: la dispara el Apps Script de la hoja cada madrugada con un secreto compartido (cabecera x-importar-secreto), como respaldo.
 [functions.importar-diario]
 verify_jwt = false

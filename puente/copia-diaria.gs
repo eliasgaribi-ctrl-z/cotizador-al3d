@@ -3,7 +3,9 @@
    hoja REAL «Finanzas AL3D — Ventas y Comisiones», junto a Código.gs. No cambia nada de Código.gs.
 
    Para qué. Decidido por Elías el 2026-10-16: el equipo sigue capturando directo en la hoja, así que
-   cada madrugada esta hoja se copia ENTERA a la base de Supabase (la nube) y se cuadra. Cuando
+   esta hoja se copia ENTERA a la base de Supabase (la nube) y se cuadra. Desde el 2026-10-24, CADA 3 HORAS
+   (a las 0, 3, 6, 9, 12, 15, 18 y 21 de México) y no solo de madrugada: la pantalla del taller (taller.html)
+   lee de la nube, y con una copia al día enseñaba lo de ayer. Elías eligió cada 3 horas. Cuando
    Ajustes diga 7 días seguidos cuadrando, Elías decide el día: última copia, la hoja a solo lectura
    y el equipo pasa a la plataforma. Hasta ese día la hoja sigue mandando: lo que la nube tenga
    distinto se pisa con lo de la hoja en la copia siguiente.
@@ -29,8 +31,9 @@
           IMPORTAR_SECRETO  el mismo valor que se puso en los Secrets de la función (32+ caracteres)
      3. Elige copiarHojaASupabase y «Ejecutar» una vez (la primera vez pide permiso para conectarse
         a un servicio externo). El registro dice cómo salió.
-     4. Elige instalarCopiaDiaria y «Ejecutar»: queda programada todos los días entre 3 y 4 de la
-        mañana, hora de México. quitarCopiaDiaria la quita.
+     4. Elige instalarCopiaDiaria y «Ejecutar»: queda programada cada 3 horas (ocho disparadores: 0, 3, 6,
+        9, 12, 15, 18 y 21, hora de México; Google la corre en algún momento de esa hora). quitarCopiaDiaria
+        los quita. Volver a correrla con la versión nueva cambia el de las 3 por los ocho.
      5. Elige instalarRespaldoSemanal y «Ejecutar» una vez: el respaldo semanal de la base a Drive (abajo, «EL
         RESPALDO SEMANAL»). Hace el primero en ese momento; si Google pide permiso de Drive, aceptarlo.
    Si falta una propiedad, no hace nada y lo dice. Los nombres de aquí empiezan con «copia» o «Copia» (o son las
@@ -42,7 +45,7 @@ var COPIA_PROP_SECRETO = 'IMPORTAR_SECRETO';
 var COPIA_PROP_URL = 'IMPORTAR_URL';
 var COPIA_SECRETO_MIN = 32;
 var COPIA_FUNCION = 'copiarHojaASupabase';
-var COPIA_HORA = 3;                       // de 3 a 4 de la mañana (Google la corre en algún momento de esa hora)
+var COPIA_HORAS = [0, 3, 6, 9, 12, 15, 18, 21];   // cada 3 horas (Google corre cada una en algún momento de esa hora)
 var COPIA_ZONA = 'America/Mexico_City';
 var COPIA_CABECERA = 'x-importar-secreto';
 /* Las mismas pestañas que VOLCADO_PESTANAS de volcado-para-importar.gs (la prueba vigila que sigan iguales). */
@@ -85,8 +88,10 @@ function instalarCopiaDiaria() {
   var conf = copiaConfiguracion_();
   if (!conf.ok) return copiaAnotar_('no se programó: ' + conf.mensaje + ' Ponlas primero y vuelve a correr esto.');
   copiaQuitarDisparadores_();
-  ScriptApp.newTrigger(COPIA_FUNCION).timeBased().atHour(COPIA_HORA).everyDays(1).inTimezone(COPIA_ZONA).create();
-  return copiaAnotar_('programada: todos los días entre las ' + COPIA_HORA + ' y las ' + (COPIA_HORA + 1) + ' de la mañana (hora de México).');
+  COPIA_HORAS.forEach(function (h) {
+    ScriptApp.newTrigger(COPIA_FUNCION).timeBased().atHour(h).everyDays(1).inTimezone(COPIA_ZONA).create();
+  });
+  return copiaAnotar_('programada: cada 3 horas (a las ' + COPIA_HORAS.join(', ') + ', hora de México).');
 }
 
 /** Quita la copia programada (solo la suya: los demás disparadores de la hoja no se tocan). */

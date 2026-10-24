@@ -109,7 +109,7 @@ try {
       /let _lecturaEnVivo = null;/.test(app) && /if \(!\(_lecturaEnVivo && _lecturaEnVivo\.saltarJalar\(\)\)\) try \{/.test(app));
     const aj = sinComentarios(leer('js/mod/ajustes.js'));
     cierto('Ajustes solo pinta el bloque a Dirección activa con sesión, dentro de la tarjeta de Supabase',
-      /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
+      /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloquePantallas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
     cierto('y lo carga con import()', /await import\('\.\.\/datos\/supa-sombra\.js'\)/.test(aj) && /await import\('\.\.\/datos\/supa-enchufe\.js'\)/.test(aj));
     const sy = sinComentarios(leer('js/datos/sync.js'));
     cierto('el gancho de sync nace en null y solo se llama si existe', /let _alSubir = null;/.test(sy) && /if \(_alSubir\) \{ try \{ await _alSubir\(op, respuesta\); \} catch \(_\) \{/.test(sy));

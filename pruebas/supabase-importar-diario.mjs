@@ -13,7 +13,7 @@
         Deno y un postgres de mentiras.
      4. El Apps Script (puente/copia-diaria.gs), cargado en vm: sin sus propiedades no hace nada y lo dice, arma EXACTAMENTE
         el volcado de volcado-para-importar.gs sin tocar Drive ni escribir la hoja, lo manda con el secreto, deja una línea
-        sin datos de clientes, programa y quita su disparador (madrugada de México) y no choca con nada de Código.gs.
+        sin datos de clientes, programa y quita sus disparadores (cada 3 horas, hora de México) y no choca con nada de Código.gs.
      5. Ajustes: la racha de la copia diaria (resumenCopiaDiaria) y que apagado no cambie nada.
 
    Todo es de mentiras: nombres, importes, el secreto y la dirección de la base. Se corre con pruebas/correr.sh. */
@@ -389,9 +389,9 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
     const pr = await pedir(SECRETO, JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }));
     const prTexto = await pr.text();
     const pg2 = globalThis.__al3dUltimoPg;
-    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (20 tablas), en una transacción de solo lectura, cerrando la conexión',
+    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (21 tablas: 0022 sumó pantallas), en una transacción de solo lectura, cerrando la conexión',
       [pr.status, JSON.parse(prTexto).formato, Object.keys(JSON.parse(prTexto).tablas).length, pg2.sentencias[0], pg2.sentencias.filter(t => /json_agg/.test(t)).length, pg2.terminado],
-      [200, 'al3d-respaldo-1', 20, 'set transaction isolation level repeatable read, read only', 20, true]);
+      [200, 'al3d-respaldo-1', 21, 'set transaction isolation level repeatable read, read only', 21, true]);
     delete envB.IMPORTAR_SECRETO;
     const sinSec = await pedir(SECRETO, JSON.stringify(v));
     eq('y sin el secreto en el entorno: 503', sinSec.status, 503);
@@ -548,10 +548,10 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   eq('instalar sin propiedades: no programa nada', d0.triggers.map(t => t.fn), ['enviarResumen', 'alEditar']);
   const d = cargarGs(GS, { props: PROPS });
   d.ctx.instalarCopiaDiaria(); d.ctx.instalarCopiaDiaria();
-  eq('instalar (dos veces): UN disparador diario de copiarHojaASupabase, de 3 a 4 de la mañana en hora de México; los de la hoja siguen',
-    d.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ['copiarHojaASupabase', 'timeBased,atHour:3,everyDays:1,inTimezone:America/Mexico_City']]);
+  eq('instalar (dos veces): OCHO disparadores de copiarHojaASupabase, cada 3 horas en hora de México (2026-10-24, por la pantalla del taller); los de la hoja siguen',
+    d.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ...[0, 3, 6, 9, 12, 15, 18, 21].map(h => ['copiarHojaASupabase', 'timeBased,atHour:' + h + ',everyDays:1,inTimezone:America/Mexico_City'])]);
   const msg = d.ctx.quitarCopiaDiaria();
-  eq('quitar: solo el suyo', [d.triggers.map(t => t.fn), /1 disparador quitado/.test(msg)], [['enviarResumen', 'alEditar'], true]);
+  eq('quitar: solo los suyos', [d.triggers.map(t => t.fn), /8 disparadores quitados/.test(msg)], [['enviarResumen', 'alEditar'], true]);
   eq('quitar otra vez: dice que no estaba', /no estaba programada/.test(d.ctx.quitarCopiaDiaria()), true);
 
   // junto a Código.gs
@@ -711,7 +711,7 @@ seccion('10. AJUSTES — la racha de la copia diaria, y apagado no cambia nada')
     pinta.indexOf('if (!Supa.encendido())') < pinta.indexOf('bloqueSombra()') && /if \(!Supa\.encendido\(\)\) \{[\s\S]*?return;\s*\}/.test(pinta));
   cierto('el bloque que lee la copia diaria solo existe dentro de bloqueSombra, que solo se pinta a Dirección activa con sesión',
     (aj.match(/E\.cuadreDiario\(\)/g) || []).length === 1 && /async function bloqueSombra\(\) \{[\s\S]*?E\.cuadreDiario\(\)[\s\S]*?\n\}/.test(aj) &&
-    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
+    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloquePantallas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
   cierto('y un fallo al leerla no rompe la tarjeta (se atrapa y se dice)', /E\.cuadreDiario\(\)\.catch\(/.test(aj));
   const en = sinCom(leer('js/datos/supa-enchufe.js'));
   const cd = /export async function cuadreDiario\(\) \{([\s\S]*?)\n\}/.exec(en)[1];
@@ -782,10 +782,10 @@ const TABLAS_FALSAS = {
   const tablas = Object.fromEntries(R.TABLAS.map(t => [t.nombre, TABLAS_FALSAS[t.nombre] || []]));
   eq('el archivo es EXACTAMENTE el de la función respaldo (armarArchivo, «al3d-respaldo-1»): mismas llaves, mismo orden, mismas filas', j,
     JSON.parse(R.armarArchivo({ tablas, ahoraMs: AHORA, origen: 'gwzfdprdrdudfakjsdxf.supabase.co' })));
-  eq('con las 20 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
+  eq('con las 21 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
   eq('UNA transacción de solo lectura (repeatable read: una foto exacta), con tope de tiempo y una consulta por tabla; ni candado ni escritura',
     b.tx.map(log => log.map(x => (typeof x === 'string' ? x : x.e !== undefined ? 'E:' + x.e : 'Q'))).map(l => [l.slice(0, 4), l.length]),
-    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 20 + 1]]);
+    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 21 + 1]]);
   cierto('cada tabla con su orden de llave primaria, nombres solo de TABLAS', R.TABLAS.every(t => b.tx[0].some(x => x.q === RD.consultaDeTabla(t))) &&
     RD.consultaDeTabla({ nombre: 'contadores', orden: 'empresa_id,clave,ventana' }).includes('json_agg(x order by x.empresa_id, x.clave, x.ventana)'));
   let lanzo = false; try { RD.consultaDeTabla({ nombre: 'x; drop table y', orden: 'id' }); } catch (_) { lanzo = true; }
@@ -920,13 +920,13 @@ const yaHabia = id => [
   g6.ctx.instalarCopiaDiaria();
   const li = g6.ctx.instalarRespaldoSemanal(); g6.ctx.instalarRespaldoSemanal();
   eq('instalar (dos veces): UN disparador de respaldarSemanal, los domingos de 5 a 6 en hora de México; el de la copia y los de la hoja siguen',
-    g6.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ['copiarHojaASupabase', 'timeBased,atHour:3,everyDays:1,inTimezone:America/Mexico_City'],
+    g6.triggers.map(t => [t.fn, (t.cadena || []).join(',')]), [['enviarResumen', ''], ['alEditar', ''], ...[0, 3, 6, 9, 12, 15, 18, 21].map(h => ['copiarHojaASupabase', 'timeBased,atHour:' + h + ',everyDays:1,inTimezone:America/Mexico_City']),
       ['respaldarSemanal', 'timeBased,onWeekDay:SUNDAY,atHour:5,inTimezone:America/Mexico_City']]);
   eq('pide los permisos de Drive y de conectarse afuera (por si quedaron desmarcados) y hace el primer respaldo en ese momento',
     [g6.reg.permisos[0], d4.creados.length >= 1, /programado: los domingos entre las 5 y las 6/.test(li) && /guardado al3d-respaldo-/.test(li)],
     [['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/script.external_request'], true, true]);
   const lq = g6.ctx.quitarRespaldoSemanal();
-  eq('quitar: solo el suyo', [g6.triggers.map(t => t.fn), /1 disparador quitado/.test(lq)], [['enviarResumen', 'alEditar', 'copiarHojaASupabase'], true]);
+  eq('quitar: solo el suyo', [g6.triggers.map(t => t.fn), /1 disparador quitado/.test(lq)], [['enviarResumen', 'alEditar', ...Array(8).fill('copiarHojaASupabase')], true]);
   const g7 = cargarGs([PUENTE_GS, GS], { props: {}, rutas: d4.rutas, drive: d4.DriveApp });
   const l7 = g7.ctx.instalarRespaldoSemanal();
   eq('sin IMPORTAR_URL / IMPORTAR_SECRETO: ni programa ni pide nada', [g7.triggers.map(t => t.fn), g7.reg.fetch.length, /no se programó/.test(l7)], [['enviarResumen', 'alEditar'], 0, true]);
