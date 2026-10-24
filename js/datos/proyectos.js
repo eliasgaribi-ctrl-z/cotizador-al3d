@@ -2512,9 +2512,10 @@ export async function juntarConLaDeAqui(id) {
    mantiene— empieza a dar fechas falsas en cuanto pasa un año. Se prefiere errar del lado
    de cobrar antes.
 
-   La excepción de los $60,000 NO cuenta nada: en un proyecto grande el saldo se liquida
-   como se haya pactado, y forzar «vence en 2 días» sobre una obra de $70,000 es enseñarle a
-   quien cobra a ignorar el aviso. Se dice que aplica y se calla la cuenta regresiva.
+   No hay excepción por tamaño. Hasta octubre de 2026 un proyecto de más de $60,000 liquidaba
+   «como se pactó» y la ficha callaba la cuenta regresiva; Elías quitó esa excepción del
+   anticipo el 23-oct (js/cotizador/proceso.js) y de aquí el 24: una obra de $70,000 también
+   liquida a los 2 días hábiles, y si no, sale vencida como cualquiera.
 
    El día 0 es el de la instalación y NUNCA `hoy`: una ficha que se abre tres semanas después
    tiene que decir lo mismo que el día que se instaló, corrido por el calendario.
@@ -2522,9 +2523,6 @@ export async function juntarConLaDeAqui(id) {
 
 /** Los dos días hábiles del cobro. Con nombre para que cambiarlos sea un renglón. */
 export const LIQUIDACION_HABILES = 2;
-/** Arriba de esto el saldo se liquida como se pactó (decisión 1 de CONVENCIONES.md: se mide
- *  sobre el total que se cobra, con IVA si lo lleva, igual que la excepción del anticipo). */
-export const LIQUIDACION_EXCEPCION = 60000;
 /** Las dos garantías, en meses. Eléctrico 1 año, colorimetría 2. */
 export const GARANTIAS = [
   { clave: 'electrico', nombre: 'Material eléctrico', meses: 12 },
@@ -2593,14 +2591,12 @@ export function garantiaYLiquidacion(d) {
   const vence = masHabiles(inst, LIQUIDACION_HABILES);
   let estado;
   if (saldo <= 0) estado = 'pagada';
-  else if (total > LIQUIDACION_EXCEPCION) estado = 'excepcion';
   else if (String(hoy) < String(vence)) estado = 'aTiempo';
   else if (String(hoy) === String(vence)) estado = 'venceHoy';
   else estado = 'vencida';
 
   const liquidacion = {
     estado, vence, saldo,
-    excepcion: total > LIQUIDACION_EXCEPCION,
     /* Hábiles que faltan (aTiempo) o que van de retraso (vencida). Nunca negativo: el signo
        lo dice el estado, y una cifra negativa junto a la palabra «vencida» se lee dos veces. */
     dias: estado === 'aTiempo' ? habilesEntre(hoy, vence)

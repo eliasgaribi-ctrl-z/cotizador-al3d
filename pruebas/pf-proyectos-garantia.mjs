@@ -9,7 +9,8 @@
  * Lo que este archivo defiende, y por qué cada caso está aquí:
  *   · los hábiles se cuentan saltando sábado y domingo, y el día de la instalación NO cuenta
  *     (instalar un jueves da el lunes, no el sábado);
- *   · la excepción de $60,000 apaga la cuenta regresiva en vez de mentir con «vence en 2 días»;
+ *   · un proyecto grande cuenta igual que uno chico: la excepción de $60,000 se quitó el
+ *     24-oct-2026 y no puede volver callada;
  *   · la garantía vence el MISMO día del mes, y el 31 en un mes de 30 baja al último día
  *     (`masMeses()` de fechas.js cae siempre en el día 1: usarla aquí adelantaba la garantía
  *     hasta 30 días);
@@ -87,13 +88,14 @@ eq('un día después: vencida hace 1 hábil', [dia('2026-10-01').liquidacion.est
 /* Del miércoles al lunes hay 3 hábiles: jue, vie, lun. El fin de semana no se cobra. */
 eq('el lunes siguiente: vencida hace 3 hábiles, no 5 naturales', dia('2026-10-05').liquidacion.dias, 3);
 
-console.log('\nla excepción de los $60,000 calla la cuenta regresiva');
+console.log('\nsin excepción de los $60,000: un proyecto grande cuenta como uno chico');
 const grande = Proy.garantiaYLiquidacion({ instalado: '2026-09-28', total: 69400, saldo: 34700, hoy: '2026-10-20' });
-eq('un proyecto de $69,400 nunca sale «vencida»', grande.liquidacion.estado, 'excepcion');
-eq('lo dice con su bandera', grande.liquidacion.excepcion, true);
-eq('y no cuenta días', grande.liquidacion.dias, 0);
-/* Se mide sobre el total que se cobra, con IVA si lo lleva: $60,000 clavados NO es excepción. */
-eq('$60,000 clavados todavía no es excepción', Proy.garantiaYLiquidacion({ instalado: '2026-09-28', total: 60000, saldo: 30000, hoy: '2026-10-20' }).liquidacion.estado, 'vencida');
+/* Del miércoles 30-sep al martes 20-oct van 14 hábiles: 2 + 5 + 5 + 2. */
+eq('un proyecto de $69,400 sin pagar sale «vencida hace 14 hábiles»', [grande.liquidacion.estado, grande.liquidacion.dias], ['vencida', 14]);
+eq('vence el mismo día que uno chico', grande.liquidacion.vence, '2026-09-30');
+eq('y ya no trae la bandera de la excepción', 'excepcion' in grande.liquidacion, false);
+eq('ni la constante de los $60,000', 'LIQUIDACION_EXCEPCION' in Proy, false);
+eq('instalado hoy, también va a tiempo', Proy.garantiaYLiquidacion({ instalado: '2026-09-28', total: 69400, saldo: 34700, hoy: '2026-09-28' }).liquidacion.estado, 'aTiempo');
 
 console.log('\nel saldo: la fórmula de la hoja manda, y si no la hay se pacta la mitad');
 eq('sin dato de la hoja, la mitad del total', Proy.garantiaYLiquidacion({ instalado: '2026-09-28', total: 17004, saldo: null, hoy: '2026-09-28' }).saldo, 8502);

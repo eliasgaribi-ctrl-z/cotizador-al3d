@@ -1903,17 +1903,14 @@ function garantiaHTML(p, inst, ve) {
   if (ve) {
     const l = g.liquidacion;
     const tono = l.estado === 'vencida' ? 'mal' : l.estado === 'venceHoy' ? 'av'
-      : l.estado === 'pagada' ? 'ok' : l.estado === 'excepcion' ? 'nada' : 'a';
+      : l.estado === 'pagada' ? 'ok' : 'a';
     const titulo =
       l.estado === 'pagada' ? 'Ya está liquidado'
-      : l.estado === 'excepcion' ? 'La liquidación va como se pactó'
       : l.estado === 'vencida' ? 'Liquidación vencida hace ' + plural(l.dias, 'día hábil', 'días hábiles')
       : l.estado === 'venceHoy' ? 'La liquidación vence hoy'
       : 'La liquidación vence en ' + plural(l.dias, 'día hábil', 'días hábiles');
     const detalle =
       l.estado === 'pagada' ? 'No queda saldo según la fórmula de la hoja.'
-      : l.estado === 'excepcion' ? 'Es de más de ' + money(Proy.LIQUIDACION_EXCEPCION) +
-          ': el saldo de ' + money(l.saldo) + ' se liquida como se pactó, no a los dos días hábiles.'
       : (l.estado === 'venceHoy' ? 'Último día hábil'
           : l.estado === 'vencida' ? 'Venció el ' + fmtFecha(l.vence) : 'Vence el ' + fmtFecha(l.vence)) +
         ' · saldo por cobrar ' + money(l.saldo);
