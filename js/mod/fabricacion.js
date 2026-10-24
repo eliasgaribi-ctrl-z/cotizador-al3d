@@ -99,6 +99,7 @@ let _diaRecien = false;      // el día abierto lo abrió un toque, no un repint
 let _firma = '';             // lo que NO depende del mes en el último pintado completo (F11)
 let _gesto = null;           // el arrastre de la rejilla, para soltarlo al salir (F11)
 let _nombres = null;         // la ficha de cada día con el ratón, para soltarla al salir (F26)
+let _mqTel = null, _alCambiarAncho = null;   // si es teléfono: cambia qué día se enseña debajo del mes
 
 const MIME_ICS = 'text/calendar;charset=utf-8';
 
@@ -148,6 +149,13 @@ export async function montar(contenedor, ctx) {
   _oyendo = true;
   _gesto = gestoDeLaRejilla(_cont);
   _nombres = fichaDeCadaDia(_cont);
+  /* Cruzar los 760 px (girar una tableta, angostar la ventana) cambia lo que se lee debajo del mes:
+     en el teléfono siempre hay un día a la vista; en la computadora, sin día elegido, va «Lo que
+     viene». Se vuelve a leer, porque el día de hoy se lee aparte. */
+  if (typeof matchMedia === 'function') {
+    _mqTel = matchMedia(MQ_TEL);
+    _mqTel.addEventListener('change', _alCambiarAncho = () => { if (_cont) recargar(); });
+  }
 
   /* La base cerrada no se pinta como un calendario vacío. «No tienes instalaciones» y «la
      base no abrió» son la misma pantalla en blanco, y la diferencia entre las dos es la
@@ -217,6 +225,8 @@ export function desmontar() {
   if (pide) pide.removeEventListener('click', alTocarPide);
   if (_gesto) { _gesto.soltar(); _gesto = null; }
   if (_nombres) { _nombres.destruir(); _nombres = null; }
+  if (_mqTel && _alCambiarAncho) _mqTel.removeEventListener('change', _alCambiarAncho);
+  _mqTel = null; _alCambiarAncho = null;
   /* La barra fija se limpia aquí y no en el módulo que sigue: si el siguiente no tiene
      acción principal, el botón de agendar se quedaría flotando encima de su pantalla y el
      primer dedo del día lo apretaría creyendo que es de lo que está viendo. */
@@ -255,6 +265,32 @@ const etiquetaMes = iso => {
   const p = partesISO(iso);
   return p ? MES_LARGO[p.m - 1] + ' ' + p.a : '';
 };
+
+/** «20 – 26 oct 2026», «27 oct – 2 nov 2026», «29 dic 2025 – 4 ene 2026»: el nombre de una
+ *  semana sin repetir el mes ni el año cuando son los mismos en las dos puntas. */
+function etiquetaSemana(ini, fin) {
+  const a = partesISO(ini), b = partesISO(fin);
+  if (!a || !b) return '';
+  if (a.a !== b.a) return fmtFecha(ini) + ' – ' + fmtFecha(fin);
+  if (a.m !== b.m) return a.d + ' ' + MES_CORTO[a.m - 1] + ' – ' + fmtFecha(fin);
+  return a.d + ' – ' + fmtFecha(fin);
+}
+
+/* El teléfono es la misma pantalla con otro reparto: el mes con puntos y, debajo, la lista de UN
+   día. Lo decide el mismo corte de 760 px que quita la barra lateral (css/plataforma.css). */
+const MQ_TEL = '(max-width: 759px)';
+const esTelefono = () => typeof matchMedia === 'function' && matchMedia(MQ_TEL).matches;
+
+/** El día que se enseña con su lista: el que se tocó y, en el teléfono, hoy si no se tocó otro y
+ *  el mes que se mira es el de hoy. Es lo que hace el calendario del iPhone —siempre hay un día a la
+ *  vista debajo del mes— y contesta «¿qué hay hoy?» sin tocar nada. En la computadora, sin día
+ *  elegido, el panel enseña «Lo que viene», que dice más que un solo día. */
+function diaMostrado() {
+  if (_vista !== 'mes') return null;
+  if (_dia) return _dia;
+  const hoy = hoyISO();
+  return esTelefono() && String(_ancla || '').slice(0, 7) === hoy.slice(0, 7) ? hoy : null;
+}
 
 /* ============================================================================
    Leer
@@ -315,7 +351,16 @@ async function leer() {
     }
   }
 
-  if (_dia) d.dia = await Agenda.delDia(_dia, { incluirCanceladas: true });
+  d.diaVisto = diaMostrado();
+  if (d.diaVisto) d.dia = await Agenda.delDia(d.diaVisto, { incluirCanceladas: true });
+
+  /* «Lo que viene»: las dos semanas que siguen, para el panel de la computadora. Solo cuando se va
+     a pintar —sin día elegido, fuera de la Lista (que ya es eso) y fuera del teléfono—. Es una
+     lectura de instalaciones con sus proyectos, la misma que hace la Lista. */
+  d.proximas = [];
+  if (!d.diaVisto && _vista !== 'lista' && !esTelefono()) {
+    d.proximas = await Agenda.listar({ desde: hoy, hasta: masDias(hoy, 13), vivas: true, conProyecto: true });
+  }
 
   /* Las ventanas de taller, solo cuando la lente las va a pintar. Una lectura de proyectos
      vivos, una de instalaciones vivas y una de constantes; la aritmética es pura y corre
@@ -399,7 +444,7 @@ function firmaFija(d) {
   const sinTaller = _lente !== 'instalaciones' && !(d.ventanas || []).length
     ? (d.mes && d.mes.total ? 'm1' : 'm0') : '';
   return [d.hoy, d.sinFecha.length, d.vencidas.length, (d.pendientes || []).length,
-          (d.ventanas || []).length, _lente, _vista, _soloCobro, _pasadas, sinTaller].join('|');
+          (d.ventanas || []).length, _lente, _vista, _soloCobro, _pasadas, sinTaller, esTelefono()].join('|');
 }
 
 /** La clave de «en qué mes (o semana) estoy», para saber hacia dónde viaja un cambio. */
@@ -440,29 +485,33 @@ function viajar(o) {
 
 /** Repinta solo lo que depende del periodo. Contesta false si no puede hacerlo sin dejar algo
  *  viejo —otra vista, otra lente, una cuenta que cambió, un marcado que no es el esperado— y
- *  quien llama repinta todo. */
+ *  quien llama repinta todo.
+ *
+ *  Desde el rediseño de octubre de 2026 la cabecera es la barra de herramientas de arriba
+ *  (`.cal-cab`), fuera de la tarjeta del mes; lo que cambia con el periodo es el título, el lienzo,
+ *  la tira de cifras y el panel de al lado (que enseña el día elegido o lo que viene; al cambiar de
+ *  mes el día se suelta). «Bajar el mes» ya no está en la página: vive en la hoja de «Llevar a mi
+ *  teléfono» y se arma al abrirla, con el periodo de ese momento. */
 function repintarPeriodo() {
   const d = _d;
-  const cuerpo = _cont && _cont.querySelector('.cal-card > .card-b');
-  const cab = cuerpo && cuerpo.querySelector(':scope > .cal-cab');
-  const lienzo = cuerpo && cuerpo.querySelector(':scope > .cal-lienzo');
-  const cuentas = _cont && _cont.querySelector(':scope > .pf-cuentas');
-  const exportar = _cont && _cont.querySelector(':scope > #cal-exportar');
-  if (!d || !cab || !lienzo || !cuentas || !exportar || _vista === 'lista' || firmaFija(d) !== _firma) return false;
+  const app = _cont && _cont.querySelector(':scope > .cal-app');
+  const mio = app && app.querySelector('.cal-cab .cal-mes');
+  const lienzo = app && app.querySelector('.cal-card .cal-lienzo');
+  const cuentas = app && app.querySelector('.cal-tira > .pf-cuentas');
+  const lado = app && app.querySelector('.cal-cuerpo > .cal-lado');
+  if (!d || !mio || !lienzo || !cuentas || !lado || _vista === 'lista' || firmaFija(d) !== _firma) return false;
   const tmp = document.createElement('div');
-  tmp.innerHTML = _vista === 'mes' ? pintarMes(d) : pintarSemana(d);
+  tmp.innerHTML = pintarLienzo(d);
   const nuevo = tmp.querySelector(':scope > .cal-lienzo');
-  const titulo = tmp.querySelector(':scope > .cal-cab .cal-mes');
-  const mio = cab.querySelector('.cal-mes');
-  if (!nuevo || !titulo || !mio) return false;
-  mio.textContent = titulo.textContent;
+  if (!nuevo) return false;
+  mio.textContent = tituloPeriodo(d);
   lienzo.replaceWith(nuevo);
   cuentas.outerHTML = pintarCuentas(d);
-  exportar.outerHTML = pintarExportar(d);
+  lado.outerHTML = pintarLado(d);
   rodarCuentas();
   /* El nombre del mes nuevo, dicho: con el foco en ‹ no se mueve nada que el lector de pantalla
      vea, y «mes siguiente» sin respuesta es un botón que parece no hacer nada. */
-  voz(titulo.textContent);
+  voz(mio.textContent);
   return true;
 }
 
@@ -624,62 +673,98 @@ function visibles(insts) {
   return l.filter(i => i.proyecto && Number(i.proyecto.pago_pendiente) > 0);
 }
 
-const CLASE_ICO = { ok: ' bien', falta: ' urge', grave: ' mal' };
 const PALABRA_SEM = { ok: 'Material listo', falta: 'Falta material', grave: 'Falta y es ya' };
 
 /* ============================================================================
    Pintar
    ============================================================================ */
 
+/* ----- La pantalla entera (rediseño de octubre de 2026) -----
+   «El calendario está muy chiquito» (Elías). Antes de llegar al mes había tres tarjetas de cifras
+   de 80 px, el segmentado suelto en su renglón y, dentro de la tarjeta, otra cabecera con el mes y
+   sus flechas; al pie, la tarjeta de «Al calendario del teléfono» empujaba todo. Ahora, como en
+   Google Calendar o Notion Calendar:
+
+     · UNA barra de herramientas (`.cal-cab`): el mes en grande, ‹ Hoy ›, Mes · Semana · Lista y
+       «Llevar a mi teléfono», que abre una hoja con las tres cosas de la tarjeta de antes.
+     · Una tira delgada con las tres cifras —en píldoras, y las que piden algo son botones— y los
+       colores de las etapas.
+     · El mes, que en la computadora llena la ventana, y al lado (de 1 280 px para arriba) o debajo
+       el panel: el día elegido o, sin día, «Lo que viene»; lo que ya pasó y nadie marcó; los
+       ganados sin fecha con su «Agendar»; y la tarjeta de «Se ganó / No se dio».
+
+   Las lentes Taller y Todo siguen apagadas; si vuelven, su segmento va en la barra y la fila del
+   taller encabeza el panel, que es la columna que antes ocupaba. */
 function pintar() {
   if (!_cont || !_d) return;
   const d = _d;
 
-  /* La lente, el segmento de vista y los filtros, en UNA sola tira.
-     Eran tres renglones apilados —«Taller · Instalaciones · Todo» a todo lo ancho, debajo
-     «Mes · Semana · Lista», debajo los chips— y esos tres renglones medían 130 px de alto
-     antes de que empezara el calendario: en un teléfono, media pantalla para llegar al mes.
-     Y peor: apilados, cada uno se lee como si filtrara al de abajo, cuando son la misma
-     pregunta hecha tres veces —qué parte de la agenda estoy mirando—.
-
-     En una tira caben porque la lente y la vista son segmentos compactos, no barras. El
-     `margin-left:auto` del CSS manda la vista a la derecha, que es donde la pone la maqueta. */
-  const barra =
-    '<div class="ag-barra">' +
-      pintarLente() +
-      '<div class="ag-barra-der">' +
-        segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
-                 _vista, 'data-vista', 'Cómo ves las instalaciones') +
-      '</div>' +
-      pintarFiltros() +
-    '</div>';
-
-  const calendario =
-    '<div class="card cal-card"><div class="card-b">' +
-      (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
-    '</div></div>';
-
-  /* Tres lentes sobre el MISMO calendario. Instalaciones: la agenda de siempre. Taller: la
-     rejilla con lo que vence cada día y la fila del taller —en el teléfono la fila primero,
-     que es la pregunta de la mañana—. Todo: las dos clases de chips en la rejilla y la fila
-     al lado. De 1 100 px para arriba, Taller y Todo van en dos columnas; abajo, uno debajo
-     del otro. Mismo marcado en el monitor y en el teléfono: solo cambia dónde cae cada cosa. */
-  /* El calendario va primero. Las cotizaciones autorizadas por decidir bajan debajo de él:
-     arriba ocupaban la pantalla entera y había que bajar para ver las entregas. */
   _cont.innerHTML =
-    pintarCuentas(d) +
-    barra +
-    (_lente === 'instalaciones'
-      ? calendario
-      : '<div class="ag-cuerpo dos' + (_lente === 'taller' ? ' taller-primero' : '') + '">' +
-          '<div class="ag-col">' + calendario + '</div>' + pintarTaller(d) + '</div>') +
-    (d.pendientes.length ? pintarDecidir(d) : '') +
-    pintarExportar(d);
+    '<div class="cal-app cal-v-' + _vista + '">' +
+      pintarBarra(d) +
+      '<div class="cal-tira">' + pintarCuentas(d) + pintarFiltros() + pintarLeyenda() + '</div>' +
+      '<div class="cal-cuerpo">' +
+        '<div class="card cal-card"><div class="card-b">' + pintarLienzo(d) + '</div></div>' +
+        pintarLado(d) +
+      '</div>' +
+    '</div>';
 
   _firma = firmaFija(d);
   pintarMbar(d);
   publicarCuentas(d);
   rodarCuentas();
+}
+
+/** El nombre del periodo que se mira: el mes, la semana o lo que la lista enseña. */
+function tituloPeriodo(d) {
+  if (_vista === 'mes' && d.mes) return etiquetaMes(d.mes.desde);
+  if (_vista === 'semana' && d.rango) return etiquetaSemana(d.rango.ini, d.rango.fin);
+  return _pasadas ? 'Toda la agenda' : 'Lo que viene';
+}
+
+/* ----- La barra de herramientas -----
+   El nombre del periodo a la izquierda y los controles a la derecha: así las flechas no bailan
+   cuando «Mayo» se vuelve «Septiembre». La barra entera es `.cal-cab` y NO se rehace al cambiar de
+   mes (F11): `repintarPeriodo` le cambia el título y nada más, y el foco se queda en la flecha.
+   Adelante y atrás con chevrones de texto y no con iconos: el sprite trae `i-atras` pero no su
+   espejo. «Hoy» con su palabra, como en cualquier calendario: el icono de antes no decía qué hacía. */
+function pintarBarra(d) {
+  const lista = _vista === 'lista';
+  const sem = _vista === 'semana';
+  return '<div class="cal-cab">' +
+      '<h2 class="cal-mes">' + esc(tituloPeriodo(d)) + '</h2>' +
+      (lista ? '' :
+        '<div class="cal-navs" role="group" aria-label="' + (sem ? 'Cambiar de semana' : 'Cambiar de mes') + '">' +
+          nav(-1, sem ? 'Semana anterior' : 'Mes anterior') +
+          '<button type="button" class="cal-nav cal-hoy" data-hoy aria-label="' + (sem ? 'Hoy: ir a esta semana' : 'Hoy: ir al mes de hoy') + '">Hoy</button>' +
+          nav(1, sem ? 'Semana siguiente' : 'Mes siguiente') +
+        '</div>') +
+      pintarLente() +
+      segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
+               _vista, 'data-vista', 'Cómo ves las instalaciones') +
+      /* El nombre completo también con el texto escondido (teléfono): `aria-label` y no `title`,
+         que en el teléfono no se ve nunca y con ratón sería un segundo globo encima. */
+      '<button type="button" class="cal-llevar" data-llevar aria-haspopup="dialog" aria-label="Llevar a mi teléfono">' +
+        ico('i-tel') + '<span class="tx">Llevar a mi teléfono</span><span class="tx-corto" aria-hidden="true">Al teléfono</span></button>' +
+    '</div>';
+}
+
+/* ----- Los colores de las etapas -----
+   La leyenda pequeña de la tira. Los nombres son los de `ETAPA_NOMBRE`, los mismos de Proyectos y
+   del Tablero: la misma etapa no puede llamarse distinto aquí. Los colores son los de `--et-*`
+   (css/estudio.css), los mismos del resto de la app. En el teléfono la de la tira se esconde y se
+   enseña la del pie del mes (`al-pie`), debajo de los puntos que explica: arriba eran dos
+   renglones más antes de llegar al calendario. */
+const ETAPAS_LEYENDA = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado'];
+function pintarLeyenda(clase) {
+  return '<p class="cal-ley' + (clase ? ' ' + clase : '') + '" aria-label="Colores de las etapas">' +
+    ETAPAS_LEYENDA.map(e => '<span class="' + e + '">' + esc(Proyectos.ETAPA_NOMBRE[e] || e) + '</span>').join('') +
+    '</p>';
+}
+
+/** El lienzo: lo que cambia con el periodo y viaja de lado al cambiar de mes (F11). */
+function pintarLienzo(d) {
+  return _vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d);
 }
 
 /* ----- La tarjeta que late: «Se ganó / No se dio» -----
@@ -815,7 +900,11 @@ function accionAnidar(v) {
 
 /* ----- Las cuentas de arriba -----
    Lo primero que se lee al entrar: «6 por instalar · 2 sin fecha» contesta la pantalla
-   entera antes de mirar la rejilla. */
+   entera antes de mirar la rejilla. Desde octubre de 2026 son píldoras de una línea en la tira
+   de arriba del mes, no tarjetas de 80 px: decían lo mismo y se comían media pantalla del
+   teléfono. Las que piden algo son botones y llevan a donde se resuelve: «sin fecha» abre la
+   hoja de agendar (quien no agenda solo la lee), y «ya pasó y nadie la marcó» abre esa
+   instalación —con «Ya se instaló» a la mano— o, si son varias, la lista de ellas en el panel. */
 function pintarCuentas(d) {
   const hoy = d.hoy;
   const todas = d.mes ? (d.mes.dias || []).flatMap(x => x.instalaciones || []) : d.filas;
@@ -827,21 +916,29 @@ function pintarCuentas(d) {
   if (_lente !== 'instalaciones' && d.ventanas) {
     const enTaller = d.ventanas.filter(v => v.ancla === 'instalacion' && v.empezar <= hoy && v.listo >= hoy).length;
     const tarde = d.ventanas.filter(v => v.atraso_dias > 0).length;
-    c.push(unaCuenta(enTaller, 'En el taller hoy', false, 'taller'));
-    if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'Va tarde' : 'Van tarde', true, 'tarde'));
+    c.push(unaCuenta(enTaller, 'en el taller hoy', '', 'taller'));
+    if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'va tarde' : 'van tarde', 'mal', 'tarde'));
   }
-  c.push(unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false, 'instalar'));
-  c.push(unaCuenta(d.sinFecha.length,
-    d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0, 'sinfecha'));
-  if (d.vencidas.length) c.push(unaCuenta(d.vencidas.length,
-    d.vencidas.length === 1 ? 'Ya pasó y nadie la marcó' : 'Ya pasaron y nadie las marcó', true, 'vencidas'));
-  return '<div class="pf-cuentas">' + c.join('') + '</div>';
+  c.push(unaCuenta(porVenir, _vista === 'mes' ? 'por instalar este mes' : _vista === 'semana' ? 'por instalar esta semana' : 'por instalar', '', 'instalar'));
+  const nf = d.sinFecha.length;
+  c.push(unaCuenta(nf, nf === 1 ? 'ganado sin fecha' : 'ganados sin fecha', nf ? 'urge' : '', 'sinfecha',
+    nf && puedeAgendar() ? (soloPropone() ? 'Proponer un día para los ganados sin fecha' : 'Agendar los ganados sin fecha') : ''));
+  const nv = d.vencidas.length;
+  if (nv) c.push(unaCuenta(nv, nv === 1 ? 'ya pasó y nadie la marcó' : 'ya pasaron y nadie las marcó', 'mal', 'vencidas',
+    nv === 1 ? 'Abrir la instalación que ya pasó' : 'Ver las instalaciones que ya pasaron'));
+  return '<div class="pf-cuentas cal-cifras">' + c.join('') + '</div>';
 }
 
 /* `data-cuenta` es la CLAVE de la cifra y no su rótulo: «Ganado sin fecha» y «Ganados sin fecha»
-   son la misma cuenta, y la rueda tiene que seguirla a través del cambio de número. */
-const unaCuenta = (n, txt, urge, clave) =>
-  '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b' + (clave ? ' data-cuenta="' + clave + '"' : '') + '>' + n + '</b>' + esc(txt) + '</p>';
+   son la misma cuenta, y la rueda tiene que seguirla a través del cambio de número. `accion` es lo
+   que hace el botón dicho entero, para quien no ve la flechita: si no hay acción, es una píldora
+   que solo se lee. */
+const unaCuenta = (n, txt, tono, clave, accion) => {
+  const cuerpo = '<b' + (clave ? ' data-cuenta="' + clave + '"' : '') + '>' + n + '</b> ' + esc(txt);
+  return accion
+    ? '<button type="button" class="cal-cifra' + (tono ? ' ' + tono : '') + '" data-cifra="' + clave + '" title="' + esc(accion) + '">' + cuerpo + '</button>'
+    : '<span class="cal-cifra' + (tono ? ' ' + tono : '') + '">' + cuerpo + '</span>';
+};
 
 /* ----- Las cuentas ruedan cuando cambian (F23) -----
    Después de agendar, «Ganados sin fecha 3 → 2» cambiaba de golpe en medio de un repintado
@@ -895,7 +992,7 @@ function pintarMes(d) {
   const largoAnterior = ultimoDia(pa.a, pa.m);
 
   const celdas = [];
-  for (let i = hueco; i > 0; i--) celdas.push(celdaFuera(largoAnterior - i + 1));
+  for (let i = hueco; i > 0; i--) celdas.push(celdaFuera(largoAnterior - i + 1, celdas.length >= 5));
   /* Tabulador itinerante: un solo día de la rejilla entra en el orden de Tab —el abierto, si no
      hoy, si no el primero— y dentro de ella las flechas se mueven de día en día. Antes había que
      pasar por los 31 días uno por uno para llegar a la lista o a «Bajar» (auditoría completa
@@ -906,18 +1003,13 @@ function pintarMes(d) {
      distinto ancho —el grid las estira— y una rejilla que se ve rota es lo que hace dudar
      de si falta un día. */
   const sobran = celdas.length % 7 === 0 ? 0 : 7 - (celdas.length % 7);
-  for (let i = 1; i <= sobran; i++) celdas.push(celdaFuera(i));
+  for (let i = 1; i <= sobran; i++) celdas.push(celdaFuera(i, celdas.length % 7 >= 5));
 
-  return '<div class="cal-cab">' +
-      '<h2 class="cal-mes">' + esc(etiquetaMes(primero)) + '</h2>' +
-      '<button type="button" class="cal-nav" data-hoy aria-label="Ir al mes de hoy">' + ico('i-hoy') + '</button>' +
-      nav(-1, 'Mes anterior') + nav(1, 'Mes siguiente') +
-    '</div>' +
-    /* Todo lo que cambia con el mes va dentro del lienzo, y la cabecera se queda fuera: el
-       lienzo es lo que se arrastra con el dedo y lo que viaja de lado al cambiar de mes (F11),
-       y `.cal-cab` —el nombre del mes y sus flechas— se queda quieta, con el foco donde
-       estaba. */
-    '<div class="cal-lienzo">' +
+  /* Todo lo que cambia con el mes va dentro del lienzo, y la barra de arriba se queda fuera: el
+     lienzo es lo que se arrastra con el dedo y lo que viaja de lado al cambiar de mes (F11), y
+     `.cal-cab` —el nombre del mes y sus flechas— se queda quieta, con el foco donde estaba. La
+     lista del día ya no vive aquí: va en el panel (`pintarLado`), al lado del mes o debajo. */
+  return '<div class="cal-lienzo">' +
       '<div class="cal-rej">' +
         DOW.map(x => '<div class="cal-dow" aria-hidden="true">' + x + '</div>').join('') +
         celdas.join('') +
@@ -927,7 +1019,7 @@ function pintarMes(d) {
          rejilla ya lo respeta. */
       (mes.total ? '' : '<p class="pf-nota">No hay nada agendado en ' +
         esc(etiquetaMes(primero)) + '.' + (puedeAgendar() ? ' Toca un día para agendar en él.' : '') + '</p>') +
-      pintarDiaAbierto(d) +
+      pintarLeyenda('al-pie') +
     '</div>';
 }
 
@@ -940,9 +1032,16 @@ const nav = (n, etiqueta) =>
   '<button type="button" class="cal-nav" data-mueve="' + n + '" aria-label="' + esc(etiqueta) +
   '"><span aria-hidden="true">' + (n < 0 ? '\u2039' : '\u203A') + '</span></button>';
 
-const celdaFuera = n =>
-  '<button type="button" class="cal-dia fuera" disabled aria-hidden="true">' +
-  '<span class="cal-n">' + n + '</span></button>';
+/* `finde`: sábado y domingo van en un tono más callado, también los del mes vecino. */
+const celdaFuera = (n, finde) =>
+  '<button type="button" class="cal-dia fuera' + (finde ? ' finde' : '') + '" disabled aria-hidden="true">' +
+  '<span class="cal-dia-h"><span class="cal-n">' + n + '</span></span></button>';
+
+/* Cuántas entregas caben en la celda antes del «+N más». Tres renglones caben en los 120 px de la
+   celda de la computadora con el número arriba; con cuatro o más se enseñan dos y el «+N más»
+   ocupa el tercero, para que la celda nunca corte un nombre a la mitad. En el teléfono cada
+   entrega es un punto y la regla es la misma. */
+const TOPE_CELDA = 3;
 
 function celdaDia(dia, d, parada) {
   const insts = visibles(dia.instalaciones);
@@ -950,37 +1049,45 @@ function celdaDia(dia, d, parada) {
   const sem = veSemaforo() && vivas.length ? dia.semaforo : null;
   const abierto = _dia === dia.fecha;
   const libre = !insts.length && puedeAgendar() && dia.fecha >= d.hoy;
+  const dow = (fechaLocal(dia.fecha).getDay() + 6) % 7;      // lunes = 0
 
-  /* Lo que la celda pinta depende de la lente. Instalaciones: sus chips de siempre. Taller:
+  /* Lo que la celda pinta depende de la lente. Instalaciones: sus fichas de siempre. Taller:
      lo que VENCE ese día en el taller —empezar, cortar, armar, listo—, con el nombre corto y
-     el verbo. Todo: las dos, dos y dos. Máximo tres renglones y «+N», que es lo que cabe en
-     76 px sin que el número del día se vaya abajo. */
+     el verbo. Todo: las dos, dos y dos. */
   const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(dia.fecha)) || [];
-  const topeInst = _lente === 'taller' ? 0 : _lente === 'todo' ? 2 : 3;
+  const cabenInst = insts.length > TOPE_CELDA ? TOPE_CELDA - 1 : TOPE_CELDA;
+  const topeInst = _lente === 'taller' ? 0 : _lente === 'todo' ? 2 : cabenInst;
   const topeTal = _lente === 'instalaciones' ? 0 : _lente === 'todo' ? 2 : 3;
-  /* Un envío o una recolección lleva su palabra al frente —«Envío», «Recolección»— y otra forma
-     (`.cal-ev.envio`, borde punteado): no solo otro color, que es lo que no se distingue en un
-     chip de 39 px ni con un ojo que no separa el verde del ámbar. */
+  /* Cada ficha dice el CLIENTE, sin repetirlo («Dental Sonrisa», no «Dental Sonrisa - Dental…»),
+     con la hora delante si la hay, y lleva el color de su etapa. Un envío o una recolección lleva
+     su palabra al frente —«Envío», «Recolección»— y otra forma (`.cal-ev.envio`, borde de
+     rayas): no solo otro color, que es lo que no se distingue en un punto de 6 px ni con un ojo
+     que no separa el verde del ámbar. Sin `title` en la ficha: el nombre completo va en la
+     etiqueta de la celda, que la pieza `nombres` enseña al pasar el ratón (F26). */
   const chipsInst = insts.slice(0, topeInst).map(i => {
     const ent = entregaDe(i.proyecto);
     return '<span class="cal-ev ' + claseEv(i) + (ent === 'instalacion' ? '' : ' envio ' + ent) + '"><span class="tx">' +
       (ent === 'instalacion' ? '' : '<b class="cal-ent">' + esc(ENTREGA_ROTULO[ent]) + '</b> ') +
-      esc((i.hora ? i.hora + ' ' : '') + (i.titulo || '')) + '</span></span>';
+      (i.hora ? '<span class="cal-ev-h">' + esc(i.hora) + '</span> ' : '') +
+      esc(nombreCliente(i.proyecto, i.titulo)) + '</span></span>';
   });
   const chipsTal = vencen.slice(0, topeTal).map(x =>
     '<span class="cal-ev tal ' + esc(x.que) + (x.tarde ? ' tarde' : '') + '"><span class="tx">' +
       esc(nombreCorto(x.titulo) + ' · ' + x.que) + '</span></span>');
   const evs = chipsInst.concat(chipsTal).join('');
   const sobran = Math.max(0, insts.length - topeInst) + Math.max(0, vencen.length - topeTal);
-  const mas = sobran ? '<span class="cal-mas">+' + sobran + '</span>' : '';
+  const mas = sobran ? '<span class="cal-mas">+' + sobran + '<span class="tx"> más</span></span>' : '';
   const carga = d.carga && d.carga.get(dia.fecha);
 
-  /* El aria-label lleva la respuesta completa: la fecha, cuántas instalaciones y qué dice el
-     semáforo. El punto de color es un refuerzo, nunca la única manera de saberlo: uno de
-     cada doce hombres no distingue el verde del ámbar, y esto se lee para decidir si hay que
-     ir a la vidriería hoy. */
+  /* El aria-label lleva la respuesta completa: la fecha, cuántas entregas y de QUIÉN —con el
+     nombre entero del proyecto, que en la ficha no cabe—, y qué dice el semáforo. Con el ratón es
+     también el globo de la celda (F26), así que el nombre completo se lee sin tocar nada. El
+     punto de color es un refuerzo, nunca la única manera de saberlo: uno de cada doce hombres
+     no distingue el verde del ámbar, y esto se lee para decidir si hay que ir a la vidriería hoy. */
+  const quienes = vivas.slice(0, 4).map(i => (i.hora ? i.hora + ' ' : '') + (i.titulo || '')).join(', ') +
+    (vivas.length > 4 ? ' y ' + (vivas.length - 4) + ' más' : '');
   const etiqueta = [fmtFechaDia(dia.fecha),
-    insts.length ? cuantasDeCadaUna(vivas)
+    insts.length ? cuantasDeCadaUna(vivas) + (quienes ? ': ' + quienes : '')
                  : (_lente === 'instalaciones' ? 'sin nada agendado' : ''),
     _lente !== 'instalaciones' && carga ? carga.texto.replace(/\.$/, '') : '',
     vencen.length ? vencen.slice(0, 3).map(x => x.titulo + ': ' + x.que).join(', ') + (vencen.length > 3 ? ' y ' + (vencen.length - 3) + ' más' : '') : '',
@@ -988,14 +1095,15 @@ function celdaDia(dia, d, parada) {
     libre ? 'Tocar para agendar' : '',
   ].filter(Boolean).join('. ');
 
-  return '<button type="button" class="cal-dia' + (dia.hoy ? ' hoy' : '') + '"' +
+  return '<button type="button" class="cal-dia' + (dia.hoy ? ' hoy' : '') + (dow >= 5 ? ' finde' : '') + '"' +
       ' data-dia="' + dia.fecha + '" aria-label="' + esc(etiqueta) + '"' +
       (abierto ? ' aria-current="date"' : '') + ' tabindex="' + (parada ? '0' : '-1') + '">' +
       /* Sin `title`: la ficha de la pieza `nombres` ya enseña el texto del semáforo dentro del
          `aria-label` de la celda (F26), y con el `title` del punto salía una segunda ficha, la nativa,
          encima. En el teléfono un `title` nunca se vio. */
-      (sem ? '<span class="cal-sem ' + sem.estado + '" aria-hidden="true"></span>' : '') +
-      '<span class="cal-n">' + dia.dia + '</span>' + evs + mas +
+      '<span class="cal-dia-h"><span class="cal-n">' + dia.dia + '</span>' +
+        (sem ? '<span class="cal-sem ' + sem.estado + '" aria-hidden="true"></span>' : '') + '</span>' +
+      (evs ? '<span class="cal-evs">' + evs + '</span>' : '') + mas +
     '</button>';
 }
 
@@ -1019,6 +1127,31 @@ function nombreCorto(nombre) {
   return (m ? m[1] : t.replace(/\s*\([^)]*\)\s*$/, '')).trim() || t;
 }
 
+/** El nombre que se lee en una ficha del calendario: el del CLIENTE, una sola vez.
+ *
+ *  El proyecto se llama «Contacto - Negocio (tipo)» —la convención de su base de Notion, ver
+ *  `nombreDerivado` en js/datos/proyectos.js—, y en una celda de 120 px eso se cortaba en
+ *  «Dental Sonrisa - Dental…»: el mismo nombre dos veces y nada más. Se queda con el negocio, que
+ *  es lo que se reconoce de un vistazo («Ale - Parentesis» → «Parentesis»); y cuando el negocio
+ *  empieza con el nombre del contacto —«Dental Sonrisa» y «Dental Sonrisa — anuncio»—, el
+ *  contacto ya ES el negocio y se usa ese, más corto. El nombre entero sigue en la etiqueta de la
+ *  celda y en la ficha. Los proyectos que vinieron de la hoja traen los dos campos partidos; si
+ *  faltan, se parte el nombre con la misma regla que usa la capa de datos. */
+function nombreCliente(p, titulo) {
+  const pr = p || {};
+  let contacto = String(pr.contacto || '').trim();
+  let negocio = String(pr.negocio || '').trim();
+  if (!contacto && !negocio) {
+    const limpio = String(pr.nombre || titulo || '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+    const k = limpio.indexOf(' - ');
+    if (k < 0) return limpio || String(titulo || '');
+    contacto = limpio.slice(0, k).trim();
+    negocio = limpio.slice(k + 3).trim();
+  }
+  if (contacto && negocio && negocio.toLowerCase().startsWith(contacto.toLowerCase())) return contacto;
+  return negocio || contacto || String(titulo || '');
+}
+
 /** La clase del filete de color: la etapa de obra del proyecto, y `off` si la instalación se
  *  canceló. Una cancelada pintada igual que una viva es el mes prometiendo una visita que no
  *  va a pasar, y eso se descubre el día que alguien sale a hacerla. */
@@ -1031,10 +1164,16 @@ function claseEv(i) {
    Lo que la rejilla no puede decir: la hora, la ventana, a quién se busca, dónde es y qué
    botones hay. Se abre tocando un día y se queda abierta al repintar: cerrarla sola
    obligaría a volver a tocar el día después de cada acción. */
+/* Desde octubre de 2026 la lista del día vive en el panel (`pintarLado`): al lado del mes de
+   1 280 px para arriba, debajo de él en lo demás. Es una sección del panel con su propio
+   encabezado; en la computadora lleva un «‹» que la suelta y regresa a «Lo que viene». Su
+   contenedor NO lleva `data-dia` sino `data-fecha`: `alTocar` lee `[data-dia]` como un toque a la
+   celda, y un clic en «Abrir» dentro de la lista se tomaría por otro toque al día. */
 function pintarDiaAbierto(d) {
-  if (!_dia) return '';
+  const iso = d.diaVisto;
+  if (!iso) return '';
   const insts = visibles(d.dia);
-  const sem = d.sem.get(_dia);
+  const sem = d.sem.get(iso);
 
   /* `data-recien` solo cuando lo abrió un TOQUE (F18): es lo que le da su subida corta y lo que
      deja a `llevarElDiaALaVista` saber que hay algo que traer. Un repintado con el día ya abierto
@@ -1043,16 +1182,21 @@ function pintarDiaAbierto(d) {
      vez de quedarse en una celda que el repintado ya reemplazó. */
   const recien = _diaRecien;
   _diaRecien = false;
-  let html = '<div class="dia-lista"' + (recien ? ' data-recien' : '') + '><h3 class="dia-t" tabindex="-1">' + esc(fmtFechaDia(_dia)) +
-    ' <span class="pf-cuando' + toneCuando(_dia) + '">' + esc(cuando(_dia)) + '</span></h3>';
+  const volver = _dia && !esTelefono()
+    ? '<button type="button" class="cal-volver" data-lado-volver aria-label="Volver a lo que viene"><span aria-hidden="true">‹</span></button>'
+    : '';
+  let html = '<section class="cal-sec dia-lista" data-fecha="' + iso + '"' + (recien ? ' data-recien' : '') + '>' +
+    '<div class="cal-sec-cab">' + volver +
+      '<h3 class="dia-t" tabindex="-1">' + esc(fmtFechaDia(iso)) +
+        ' <span class="pf-cuando' + toneCuando(iso) + '">' + esc(cuando(iso)) + '</span></h3></div>';
 
   if (veSemaforo() && sem && insts.length) html += renglonSem(sem);
 
   /* Lo del taller ese día, cuando la lente lo mira: qué le toca a quién, y cuántos trabajos
      tienen el día adentro. Va antes de las instalaciones porque es lo que se hace en el
      taller antes de salir. */
-  const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(_dia)) || [];
-  const carga = _lente !== 'instalaciones' && d.carga ? d.carga.get(_dia) : null;
+  const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(iso)) || [];
+  const carga = _lente !== 'instalaciones' && d.carga ? d.carga.get(iso) : null;
   if (vencen.length || (carga && carga.total)) {
     html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller' +
       (carga ? ' <span class="n">' + carga.total + '</span>' : '') + '</div>';
@@ -1067,19 +1211,128 @@ function pintarDiaAbierto(d) {
   }
 
   if (!insts.length) {
-    html += '<p class="pf-cuenta">Nada agendado este día.</p>' +
+    html += '<p class="cal-sec-d">Nada agendado este día.</p>' +
       (puedeAgendar()
-        ? '<p><button type="button" class="btn btn-pri pf-btn-corto" data-agendar-en="' + _dia +
-          '">Agendar el ' + esc(fmtFecha(_dia)) + '</button></p>'
+        ? '<p><button type="button" class="btn btn-pri pf-btn-corto" data-agendar-en="' + iso +
+          '">Agendar el ' + esc(fmtFecha(iso)) + '</button></p>'
         : '');
   } else {
     html += insts.map(i => fila(i, i.semaforo || sem)).join('');
     if (puedeAgendar()) {
-      html += '<p><button type="button" class="btn btn-gho pf-btn-corto" data-agendar-en="' + _dia +
-        '">Agendar otra el ' + esc(fmtFecha(_dia)) + '</button></p>';
+      html += '<p><button type="button" class="btn btn-gho pf-btn-corto" data-agendar-en="' + iso +
+        '">Agendar otra el ' + esc(fmtFecha(iso)) + '</button></p>';
     }
   }
-  return html + '</div>';
+  return html + '</section>';
+}
+
+/* ----- El panel -----
+   La columna que acompaña al mes: a su lado de 1 280 px para arriba, debajo de él en lo demás. Una
+   sola tarjeta con secciones, en este orden:
+     1. El día elegido —o, en el teléfono, hoy—, si lo hay.
+     2. Lo que ya pasó y nadie marcó: cada una abre su ficha, que tiene «Ya se instaló» a un toque.
+        Sin día elegido, en la computadora, sigue «Lo que viene»: las dos semanas siguientes
+        agrupadas por día, y cada entrega también abre su ficha.
+     3. Los ganados sin fecha, cada uno con su «Agendar» (o «Proponer», para fabricación).
+     4. La tarjeta de «Se ganó / No se dio», con su lavanda, al pie: el calendario va primero.
+   En el teléfono el panel enseña el día y lo que ya pasó; lo que viene y los sin fecha están en
+   la Lista y en el botón de la barra de abajo, y apilados debajo de un mes de puntos alargaban la
+   pantalla sin decir nada nuevo. */
+function pintarLado(d) {
+  const tel = esTelefono();
+  const partes = [];
+  /* La fila del taller, si alguna vez vuelven las lentes: es la columna que tenía al lado del mes. */
+  if (_lente !== 'instalaciones') partes.push(pintarTaller(d));
+  if (d.diaVisto) partes.push(pintarDiaAbierto(d));
+  /* Lo que ya pasó sin marcar va antes que lo que viene: casi siempre son una o dos, y son lo único
+     del panel que ya va tarde. */
+  if (d.vencidas.length) partes.push(pintarVencidas(d));
+  if (!d.diaVisto && !tel && _vista !== 'lista') partes.push(pintarProximas(d));
+  if (!tel && d.sinFecha.length) partes.push(pintarSinFecha(d));
+  if (d.pendientes.length) partes.push(pintarDecidir(d));
+  const etiqueta = d.diaVisto ? 'El día ' + fmtFechaDia(d.diaVisto) : 'Lo que viene y lo pendiente';
+  return '<aside class="cal-lado" aria-label="' + esc(etiqueta) + '">' + partes.join('') + '</aside>';
+}
+
+/** La hora como se lee en un renglón: «10:00 a.m.», o «Todo el día» sin hora. */
+const horaTxt = i => i.hora ? fmtHora(i.hora) : 'Todo el día';
+
+/** Una entrega del panel como un botón entero, del color de su etapa: abre la ficha. `fecha` es
+ *  el texto que va donde va la hora cuando lo que importa es el día (lo que ya pasó). */
+function entregaDelPanel(i, fecha) {
+  const p = i.proyecto || {};
+  const ent = entregaDe(p);
+  const det = [ent === 'instalacion' ? (Proyectos.ETAPA_NOMBRE[p.etapa] || '') : ENTREGA_ROTULO[ent],
+               ent === 'recoleccion' ? 'en el taller' : String(p.dir_texto || '').replace(/\s*\n\s*/g, ', ')]
+    .filter(Boolean).join(' · ');
+  return '<button type="button" class="cal-prox-ev ' + claseEv(i) + (ent === 'instalacion' ? '' : ' envio ' + ent) +
+      '" data-acc="ficha" data-id="' + esc(i.id) + '" aria-label="' + esc((i.titulo || '') + ', ' + (fecha || horaTxt(i)) + (det ? '. ' + det : '')) + '">' +
+    '<span class="cal-prox-n">' + esc(nombreCliente(p, i.titulo)) + '</span>' +
+    '<span class="cal-prox-h">' + esc(fecha || horaTxt(i)) + '</span>' +
+    (det ? '<span class="cal-prox-d">' + esc(det) + '</span>' : '') +
+  '</button>';
+}
+
+/* «Lo que viene»: las dos semanas que siguen, agrupadas por día. Un tope de seis entregas para
+   que el panel no se vuelva otra lista; el resto está a un toque, en la Lista. */
+const TOPE_PROXIMAS = 6;
+function pintarProximas(d) {
+  const todas = visibles(d.proximas).filter(i => i.estado !== 'cancelada' && i.estado !== 'hecha');
+  let html = '<section class="cal-sec cal-prox" id="cal-prox"><div class="cal-sec-cab"><h3 class="cal-sec-t">Lo que viene' +
+    (todas.length ? ' <span class="n">' + todas.length + '</span>' : '') + '</h3></div>';
+  if (!todas.length) {
+    return html + '<p class="cal-sec-d">Nada agendado en las próximas dos semanas.' +
+      (d.sinFecha.length && puedeAgendar() ? ' Abajo están los ganados que esperan día.' : '') + '</p></section>';
+  }
+  let ultimo = '';
+  for (const i of todas.slice(0, TOPE_PROXIMAS)) {
+    if (i.fecha !== ultimo) {
+      if (ultimo) html += '</div>';
+      const c = cuando(i.fecha);
+      html += '<div class="cal-prox-dia"><p class="cal-prox-f">' +
+        (c === 'hoy' || c === 'mañana' ? '<b>' + esc(c) + '</b> · ' : '') + esc(fmtFechaDia(i.fecha)) + '</p>';
+      ultimo = i.fecha;
+    }
+    html += entregaDelPanel(i);
+  }
+  html += '</div>';
+  if (todas.length > TOPE_PROXIMAS) {
+    html += '<button type="button" class="btn btn-gho pf-btn-corto" data-vista="lista">Ver las ' + todas.length + ' en la lista</button>';
+  }
+  return html + '</section>';
+}
+
+/* Lo que ya pasó y nadie marcó. Es la cifra roja de arriba con nombre y día: cada una abre su
+   ficha, que es donde se dice si se instaló, se movió o se canceló. */
+function pintarVencidas(d) {
+  const l = d.vencidas || [];
+  return '<section class="cal-sec mal" id="cal-vencidas"><div class="cal-sec-cab"><h3 class="cal-sec-t" tabindex="-1">' +
+      (l.length === 1 ? 'Ya pasó y nadie la marcó' : 'Ya pasaron y nadie las marcó') + ' <span class="n">' + l.length + '</span></h3></div>' +
+    '<p class="cal-sec-d">Ábrela y di qué pasó: si ya se instaló, si se movió o si se canceló.</p>' +
+    l.slice(0, 6).map(i => entregaDelPanel(i, fmtFecha(i.fecha) + ' · ' + cuando(i.fecha))).join('') +
+    (l.length > 6 ? '<p class="cal-sec-d">Y ' + (l.length - 6) + ' más en la Lista, con «Incluir lo que ya pasó».</p>' : '') +
+  '</section>';
+}
+
+/* Los ganados sin fecha, cada uno con su botón. Es la misma hoja de agendar con el proyecto ya
+   elegido (paso 2), y su «‹ Otro proyecto» regresa a la lista completa. */
+const TOPE_SIN_FECHA = 4;
+function pintarSinFecha(d) {
+  const l = d.sinFecha || [];
+  const puede = puedeAgendar();
+  const verbo = soloPropone() ? 'Proponer día' : 'Agendar';
+  return '<section class="cal-sec urge" id="cal-sinfecha"><div class="cal-sec-cab"><h3 class="cal-sec-t">' +
+      (l.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha') + ' <span class="n">' + l.length + '</span></h3></div>' +
+    l.slice(0, TOPE_SIN_FECHA).map(p => '<div class="cal-sf">' +
+      '<div class="cal-sf-tx"><p class="cal-sf-n">' + esc(nombreCliente(p, p.nombre || p.folio_local)) + '</p>' +
+        '<p class="cal-sf-d">' + esc([p.folio_local, p.compromiso_texto ? 'se le prometió: ' + p.compromiso_texto : ''].filter(Boolean).join(' · ')) + '</p></div>' +
+      (puede ? '<button type="button" class="btn btn-gho pf-btn-corto" data-agendar-pid="' + esc(p.id) + '" aria-label="' +
+        esc(verbo + ': ' + (p.nombre || p.folio_local || '')) + '">' + verbo + '</button>' : '') +
+    '</div>').join('') +
+    (l.length > TOPE_SIN_FECHA && puede
+      ? '<button type="button" class="btn btn-gho pf-btn-corto" data-agendar>Ver los ' + l.length + '</button>'
+      : l.length > TOPE_SIN_FECHA ? '<p class="cal-sec-d">Y ' + (l.length - TOPE_SIN_FECHA) + ' más en Proyectos.</p>' : '') +
+  '</section>';
 }
 
 const VERBO_DIA = { empezar: 'Hay que empezarlo: entra al taller', cortar: 'Hay que cortar', armar: 'Hay que armar', listo: 'Tiene que quedar listo' };
@@ -1097,11 +1350,12 @@ const toneCuando = iso => {
 };
 
 /* ----- Vista de semana -----
-   Siete días, uno debajo del otro. No es la rejilla con celdas más altas a propósito: en un
-   teléfono, siete columnas son siete columnas de 45 px, y ahí no cabe una hora ni un nombre.
-   Lo que la semana tiene que decir —a qué hora y de quién— solo cabe en renglones. */
+   En la computadora, siete columnas anchas con una tarjeta por entrega (hora, cliente, etapa y
+   lugar); tocar la tarjeta abre su ficha, donde están el instalador, el .ics y lo demás. En el
+   teléfono las mismas siete secciones van una debajo de la otra: siete columnas de 45 px no dejan
+   leer ni una hora ni un nombre. El nombre de la semana va en la barra de arriba. */
 function pintarSemana(d) {
-  const { ini, fin } = d.rango;
+  const { ini } = d.rango;
   const porDia = new Map();
   for (const i of visibles(d.filas)) {
     if (!porDia.has(i.fecha)) porDia.set(i.fecha, []);
@@ -1111,46 +1365,63 @@ function pintarSemana(d) {
   let cuerpo = '';
   for (let k = 0; k < 7; k++) {
     const iso = masDias(ini, k);
+    const q = partesISO(iso);
     const insts = porDia.get(iso) || [];
     const sem = d.sem.get(iso);
-    cuerpo += '<div class="dia-lista"><h3 class="dia-t">' + esc(fmtFechaDia(iso)) +
-      (iso === d.hoy ? ' <span class="pf-cuando hoy">hoy</span>' : '') + '</h3>';
+    /* `role="group"` y no `<section>` con nombre: siete regiones por semana eran siete puntos de
+       referencia más para quien navega con lector, y ninguno lleva a otro lado. */
+    cuerpo += '<div class="cal-sd' + (iso === d.hoy ? ' hoy' : '') + (k >= 5 ? ' finde' : '') + '" role="group" aria-label="' + esc(fmtFechaDia(iso)) + '">' +
+      '<h3 class="cal-sd-h"><span class="cal-sd-dow">' + DOW[k] + '</span><span class="cal-sd-n">' + q.d + '</span></h3>';
     if (veSemaforo() && sem && insts.length && sem.estado !== 'ok') cuerpo += renglonSem(sem);
     cuerpo += insts.length
-      ? insts.map(i => fila(i, sem)).join('')
-      : '<p class="pf-cuenta">Libre.' + (puedeAgendar() && iso >= d.hoy
-          ? ' <button type="button" class="btn btn-gho pf-btn-corto" data-agendar-en="' + iso +
-            '">Agendar</button>' : '') + '</p>';
+      ? insts.map(i => tarjetaSemana(i)).join('')
+      : '<p class="cal-sd-libre">Libre</p>';
+    if (puedeAgendar() && iso >= d.hoy) {
+      cuerpo += '<button type="button" class="cal-sd-mas" data-agendar-en="' + iso + '" aria-label="Agendar el ' +
+        esc(fmtFechaDia(iso)) + '"><span aria-hidden="true">+</span> Agendar</button>';
+    }
     cuerpo += '</div>';
   }
 
-  return '<div class="cal-cab">' +
-      '<h2 class="cal-mes">' + esc(fmtFecha(ini) + ' — ' + fmtFecha(fin)) + '</h2>' +
-      '<button type="button" class="cal-nav" data-hoy aria-label="Ir a esta semana">' + ico('i-hoy') + '</button>' +
-      nav(-1, 'Semana anterior') + nav(1, 'Semana siguiente') +
-    '</div><div class="cal-lienzo">' + cuerpo + '</div>';
+  return '<div class="cal-lienzo"><div class="cal-semana">' + cuerpo + '</div></div>';
+}
+
+/** La tarjeta de una entrega en la semana: un botón entero que abre la ficha. */
+function tarjetaSemana(i) {
+  const p = i.proyecto || {};
+  const ent = entregaDe(p);
+  const det = ent === 'instalacion'
+    ? [Proyectos.ETAPA_NOMBRE[p.etapa] || '', String(p.dir_texto || '').split('\n')[0]].filter(Boolean).join(' · ')
+    : ENTREGA_ROTULO[ent] + (ent === 'recoleccion' ? ' en el taller' : '');
+  return '<button type="button" class="cal-tarj ' + claseEv(i) + (ent === 'instalacion' ? '' : ' envio ' + ent) + '" data-acc="ficha" data-id="' + esc(i.id) + '"' +
+      ' aria-label="' + esc((i.titulo || '') + ', ' + horaTxt(i) + (det ? '. ' + det : '')) + '">' +
+    '<span class="cal-tarj-h">' + esc(horaTxt(i)) + (i.estado === 'cancelada' ? ' · cancelada' : '') + '</span>' +
+    '<span class="cal-tarj-n">' + esc(nombreCliente(p, i.titulo)) + '</span>' +
+    (det ? '<span class="cal-tarj-d">' + esc(det) + '</span>' : '') +
+  '</button>';
 }
 
 /* ----- Vista de lista -----
    Todo lo que viene, en orden, sin tener que saber en qué mes cae. Es la que se lee cuando
-   alguien pregunta «¿qué sigue?». */
+   alguien pregunta «¿qué sigue?». Un bloque por día con su encabezado pegado arriba mientras se
+   baja: con veinte renglones, el día del renglón que se está leyendo nunca se pierde. */
 function pintarLista(d) {
   const insts = visibles(d.filas);
   if (!insts.length) {
-    return vacio(_pasadas ? 'No hay ninguna instalación en la agenda'
+    return '<div class="cal-lista">' + vacio(_pasadas ? 'No hay ninguna instalación en la agenda'
                           : 'No hay nada agendado de hoy en adelante',
       d.sinFecha.length
         ? 'Tienes ' + d.sinFecha.length + (d.sinFecha.length === 1 ? ' proyecto ganado' : ' proyectos ganados') +
           ' sin día. Ponle fecha al primero y aparece aquí, con su alarma para el calendario del teléfono.'
         : 'Cuando marques una cotización como ganada en el cotizador, el proyecto aparece aquí para ponerle día. La fecha es el único dato que la plataforma te pide.',
-      puedeAgendar() ? '<button type="button" class="btn btn-pri" data-agendar>Agendar una instalación</button>' : '');
+      puedeAgendar() ? '<button type="button" class="btn btn-pri" data-agendar>Agendar una instalación</button>' : '') + '</div>';
   }
 
   let html = '', ultimo = '';
   for (const i of insts) {
     if (i.fecha !== ultimo) {
-      if (ultimo) html += '</div>';
-      html += '<div class="dia-lista"><h3 class="dia-t">' + esc(fmtFechaDia(i.fecha)) +
+      if (ultimo) html += '</section>';
+      html += '<section class="cal-ldia' + (i.fecha === d.hoy ? ' hoy' : '') + '"><h3 class="cal-ldia-h">' + esc(fmtFechaDia(i.fecha)) +
         ' <span class="pf-cuando' + toneCuando(i.fecha) + '">' + esc(cuando(i.fecha)) + '</span></h3>';
       const sem = d.sem.get(i.fecha);
       if (veSemaforo() && sem && sem.estado !== 'ok') html += renglonSem(sem);
@@ -1158,7 +1429,7 @@ function pintarLista(d) {
     }
     html += fila(i, d.sem.get(i.fecha));
   }
-  return html + (ultimo ? '</div>' : '');
+  return '<div class="cal-lista">' + html + (ultimo ? '</section>' : '') + '</div>';
 }
 
 /* ----- El renglón de una instalación -----
@@ -1166,10 +1437,13 @@ function pintarLista(d) {
    `Instalador` es el mensaje que ES la interfaz de quien instala; `Abrir` lleva a todo lo
    demás. Seis botones en un renglón de teléfono son seis botones de 40 px de ancho con el
    texto cortado, y ahí ya nadie sabe cuál es cuál. */
+/* Desde octubre de 2026 el renglón lleva la hora en su propia columna, grande, y una barra del color
+   de la etapa a la izquierda (la misma de las fichas del mes): se lee «10:00 · Dental Sonrisa» de un
+   barrido. El semáforo, que era el color del icono del camión, va con su palabra en el detalle. */
 function fila(i, sem) {
   const p = i.proyecto || {};
   const cancelada = i.estado === 'cancelada';
-  const claseIco = cancelada ? '' : (veSemaforo() && sem ? (CLASE_ICO[sem.estado] || '') : '');
+  const semFila = cancelada || !veSemaforo() || !sem ? null : sem;
   /* Un envío o una recolección: su palabra delante del nombre, sin «Buscar a», sin ventana de
      noche y sin «Ver en Maps» —no se va a ningún lado—. Lo que sí: el destino, o el taller. */
   const ent = entregaDe(p);
@@ -1209,13 +1483,21 @@ function fila(i, sem) {
   acc.push('<button type="button" class="btn btn-gho" data-acc="ficha" data-id="' +
     esc(i.id) + '">Abrir</button>');
 
-  return '<div class="pf-fila">' +
-      '<div class="pf-fila-ico' + claseIco + '">' + ico(cancelada ? 'i-cerrar' : ent === 'recoleccion' ? 'i-taller' : 'i-camion') + '</div>' +
+  /* La hora partida en número y «a.m.»/«p.m.» para que la columna se lea como un reloj; sin hora,
+     «Todo el día», que es lo que es (ver la decisión 1 del encabezado). */
+  const h = i.hora ? fmtHora(i.hora) : '';
+  const hn = h ? h.replace(/\s*[ap]\.m\.$/, '') : 'Todo';
+  const hs = h ? h.slice(hn.length).trim() : 'el día';
+
+  return '<div class="pf-fila cal-fila ' + claseEv(i) + '">' +
+      '<div class="cal-fila-hora">' + esc(hn) + '<small>' + esc(hs) + '</small></div>' +
       '<div class="pf-fila-tx">' +
         '<div class="pf-fila-t">' + (instala ? '' : '<span class="pf-entrega ' + ent + '">' + esc(ENTREGA_ROTULO[ent]) + '</span> ') +
-          esc(i.hora ? fmtHora(i.hora) : 'Sin hora') + ' · ' +
-          esc(i.titulo || 'Proyecto que ya no está') + '</div>' +
-        '<div class="pf-fila-d">' + esc(detalle.join(' · ')) +
+          esc(tituloDeFila(i)) + '</div>' +
+        '<div class="pf-fila-d">' +
+          (semFila ? '<span class="cal-sem-t ' + esc(semFila.estado) + '">' + esc(PALABRA_SEM[semFila.estado] || semFila.estado) + '</span>' +
+            (detalle.length ? ' · ' : '') : '') +
+          esc(detalle.join(' · ')) +
           (dir ? '<br>' + esc(dir) : '') +
           (mapa ? ' <a href="' + esc(mapa) + '" target="_blank" rel="noopener">Ver en Maps</a>' : '') +
           saldo +
@@ -1223,6 +1505,15 @@ function fila(i, sem) {
       '</div>' +
       '<div class="pf-fila-acc">' + acc.join('') + '</div>' +
     '</div>';
+}
+
+/** El título del renglón: el cliente, una vez, y lo que se le hace —«Boutique Aurora · Letras Luz»—.
+ *  El nombre del proyecto repetía al cliente («Boutique Aurora - Boutique Aurora — anuncio (Letras
+ *  Luz)»), y el contacto ya va en el detalle como «Buscar a …». El nombre entero sigue en la ficha. */
+function tituloDeFila(i) {
+  if (!i.proyecto) return i.titulo || 'Proyecto que ya no está';
+  const tipo = /\(([^()]*)\)\s*$/.exec(String(i.proyecto.nombre || ''));
+  return nombreCliente(i.proyecto, i.titulo) + (tipo ? ' · ' + tipo[1] : '');
 }
 
 /** El link al mapa, con lo que haya: el pin real primero, la búsqueda por texto al final.
@@ -1241,11 +1532,25 @@ function linkMapa(p) {
   return dir ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(dir) : '';
 }
 
-/* ----- La tarjeta de exportar -----
+/* ----- «Llevar a mi teléfono» -----
    Es la automatización de la fase 1, y por eso lleva su explicación al lado y no en una
    ayuda escondida: quien no sabe que las alarmas las dispara el teléfono no entiende por qué
-   tiene que bajar un archivo, y sin bajarlo la agenda no avisa de nada. */
-function pintarExportar(d) {
+   tiene que bajar un archivo, y sin bajarlo la agenda no avisa de nada.
+   Hasta octubre de 2026 era una tarjeta fija al pie del calendario —«Al calendario del
+   teléfono»— que medía lo que medio mes y empujaba todo hacia abajo. Ahora es una hoja que abre
+   el botón de la barra: las mismas tres cosas (el archivo de lo que se mira, el ritmo y Google
+   Calendar) y la misma nota de las alarmas, sin ocupar la pantalla del calendario. Se arma al
+   abrirla, con el periodo que se está mirando en ese momento. */
+function abrirTelefono() {
+  if (!_d) return;
+  _pide = { modo: 'telefono' };
+  ponerEnCapa('pf-pide',
+    cabeza('Llevar a mi teléfono', 'data-pide="cerrar"') +
+    '<div class="pf-panel-b cal-tel">' + contenidoTelefono(_d) + '</div>' +
+    '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
+}
+
+function contenidoTelefono(d) {
   /* Se habilita con la MISMA cuenta que usa `bajarVarias`, canceladas fuera. Con
      `d.mes.total`, un mes cuya única instalación se canceló dejaba el botón activo y al
      apretarlo salía «no hay nada que bajar»: un botón que se enciende para decir que no. */
@@ -1266,12 +1571,11 @@ function pintarExportar(d) {
     gcalHtml = '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-nube-off') + '</div>' +
       '<div class="pf-fila-tx"><div class="pf-fila-t">Google Calendar se puede conectar</div>' +
-      '<div class="pf-fila-d">Conectado, el evento entra solo al calendario de los tres. Mientras no lo esté, el archivo de aquí arriba hace lo mismo a mano y funciona sin cuentas y sin señal.</div></div>' +
+      '<div class="pf-fila-d">Conectado, el evento entra solo al calendario de los tres. Mientras no lo esté, el archivo de arriba hace lo mismo a mano y funciona sin cuentas y sin señal.</div></div>' +
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ajustes">Cómo se conecta</button></div></div>';
   }
 
-  return '<div class="card" id="cal-exportar"><div class="card-h"><h2>' + ico('i-bajar') +
-      'Al calendario del teléfono</h2></div><div class="card-b">' +
+  return '<p class="cal-tel-d">Las instalaciones entran al calendario de tu teléfono con sus alarmas, y suenan aunque nadie abra la plataforma.</p>' +
     '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-agenda') + '</div>' +
       '<div class="pf-fila-tx"><div class="pf-fila-t">' + esc(titulo) + '</div>' +
@@ -1289,8 +1593,7 @@ function pintarExportar(d) {
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ics-ritmo">Bajar</button></div>' +
     '</div>' +
     gcalHtml +
-    '<p class="pf-nota">Las alarmas —3 días antes para revisar el material, 1 día antes para confirmar con el cliente y media hora antes de salir, 2 horas si la instalación es de noche o de madrugada— las dispara el calendario de tu teléfono, no esta plataforma. Por eso suenan aunque nadie la abra y aunque no haya señal.</p>' +
-    '</div></div>';
+    '<p class="pf-nota">Las alarmas —3 días antes para revisar el material, 1 día antes para confirmar con el cliente y media hora antes de salir, 2 horas si la instalación es de noche o de madrugada— las dispara el calendario de tu teléfono, no esta plataforma. Por eso suenan aunque nadie la abra y aunque no haya señal.</p>';
 }
 
 /* ----- La barra fija del teléfono -----
@@ -1402,6 +1705,45 @@ async function alTocar(ev) {
   if (ev.target.closest('[data-cobro]')) { _soloCobro = !_soloCobro; await recargar(); return; }
   if (ev.target.closest('[data-pasadas]')) { _pasadas = !_pasadas; await recargar(); return; }
   if (ev.target.closest('[data-agendar]')) { abrirAgendar(null); return; }
+  if (ev.target.closest('[data-llevar]')) { abrirTelefono(); return; }
+
+  /* Las cifras de la tira que piden algo. «Sin fecha» abre la hoja de agendar, igual que el
+     botón de la barra de abajo. «Ya pasó y nadie la marcó» abre esa instalación —su ficha trae
+     «Ya se instaló», «Mover de día» y «Cancelarla»— o, si son varias, lleva a su lista en el panel. */
+  const cifra = ev.target.closest('[data-cifra]');
+  if (cifra) {
+    if (cifra.dataset.cifra === 'sinfecha') { abrirAgendar(null); return; }
+    const vs = (_d && _d.vencidas) || [];
+    if (vs.length === 1) { abrirFicha(vs[0]); return; }
+    const sec = _cont.querySelector('#cal-vencidas');
+    if (sec) {
+      sec.scrollIntoView({ block: 'nearest', behavior: scrollSuave() });
+      const t = sec.querySelector('.cal-sec-t');
+      if (t) { try { t.focus({ preventScroll: true }); } catch (_) {} }
+    }
+    return;
+  }
+
+  /* «Agendar» junto a un ganado sin fecha del panel: la hoja de agendar con ESE proyecto ya
+     elegido, en el paso del día. Su «‹ Otro proyecto» regresa a la lista completa. */
+  const conProy = ev.target.closest('[data-agendar-pid]');
+  if (conProy) {
+    if (!puedeAgendar()) { toast('Agendar es de dirección. Si te toca a ti, cambia de rol en Ajustes.', 'err', 4600); return; }
+    _hoja = { paso: 'elegir', fecha: null, filtro: '' };
+    try { await pintarPaso2(conProy.dataset.agendarPid, { volver: { fecha: null, filtro: '' } }); }
+    catch (_) { abrirAgendar(null); }
+    return;
+  }
+
+  /* «‹» del día en el panel: lo suelta, y el panel vuelve a «Lo que viene». El foco va a su título,
+     que es lo que apareció donde estaba el botón. */
+  if (ev.target.closest('[data-lado-volver]')) {
+    _dia = null;
+    await recargar();
+    const t = _cont && _cont.querySelector('#cal-prox .cal-sec-t');
+    if (t) { t.setAttribute('tabindex', '-1'); try { t.focus({ preventScroll: true }); } catch (_) {} }
+    return;
+  }
 
   const enDia = ev.target.closest('[data-agendar-en]');
   if (enDia) { abrirAgendar(enDia.dataset.agendarEn); return; }
@@ -1480,7 +1822,7 @@ async function despachar(ev) {
  *  vieja, y eso se dice. */
 function instDe(id) {
   if (!_d) return null;
-  const pozos = [_d.dia || [], _d.filas || []];
+  const pozos = [_d.dia || [], _d.filas || [], _d.proximas || [], _d.vencidas || []];
   if (_d.mes) for (const x of (_d.mes.dias || [])) pozos.push(x.instalaciones || []);
   for (const p of pozos) { const i = p.find(x => x && x.id === id); if (i) return i; }
   return null;
@@ -1520,8 +1862,26 @@ async function ordenACalendar(boton, trabajo, { verbo, ok, tau }) {
   return resultado;
 }
 
+/** «Cómo se conecta» lleva a Ajustes desde la hoja de «Llevar a mi teléfono». La hoja empujó una
+ *  entrada de historial (para que el atrás del teléfono la cierre), y cerrarla la consume con un
+ *  `history.back()` que llega DESPUÉS: si la ruta cambia antes, ese atrás la deshace y se vuelve
+ *  al Calendario. Así que se cierra la hoja y se cambia de ruta cuando ese atrás ya llegó. */
+function irDesdeLaHoja(ruta) {
+  const capa = $('pf-pide');
+  const conEntrada = !!(capa && capa.classList.contains('show') && capa.dataset.hist === '1' &&
+    history.state && history.state.capa === 'pf-pide');
+  const ctx = _ctx;
+  if (capa && capa.classList.contains('show')) cerrarPide();
+  if (!ctx) return;
+  if (!conEntrada) { ctx.ir(ruta); return; }
+  let hecho = false;
+  const ir = () => { if (hecho) return; hecho = true; window.removeEventListener('popstate', ir); ctx.ir(ruta); };
+  window.addEventListener('popstate', ir);
+  setTimeout(ir, 700);      // red por si el atrás no llega
+}
+
 async function ejecutar(acc, id, boton) {
-  if (acc === 'ajustes') { if (_ctx) _ctx.ir('ajustes'); return; }
+  if (acc === 'ajustes') { irDesdeLaHoja('ajustes'); return; }
   if (acc === 'ics-ritmo') { await compartirIcs(Ics.ritmo(), 'al3d-ritmo.ics', 'el ritmo'); return; }
   if (acc === 'ics-mes') { await bajarVarias(); return; }
 

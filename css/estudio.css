@@ -468,32 +468,32 @@ html[data-tema="oscuro"]{
 .pj-tarj{border-radius:22px}
 
 /* ----- El calendario -----
-   La rejilla se queda como tabla (así lo pidió el rediseño del 16/10); cambian la esquina,
-   HOY en mantequilla y cada instalación como una pastilla del color de su etapa en lugar del
-   chip gris con filete. Los del taller (`.tal`) y los envíos conservan su forma propia: el
-   filete punteado y el borde de rayas son lo que los distingue, no un adorno. */
-.cal-rej{border-radius:22px;border-color:var(--linea2)}
-.cal-dia.hoy{background:var(--es-mante);box-shadow:inset 0 0 0 2px #e0a23b}
-.cal-dia.hoy .cal-n{background:var(--es-mante-tx);color:#fff}
-html[data-tema="oscuro"] .cal-dia.hoy{box-shadow:inset 0 0 0 2px #8a6a1c}
-html[data-tema="oscuro"] .cal-dia.hoy .cal-n{background:var(--es-mante-tx);color:#1a1405}
-@media(min-width:561px){
-  .cal-ev:not(.tal):not(.envio){border-left:0;border-radius:999px;padding:3px 8px;
-    background:var(--et-ganado-bg);color:var(--tinta)}
-  .cal-ev.en_diseno:not(.tal){background:var(--et-en_diseno-bg);color:var(--et-en_diseno-tx)}
-  .cal-ev.cortado:not(.tal){background:var(--et-cortado-bg);color:var(--et-cortado-tx)}
-  .cal-ev.armado:not(.tal){background:var(--et-armado-bg);color:var(--et-armado-tx)}
-  .cal-ev.listo:not(.tal){background:var(--et-listo-bg);color:var(--et-listo-tx)}
-  .cal-ev.instalado:not(.tal){background:var(--ok-bg);color:var(--ok)}
-  .cal-ev.tal{border-radius:999px}
-}
-@media(max-width:560px){
-  .cal-ev.ganado{background:var(--et-ganado-pt)}
-  .cal-ev.en_diseno{background:var(--et-en_diseno-pt)}
-  .cal-ev.cortado{background:var(--et-cortado-pt)}
-  .cal-ev.armado{background:var(--et-armado-pt)}
-  .cal-ev.listo{background:var(--et-listo-pt)}
-}
+   La rejilla se queda como tabla (así lo pidió el rediseño del 16/10). Desde el 23/10 («que se vea
+   de primer nivel»): HOY es el número en un círculo del azul de la marca —como en Google Calendar—,
+   y cada entrega es una ficha a todo el ancho con el pastel de su etapa y una barra del tono lleno a
+   la izquierda, los mismos `--et-*` del Tablero y de Proyectos. La forma vive en plataforma.css;
+   aquí, qué color le toca a cada etapa. `--ev-bg/--ev-tx/--ev-pt` los leen la ficha del mes, la
+   tarjeta de la semana, el renglón de la lista, el panel y la leyenda: un solo mapa de colores. La
+   tinta de cada pastel es la que ya está medida a 4,5:1 sobre él. Los del taller (`.tal`) conservan
+   su forma propia: el filete punteado es lo que los distingue, no un adorno. */
+:root{--cal-finde:color-mix(in srgb,var(--sup2) 60%,var(--sup))}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span){--ev-bg:var(--et-ganado-bg);--ev-tx:var(--et-ganado-tx);--ev-pt:var(--et-ganado-pt)}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).en_diseno{--ev-bg:var(--et-en_diseno-bg);--ev-tx:var(--et-en_diseno-tx);--ev-pt:var(--et-en_diseno-pt)}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).cortado{--ev-bg:var(--et-cortado-bg);--ev-tx:var(--et-cortado-tx);--ev-pt:var(--et-cortado-pt)}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).armado{--ev-bg:var(--et-armado-bg);--ev-tx:var(--et-armado-tx);--ev-pt:var(--et-armado-pt)}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).listo{--ev-bg:var(--et-listo-bg);--ev-tx:var(--et-listo-tx);--ev-pt:var(--et-listo-pt)}
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).instalado{--ev-bg:var(--ok-bg);--ev-tx:var(--ok);--ev-pt:var(--green-ico)}
+/* Cancelada: gris y tachada, que se lee igual sin distinguir colores. */
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev).off{--ev-bg:var(--sup2);--ev-tx:var(--tinta2);--ev-pt:var(--borde-control)}
+.cal-ev.off{color:var(--tinta2)}
+.cal-rej{border-radius:0}
+.cal-dia.hoy{box-shadow:none}
+/* Las cifras de la tira: mantequilla lo que espera algo, rojo suave lo que ya va tarde, como las
+   tarjetas de color del Tablero. */
+.cal-cifra.urge{background:var(--es-mante);color:var(--es-mante-tx)}
+.cal-cifra.urge b{color:var(--es-mante-tx)}
+.cal-cifra.mal{background:var(--es-rojo);color:var(--es-rojo-tx)}
+.cal-cifra.mal b{color:var(--es-rojo-tx)}
 
 /* ----- Las tarjetas -----
    Sin la raya bajo el encabezado y con el título en negrita, como en el estudio. El icono va
