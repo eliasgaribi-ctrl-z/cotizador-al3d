@@ -100,6 +100,8 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/verificar` | **pública, sin token** | La abre el QR de un PDF desde el teléfono de cualquiera: «auténtica», «superada», «revocada» o «no auténtica», con folio, fecha, total, negocio y —si el sello los firmó— los renglones (`renglones`: `[{descripcion, cantidad, importe}]`, o `null` en un sello de antes de `puente-sheets-8`, que solo responde del total), y nada más: ni cliente, ni teléfono, ni correo. Va antes de las dos puertas, con su propio cupo: 30 consultas por folio y 400 en total cada diez minutos |
 | `/empujar_almacen` | dirección y fabricación; pagos solo lo derivado | Hasta 25 operaciones del almacén —renglones del libro, materiales del catálogo, líneas de la lista de compra— en un viaje, en orden y bajo el candado (desde `puente-sheets-9`). Ver «El almacén», abajo |
 | `/jalar_almacen` | cualquier rol | Lo que las tres pestañas del almacén recibieron después de la secuencia que el teléfono manda (`desde`), en páginas de 1500. **Los costos solo para quien ve el dinero** |
+| `/empujar_gastos` | dirección y pagos | Hasta 25 gastos en un viaje, bajo el candado (desde `puente-sheets-15`): da de alta cada uno en la pestaña «Gastos» —la crea con sus encabezados si no existe— o, si su ID ya está, le pone la anulación. Un ID repetido contesta «ya estaba» (un reintento no duplica). Valida fecha, concepto, categoría, monto y cuenta otra vez, venga de quien venga. Fabricación recibe `ROL_SIN_PERMISO` gasto por gasto. Ver «`puente-sheets-15` — los gastos», abajo |
+| `/jalar_gastos` | dirección y pagos | La pestaña «Gastos» entera, en una respuesta. A los renglones tecleados a mano sin ID les pone uno (`hoja-…`). Sin la pestaña contesta una lista vacía. Fabricación recibe `ROL_SIN_PERMISO`: los gastos son dinero |
 | `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 50 por persona al día de México (Q-19, Elías, 2026-10-16; antes 200 por día GMT). Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
 | `/carpetas` | cualquier rol | Las subcarpetas de «Trabajos Pendientes» en Drive con sus archivos —nombre, liga, tipo y fecha, nunca el contenido— para que la ficha de cada proyecto enseñe su PDF de órdenes de fabricación y sus `.cdr` (desde `puente-sheets-10`). Solo lee. Cinco minutos de caché del lado de la hoja. Es la razón de que esa versión pida permiso de **leer Drive** al pegarla |
 | `/crear_carpeta` | solo Dirección | Abre en «Trabajos Pendientes» la carpeta «Contacto - Negocio» del proyecto del taller que no tiene una; la pide sola la sincronización del teléfono de Dirección. Bajo el candado y sin distinguir acentos ni mayúsculas: si ya hay una con ese nombre, devuelve ésa. Solo crea; nunca mueve, renombra ni borra |
@@ -508,6 +510,24 @@ diez minutos en el futuro (`SELLO_HOLGURA_MS`).
 
 ---
 
+### `puente-sheets-15` — los gastos
+
+Control contestaba «cuánto vendimos» y nadie contestaba «cuánto se fue». Desde la 15 los gastos
+viven en la hoja de finanzas, en una pestaña **«Gastos»** al lado de Ventas, y la plataforma los
+captura en **Control → Gastos** y los manda por el puente, igual que las ventas.
+
+| | |
+|---|---|
+| **Columnas** | ID · Fecha · Concepto · Categoría · Monto · Cuenta · Folio del proyecto · Registró · Registrado el · Anulado · Anuló · Anulado el · Subió (`GASTO_COLUMNAS`). Se buscan por su encabezado; la que falte se agrega al final. Categoría y Cuenta con desplegable cerrado |
+| **Categorías** | Material, Mano de obra, Renta y servicios, Herramienta, Transporte y gasolina, Publicidad, Comisiones y nómina, Otros (`GASTO_CATEGORIAS` = `CATEGORIAS` de `js/datos/gastos.js`; `pruebas/gastos.mjs` compara las dos). Una escrita a mano que no está en la lista baja como «Otros» |
+| **Roles** | Dirección y pagos escriben y leen (`GASTOS_ROLES`). Fabricación ni los ve ni los escribe |
+| **Sube** | `/empujar_gastos`, en lotes de hasta 25 desde la bandeja de cada teléfono. El ID lo pone el teléfono (`gas-…`): un reintento contesta «ya estaba». Anular manda el mismo gasto con `anulado: true`, y la hoja solo escribe Anulado, Anuló y Anulado el: el monto y el concepto no se tocan |
+| **Baja** | `/jalar_gastos`, la pestaña entera en la última página de cada bajada. Lo que la hoja ya no trae se borra del teléfono solo si ya había llegado a la hoja; lo capturado sin señal nunca se barre (`gastos.porBarrer`) |
+| **Una hoja vieja** | Con la 14 o anterior (lo dice `/salud`, o un «Camino desconocido») los gastos se apartan en la bandeja con su razón, sin perderse, y Control dice «Falta actualizar el puente». Al publicar la 15 vuelven solos a la cola (`revivirSinDestino`) |
+| **Pruebas** | `pruebas/gastos.mjs` (las cuentas, la lectura de filas, la bandeja y el Apps Script de verdad contra la hoja de mentiras, de punta a punta y contra una hoja en la 14). `pruebas/navegador/pf-gastos.mjs`: capturar, mandar, anular y la hoja vieja en Chromium |
+
+---
+
 ## Montarlo
 
 Los pasos están en [`DESPLIEGUE.md`](DESPLIEGUE.md). Son unos diez minutos, una vez.
@@ -644,7 +664,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-14`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-15`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

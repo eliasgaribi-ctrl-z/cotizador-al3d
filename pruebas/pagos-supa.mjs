@@ -12,7 +12,8 @@
  *     detecta;
  *   · qué error es seguro («no se registró nada») y cuál incierto (puede que sí haya llegado);
  *   · que Fabricación no ve los formularios ni recibe una sola cifra (ni se le piden);
- *   · y que APAGADO no cambia nada: Control tiene sus cuatro pestañas de siempre y nadie carga
+ *   · y que APAGADO no cambia nada: Control tiene sus cinco pestañas de siempre (Gastos, la quinta,
+ *     desde octubre de 2026) y nadie carga
  *     estos módulos.
  *
  * Se corre con pruebas/correr.sh, como todas. */
@@ -303,12 +304,12 @@ console.log('\nAPAGADO NO CAMBIA NADA');
   const correr = new Function('localStorage', 'Prefs', 'const TABS = ' + (TABS ? TABS[1] : '[]') + ';' + cuerpo('supaEncendido') + cuerpo('tabs') + ' return tabs();');
   const ls = mapa();
   const pagos = { rol: () => 'pagos' }, fab = { rol: () => 'fabricacion' };
-  eq('apagado: las cuatro pestañas de siempre, en su orden', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'bitacora']);
+  eq('apagado: las cinco pestañas de siempre, en su orden', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
   ls.setItem('al3d_pf_supa', 'basura{');
-  eq('una clave dañada es apagado', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'bitacora']);
+  eq('una clave dañada es apagado', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
   ls.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
-  eq('encendido: una quinta, al final', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'bitacora', 'asientos']);
-  eq('encendido pero Fabricación: las cuatro', correr(ls, fab), ['ventas', 'cobrar', 'comisiones', 'bitacora']);
+  eq('encendido: una sexta, al final', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora', 'asientos']);
+  eq('encendido pero Fabricación: las cinco', correr(ls, fab), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
   cierto('la clave que mira Control es la del interruptor de supa.js', /'al3d_pf_supa'/.test(cuerpo('supaEncendido')) &&
     /CLAVE_INTERRUPTOR = 'al3d_pf_supa'/.test(leer('js/nucleo/supa.js')));
   cierto('una dirección vieja «?tab=asientos» con Supabase apagado cae en Resumen', /return tabs\(\)\.includes\(t\) \? t : null;/.test(sinC) &&

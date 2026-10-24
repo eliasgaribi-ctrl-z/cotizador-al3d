@@ -1,0 +1,545 @@
+/* ==========================================================================
+   estudio.css — la capa «Estudio» de AL3D (octubre de 2026)
+   --------------------------------------------------------------------------
+   Es el look que Elías eligió en el canvas de diseño del 20/10/2026 («AL3D
+   Estudio — versión combinada»): fondo gris claro y plano, tarjetas blancas muy
+   redondas, una sola letra (Plus Jakarta Sans), el menú lateral como columna
+   de iconos con su nombre abajo, tarjetas de color por tema (menta para lo que
+   se cobra, mantequilla para lo que toca hoy, rojo suave para lo que va tarde),
+   el bloque azul de la marca para lo que pide una decisión, y los dos temas,
+   claro y oscuro, con el mismo botón de siempre.
+
+   Igual que vidrio.css, va DESPUÉS de todas las hojas y casi no toca el
+   marcado: repinta tokens y cromado. Si este archivo se borra, la app vuelve a
+   la capa de vidrio tal cual estaba. pruebas/hojas-de-estilo.mjs vigila que se
+   lea la última.
+
+   Lo que NO cambia, a propósito:
+     · Los colores de estado (--ok, --av, --mal y sus fondos) son los que ya
+       estaban medidos a 4,5:1 en los dos temas. Aquí solo se estrenan fondos
+       pastel con su propia tinta, en tokens nuevos --es-*.
+     · El Tablero sigue con los cuatro bloques del 17/10 («que no dé más
+       información de la que se necesita»): esta hoja los pinta, no los multiplica.
+     · Nada de dinero aparece donde antes no aparecía: el rol de Fabricación sigue
+       sin importes, porque eso lo decide el marcado y no la hoja.
+   ========================================================================== */
+
+/* ==========================================================================
+   0. Los tokens
+   ========================================================================== */
+
+:root{
+  /* Una sola familia para texto y cifras, con la misma reserva que ya traía el sistema (las
+     familias de emoji y de símbolos van completas: un emoji en el nombre de un cliente no cae al
+     glifo de reemplazo). */
+  --f-texto:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
+  --f-cifra:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+
+  /* El lienzo y las superficies: gris plano, tarjeta blanca. */
+  --fondo:#ecedf2; --sup:#ffffff; --sup-rgb:255,255,255; --sup2:#f4f5f8;
+  --linea:#dfe1ea; --linea2:#ecedf2;
+  --tinta:#0e0f14; --tinta2:#4a4e5e; --tinta3:#5a5e6e; --tinta-rgb:14,15,20;
+  --n0:#fbfbfd; --n1:#ecedf2; --n2:#f1f2f6; --n3:#dfe1ea; --n4:#b9bcc8;
+  --n5:#8a8ea0; --n6:#4a4e5e; --n7:#2e313c; --n8:#0e0f14; --n9:#0e0f14;
+  --n1-rgb:236,237,242; --n2-rgb:241,242,246; --n3-rgb:223,225,234; --n4-rgb:185,188,200; --n5-rgb:138,142,160;
+  /* 3,4:1 contra blanco: el borde de un campo se ve al sol. */
+  --borde-control:#8a8ea0;
+  --nav:#0e0f14; --nav2:#23252f; --nav-rgb:14,15,20;
+
+  /* El azul de la marca, el del logotipo (#341efd). Con blanco encima da 8,8:1. */
+  --a:#341efd; --a-fuerte:#2a17d6; --a-claro:#5b4fff; --a-suave:#ece9ff; --a-suave-2:#e1dcff; --a-borde:#c9c2ff;
+  --a-fill:#341efd; --a-tx:#2a17d6; --a-rgb:52,30,253; --af-rgb:52,30,253; --ac-rgb:91,79,255;
+  --ia-a:#341efd; --ia-b:#4b3bff; --ia-c:#2a17d6;
+  --grd-deco:var(--a-fill); --brand-grd:var(--a-fill);
+
+  --rr1:8px; --rr2:12px; --rr3:18px; --rr4:24px;
+  --sombra:0 1px 2px rgba(14,15,20,.04);
+  --sombra-alta:0 2px 6px rgba(14,15,20,.06),0 28px 56px -28px rgba(14,15,20,.28);
+  --sombra-reposo:0 0 0 transparent;
+  --sombra-accion:0 0 0 transparent;
+  --velo:rgba(236,237,242,.88);
+  --nav-grd:var(--sup);
+
+  /* Sin aurora: el fondo es plano. */
+  --aurora-1:transparent; --aurora-2:transparent; --aurora-3:transparent;
+
+  /* La capa de vidrio se queda, pero de tarjeta sólida: el estudio no es traslúcido. */
+  --cv-relleno:var(--sup);
+  --cv-relleno-denso:rgba(var(--sup-rgb),.95);
+  --cv-borde:1px solid var(--linea2);
+  --cv-luz:0 0 0 transparent;
+  --cv-sombra:0 1px 2px rgba(14,15,20,.04);
+  --cv-accion:var(--a-fill);
+  --cv-tarjeta:28px;
+  --cv-marino:rgba(var(--sup-rgb),.95);
+  --cv-marino-borde:1px solid var(--linea2);
+  --cv-marino-luz:0 0 0 transparent;
+  --vidrio:rgba(255,255,255,.95); --vidrio-fino:rgba(255,255,255,.9); --vidrio-solido:#ffffff;
+  --filo:0 0 0 transparent; --filo-corto:0 0 0 transparent;
+  --sombra-vidrio:var(--sombra); --sombra-vidrio-alta:var(--sombra-alta);
+
+  /* ----- Los tokens nuevos del estudio -----
+     Cada fondo pastel trae su tinta, medida a 4,5:1 o más sobre él. */
+  --es-fondo-rgb:236,237,242;
+  --es-act:#0e0f14; --es-act-tx:#ffffff;      /* lo elegido: la pestaña, el segmento */
+  --es-chip:#f1f2f6;                          /* el botón callado y el hueco */
+  --es-azul:#341efd; --es-azul-tx:#ffffff; --es-azul-hueco:rgba(11,12,16,.22);
+  --es-azul-sub:#e2dfff;
+  --es-lav:#ece9ff;   --es-lav-tx:#2a17d6;
+  --es-menta:#d9f4e6; --es-menta-tx:#1e4d35;
+  --es-cielo:#dceeff; --es-cielo-tx:#1c3f66;
+  --es-mante:#fff1c2; --es-mante-tx:#6b4a00;
+  --es-rosa:#fce1ee;  --es-rosa-tx:#6e1e45;
+  --es-dur:#ffe2d3;   --es-dur-tx:#9b2c10;
+  --es-rojo:#ffe2de;  --es-rojo-tx:#9b1c1f;
+  --es-alerta:#d02f35;                        /* el punto y el globo de «algo va tarde»: 5,1:1 con blanco */
+  --es-r-tarjeta:28px; --es-r-ficha:20px;
+  /* El fondo de «atención» (`--av-bg`) era durazno; pasa a la mantequilla del estudio, que es el
+     mismo «lo que toca hoy» del Tablero. La tinta --av no cambia: sobre él da 5,7:1. */
+  --av-bg:#fff1c2; --av-borde:#f3d77a; --av-borde-rgb:243,215,122;
+}
+
+html[data-tema="oscuro"]{
+  --fondo:#0b0c10; --sup:#16171e; --sup-rgb:22,23,30; --sup2:#1d1e26;
+  --linea:#2c2f3a; --linea2:#23252f;
+  --tinta:#f4f4f7; --tinta2:#b4b7c4; --tinta3:#a0a3b1;
+  --n0:#1d1e26; --n1:#0b0c10; --n2:#23252f; --n3:#2c2f3a; --n4:#454856;
+  --n5:#6b6f80; --n6:#b4b7c4; --n7:#d4d6de; --n8:#f4f4f7; --n9:#ffffff;
+  --n1-rgb:11,12,16; --n2-rgb:35,37,47; --n3-rgb:44,47,58; --n4-rgb:69,72,86; --n5-rgb:107,111,128;
+  --borde-control:#6b6f80;
+  --nav:#08090c; --nav2:#1d1e26; --nav-rgb:8,9,12;
+  --a:#a9a1ff; --a-fuerte:#c9c2ff; --a-claro:#8d82ff; --a-suave:#221d4a; --a-suave-2:#2b2560; --a-borde:#4a3fa0;
+  --a-fill:#4b3bff; --a-tx:#c9c2ff; --a-rgb:75,59,255; --af-rgb:75,59,255; --ac-rgb:141,130,255;
+  --ia-a:#4b3bff; --ia-b:#4b3bff; --ia-c:#3a2be0;
+  --sombra:0 1px 2px rgba(0,0,0,.4);
+  --sombra-alta:0 2px 8px rgba(0,0,0,.5),0 28px 56px -18px rgba(0,0,0,.75);
+  --velo:rgba(11,12,16,.88);
+  --cv-borde:1px solid var(--linea2);
+  --cv-sombra:0 1px 2px rgba(0,0,0,.4);
+  --vidrio:rgba(22,23,30,.95); --vidrio-fino:rgba(22,23,30,.9); --vidrio-solido:#16171e;
+
+  --es-fondo-rgb:11,12,16;
+  --es-act:#f4f4f7; --es-act-tx:#0b0c10;
+  --es-chip:#23252f;
+  --es-azul:#4b3bff; --es-azul-hueco:rgba(11,12,16,.26);
+  --es-lav:#221d4a;   --es-lav-tx:#c9c2ff;
+  --es-menta:#12291d; --es-menta-tx:#9be8c0;
+  --es-cielo:#12233a; --es-cielo-tx:#bcdcff;
+  --es-mante:#2b2410; --es-mante-tx:#ffe08a;
+  --es-rosa:#2e1626;  --es-rosa-tx:#ffc6e0;
+  --es-dur:#2f1a12;   --es-dur-tx:#ffb59a;
+  --es-rojo:#3a1a1d;  --es-rojo-tx:#ff9a92;
+  --av-bg:#2b2410; --av-borde:#5c4a14; --av-borde-rgb:92,74,20;
+}
+
+/* ==========================================================================
+   1. El lienzo
+   ========================================================================== */
+
+body.pf,html[data-tema="oscuro"] body.pf{background:var(--fondo)}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ==========================================================================
+   2. El menú: una columna de iconos con su nombre abajo (760 px para arriba)
+   --------------------------------------------------------------------------
+   Es la tarjeta blanca que flota a la izquierda. Cada pestaña es icono y palabra
+   en vertical; la encendida va en negro (en blanco de noche), que es lo que en el
+   estudio quiere decir «aquí estás» sin gastar el azul, que es de las acciones.
+   El ancho del carril sigue saliendo de --lat, así que el encabezado y la página
+   se recorren solos.
+   ========================================================================== */
+
+@media(min-width:760px){
+  :root{--lat:132px}
+  .pf-lat{
+    left:14px;top:14px;bottom:14px;width:calc(var(--lat) - 26px);
+    padding:16px 7px 12px;align-items:stretch;gap:4px;
+    background:var(--sup);color:var(--tinta2);
+    border:1px solid var(--linea2);border-radius:32px;
+    box-shadow:0 1px 2px rgba(var(--tinta-rgb),.04);
+    scrollbar-width:thin;scrollbar-color:var(--linea) transparent;
+  }
+  .pf-lat-marca{flex-direction:column;align-items:center;gap:2px;padding:0 0 10px;margin:0 0 4px;
+    border-bottom:0;overflow:visible}
+  .pf-lat-marca img{height:30px}
+  .pf-lat-t{margin:0;font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--tinta3)}
+  .pf-nav{gap:4px}
+
+  .pf-tab{
+    position:relative;flex-direction:column;justify-content:center;gap:5px;
+    height:auto;min-height:54px;padding:8px 3px 7px;border-radius:20px;
+    color:var(--tinta2);font-size:12px;font-weight:700;line-height:1.15;text-align:center;
+  }
+  .pf-tab .tx{flex:none;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;hyphens:manual}
+  .pf-tab .svgi{width:22px;height:22px;color:inherit}
+  .pf-tab.on{background:var(--es-act);color:var(--es-act-tx);font-weight:800;box-shadow:none}
+  /* `content:none` y no `display:none`: la ficha que viaja entre pestañas (piezas.js,
+     fichaQueViaja) copia como «adorno» el ::before que tenga contenido y fondo, aunque no se vea,
+     y con display:none se llevaba el filete azul de 3 px pegado a la pastilla negra. */
+  .pf-tab.on::before{content:none}
+  .pf-tab.on .svgi{color:inherit}
+  @media(hover:hover){
+    .pf-tab:hover{background:var(--es-chip);color:var(--tinta)}
+    .pf-tab:hover .svgi{color:inherit}
+    .pf-tab.on:hover{background:var(--es-act);color:var(--es-act-tx)}
+  }
+  /* La cuenta de lo que reclama atención: un globo en la esquina, no un renglón aparte. */
+  .pf-tab .cta{position:absolute;top:5px;right:8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+    background:var(--es-alerta);color:#fff;font-size:11px;line-height:18px}
+  /* La tecla de la pestaña, en la otra esquina y solo al apuntarla o llegar con Tab. */
+  .pf-tab[data-tecla]::after{position:absolute;top:5px;left:8px;border-color:var(--linea);color:var(--tinta3);
+    background:var(--sup)}
+  .pf-tab:focus-visible,.pf-lat-item:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+
+  .pf-lat-pie{display:flex;flex-direction:column;gap:4px;padding-top:10px}
+  .pf-lat-item{
+    flex-direction:column;justify-content:center;gap:4px;height:auto;min-height:50px;padding:6px 3px;
+    border-radius:18px;color:var(--tinta2);font-size:11px;font-weight:700;line-height:1.15;text-align:center;
+  }
+  .pf-lat-item.btn-tema{justify-content:center}
+  .pf-lat-item .svgi{width:20px;height:20px;color:inherit}
+  @media(hover:hover){.pf-lat-item:hover{background:var(--es-chip);color:var(--tinta)}.pf-lat-item:hover .svgi{color:inherit}}
+
+  /* El rol de este aparato: los tres botones uno debajo del otro, que en 98 px no caben juntos. */
+  .pf-lat-rol{margin-top:6px;padding:9px 5px 6px;border:0;border-radius:20px;background:var(--es-chip)}
+  .pf-lat-rol-t{text-align:center;color:var(--tinta3);font-size:10px;letter-spacing:.06em;margin-bottom:6px}
+  body.pf .pf-lat .pf-lat-rol .seg{display:flex;width:100%;flex-direction:column;gap:2px;padding:0;
+    background:transparent;border:0;border-radius:0;box-shadow:none}
+  body.pf .pf-lat .pf-lat-rol .seg button{flex:none;width:100%;min-height:34px;padding:0 2px;border-radius:999px;
+    background:transparent;color:var(--tinta2);font-size:11px;font-weight:700}
+  body.pf .pf-lat .pf-lat-rol .seg button.on{background:var(--es-act);color:var(--es-act-tx)}
+}
+@media(min-width:760px) and (max-width:1023px){ :root{--lat:124px} .pf-tab{font-size:11px} }
+@media(min-width:760px) and (hover:none),(min-width:760px) and (pointer:coarse){
+  .pf-lat-item{min-height:56px}
+  body.pf .pf-lat .pf-lat-rol .seg button{min-height:44px}
+}
+
+/* ==========================================================================
+   3. El encabezado
+   ========================================================================== */
+
+@media(min-width:760px){
+  /* 64 px, los mismos de antes: el índice de Ajustes se pega justo debajo (`.aj-indice{top:64px}`). */
+  .pf-cab{height:64px;background:rgba(var(--es-fondo-rgb),.9);border-bottom:0;box-shadow:none;
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
+  .pf-cab-t{font-size:28px;font-weight:800;letter-spacing:-.035em}
+  .pf-cab-d{font-size:var(--t3);color:var(--tinta3)}
+  .pf-cab-tema{width:46px;height:46px;border:0;border-radius:50%;background:var(--sup);color:var(--tinta)}
+  @media(hover:hover){.pf-cab-tema:hover{background:var(--es-chip);color:var(--tinta)}}
+  .pf-sesion{border-color:var(--sup)}
+}
+.pf-cab button.pf-sesion{background:var(--a-fill) !important}
+/* La nube de la sincronización era blanca para el encabezado marino; ahora el encabezado es del
+   color del lienzo y la nube va en la segunda tinta (3:1 o más, que es lo que pide un glifo). */
+.pf-sync{color:var(--tinta2)}
+/* El globo es rojo cerrado en los dos temas, así que su número es blanco en los dos
+   (plataforma.css lo oscurecía en modo oscuro porque allá el globo era ámbar claro). El globo
+   de la hoja «Más» se queda como estaba: sigue en ámbar. */
+.pf-tab .cta,.pf-abajo .cta,
+html[data-tema="oscuro"] .pf-tab .cta,html[data-tema="oscuro"] .pf-abajo .cta{background:var(--es-alerta);color:#fff}
+
+/* ==========================================================================
+   4. El teléfono: encabezado claro y la barra de abajo flotando
+   ========================================================================== */
+
+@media(max-width:759px){
+  .pf-cab{background:rgba(var(--es-fondo-rgb),.94);color:var(--tinta);border-bottom:0;box-shadow:none;
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
+  .pf-cab-t{color:var(--tinta);font-weight:800;letter-spacing:-.02em}
+  .pf-cab-tema{width:44px;height:44px;border:0;border-radius:50%;background:var(--sup);color:var(--tinta)}
+  @media(hover:hover){.pf-cab-tema:hover{background:var(--es-chip)}}
+  .pf-sesion{border-color:var(--sup)}
+
+  .pf-abajo{
+    left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    padding:6px;border-radius:999px;
+    background:rgba(var(--sup-rgb),.97);border:1px solid var(--linea2);border-top:1px solid var(--linea2);
+    box-shadow:0 16px 34px -14px rgba(var(--tinta-rgb),.38);
+  }
+  html[data-tema="oscuro"] .pf-abajo{box-shadow:0 16px 34px -10px rgba(0,0,0,.8)}
+  .pf-abajo a,.pf-abajo button{border-radius:999px;min-height:54px;height:54px;color:var(--tinta2)}
+  .pf-abajo button .pil{width:46px;height:28px;border-radius:999px;color:inherit}
+  .pf-abajo button.on{color:var(--tinta)}
+  .pf-abajo button.on .pil{background:var(--es-act);color:var(--es-act-tx);box-shadow:none}
+  .pf-abajo .cta{background:var(--es-alerta);color:#fff}
+  .pf-wrap{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px))}
+  .pf-mbar{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ==========================================================================
+   5. Las piezas comunes
+   ========================================================================== */
+
+.card,body.pf .card{border-radius:var(--es-r-tarjeta);border-color:var(--linea2);box-shadow:none}
+.pf-panel,body.pf .pf-panel{border-radius:var(--es-r-tarjeta);box-shadow:none}
+@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--es-r-tarjeta) var(--es-r-tarjeta) 0 0} }
+.modal{border-radius:28px}
+
+/* Todos los botones son pastilla. El principal es el azul liso de la marca. */
+.btn,.btn-gho,.btn-pri,.btn-ok,.btn-dgr,.btn-wa,body.pf .btn{border-radius:999px}
+.btn-pri,body.pf .btn-pri{background:var(--a-fill);box-shadow:none}
+@media(hover:hover){.btn-pri:hover{background:var(--a-fill);filter:brightness(1.08)}}
+body.pf .btn-ok{box-shadow:none}
+
+/* Las cuentas de arriba de cada pantalla: tarjeta blanca, sin filete, y el color dice de qué es. */
+.pf-cuenta:where(:not(.tb-etapa)){border-radius:24px;border-color:transparent;box-shadow:none}
+.pf-cuenta:where(:not(.tb-etapa))::before{display:none}
+.pf-cuenta.dinero:where(:not(.tb-etapa)){background:var(--es-menta);color:var(--es-menta-tx)}
+.pf-cuenta.urge:where(:not(.tb-etapa)){background:var(--es-mante);color:var(--es-mante-tx)}
+.pf-cuenta.mal:where(:not(.tb-etapa)){background:var(--es-rojo);color:var(--es-rojo-tx)}
+.pf-cuenta.dinero b{color:var(--es-menta-tx)}
+.pf-cuenta.urge b{color:var(--es-mante-tx)}
+.pf-cuenta.mal b{color:var(--es-rojo-tx)}
+
+/* ==========================================================================
+   6. El Tablero
+   --------------------------------------------------------------------------
+   Los mismos cuatro bloques del 17/10. Lo que cambia es cómo se leen:
+     · el resumen es el saludo grande, con los atajos a un lado;
+     · «Necesita tu decisión» es el bloque azul de la marca;
+     · el taller pinta cada estación con su color;
+     · la próxima instalación es la tarjeta mantequilla.
+   ========================================================================== */
+
+.tb-limpio{gap:18px}
+@media(min-width:1024px){ .tb-limpio{max-width:1240px;column-gap:18px} }
+
+.tb-resumen{gap:4px;padding:2px 2px 4px}
+.tb-res-fecha{font-size:15px;font-weight:600;color:var(--tinta3)}
+.tb-res-total{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.15;color:var(--tinta)}
+.tb-res-total b,.tb-res-dinero{font-weight:800}
+.tb-atajos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+@media(min-width:1000px){
+  .tb-resumen{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:18px;align-items:end}
+  .tb-res-fecha,.tb-res-total{grid-column:1}
+  .tb-atajos{grid-column:2;grid-row:1/3;margin:0;justify-content:flex-end}
+}
+.tb-atajo{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 18px;border:0;border-radius:999px;
+  background:var(--sup);color:var(--tinta);font:700 14px/1 var(--f-texto);cursor:pointer}
+.tb-atajo .svgi{width:18px;height:18px;flex:none}
+.tb-atajo.pri{background:var(--a-fill);color:#fff}
+@media(hover:hover){.tb-atajo:hover{background:var(--es-chip)}.tb-atajo.pri:hover{background:var(--a-fill);filter:brightness(1.08)}}
+.tb-atajo:focus-visible{outline:2.5px solid var(--a);outline-offset:2px}
+
+.tb-sec{gap:10px}
+.tb-sec-t{font-size:18px;font-weight:800;letter-spacing:-.01em;text-transform:none;color:var(--tinta)}
+.tb-caja{border:1px solid var(--linea2);border-radius:var(--es-r-tarjeta);background:var(--sup)}
+
+/* «Necesita tu decisión»: el bloque azul. Cada asunto es un hueco más oscuro dentro del azul, y
+   el número va en una moneda blanca con la tinta de su tono. */
+.tb-necesita{background:var(--es-azul);border-color:transparent;padding:10px;gap:6px}
+.tb-necesita .tb-nec{border-top:0;border-radius:20px;background:var(--es-azul-hueco);color:var(--es-azul-tx);min-height:68px}
+@media(hover:hover){.tb-necesita button.tb-nec:hover{background:rgba(11,12,16,.32)}}
+.tb-necesita .tb-nec:focus-visible{outline:2.5px solid #fff;outline-offset:-3px}
+.tb-necesita .tb-nec-t{color:#fff}
+.tb-necesita .tb-nec-d{color:var(--es-azul-sub)}
+.tb-necesita .tb-nec-ir{color:#fff}
+.tb-necesita .tb-nec-n{background:#fff;border-radius:14px}
+.tb-necesita .tb-nec-n.a{color:#2a17d6}
+.tb-necesita .tb-nec-n.mal{color:#b42318}
+.tb-necesita .tb-nec-n.av{color:#6b4a00}
+.tb-nada{background:var(--es-menta);border-color:transparent;color:var(--es-menta-tx);border-radius:24px}
+.tb-nada .svgi{color:var(--es-menta-tx)}
+
+/* El taller: cada estación con su color, y las fichas blancas encima. */
+.tb-taller{padding:8px;gap:6px}
+.tb-est{border-top:0;border-radius:20px;background:var(--sup2);padding:12px 14px}
+.tb-est[data-etapa="en_diseno"]{background:var(--es-lav)}
+.tb-est[data-etapa="cortado"]{background:var(--es-cielo)}
+.tb-est[data-etapa="armado"]{background:var(--es-mante)}
+.tb-est[data-etapa="listo"]{background:var(--es-menta)}
+.tb-est[data-etapa="en_diseno"] .tb-est-h,.tb-est[data-etapa="en_diseno"] .tb-est-vacia{color:var(--es-lav-tx)}
+.tb-est[data-etapa="cortado"] .tb-est-h,.tb-est[data-etapa="cortado"] .tb-est-vacia{color:var(--es-cielo-tx)}
+.tb-est[data-etapa="armado"] .tb-est-h,.tb-est[data-etapa="armado"] .tb-est-vacia{color:var(--es-mante-tx)}
+.tb-est[data-etapa="listo"] .tb-est-h,.tb-est[data-etapa="listo"] .tb-est-vacia{color:var(--es-menta-tx)}
+.tb-est-h{font-weight:800}
+.tb-est-h b{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-width:32px;
+  border-radius:50%;background:var(--sup);color:var(--tinta);font:800 16px/1 var(--f-cifra)}
+.tb-fichas,.tb-est-vacia{padding-left:42px}
+.tb-ficha{border-radius:999px;background:var(--sup);border:1px solid transparent;color:var(--tinta);font-weight:700}
+.tb-ficha.mal{background:var(--es-rojo);border-color:var(--es-alerta);color:var(--es-rojo-tx)}
+.tb-ficha.av{background:var(--es-mante);border-color:#e0a23b;color:var(--es-mante-tx)}
+.tb-punto.mal{background:var(--es-alerta)}
+
+/* La próxima instalación: la tarjeta mantequilla. */
+.tb-prox{background:var(--es-mante);border-color:transparent;padding:18px 20px}
+.tb-prox .tb-sec-t{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--es-mante-tx)}
+.tb-prox-d{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.tb-prox .tb-enlace,.tb-pie .tb-enlace{min-height:46px;padding:0 18px;border-radius:999px;background:var(--sup);
+  color:var(--tinta);font-weight:700;text-decoration:none}
+.tb-pie .tb-enlace{background:transparent;color:var(--a-tx)}
+@media(hover:hover){.tb-prox .tb-enlace:hover{background:var(--es-chip)}}
+
+/* ==========================================================================
+   7. Proyectos
+   ========================================================================== */
+
+.pj-col-h{border:0;border-radius:999px;background:var(--sup);padding:9px 14px}
+.pj-col-n{background:var(--es-chip)}
+
+/* ==========================================================================
+   8. El cotizador: el subtotal es el bloque azul
+   --------------------------------------------------------------------------
+   El recuadro del precio subtotal —el que se copia a Canva— es lo único de la
+   columna del dinero que se pinta de azul de la marca. El resto de la columna se
+   queda en tarjeta blanca: los mandos (IVA, anticipo, autorizar) están medidos
+   sobre ella.
+   ========================================================================== */
+
+.srow.subtotal{background:var(--es-azul);border:1px solid transparent;border-radius:22px;box-shadow:none}
+.srow.subtotal .sub-lab{color:#fff}
+.srow.subtotal .v,.srow.subtotal .v #s-sub{color:#fff}
+.srow.subtotal .sub-canva,.srow.subtotal .v small{color:var(--es-azul-sub)}
+.sub-copiar{border-color:rgba(255,255,255,.55);color:#fff;border-radius:999px}
+@media(hover:hover){.sub-copiar:hover{background:rgba(255,255,255,.16)}}
+.sub-copiar:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* La barra de arriba del cotizador suelto (de 561 px para arriba, donde va en un renglón).
+   Iba al ras con los botones en Arial; con la letra del estudio —que ahora también llega a los
+   botones (ver «Los controles heredan la letra», abajo)— cada pastilla creció unos píxeles y la
+   suma partía la barra en dos renglones en cuanto aparecía «Deshacer» (Dirección, 1440 px), y la
+   isla ya no cabía para decir «Sin señal». Se recupera ese ancho apretando el hueco entre
+   botones y el relleno de las pastillas con palabra, no quitando nada.
+   Lo mismo en la cabecera de cada partida, que también va pegada arriba: los cinco tipos
+   («Letras 3D», «Caja de luz»…) crecieron 18 px y empujaban Duplicar · PDF · Borrar a un
+   segundo renglón, 44 px más de cabecera pegada que tapaban la fórmula de la partida. */
+@media(min-width:561px){
+  .topbar-in .rolewrap{gap:8px}
+  .topbar-in .btn-hist:not(.btn-tema){padding:0 9px;gap:6px}
+  .partida-top .tipo-seg button{padding-left:9px;padding-right:9px}
+}
+
+/* ==========================================================================
+   10. Todas las pantallas (23/10/2026)
+   --------------------------------------------------------------------------
+   Elías pidió que no quedara ni una pantalla con el estilo de antes. Lo que
+   aquí cambia es cromado, no decisiones: el número de HOY sigue siendo
+   ámbar (es «lo que toca hoy» en toda la plataforma), la rejilla del mes
+   sigue siendo una tabla, el verde de «Se ganó» sigue siendo verde. Lo que se
+   va es lo que solo era la piel vieja: filetes de color a la izquierda,
+   pestañas subrayadas, cajas grises con borde, el ámbar del barro en las
+   etapas y la letra del sistema en los botones.
+   ========================================================================== */
+
+/* Los controles heredan la letra. Sin esto un <button> sale en Arial: el navegador no le
+   pasa la familia del documento a los controles de formulario. `:where` no suma
+   especificidad, así que cualquier regla con su propia familia (el folio en monoespaciado)
+   sigue ganando. */
+:where(button,input,select,textarea,optgroup){font-family:inherit}
+
+/* El filete azul de 3 px arriba de cada documento (sistema.css, `body::before`) ya no existía
+   donde hay barra lateral; dentro de la plataforma, el cotizador, la mesa de corte y el
+   vectorizador van empotrados y lo seguían dibujando como una raya en el borde de su marco. */
+html.empotrado body::before{display:none}
+
+/* ----- Las etapas, con los colores del Tablero en todas las pantallas -----
+   Fondo pastel con su tinta para las fichas, y un tono lleno para los puntos. La misma
+   etapa no puede ser lavanda en el Tablero y ámbar en Proyectos. */
+:root{
+  --et-ganado-bg:var(--es-chip);     --et-ganado-tx:var(--tinta2);         --et-ganado-pt:#8a8ea0;
+  --et-en_diseno-bg:var(--es-lav);   --et-en_diseno-tx:var(--es-lav-tx);   --et-en_diseno-pt:#6a5cff;
+  --et-cortado-bg:var(--es-cielo);   --et-cortado-tx:var(--es-cielo-tx);   --et-cortado-pt:#2f7fd8;
+  --et-armado-bg:var(--es-mante);    --et-armado-tx:var(--es-mante-tx);    --et-armado-pt:#c98a00;
+  --et-listo-bg:var(--es-menta);     --et-listo-tx:var(--es-menta-tx);     --et-listo-pt:#1f9d61;
+}
+html[data-tema="oscuro"]{
+  --et-ganado-pt:#6b6f80; --et-en_diseno-pt:#8d82ff; --et-cortado-pt:#6fb0ff;
+  --et-armado-pt:#f0c040; --et-listo-pt:#5fd39a;
+}
+.pf-etapa{border-radius:999px}
+.pf-etapa.ganado   {background:var(--et-ganado-bg);   color:var(--et-ganado-tx)}
+.pf-etapa.en_diseno{background:var(--et-en_diseno-bg);color:var(--et-en_diseno-tx)}
+.pf-etapa.cortado  {background:var(--et-cortado-bg);  color:var(--et-cortado-tx)}
+.pf-etapa.armado   {background:var(--et-armado-bg);   color:var(--et-armado-tx)}
+.pf-etapa.listo    {background:var(--et-listo-bg);    color:var(--et-listo-tx)}
+
+/* Proyectos: el punto de cada columna y el filete de la página del teléfono. */
+.pj-col-h::before{background:var(--et-ganado-pt)}
+.pj-col-h.en_diseno::before{background:var(--et-en_diseno-pt)}
+.pj-col-h.cortado::before{background:var(--et-cortado-pt)}
+.pj-col-h.armado::before{background:var(--et-armado-pt)}
+.pj-col-h.listo::before{background:var(--et-listo-pt)}
+.pj-pag-h.ganado{border-bottom-color:var(--et-ganado-pt)}
+.pj-pag-h.en_diseno{border-bottom-color:var(--et-en_diseno-pt)}
+.pj-pag-h.cortado{border-bottom-color:var(--et-cortado-pt)}
+.pj-pag-h.armado{border-bottom-color:var(--et-armado-pt)}
+.pj-pag-h.listo{border-bottom-color:var(--et-listo-pt)}
+.pj-tarj{border-radius:22px}
+
+/* ----- El calendario -----
+   La rejilla se queda como tabla (así lo pidió el rediseño del 16/10); cambian la esquina,
+   HOY en mantequilla y cada instalación como una pastilla del color de su etapa en lugar del
+   chip gris con filete. Los del taller (`.tal`) y los envíos conservan su forma propia: el
+   filete punteado y el borde de rayas son lo que los distingue, no un adorno. */
+.cal-rej{border-radius:22px;border-color:var(--linea2)}
+.cal-dia.hoy{background:var(--es-mante);box-shadow:inset 0 0 0 2px #e0a23b}
+.cal-dia.hoy .cal-n{background:var(--es-mante-tx);color:#fff}
+html[data-tema="oscuro"] .cal-dia.hoy{box-shadow:inset 0 0 0 2px #8a6a1c}
+html[data-tema="oscuro"] .cal-dia.hoy .cal-n{background:var(--es-mante-tx);color:#1a1405}
+@media(min-width:561px){
+  .cal-ev:not(.tal):not(.envio){border-left:0;border-radius:999px;padding:3px 8px;
+    background:var(--et-ganado-bg);color:var(--tinta)}
+  .cal-ev.en_diseno:not(.tal){background:var(--et-en_diseno-bg);color:var(--et-en_diseno-tx)}
+  .cal-ev.cortado:not(.tal){background:var(--et-cortado-bg);color:var(--et-cortado-tx)}
+  .cal-ev.armado:not(.tal){background:var(--et-armado-bg);color:var(--et-armado-tx)}
+  .cal-ev.listo:not(.tal){background:var(--et-listo-bg);color:var(--et-listo-tx)}
+  .cal-ev.instalado:not(.tal){background:var(--ok-bg);color:var(--ok)}
+  .cal-ev.tal{border-radius:999px}
+}
+@media(max-width:560px){
+  .cal-ev.ganado{background:var(--et-ganado-pt)}
+  .cal-ev.en_diseno{background:var(--et-en_diseno-pt)}
+  .cal-ev.cortado{background:var(--et-cortado-pt)}
+  .cal-ev.armado{background:var(--et-armado-pt)}
+  .cal-ev.listo{background:var(--et-listo-pt)}
+}
+
+/* ----- Las tarjetas -----
+   Sin la raya bajo el encabezado y con el título en negrita, como en el estudio. El icono va
+   en su ficha lavanda, redonda. */
+.card-h,body.pf .card-h{border-bottom:0}
+body.pf .card-h h2,body.pf .card-h h3{font-weight:800;letter-spacing:-.01em}
+body.pf .card-h h2>.svgi,body.pf .card-h h3>.svgi{border-radius:12px;background:var(--es-lav);color:var(--es-lav-tx)}
+
+/* Las notas: sin el filete gris de la izquierda; una ficha suave, redonda. Las de aviso
+   (ámbar, verde, rojo) se quedan con su color de fondo y pierden solo el filete. */
+.hintnote{border:0;border-radius:16px;background:var(--es-chip)}
+.hintnote.nota-av{background:var(--es-mante);color:var(--es-mante-tx);border:0}
+.hintnote.nota-ok{background:var(--es-menta);color:var(--es-menta-tx);border:0}
+.hintnote.nota-mal{background:var(--es-rojo);color:var(--es-rojo-tx);border:0}
+
+/* ----- Lo que pide una decisión, fuera del Tablero -----
+   En el Calendario, Qué atender y Proyectos es la pieza lavanda; su letra era el ámbar de la
+   tarjeta del cotizador (de donde viene la pieza) y sobre lavanda se leía como otro aviso. */
+body.pf .cand-partidas{background:var(--es-lav);border-color:transparent;color:var(--es-lav-tx);border-radius:var(--es-r-tarjeta)}
+body.pf .cand-partidas .svgi{color:var(--es-lav-tx)}
+body.pf .cand-partidas .pf-fila-tx,body.pf .cand-partidas .pf-fila-acc{color:var(--tinta2)}
+body.pf .cand-partidas .pf-fila-t{color:var(--tinta)}
+body.pf .pf-decidir .pf-fila{border-top-color:rgba(var(--a-rgb),.18)}
+
+/* ----- Ajustes: el índice de arriba en pastillas, la elegida en negro ----- */
+.aj-ir[aria-current="true"]{background:var(--es-act);color:var(--es-act-tx)}
+.aj-progreso{border-radius:2px}
+
+/* ----- Control: las dos bolsas de dinero son fichas, no cajas con borde ----- */
+.ct-fin-bolsa{border:0;border-radius:22px;background:var(--sup2)}
+@media(hover:none),(pointer:coarse){ .ct-busca{min-height:44px} }
+
+/* ----- Los títulos de sección del vectorizador y el escalador: sin la rayita de la izquierda ----- */
+.sp-sec-h h3::before{display:none}
+.sp-sec-h h3{color:var(--tinta3);letter-spacing:.08em}
+
+/* ----- El cotizador: el paso que todavía no toca es gris y punteado, no ámbar -----
+   «Espera» quiere decir «aún no», no «cuidado»; el ámbar lo dejaba como aviso. */
+.paso-tab.espera{color:var(--tinta2)}
+.paso-tab.espera .n{background:var(--es-chip);color:var(--tinta2);border:1.5px dashed var(--borde-control)}
+
+/* ==========================================================================
+   9. Al imprimir no hay estudio: blanco y negro, como siempre.
+   ========================================================================== */
+
+@media print{
+  body.pf,html[data-tema="oscuro"] body.pf{background:#fff}
+  .tb-necesita,.tb-prox,.tb-est{background:#fff !important}
+}

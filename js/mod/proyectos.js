@@ -2299,8 +2299,22 @@ function levantar(tarjeta, pid, x, y) {
   oir(tarjeta, 'contextmenu', e => e.preventDefault());
   /* El dedo: sin esto el navegador empieza a desplazar la página y cancela el puntero. */
   oir(document, 'touchmove', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
-  /* Escape suelta sin mover: lo mismo que hace Escape en toda la app. */
-  oir(window, 'keydown', e => { if (e.key === 'Escape') { e.preventDefault(); soltarArrastre(); } });
+  /* Escape suelta sin mover: lo mismo que hace Escape en toda la app. El botón o el dedo siguen
+     abajo, y al levantarlos sobre la tarjeta el navegador manda el clic de siempre, que abría la
+     ficha del proyecto que se acababa de dejar donde estaba (y la ficha se quedaba con el foco).
+     Ese clic se frena igual que el que llega después de soltar en una columna. */
+  oir(window, 'keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    soltarArrastre();
+    const alSoltar = () => {
+      window.removeEventListener('pointerup', alSoltar, true);
+      window.removeEventListener('pointercancel', alSoltar, true);
+      frenarClicUnaVez();
+    };
+    window.addEventListener('pointerup', alSoltar, true);
+    window.addEventListener('pointercancel', alSoltar, true);
+  });
 
   seguir(x, y);
   _arr.raf = requestAnimationFrame(correrPorElBorde);

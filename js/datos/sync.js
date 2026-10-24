@@ -101,6 +101,7 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
      · `bajar(cursor)` → `{registros:[{almacen, datos}], cursor, hay_mas}`. Si lanza, `jalar()`
        contesta con el código del error.
      · opcionales: `lleva(almacen)`, `motivo(almacen)`, `agrupa(almacen)`, `revive(op)`,
+       `sabe(almacen)` (true/false/null: si la hoja tiene a dónde, para `sabeLlevar`),
        `espejos`, `despuesDeBajar(info)`, y las pasarelas `carpetas()`, `crearCarpeta(nombre)`
        y `expandir(u)`.
    `salud()` y `esquema()` también son del relevo, pero no las llama este archivo: son de
@@ -116,8 +117,9 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
    falle —el error viene dentro del JSON— y el relevo lo traduce a los códigos que esta
    bandeja sabe leer. Los caminos: `salud`, `esquema`, `jalar`, `empujar` (UNA operación de
    venta o de instalación por viaje), `empujar_almacen` y `jalar_almacen` (el libro, el
-   catálogo y las listas de compra, en lotes de hasta 25), `expandir` (un link corto de Maps),
-   `carpetas` y `crear_carpeta` (Drive).
+   catálogo y las listas de compra, en lotes de hasta 25), `empujar_gastos` y `jalar_gastos`
+   (los gastos de Control, desde puente-sheets-15, también en lotes de hasta 25), `expandir` (un
+   link corto de Maps), `carpetas` y `crear_carpeta` (Drive).
 
    QUIÉN PUEDE QUÉ. La frontera de permisos está en el servidor, no en la pantalla: el Apps
    Script verifica con Google la cuenta con la que se entró, busca su correo en la pestaña
@@ -276,6 +278,19 @@ export function estado() {
     ultimo_error: _ultimoError,
     dispositivo: Prefs.dispositivo(),
   };
+}
+
+/** Si la hoja tiene a dónde llevar ese almacén, según lo último que el relevo supo de ella:
+ *  true, false («corre un puente anterior»: falta actualizarlo) o null (sin puente, o todavía no
+ *  se sabe). Instantáneo y sin red, como `estado()`. Lo pregunta Control en Gastos: con la hoja
+ *  en puente-sheets-14 la pestaña lo dice desde que se abre, en vez de esperar a que un gasto se
+ *  quede apartado. */
+export function sabeLlevar(almacen) {
+  if (!configurado() || typeof _adaptador.sabe !== 'function') return null;
+  try {
+    const s = _adaptador.sabe(String(almacen || ''));
+    return s === true || s === false ? s : null;
+  } catch (_) { return null; }
 }
 
 /* ---------------------------------------------------------------------------

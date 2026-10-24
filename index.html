@@ -69,8 +69,8 @@
      <noscript> es para quien tenga el JS apagado. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
-<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, la superficie
      y el borde, la escala de siete tamaños de letra— y lo comparten el cotizador, esta
@@ -86,6 +86,7 @@
      repinta `.pf-cab`, `.pf-panel` y `.pf-abajo`, que se declaran en plataforma.css con la
      misma especificidad, así que leerla antes sería no leerla. -->
 <link rel="stylesheet" href="css/vidrio.css">
+<link rel="stylesheet" href="css/estudio.css">
 </head>
 <body class="pf">
 
@@ -221,10 +222,10 @@
     <!-- El logotipo es el archivo, no un dibujo aparte. Aquí vivía un SVG de tres círculos
          pegado a mano —el mismo que había en otros tres sitios del cotizador— con
          #2f39d6/#4a63f0/#7b9bf7, que NO son los colores del logotipo (#341efd/#4267fe/
-         #6290ff). En la barra lateral va el de fondo oscuro en los DOS temas, porque la barra
-         es marino de día y de noche; por eso este no lleva la clase .logoimg, que es
-         justamente la que js/tema.js intercambia según el tema. -->
-    <img src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
+         #6290ff). Con la capa Estudio (css/estudio.css) la barra es una tarjeta blanca de día y
+         oscura de noche, así que ahora SÍ lleva .logoimg: js/tema.js pone el de tinta en claro y
+         el de letras blancas en oscuro. -->
+    <img class="logoimg" src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
     <span class="pf-lat-t">Taller</span>
   </div>
 
@@ -252,10 +253,9 @@
      con una línea de qué se ve en ella, y guarda un hueco para las acciones que cada módulo
      quiera poner: #pf-cab-acc nace vacío y lo escribe quien monta. -->
 <header class="pf-cab">
-  <!-- El de fondo oscuro, y SIN la clase .logoimg: en el teléfono este encabezado es marino
-       en los dos temas, y .logoimg es justo lo que js/tema.js intercambia por el de tinta
-       cuando el tema es claro. Con ella puesta, el «AL3D» negro desaparecía sobre el marino. -->
-  <img class="pf-cab-logo" src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
+  <!-- Con .logoimg: con la capa Estudio el encabezado del teléfono es claro de día y oscuro de
+       noche (ya no marino en los dos), y js/tema.js pone el logotipo que va con cada tema. -->
+  <img class="pf-cab-logo logoimg" src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
   <h1 class="pf-cab-t" id="pf-sub">Tablero</h1>
   <!-- El estado de la sincronización, pegado al título y no en la fila de botones: no es un
        mando, es una condición de lo que estás leyendo —«esto que ves está al día»—, y la fila

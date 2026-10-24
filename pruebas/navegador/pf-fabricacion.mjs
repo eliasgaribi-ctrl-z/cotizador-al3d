@@ -2,10 +2,11 @@
  *
  * Lo que se defiende, y por qué (cada punto trae el ID de su ficha del paquete de UI):
  *
- *   · EL RIEL DEL TALLER CON SUS HITOS (F5). Cada renglón lleva cuatro marcas sobre el riel: rellena
- *     si la etapa real ya llegó a ese hito, roja CON MUESCA (una forma, no solo un color) si quedó
- *     detrás de hoy sin hacerse, hueca si no. El riel sigue `aria-hidden`; el Tablero lo recibe
- *     igual porque pinta el mismo renglón; ya no hay punto `.tal-hoy`.
+ *   · SOLO LAS INSTALACIONES. Desde octubre de 2026 el Calendario enseña nada más las fechas de
+ *     entrega, para todos los roles (js/mod/fabricacion.js, montar()): las lentes Taller y Todo se
+ *     quedaron en el código, apagadas, y con ellas los renglones del taller con su riel (F5) y su
+ *     ficha del plazo (F24). Aquí se comprueba que de verdad no salen; el plazo se sigue probando
+ *     donde sí se elige, en el panel de «Se ganó» (P14).
  *   · CAMBIAR DE MES (F11). Con ‹ › el foco se queda en el MISMO botón (el mismo nodo, no uno
  *     equivalente) y la cabecera no se rehace; con RePág/AvPág y ←/→ el foco cae en el mismo número
  *     de día del mes nuevo; con el dedo, arrastrar más de 48 px cambia de mes (o de semana), menos
@@ -17,12 +18,10 @@
  *   · LA FICHA DE CADA DÍA CON EL RATÓN (F26). Espera 400 ms la primera vez, las siguientes salen al
  *     instante, dice lo del `aria-label` partido en renglones, con el dedo no sale, con el teclado
  *     sale al enfocar.
- *   · PROBAR EL PLAZO ANTES DE FIJARLO (F24). Cursor, foco de teclado y dedo deslizado enseñan «Entra
- *     al taller el … · listo el …» con las fechas que salen de `ventanaTaller()`, en días de
- *     CALENDARIO; pasar por un chip no lo guarda; con el dedo, soltar fuera no hace nada y soltar
- *     sobre uno lo toca.
  *   · FECHAS RÁPIDAS (P14). «Hoy · Mañana · sáb 3 · lun 5 · Sin fecha» son radios que escriben en el
- *     campo de fecha de «Se ganó» y se ponen al día si se escribe a mano; con teclado de radio.
+ *     campo de fecha de «Se ganó» y se ponen al día si se escribe a mano; con teclado de radio. En
+ *     el mismo panel, PROBAR EL PLAZO (F24): enfocar un chip enseña «Entra al taller el … · listo
+ *     el …» con el día que haya en el campo, en días de CALENDARIO, y elegirlo no pierde la fecha.
  *   · LA BARRA DE ACCIÓN (F29). Es el MISMO botón cuando cambia de rótulo o de acción (el rótulo se
  *     cruza), sube al aparecer, su alto publicado (`--mbar-h`) es el del botón puesto, y se va con
  *     el módulo.
@@ -205,24 +204,6 @@ async function deslizar(p, x0, y0, x1, y1, pasos = 8) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await cdp.detach().catch(() => {});
 }
-/* Lo mismo pero SOLTANDO en otro sitio distinto del último movimiento: apoyar, ir hasta A, esperar,
-   y soltar en B. Para «probar el plazo» hace falta poder quedarse a mirar antes de soltar. */
-async function deslizarYMirar(p, desde, hasta2, alMirar, suelta) {
-  const cdp = await p.context().newCDPSession(p);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: desde.x, y: desde.y }] });
-  for (let i = 1; i <= 6; i++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: desde.x + (hasta2.x - desde.x) * i / 6, y: desde.y + (hasta2.y - desde.y) * i / 6 }] });
-    await dormir(20);
-  }
-  await dormir(250);
-  const visto = await alMirar();
-  const f = suelta || hasta2;
-  if (f !== hasta2) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: f.x, y: f.y }] });
-  await dormir(60);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await cdp.detach().catch(() => {});
-  return visto;
-}
 const centro = async (p, sel) => {
   const b = await p.locator(sel).first().boundingBox();
   return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2, b } : null;
@@ -282,42 +263,31 @@ async function ronda(cfg) {
   /* ---------- F23 · primera pintura ---------- */
   await seccion('F23 · la primera pintura no rueda', async () => {
     const cifras = await p.$$eval('#mod-fabricacion .pf-cuentas b[data-cuenta]', bs => bs.map(b => b.dataset.cuenta + '=' + b.textContent));
-    cierto(cifras.length >= 3 && cifras.includes('sinfecha=10'), 'las cuentas traen su clave y su cifra', cifras);
+    /* Solo instalaciones: «por instalar» y «sin fecha» (y «ya pasó» si la hubiera). «En el taller
+       hoy» y «van tarde» eran de la lente Taller, que ya no se enseña. */
+    cierto(cifras.length >= 2 && cifras.some(c => /^instalar=\d+$/.test(c)) && cifras.includes('sinfecha=10') && !cifras.some(c => /^(taller|tarde)=/.test(c)),
+      'las cuentas traen su clave y su cifra', cifras);
     cierto((await p.evaluate(() => window.__fab.rodo.length)) === 0, 'al entrar ninguna cifra giró', await p.evaluate(() => window.__fab.rodo));
   });
 
-  /* ---------- F5 · el riel con sus hitos ---------- */
-  await seccion('F5 · el riel del taller con sus hitos', async () => {
-    const filas = await p.$$eval('#mod-fabricacion .tal-fila', fs => fs.map(f => ({
-      t: f.querySelector('.pf-fila-t').textContent,
-      estados: [...f.querySelectorAll('.tal-riel .riel-marca')].map(m => m.dataset.estado),
-      muesca: [...f.querySelectorAll('.tal-riel .riel-marca')].map(m => getComputedStyle(m).clipPath !== 'none'),
-      oculto: f.querySelector('.tal-pista').getAttribute('aria-hidden'),
-      hoy: f.querySelectorAll('.tal-riel .riel-hoy').length,
-      viejo: f.querySelectorAll('.tal-hoy').length,
-      propuesta: !!f.querySelector('.tal-riel.propuesta'),
-    })));
-    const de = n => filas.find(f => f.t.includes(n));
-    cierto(filas.length >= 4, 'hay un renglón por proyecto', filas.length);
-    cierto(JSON.stringify(de('Healthylicious').estados) === '["tarde","tarde","pendiente","pendiente"]', 'Healthylicious (ganado, empezó hace 5 días): dos hitos rojos, dos huecos', de('Healthylicious').estados);
-    cierto(JSON.stringify(de('Parentesis').estados) === '["hecho","hecho","pendiente","pendiente"]', 'Parentesis (cortado): dos rellenos, dos huecos', de('Parentesis').estados);
-    cierto(JSON.stringify(de('La Perla').estados) === '["tarde","tarde","tarde","pendiente"]', 'La Perla (ganado, instala en 3 días): tres rojos', de('La Perla').estados);
-    cierto(de('Sin fecha SA').propuesta && de('Sin fecha SA').estados.length === 4, 'el ganado sin fecha lleva su riel punteado (hipótesis) con las cuatro marcas');
-    cierto(de('Healthylicious').muesca.slice(0, 2).every(x => x) && de('Healthylicious').muesca.slice(2).every(x => !x),
-      'la marca atrasada lleva MUESCA (clip-path) y las demás no: la forma dice lo que el color');
-    cierto(filas.every(f => f.oculto === 'true' && f.hoy === 1 && f.viejo === 0), 'el riel sigue aria-hidden, con su raya de hoy y sin el punto de antes');
-    cierto(await p.evaluate(() => [...document.querySelectorAll('#mod-fabricacion .tal-riel')].every(r => r.getBoundingClientRect().width >= 70)),
-      'el riel no se aplasta: 70 px o más para que quepan sus cuatro marcas');
-    const ancho = await p.evaluate(() => [...document.querySelectorAll('#mod-fabricacion .tal-pista')].map(x => x.scrollWidth <= x.clientWidth + 1));
-    cierto(ancho.every(Boolean), 'la pista (fecha, riel, fecha) cabe entera en una línea', ancho);
-    cierto(await p.evaluate(() => [...document.querySelectorAll('#mod-fabricacion .riel-marca')].every(m => m.getBoundingClientRect().width === 12)),
-      'las marcas miden 12 px');
+  /* ---------- F5 · el riel ya no está en el Calendario ----------
+     Los renglones del taller (con su riel de hitos y su ficha del plazo) eran de las lentes Taller
+     y Todo. Desde octubre de 2026 el Calendario abre siempre en Instalaciones, sin selector de
+     lente: el taller se lee en el Tablero (ver pf-tablero.mjs). Lo que se defiende ahora es que no
+     se cuelen de vuelta, porque el equipo cuenta los días a la entrega en esta rejilla. */
+  await seccion('F5 · el Calendario enseña solo las instalaciones', async () => {
+    const r = await p.evaluate(() => ({
+      filas: document.querySelectorAll('#mod-fabricacion .tal-fila').length,
+      rieles: document.querySelectorAll('#mod-fabricacion .tal-riel').length,
+      lentes: document.querySelectorAll('#mod-fabricacion [data-lente]').length,
+      plazos: document.querySelectorAll('#mod-fabricacion [data-plazo]').length,
+    }));
+    cierto(r.filas === 0 && r.rieles === 0 && r.plazos === 0, 'ni renglones del taller, ni riel, ni ficha del plazo', r);
+    cierto(r.lentes === 0, 'y sin selector de lente: no hay otra vista a la que cambiar', r);
   });
 
   /* ---------- F11 · cambiar de mes ---------- */
   await seccion('F11 · cambiar de mes sin perder el foco', async () => {
-    await toca('[data-lente="instalaciones"]');
-    await p.waitForTimeout(500);
     await p.evaluate(() => {
       document.querySelector('.cal-cab').__m = 1;
       document.querySelector('[data-mueve="1"]').__m = 1;
@@ -351,7 +321,10 @@ async function ronda(cfg) {
     await hasta(p, m => document.querySelector('.cal-dia[data-dia]').dataset.dia.slice(0, 7) === m, m0);
     await p.waitForTimeout(350);
     cierto((await p.evaluate(() => { const a = document.activeElement; return a && a.dataset && a.dataset.dia; })) === m0 + '-15', 'RePág regresa al mismo día 15');
-    await p.evaluate(() => document.body.focus());
+    /* Fuera de la rejilla. `body.focus()` no hace nada (el <body> no es enfocable) y el foco se
+       quedaba en el día 15; desde la tanda H (33e50fb) dentro de la rejilla ← → mueven de DÍA, así
+       que hay que soltar el foco de verdad para probar el atajo de mes. */
+    await p.evaluate(() => document.activeElement && document.activeElement.blur());
     await p.keyboard.press('ArrowRight');
     await hasta(p, m => document.querySelector('.cal-dia[data-dia]').dataset.dia.slice(0, 7) !== m, m0);
     await p.keyboard.press('t');
@@ -539,68 +512,10 @@ async function ronda(cfg) {
     await p.evaluate(() => document.activeElement && document.activeElement.blur());
   });
 
-  /* ---------- F24 · probar el plazo ---------- */
+  /* ---------- F24 · probar el plazo ----------
+     La sección suelta abría la ficha del plazo desde el chip `[data-plazo]` del renglón del taller,
+     que ya no se pinta (ver F5). El plazo se sigue eligiendo, y probando, en «Se ganó»: P14. */
   const esperadoPlazo = (inst, k) => 'Entra al taller el ' + dc(sumar(inst, -DIAS_PLAZO[k])) + ' · listo el ' + dc(sumar(inst, -sem.colchon));
-  await seccion('F24 · probar el plazo antes de fijarlo', async () => {
-    await cerrarCapas();
-    await toca('[data-lente="taller"]');
-    await p.waitForTimeout(500);
-    await toca('[data-plazo="' + ids.p1 + '"]');
-    await hasta(p, () => document.getElementById('pf-pide').classList.contains('show') && !!document.querySelector('#pf-pide .pf-peek'));
-    await p.waitForTimeout(400);
-    const chip = k => '#pf-pide .chips[aria-label="Plazo de taller"] [data-k="' + k + '"]';
-    const peek = () => p.evaluate(() => { const e = document.querySelector('#pf-pide .pf-peek'); return e ? { ve: e.classList.contains('ve'), t: e.querySelector('.pf-peek-t').textContent, s: e.querySelector('.pf-peek-s').textContent, lado: e.dataset.lado } : null; });
-    const plazoK = () => p.evaluate(async id => (await (await import('/js/datos/proyectos.js')).obtener(id)).plazo_k, ids.p1);
-    cierto((await plazoK()) == null, 'el proyecto empieza sin plazo elegido a mano');
-    cierto(await p.evaluate(() => [...document.querySelectorAll('#pf-pide .chips[aria-label="Plazo de taller"] [data-k]')].length) === 5, 'los cinco cubos');
-
-    if (!cfg.tactil) {
-      await p.locator(chip(1)).hover();
-      await hasta(p, () => document.querySelector('#pf-pide .pf-peek').classList.contains('ve'));
-      let v = await peek();
-      cierto(v.t === esperadoPlazo(fechas.d1, 1), 'al pasar el cursor por «1 semana» dice cuándo entra y cuándo queda listo', { dijo: v.t, esperaba: esperadoPlazo(fechas.d1, 1) });
-      cierto(/1 semana · 7 días de calendario/.test(v.s), 'y lo dice en días de CALENDARIO', v.s);
-      cierto(await p.evaluate(s => document.querySelector(s).getAttribute('aria-describedby') === 'pf-peek', chip(1)), 'el chip apunta a la ficha con aria-describedby');
-      await p.locator(chip(4)).hover();
-      await hasta(p, t => document.querySelector('#pf-pide .pf-peek-t').textContent === t, esperadoPlazo(fechas.d1, 4));
-      bien('al pasar al siguiente chip la ficha cambia: «2.5 semanas» → ' + esperadoPlazo(fechas.d1, 4));
-      const c = await contraste(p, '#pf-pide .pf-peek');
-      cierto(c >= 4.5, 'la ficha del plazo pasa 4.5:1', c);
-      cierto((await plazoK()) == null && await p.evaluate(() => document.getElementById('pf-pide').classList.contains('show')), 'pasar por los chips NO guarda el plazo ni cierra el panel');
-      await p.mouse.move(2, 2);
-      await hasta(p, () => !document.querySelector('#pf-pide .pf-peek').classList.contains('ve'));
-      bien('al salir de los chips la ficha se va');
-    }
-    /* Teclado. */
-    await teclado();
-    await p.evaluate(s => document.querySelector(s).focus(), chip(2));
-    await hasta(p, () => document.querySelector('#pf-pide .pf-peek').classList.contains('ve'));
-    cierto((await peek()).t === esperadoPlazo(fechas.d1, 2), 'con el teclado la ficha sale al enfocar el chip («1.5 semanas»)', await peek());
-    cierto((await plazoK()) == null, 'enfocar no guarda');
-    await p.evaluate(() => document.activeElement.blur());
-    await p.waitForTimeout(250);
-
-    if (cfg.tactil) {
-      /* Apoyar el dedo en «1 semana», deslizar a «2 semanas» y SOLTAR FUERA: se probó, no se guardó. */
-      await p.locator(chip(1)).evaluate(e => e.scrollIntoView({ block: 'center' }));
-      const A = await centro(p, chip(1)), Bc = await centro(p, chip(3));
-      const visto = await deslizarYMirar(p, A, Bc, peek, { x: Bc.x, y: Math.max(8, A.b.y - 140) });
-      cierto(visto.ve && visto.t === esperadoPlazo(fechas.d1, 3), 'con el dedo apoyado y deslizado la ficha sigue al chip de abajo', visto);
-      await p.waitForTimeout(400);
-      cierto((await plazoK()) == null && await p.evaluate(() => document.getElementById('pf-pide').classList.contains('show')), 'soltar FUERA de los chips no guarda nada y el panel sigue abierto', await plazoK());
-      cierto(!(await peek()).ve, 'y la ficha se va');
-      /* Deslizar de uno a otro y soltar sobre «2 semanas»: se toca. */
-      const A2 = await centro(p, chip(1)), B2 = await centro(p, chip(3));
-      await deslizarYMirar(p, A2, B2, async () => 1);
-      await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'), null, 5000);
-      cierto((await plazoK()) === 3, 'soltar SOBRE «2 semanas» lo toca: el plazo quedó en 3', await plazoK());
-    } else {
-      await p.locator(chip(4)).click();
-      await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'), null, 5000);
-      cierto((await plazoK()) === 4, 'el clic confirma, como siempre: el plazo quedó en 4', await plazoK());
-    }
-    await p.waitForTimeout(400);
-  });
 
   /* ---------- P14 · fechas rápidas, y F24 en «Se ganó» ---------- */
   await seccion('P14 · fechas rápidas al ganar (y F24 en el mismo panel)', async () => {
@@ -664,6 +579,12 @@ async function ronda(cfg) {
     cierto(!cfg.tactil ? e.foco === '2' : true, 'y el foco vuelve al chip del plazo (no al primer control)', e);
     /* Guardar sin fecha: el proyecto se guarda igual y queda entre los «sin fecha». */
     const antes = await p.evaluate(async () => (await (await import('/js/datos/proyectos.js')).listar({ sinFecha: true, vivos: true })).length);
+    /* Desde 3569dda ganar pide «Datos para la entrega»: el teléfono, y con instalación la
+       dirección o «Todavía no la tengo». Sin ellos no se guarda nada (lo mismo que hace
+       pf-tablero.mjs al ganar desde el Tablero). */
+    await p.fill('#pf-de-tel', '3312345678');
+    await tocaEnCapa('#pf-pide [data-de-pendiente]');
+    await p.waitForTimeout(200);
     await tocaEnCapa('#pf-pide [data-pide="ganar"]');
     await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'), null, 6000);
     await p.waitForTimeout(500);
@@ -783,6 +704,10 @@ async function ronda(cfg) {
     await tocaEnCapa('#pf-hoja [data-h="elige"]');
     await hasta(p, () => !!document.querySelector('#pf-hoja #pf-ag-fecha'));
     await p.waitForTimeout(500);
+    /* Desde la auditoría de octubre (fabmat-3) la hoja ya no propone «hoy» cuando se llega por la
+       barra: un toque distraído dejaba la instalación para hoy. Sin día tocado en la rejilla el
+       campo nace vacío y hay que escribirlo, como lo haría la persona. */
+    if (!(await p.inputValue('#pf-ag-fecha'))) await p.fill('#pf-ag-fecha', sumar(fechas.hoy, 5));
     await tocaEnCapa('#pf-hoja [data-h="ventana"][data-v="noche"]');
     await p.waitForTimeout(300);
     await tocaEnCapa('#pf-hoja [data-h="guardar"]');

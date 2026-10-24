@@ -379,7 +379,27 @@ function resumen(d, veDinero) {
   return '<div class="tb-resumen">' +
     '<p class="tb-res-fecha">' + esc(fechaLarga(d.hoy)) + '</p>' +
     '<p class="tb-res-total"><b>' + n + '</b> ' + (n === 1 ? 'trabajo' : 'trabajos') + ' en el taller' + dinero + '</p>' +
+    atajos() +
     '</div>';
+}
+
+/* ----- Los atajos (capa Estudio, 20/10/2026) -----
+   Dos o tres pastillas junto al saludo con lo que más se hace al abrir la app: cotizar, buscar un
+   proyecto para contestarle a un cliente y, para quien cobra, Control. No son avisos ni cuentas
+   —el Tablero sigue despejado—: son puertas, y solo salen las que el rol tiene (`puedeIr`).
+   «Buscar» no abre nada propio: aprieta la lupa del encabezado, que es la misma paleta de siempre. */
+function atajos() {
+  const out = [];
+  if (puedeIr('cotizador')) out.push(atajo('Cotizar', 'i-mas', 'tb-atajo pri', { tipo: 'ir', ruta: 'cotizador' }));
+  out.push(atajo('Buscar', 'i-buscar', 'tb-atajo', { tipo: 'buscar' }));
+  if (puedeIr('control')) out.push(atajo('Control', 'i-control', 'tb-atajo', { tipo: 'ir', ruta: 'control' }));
+  return '<div class="tb-atajos">' + out.join('') + '</div>';
+}
+
+function atajo(label, icono, clase, accion) {
+  const clave = ['atajo', accion.tipo, accion.ruta || ''].join(':');
+  return '<button type="button" class="' + clase + '" data-acc="' + (_acciones.push(accion) - 1) + '" data-clave="' + esc(clave) + '">' +
+    ico(icono) + '<span>' + esc(label) + '</span></button>';
 }
 
 /* ----- «Necesita tu decisión» -----
@@ -929,6 +949,7 @@ async function hacer(a) {
     return;
   }
   if (a.tipo === 'ir') { _ctx.ir(a.ruta); return; }
+  if (a.tipo === 'buscar') { const lupa = document.getElementById('pf-cab-buscar'); if (lupa) lupa.click(); return; }
   if (a.tipo === 'abrir') {
     /* Con el pase, Proyectos abre la ficha directo. Sin él, «Abrir» te deja en una lista
        donde hay que volver a buscar lo que ya estabas mirando. */

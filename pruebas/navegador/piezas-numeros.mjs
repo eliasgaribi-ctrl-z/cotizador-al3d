@@ -835,15 +835,23 @@ async function enLaApp() {
     const vuelo = await ev(async g => {
       const G = document.getElementById(g);
       if (g === 'pf-abajo') Piezas.fichaQueViaja(G, { medir: b => b.querySelector('.pil') }); else Piezas.fichaQueViaja(G);
-      const on = G.querySelector('.on'), otro = [...G.querySelectorAll('button')].find(b => b !== on && b.offsetParent);
+      /* Las pestañas de la barra lateral son <a href="#/…"> desde la tanda H de la auditoría
+         (33e50fb); antes eran <button> y aquí solo se buscaban esos, así que no se encontraba
+         ninguna y la sección tronaba con «reading 'click'». */
+      const on = G.querySelector('.on'), otro = [...G.querySelectorAll('a,button')].find(b => b !== on && b.offsetParent);
+      /* ¿La pestaña elegida pinta un filete con ::before? Con la capa de vidrio sí (los 3 px de la
+         izquierda); con la capa Estudio (css/estudio.css) la elegida es una pastilla negra y el
+         filete se quitó a propósito, así que no hay adorno que viaje. */
+      const pc = getComputedStyle(on, '::before');
+      const filete = pc.position === 'absolute' && pc.display !== 'none' && /^(["'])\1$/.test(pc.content || '');
       otro.click();                                     // el router repinta la barra con pintarNav()
       await new Promise(r => setTimeout(r, 30));
       const f = G.querySelector('.ficha-viaja'), dest = G.querySelector('.ficha-destino');
-      return { ficha: !!f, ultimo: !!f && f === G.lastElementChild, adorno: !!(f && f.querySelector('.ficha-adorno')),
+      return { ficha: !!f, ultimo: !!f && f === G.lastElementChild, filete, adorno: !!(f && f.querySelector('.ficha-adorno')),
         antes: dest ? getComputedStyle(dest, '::before').visibility : null };
     }, g);
-    cierto(vuelo.ficha && vuelo.ultimo && (g === 'pf-abajo' || (vuelo.adorno && vuelo.antes === 'hidden')),
-      g === 'pf-nav' ? '#pf-nav: la ficha viaja al módulo nuevo con el filete adentro, y el del destino espera' : '#pf-abajo: la píldora viaja al módulo nuevo', vuelo);
+    cierto(vuelo.ficha && vuelo.ultimo && (g === 'pf-abajo' || (vuelo.filete ? vuelo.adorno && vuelo.antes === 'hidden' : !vuelo.adorno)),
+      g === 'pf-nav' ? (vuelo.filete ? '#pf-nav: la ficha viaja al módulo nuevo con el filete adentro, y el del destino espera' : '#pf-nav: la ficha viaja al módulo nuevo (sin filete que llevar)') : '#pf-abajo: la píldora viaja al módulo nuevo', vuelo);
     await p.waitForTimeout(600);
     cierto(await ev(() => !document.querySelector('.ficha-viaja,.ficha-destino,.ficha-sin-antes')), 'y al llegar no queda nada de ella');
     if (ancho < 760) {

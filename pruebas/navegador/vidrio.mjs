@@ -53,8 +53,9 @@ const tokens = await p.evaluate(() => {
   return { cifra: cs.getPropertyValue('--f-cifra').trim(), texto: cs.getPropertyValue('--f-texto').trim(),
            accion: cs.getPropertyValue('--cv-accion').trim() };
 });
-cierto(/^'?Sora'?/.test(tokens.cifra), '--f-cifra empieza por Sora (' + tokens.cifra.slice(0, 24) + '…)');
-cierto(/^'?Manrope'?/.test(tokens.texto), '--f-texto empieza por Manrope (' + tokens.texto.slice(0, 24) + '…)');
+/* Desde la capa Estudio (css/estudio.css, 20/10/2026) las dos familias son una: Plus Jakarta Sans. */
+cierto(/^'?Plus Jakarta Sans'?/.test(tokens.cifra), '--f-cifra empieza por Plus Jakarta Sans (' + tokens.cifra.slice(0, 24) + '…)');
+cierto(/^'?Plus Jakarta Sans'?/.test(tokens.texto), '--f-texto empieza por Plus Jakarta Sans (' + tokens.texto.slice(0, 24) + '…)');
 /* La reserva de emoji y símbolos es lo que la entrega se dejaba por el camino. */
 cierto(/Noto Color Emoji/.test(tokens.texto) && /Noto Sans Symbols 2/.test(tokens.texto),
   'y conserva la reserva de emoji y símbolos del sistema');

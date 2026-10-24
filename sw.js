@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 54 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 55 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 138;
+const APP_VERSION = 139;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -65,6 +65,9 @@ const APP_FILES = [
      ella lo que queda no es la app de antes sino la app SIN cromado —barras sin fondo y
      pastillas a medio radio—, que es peor que cualquiera de las dos versiones enteras. */
   './css/vidrio.css',
+  /* La capa Estudio (20/10/2026), que va después del vidrio en todas las páginas que lo enlazan.
+     Sin ella se ve la app de antes, entera: no se rompe nada, pero tampoco es el look nuevo. */
+  './css/estudio.css',
   /* Las tres páginas públicas y su hoja. Se guardan porque la puerta las enlaza al pie: una
      política de privacidad que solo se puede leer con señal es una política de privacidad a
      medias, y son ocho kilobytes. */
@@ -136,6 +139,7 @@ const APP_FILES = [
   './js/datos/ventas.js',
   './js/datos/logo.js',
   './js/datos/ventas-por-tipo.js',
+  './js/datos/gastos.js',            // los gastos de Control: la aritmética pura y la captura (puente-sheets-15)
   './js/datos/bitacora.js',
   './js/datos/asistente-contexto.js',
   './js/datos/puente.js',
@@ -554,7 +558,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 54 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 55 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;
