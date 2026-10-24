@@ -12,7 +12,7 @@
    Y es un solo archivo que pegar en el panel, en vez de dos.
 
    QUÉ SE GUARDA: el mismo archivo que arma la función `respaldo` (formato «al3d-respaldo-1»: formato, creado,
-   origen, filas, tablas; las 18 tablas de TABLAS, cada una en el orden de su llave primaria), pero leído en UNA
+   origen, filas, tablas; las 20 tablas de TABLAS, cada una en el orden de su llave primaria), pero leído en UNA
    transacción de solo lectura con REPEATABLE READ: es una FOTO exacta de un instante (la de PostgREST no lo era).
    Cada tabla la escribe Postgres como texto JSON (json_agg), y aquí solo se pega: la función no vuelve a parsear
    ni a escribir las filas (lo que más CPU costaría).
@@ -47,7 +47,7 @@ export function consultaDeTabla(t) {
 }
 
 /**
- * Lee las 18 tablas en una transacción de solo lectura (repeatable read). Devuelve { partes, filas } donde cada parte es
+ * Lee las 20 tablas en una transacción de solo lectura (repeatable read). Devuelve { partes, filas } donde cada parte es
  * '"tabla":[…]' tal como la escribió Postgres. Lanza RespaldoGrande si se pasa de `tope` (antes de juntar más).
  * @param {{transaccion: function}} base   la misma de la copia (base.js o PGlite)
  */

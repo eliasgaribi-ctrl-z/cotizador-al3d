@@ -7,7 +7,7 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 | Carpeta o archivo | Qué es |
 |---|---|
 | [`DISENO.md`](DISENO.md) | El diseño del esquema: tablas, reglas de acceso, funciones, vista de fórmulas, plan de pruebas |
-| `migrations/` | Las 18 migraciones SQL, en orden (`0001` a `0018`); ver [`migrations/README.md`](migrations/README.md) |
+| `migrations/` | Las 20 migraciones SQL, en orden (`0001` a `0020`); ver [`migrations/README.md`](migrations/README.md) |
 | `tests/` | Pruebas de la base con PGlite (PostgreSQL en WASM, sin Docker): `sh supabase/tests/correr.sh`; ver [`tests/README.md`](tests/README.md) |
 | `functions/` | Funciones del servidor (Deno): `salud`, `verificar`, `maps`, `ia`, `espejo`, `autorizar`, `respaldo` e `importar-diario` (la copia diaria hoja → nube; abajo), con su código compartido en `_shared/` (`autorizar` y `respaldo`, de la segunda entrega y apagadas: [`docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md`](../docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md)) |
 | `opcional/` | Lo que no corre en PGlite: `prueba-de-humo.sql` (para un proyecto real), `storage.sql` (el bucket de las imágenes y sus políticas; abajo), `semilla_materiales.mjs`, `keepalive.md` |
@@ -18,9 +18,9 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 1. **Crear el proyecto** con «Enable Data API» encendido, «Automatically expose new tables» **apagado** y «Enable automatic RLS»
    encendido (cada migración declara sus propios `GRANT`/`REVOKE`; con la exposición automática encendida los privilegios finales
    quedan iguales, y una prueba lo demuestra).
-2. **Correr `migrations/0001` … `0018` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
+2. **Correr `migrations/0001` … `0020` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
    se corre de una vez. `0011` es la **auditoría**: si algo quedó mal protegido, aborta nombrando la regla (GR-xx); `0012` es el
-   endurecimiento que dejó la revisión adversarial y `0013` cierra lo que esa revisión dejó abierto (termina corriendo la auditoría él mismo); `0014` y `0015` son las decisiones de Elías del 2026-10-16 (sellos: gana el más reciente con 10 min para todos; el V-### de la hoja); `0016`, los plazos de conservación; `0017`, las decisiones de Elías del mismo día sobre etapas e IA, y `0018`, la bitácora de la copia diaria (`cuadre_diario`). `0014` **borra** la columna `proyectos.sellos_area` (solo la usaba `0013`): Supabase avisará de una operación destructiva, y es esperado.
+   endurecimiento que dejó la revisión adversarial y `0013` cierra lo que esa revisión dejó abierto (termina corriendo la auditoría él mismo); `0014` y `0015` son las decisiones de Elías del 2026-10-16 (sellos: gana el más reciente con 10 min para todos; el V-### de la hoja); `0016`, los plazos de conservación; `0017`, las decisiones de Elías del mismo día sobre etapas e IA, `0018`, la bitácora de la copia diaria (`cuadre_diario`); `0019`, los precios editables del cotizador (`tarifas`), y `0020`, los gastos (`gastos`). `0014` **borra** la columna `proyectos.sellos_area` (solo la usaba `0013`): Supabase avisará de una operación destructiva, y es esperado.
    Después de cada una conviene volver a correr `0011` (es idempotente).
    Si Supabase pregunta por «operaciones destructivas» es el aviso genérico por los `REVOKE`/`ALTER`; en un proyecto vacío es seguro.
 3. **Correr `opcional/storage.sql`** completo (el bucket privado de las imágenes de las cotizaciones y sus políticas; ver
@@ -126,6 +126,18 @@ semanal»). Las dos cosas, decididas ese día para que Elías no tenga que mover
 Nada más: la copia diaria sigue con su disparador y desde la siguiente madrugada trae las autorizaciones. Si se pega el `.gs` antes
 que la función, la copia sigue igual (la función vieja ignora la comprobación) y el respaldo dice que falta pegar la función.
 
+**Los gastos (2026-10-24), con la copia ya en marcha (una vez, en este orden):**
+
+1. **La tabla.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0020_gastos.sql` completo y ejecutarlo. Termina
+   corriendo la auditoría: si sale «AUDITORIA DE SEGURIDAD…», no se aplicó nada y el mensaje dice por qué.
+2. **La función otra vez**, como arriba (pegar entero el `desplegar/index.ts` nuevo y *Deploy*; los secretos no cambian).
+3. **El Apps Script «Copia diaria» otra vez**, como arriba (pegar entero `puente/copia-diaria.gs` nuevo y guardar). `Código.gs` no
+   cambia.
+
+En ese orden: la función nueva escribe en la tabla `gastos`, y sin `0020` esa madrugada la copia fallaría entera (se deshace sola y lo
+anota). Pegar primero el `.gs` no rompe nada: la función vieja no lee la pestaña. Mientras la hoja no tenga la pestaña «Gastos» (la
+crea «3 · Preparar la hoja» o el primer gasto que se registra) no se manda ni se toca nada de gastos.
+
 **Cómo se pone en marcha (una vez, en este orden).** No hace falta la CLI ni Docker: todo es desde el navegador.
 
 1. **La tabla.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0018_cuadre_diario.sql` completo y
@@ -164,6 +176,10 @@ El `resumen` dice pestañas, filas, folios y columnas; **nunca** nombres ni impo
   la hoja vuelve a poner en FABRICACION o REPARANDO** (una garantía): esa venta no se actualiza, el día no cuadra y lo decide
   una persona. Lo contrario, el ciclo normal (una venta en FABRICACION que pasa a COBRANDO o LIQUIDADO), **no** es conflicto:
   sigue viva en la base, con su estatus y su dinero de la hoja (`docs/DECISIONES-SUPABASE.md`, «Transición», opción a).
+- **Gastos que no entran:** un renglón de «Gastos» sin ID (el puente se lo pone la siguiente vez que un teléfono pide los gastos),
+  con el mismo ID que otro, sin un día que se entienda, sin concepto o con un monto que no es mayor que cero. **No frena la copia**
+  ni cuenta contra el cuadre: el `resumen` dice sus filas y el motivo (`no_importado`). Un renglón que se quitó de la pestaña no se
+  borra de la nube: queda con `deleted_at` (y lo pierde si vuelve).
 - **La función contestó 401:** el secreto de la hoja y el de la función no son el mismo. **503:** a la función le falta
   `IMPORTAR_SECRETO`. **409:** ya había otra copia corriendo (no pasa nada; se queda la otra).
 
@@ -194,7 +210,7 @@ vivo encendidas (`docs/DECISIONES-SUPABASE.md`, «Transición»). El respaldo se
 
 El plan gratuito de Supabase no trae respaldos. Cada domingo, entre las 5 y las 6 de la mañana (hora de México), `respaldarSemanal`
 de `puente/copia-diaria.gs` le pide a `importar-diario`, con el **mismo** `IMPORTAR_SECRETO`, la base entera: la función la lee en una
-transacción de solo lectura (una foto exacta de las 18 tablas) y contesta el archivo «al3d-respaldo-1» con su nombre, su huella
+transacción de solo lectura (una foto exacta de todas las tablas) y contesta el archivo «al3d-respaldo-1» con su nombre, su huella
 `sha256`, sus bytes y sus filas en las cabeceras. El script comprueba que llegó entero y lo guarda en la carpeta **«AL3D Respaldos»**:
 
 - primero busca una **unidad compartida** con ese nombre (la que creó Elías), con la API de Drive y el permiso que la hoja ya tiene;

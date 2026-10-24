@@ -186,6 +186,29 @@ console.log('\nLAS DOS COPIAS DEL VOCABULARIO DICEN LO MISMO');
   cierto('cada categoría tiene su ícono', G.CATEGORIAS.every(k => /^i-/.test(G.ICONO_CATEGORIA[k] || '')));
 }
 
+/* La nube (0020, 2026-10-24): la copia diaria lee la pestaña con su propia copia de la lectura (scripts/importador/plan.mjs no puede
+   importar este archivo: trae la base y la bandeja del teléfono) y la base tiene la lista en un CHECK. Las cuatro dicen lo mismo, y la
+   copia lee cada celda como la lee el teléfono: si no, Control y la nube sumarían distinto el mismo mes. */
+console.log('\nLA COPIA DIARIA LEE LOS GASTOS COMO EL TELÉFONO');
+{
+  const I = await import('../scripts/importador/plan.mjs');
+  eq('las categorías del importador', I.CATEGORIAS_GASTO.slice(), G.CATEGORIAS);
+  const sql = readFileSync(join(aqui, '..', 'supabase', 'migrations', '0020_gastos.sql'), 'utf8');
+  const enCheck = /categoria in \(([^)]*)\)/.exec(sql)[1].match(/'([^']*)'/g).map(s => s.slice(1, -1));
+  eq('las categorías del CHECK de 0020', enCheck, G.CATEGORIAS);
+  eq('el tope del monto del CHECK de 0020', Number(/monto <= (\d+)\)/.exec(sql)[1]), G.MONTO_MAX);
+  const cats = ['Material', 'material', 'MATERIAL', 'Transporte y Gasolina', 'transporte y gasolina ', 'Comisiones y nomina', 'Gasolina', '', null, 42];
+  eq('la categoría', cats.map(I.categoriaDeGasto), cats.map(G.categoriaDe));
+  const montos = [1500, 1500.555, 0, -3, NaN, '1500', '$1,234.50', '1.234.5', ' 99 ', '-12', '−12', 'mil', '', null, '0.004', 10000000.5];
+  eq('el monto', montos.map(I.montoDeGasto), montos.map(G.montoDe));
+  const fechas = ['2026-10-23', '23/10/2026', '1/2/2026', '2026-02-29', '2028-02-29', '31/04/2026', '2026-10-23T05:00:00.000Z', 'ayer', '', null, '23-10-2026'];
+  eq('el día', fechas.map(I.diaDeGasto), fechas.map(G.fechaDeCelda));
+  eq('una fecha de celda (el volcado la manda como {$fecha})', I.diaDeGasto({ $fecha: '2026-10-23', $hora: '00:00', $ms: 1 }), '2026-10-23');
+  eq('la nube no acepta años fuera de 2000–2100 (el teléfono sí los lee: entran a la cuenta de «no entró»)', ['1999-12-31', '2101-01-01'].map(I.diaDeGasto), ['', '']);
+  const sies = [true, 'Sí', 'si', 'SÍ', 'x', 'X', 'anulado', 1, '1', 'TRUE', false, 'No', '', null, 'sí, pero no'];
+  eq('«Anulado»', sies.map(I.siNoDeGasto), sies.map(G.siNo));
+}
+
 /* ============================================================================
    3 · EL APPS SCRIPT DE VERDAD, contra la hoja de mentiras, por la puerta de siempre
    ============================================================================ */

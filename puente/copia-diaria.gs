@@ -48,7 +48,7 @@ var COPIA_CABECERA = 'x-importar-secreto';
 /* Las mismas pestañas que VOLCADO_PESTANAS de volcado-para-importar.gs (la prueba vigila que sigan iguales). */
 var COPIA_PESTANAS = ['Ventas', 'Abonos comisión', 'Accesos', 'Autorizaciones', 'Solicitudes de autorización',
   'Almacén', 'Catálogo de material', 'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)',
-  'Ventas (antes de realinear)', 'Tarifas'];
+  'Ventas (antes de realinear)', 'Tarifas', 'Gastos'];
 
 /** La copia: arma el volcado y lo manda. La llama el disparador diario y se puede correr a mano. */
 function copiarHojaASupabase() {

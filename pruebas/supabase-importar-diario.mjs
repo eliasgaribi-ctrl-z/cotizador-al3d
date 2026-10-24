@@ -389,9 +389,9 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
     const pr = await pedir(SECRETO, JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }));
     const prTexto = await pr.text();
     const pg2 = globalThis.__al3dUltimoPg;
-    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (19 tablas), en una transacción de solo lectura, cerrando la conexión',
+    eq('y el pedido del respaldo: 200 con el archivo al3d-respaldo-1 (20 tablas), en una transacción de solo lectura, cerrando la conexión',
       [pr.status, JSON.parse(prTexto).formato, Object.keys(JSON.parse(prTexto).tablas).length, pg2.sentencias[0], pg2.sentencias.filter(t => /json_agg/.test(t)).length, pg2.terminado],
-      [200, 'al3d-respaldo-1', 19, 'set transaction isolation level repeatable read, read only', 19, true]);
+      [200, 'al3d-respaldo-1', 20, 'set transaction isolation level repeatable read, read only', 20, true]);
     delete envB.IMPORTAR_SECRETO;
     const sinSec = await pedir(SECRETO, JSON.stringify(v));
     eq('y sin el secreto en el entorno: 503', sinSec.status, 503);
@@ -782,10 +782,10 @@ const TABLAS_FALSAS = {
   const tablas = Object.fromEntries(R.TABLAS.map(t => [t.nombre, TABLAS_FALSAS[t.nombre] || []]));
   eq('el archivo es EXACTAMENTE el de la función respaldo (armarArchivo, «al3d-respaldo-1»): mismas llaves, mismo orden, mismas filas', j,
     JSON.parse(R.armarArchivo({ tablas, ahoraMs: AHORA, origen: 'gwzfdprdrdudfakjsdxf.supabase.co' })));
-  eq('con las 19 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
+  eq('con las 20 tablas en el orden de TABLAS, y el nombre del archivo con la hora', [Object.keys(j.tablas), r.cab['x-respaldo-nombre']], [R.TABLAS.map(t => t.nombre), R.nombreDeArchivo(AHORA)]);
   eq('UNA transacción de solo lectura (repeatable read: una foto exacta), con tope de tiempo y una consulta por tabla; ni candado ni escritura',
     b.tx.map(log => log.map(x => (typeof x === 'string' ? x : x.e !== undefined ? 'E:' + x.e : 'Q'))).map(l => [l.slice(0, 4), l.length]),
-    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 19 + 1]]);
+    [[['begin', 'E:set transaction isolation level repeatable read, read only', "E:set local statement_timeout = '60s'", 'Q'], 1 + 2 + 20 + 1]]);
   cierto('cada tabla con su orden de llave primaria, nombres solo de TABLAS', R.TABLAS.every(t => b.tx[0].some(x => x.q === RD.consultaDeTabla(t))) &&
     RD.consultaDeTabla({ nombre: 'contadores', orden: 'empresa_id,clave,ventana' }).includes('json_agg(x order by x.empresa_id, x.clave, x.ventana)'));
   let lanzo = false; try { RD.consultaDeTabla({ nombre: 'x; drop table y', orden: 'id' }); } catch (_) { lanzo = true; }
