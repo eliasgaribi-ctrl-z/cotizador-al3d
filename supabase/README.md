@@ -266,7 +266,7 @@ medidas, el límite de fabricación, la nota y el plano). Tres piezas:
 `importar-diario` también se volvió a armar en esta entrega (el respaldo semanal ahora incluye la tabla `pantallas`); pegarlo es
 opcional: el que está desplegado respalda todo lo demás igual. Antes de pegarlo, la base necesita el permiso con que el respaldo
 lee `pantallas`. Ese renglón entró a `0022` después de aplicarla, así que en una base donde ya estaba se corre aparte:
-`grant select, insert, update on public.pantallas to service_role;`. En `al3d-pruebas` ya está; en `al3d-produccion`, todavía no.
+`grant select, insert, update on public.pantallas to service_role;`. Ya está en las dos bases (2026-10-24).
 
 ## Secretos: qué es cada uno, dónde vive y quién lo carga
 
