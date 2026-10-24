@@ -434,10 +434,19 @@ async function ronda(cfg) {
     else cierto(e.scrollY >= y0, 'en la computadora la página baja lo justo (o no se mueve)', { y0, ahora: e.scrollY });
     cierto(await p.evaluate(() => !!document.querySelector('.dia-lista .pf-fila')), 'y la lista trae la instalación del día');
     cierto(await sinDesborde(p), 'sin desborde de lado con la lista abierta');
-    /* Un segundo toque cierra. */
+    /* Un segundo toque suelta el día. Desde octubre de 2026, en el teléfono —como en el calendario
+       del iPhone— debajo del mes siempre hay un día a la vista: al soltar el elegido vuelve a quedar
+       HOY, si el mes es el de hoy. En la computadora el panel vuelve a «Lo que viene». */
+    const listaDe = f => '.dia-lista[data-fecha="' + f + '"]';
     await (cfg.tactil ? p.locator(sel).tap() : p.locator(sel).click());
-    await hasta(p, () => !document.querySelector('.dia-lista'));
-    bien('otro toque al mismo día cierra la lista');
+    await hasta(p, s => !document.querySelector(s), listaDe(fechas.d3));
+    bien('otro toque al mismo día lo suelta');
+    if (cfg.ancho < 760 && fechas.d3.slice(0, 7) === fechas.hoy.slice(0, 7)) {
+      cierto(await p.evaluate(s => !!document.querySelector(s), listaDe(fechas.hoy)), 'y en el teléfono debajo del mes vuelve a quedar hoy');
+    }
+    if (cfg.ancho >= 1280) {
+      cierto(await p.evaluate(() => !document.querySelector('.dia-lista') && !!document.querySelector('.cal-lado #cal-prox')), 'y en la computadora el panel vuelve a «Lo que viene»');
+    }
     /* Caso 2 (teléfono): la celda cerca del borde de abajo, con la lista debajo de las barras. La
        página baja lo justo para enseñar el encabezado. */
     if (cfg.ancho < 760) {
@@ -457,10 +466,10 @@ async function ronda(cfg) {
       cierto(f.scrollY > antes, 'con la lista fuera de la pantalla la página baja', { antes, f });
       cierto(f.top >= 0 && f.bottom <= f.fondo, 'y el encabezado queda a la vista, encima de las barras', f);
       await p.locator(sel).tap();
-      await hasta(p, () => !document.querySelector('.dia-lista'));
+      await hasta(p, s => !document.querySelector(s), listaDe(fechas.d3));
     }
     await (cfg.tactil ? p.locator(sel).tap() : p.locator(sel).click());
-    await hasta(p, () => !!document.querySelector('.dia-lista'));
+    await hasta(p, s => !!document.querySelector(s), listaDe(fechas.d3));
     if (cfg.reducido) cierto(await p.evaluate(() => document.querySelector('.dia-lista').getAnimations().length) === 0, 'con menos movimiento la lista no se anima');
   });
 
@@ -806,6 +815,135 @@ async function ronda(cfg) {
     bien('y al rato el botón vuelve a su rótulo');
     await tocaEnCapa('#pf-pide [data-pide="cerrar"]');
     await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'));
+  });
+
+  /* ---------- El rediseño de octubre de 2026: «que se vea de primer nivel» ----------
+     Lo que Elías pidió («el calendario está muy chiquito») y lo que no se puede perder al dárselo:
+     una sola barra arriba, las cifras en una tira, el mes que llena la ventana de la computadora con
+     celdas de 120 px o más, el panel al lado (o debajo), las fichas con el cliente UNA vez y el color
+     de su etapa, HOY en el azul de la marca, y «Llevar a mi teléfono» en una hoja que no empuja la
+     pantalla. */
+  await seccion('Rediseño · la barra, la tira, el mes y el panel', async () => {
+    await cerrarCapas();
+    await toca('[data-vista="mes"]');
+    await p.waitForTimeout(400);
+    await toca('[data-hoy]');
+    await p.waitForTimeout(600);
+    const r = await p.evaluate(() => {
+      const q = s => document.querySelector('#mod-fabricacion ' + s);
+      const cab = q('.cal-cab'), tira = q('.cal-tira');
+      return {
+        barra: !!(cab && cab.querySelector('.cal-mes') && cab.querySelector('[data-mueve="-1"]') && cab.querySelector('[data-mueve="1"]') &&
+                  cab.querySelector('[data-hoy]') && cab.querySelector('[data-vista="semana"]') && cab.querySelector('[data-llevar]')),
+        hoyTxt: cab && cab.querySelector('[data-hoy]').textContent.trim(),
+        cifrasEnTira: !!(tira && tira.querySelector('.pf-cuentas b[data-cuenta="sinfecha"]')),
+        sinTarjetaVieja: !document.getElementById('cal-exportar'),
+        leyenda: [...document.querySelectorAll('#mod-fabricacion .cal-ley')].filter(l => getComputedStyle(l).display !== 'none').map(l => l.children.length),
+      };
+    });
+    cierto(r.barra && r.hoyTxt === 'Hoy', 'UNA barra arriba: el mes, ‹ Hoy ›, Mes · Semana · Lista y «Llevar a mi teléfono»', r);
+    cierto(r.cifrasEnTira, 'las cifras van en la tira de arriba del mes', r);
+    cierto(r.sinTarjetaVieja, 'la tarjeta «Al calendario del teléfono» ya no empuja la página', r);
+    cierto(r.leyenda.length === 1 && r.leyenda[0] === 6, 'una leyenda de colores a la vista, con las seis etapas', r);
+
+    /* La ficha del mes: el cliente una vez, con el color de su etapa, y el nombre entero en la etiqueta
+       de la celda (que es también su globo con el ratón). La Perla se sembró como «La Perla — anuncio». */
+    if (await irAlMesDe(fechas.d3)) {
+      const f = await p.evaluate(d => { const c = document.querySelector('.cal-dia[data-dia="' + d + '"]'); const ev = c && c.querySelector('.cal-ev');
+        return ev ? { t: ev.textContent.replace(/\s+/g, ' ').trim(), cls: ev.className, label: c.getAttribute('aria-label'), titulo: ev.getAttribute('title') } : null; }, fechas.d3);
+      cierto(f && f.t === 'La Perla', 'la ficha dice el cliente UNA vez («La Perla», no «La Perla - La Perla — …»)', f);
+      cierto(f && /\bganado\b/.test(f.cls), 'y lleva la clase de su etapa (el color)', f);
+      cierto(f && /La Perla - La Perla — anuncio/.test(f.label) && !f.titulo, 'el nombre entero va en la etiqueta de la celda, sin un `title` encima', f);
+      if (!cfg.tactil) {
+        const c = await contraste(p, '.cal-dia[data-dia="' + fechas.d3 + '"] .cal-ev');
+        cierto(c >= 4.5, 'el texto de la ficha pasa 4.5:1 sobre el color de su etapa', c);
+      }
+      await toca('[data-hoy]');
+      await p.waitForTimeout(600);
+    }
+
+    /* HOY: el número en el círculo del azul de la marca. */
+    const azul = await p.evaluate(() => {
+      const n = document.querySelector('.cal-dia.hoy .cal-n');
+      const t = document.createElement('i'); t.style.background = 'var(--a-fill)'; document.body.appendChild(t);
+      const marca = getComputedStyle(t).backgroundColor; t.remove();
+      return n ? { bg: getComputedStyle(n).backgroundColor, marca, radio: getComputedStyle(n).borderRadius } : null;
+    });
+    cierto(azul && azul.bg === azul.marca, 'el número de HOY va en el azul de la marca', azul);
+    cierto(await contraste(p, '.cal-dia.hoy .cal-n') >= 4.5, 'y su cifra pasa 4.5:1');
+    cierto(await contraste(p, '.cal-tira .cal-cifra.urge') >= 4.5, 'las cifras de la tira pasan 4.5:1', await contraste(p, '.cal-tira .cal-cifra.urge'));
+
+    /* El reparto: en la computadora el mes llena la ventana y el panel va al lado; en el teléfono, debajo,
+       con hoy a la vista. */
+    const g = await p.evaluate(() => {
+      const card = document.querySelector('#mod-fabricacion .cal-card').getBoundingClientRect();
+      const lado = document.querySelector('#mod-fabricacion .cal-lado').getBoundingClientRect();
+      const filas = [...document.querySelectorAll('.cal-rej > .cal-dia')].map(c => Math.round(c.getBoundingClientRect().height));
+      return { cardR: Math.round(card.right), cardB: Math.round(card.bottom + scrollY), ladoL: Math.round(lado.left), ladoT: Math.round(lado.top + scrollY),
+               alto: innerHeight, minFila: Math.min(...filas), ancho: innerWidth };
+    });
+    if (cfg.ancho >= 1280) {
+      cierto(g.ladoL > g.cardR, 'de 1 280 px para arriba el panel va al lado del mes', g);
+      cierto(g.cardB <= g.alto + 1 && g.cardB >= g.alto - 80, 'y el mes llena el alto de la ventana', g);
+      cierto(g.minFila >= 119, 'con celdas de 120 px o más', g);
+      cierto(await p.evaluate(() => !!document.querySelector('.cal-lado #cal-prox .cal-prox-ev')), 'sin día elegido el panel dice «Lo que viene», con sus entregas');
+      /* Una entrega de «Lo que viene» abre su ficha. */
+      await toca('.cal-lado .cal-prox-ev');
+      await hasta(p, () => document.getElementById('pf-pide').classList.contains('show') && !!document.querySelector('#pf-pide [data-acc="mover"]'));
+      bien('una entrega de «Lo que viene» abre su ficha');
+      await tocaEnCapa('#pf-pide [data-pide="cerrar"]');
+      await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'));
+      /* «Agendar» junto a un ganado sin fecha: la hoja ya en el paso del día, con ese proyecto. */
+      await toca('.cal-lado [data-agendar-pid]');
+      await hasta(p, () => document.getElementById('pf-hoja').classList.contains('show') && !!document.querySelector('#pf-hoja #pf-ag-fecha'));
+      cierto(await p.evaluate(() => !!document.querySelector('#pf-hoja [data-h="otro"]')), '«Agendar» de un ganado sin fecha abre el paso del día, con «‹ Otro proyecto» para volver a la lista');
+      await tocaEnCapa('#pf-hoja [data-h="cerrar"]');
+      await hasta(p, () => !document.getElementById('pf-hoja').classList.contains('show'));
+    } else {
+      cierto(g.ladoT >= g.cardB, 'en el teléfono el panel va debajo del mes', g);
+      cierto(await p.evaluate(h => !!document.querySelector('.cal-lado .dia-lista[data-fecha="' + h + '"]'), fechas.hoy), 'y sin tocar nada, debajo del mes está HOY');
+      cierto(g.minFila >= 50, 'las celdas del teléfono tienen aire (50 px o más)', g);
+    }
+
+    /* «Ganados sin fecha» de la tira es un botón: abre la hoja de agendar. */
+    await toca('.cal-tira [data-cifra="sinfecha"]');
+    await hasta(p, () => document.getElementById('pf-hoja').classList.contains('show') && !!document.querySelector('#pf-hoja .riel'));
+    bien('la cifra «ganados sin fecha» abre la hoja de agendar');
+    await tocaEnCapa('#pf-hoja [data-h="cerrar"]');
+    await hasta(p, () => !document.getElementById('pf-hoja').classList.contains('show'));
+
+    /* «Llevar a mi teléfono»: una hoja con las tres cosas de la tarjeta de antes. Es una capa con su
+       entrada de historial, así que el atrás del teléfono la cierra (y la página no se va). No se
+       cuenta `history.length`: después de cerrar otras capas quedan entradas «adelante» que el
+       `pushState` reemplaza, y el largo no cambia aunque la entrada sí exista. */
+    await toca('[data-llevar]');
+    await hasta(p, () => document.getElementById('pf-pide').classList.contains('show') && !!document.querySelector('#pf-pide [data-acc="ics-mes"]'));
+    const h = await p.evaluate(() => ({ mes: !!document.querySelector('#pf-pide [data-acc="ics-mes"]'), ritmo: !!document.querySelector('#pf-pide [data-acc="ics-ritmo"]'),
+      gcal: /Google Calendar/.test(document.getElementById('pf-pide').textContent), alarmas: /3 días antes/.test(document.getElementById('pf-pide').textContent),
+      entrada: !!(history.state && history.state.capa === 'pf-pide') }));
+    cierto(h.mes && h.ritmo && h.gcal && h.alarmas, '«Llevar a mi teléfono» trae el archivo, el ritmo, Google Calendar y la nota de las alarmas', h);
+    cierto(h.entrada, 'y abre su entrada de historial', h);
+    await p.evaluate(() => history.back());
+    await hasta(p, () => !document.getElementById('pf-pide').classList.contains('show'));
+    cierto(await p.evaluate(() => location.hash === '#/agenda'), 'el atrás del teléfono la cierra y se queda en el Calendario');
+    if (cfg.tactil) {
+      const t = await p.evaluate(() => ['[data-llevar]', '[data-hoy]', '[data-mueve="1"]', '.cal-tira [data-cifra]'].map(s => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().height) : 0; }));
+      cierto(t.every(x => x >= 44), 'con el dedo, los botones de la barra y de la tira miden 44 px o más', t);
+    }
+
+    /* Semana: columnas lado a lado en la computadora, días uno debajo del otro en el teléfono. Lista:
+       el encabezado de cada día se queda pegado arriba. */
+    await toca('[data-vista="semana"]');
+    await p.waitForTimeout(600);
+    const s = await p.evaluate(() => { const ds = [...document.querySelectorAll('.cal-semana > .cal-sd')].map(x => x.getBoundingClientRect()); return { n: ds.length, mismaFila: ds.every(x => Math.abs(x.top - ds[0].top) < 2) }; });
+    cierto(s.n === 7 && (cfg.ancho >= 760 ? s.mismaFila : !s.mismaFila), cfg.ancho >= 760 ? 'la semana son siete columnas lado a lado' : 'en el teléfono la semana son siete días uno debajo del otro', s);
+    cierto(await sinDesborde(p), 'sin desborde de lado en la semana');
+    await toca('[data-vista="lista"]');
+    await p.waitForTimeout(600);
+    cierto(await p.evaluate(() => { const e = document.querySelector('.cal-ldia-h'); return !!e && getComputedStyle(e).position === 'sticky'; }), 'en la Lista el encabezado de cada día se queda pegado arriba');
+    cierto(await sinDesborde(p), 'sin desborde de lado en la lista');
+    await toca('[data-vista="mes"]');
+    await p.waitForTimeout(500);
   });
 
   /* ---------- lo de siempre ---------- */

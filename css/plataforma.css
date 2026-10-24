@@ -482,133 +482,371 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 /* ============================================================================
    Calendario
    ============================================================================ */
-/* La tira de controles del calendario: la lente a la izquierda, la vista a la derecha, y los
-   chips de filtro debajo cuando los hay. Eran tres renglones apilados —el porqué está escrito
-   en el módulo—. `--e2` de hueco y `flex-wrap`: en un teléfono, la lente ocupa el primer
-   renglón entero y la vista cae debajo, que es exactamente donde tiene que caer. */
-.ag-barra{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e3)}
-.ag-barra-der{margin-left:auto}
-.ag-barra .ag-filtros{flex:1 1 100%;margin-bottom:0}
-/* Por debajo de 760 px, `css/sistema.css` le da a `.tipo-seg` un `order:9` para mandarlo al
-   final de la fila de una partida, que es donde tiene sentido allá. Aquí no: la lente ES un
-   `.tipo-seg` suelto, y con ese orden se iba DEBAJO del segmento de vista —el filtro pintado
-   después de lo que filtra—. Se le devuelve su sitio, igual que `.ag-filtros .tipo-seg` ya
-   hacía por lo mismo. */
-.ag-barra>.tipo-seg{order:0}
+/* Octubre de 2026, «el calendario está muy chiquito» (Elías): el mes pasa a ser lo principal de la
+   pantalla. Arriba UNA barra —el mes en grande, ‹ Hoy ›, la vista y «Llevar a mi teléfono»—, debajo
+   una tira delgada con las tres cifras y los colores de las etapas, y luego la rejilla, que en la
+   computadora llena el alto de la ventana. De 1 280 px para arriba lleva a su lado el panel «Lo que
+   viene»; más angosto, el panel baja debajo del mes. Lo que antes ocupaba media pantalla antes de
+   llegar al mes —tres tarjetas de cifras, el segmentado suelto y la tarjeta de «Al calendario del
+   teléfono»— cabe ahora en dos renglones. Los colores de cada etapa viven en css/estudio.css, junto a
+   los del resto de la app; aquí va la forma. */
 
-.cal-cab{display:flex;align-items:center;gap:6px;margin-bottom:var(--e3)}
-/* El mes va CENTRADO entre sus dos flechas, que es como se lee un control de mes: el nombre
-   crece y encoge —«Mayo» contra «Septiembre»— y con el texto pegado a la izquierda las dos
-   flechas bailaban de sitio cada vez que se cambiaba de mes. El ancho mínimo lo fija en un
-   sitio. */
-.cal-mes{order:2;min-width:150px;text-align:center;font-family:var(--f-cifra);font-weight:600;
-  font-size:var(--t4);line-height:1.2;color:var(--ink);text-transform:capitalize}
-.cal-cab .cal-nav[data-mueve="-1"]{order:1}
-.cal-cab .cal-nav[data-mueve="1"]{order:3}
-.cal-cab [data-hoy]{order:4;margin-left:var(--e2)}
-.cal-nav{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--linea);
-  border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);cursor:pointer;
-  box-shadow:none;font-size:var(--t4)}
-@media(hover:hover){.cal-nav:hover{border-color:var(--a-borde);color:var(--tinta)}}
+/* La página topa en 1 240 px para que una lista no se lea de lado a lado; un mes es una tabla de
+   siete columnas y gana con cada píxel. Es el mismo recurso con el que el Mapa usa la ventana entera. */
+@media(min-width:760px){
+  .pf-wrap:has(#mod-fabricacion:not([hidden])),.pf-wrap:has(.pf-esqueleto[data-mod="fabricacion"]){max-width:none}
+}
+/* Y como así el contenido llega al borde derecho en cualquier ancho, el botón del asistente se queda
+   en su círculo de 48 y el Calendario le deja su carril también de 1 700 px para arriba: es lo que
+   ya pasa en todas las pantallas hasta 1 699 px (ver «el botón del asistente», más abajo). Con la
+   píldora de 123 px, a 1 920 se paraba encima del «Agendar» del panel. */
+@media screen and (min-width:1700px){
+  body:has(#mod-fabricacion:not([hidden])) .pf-ia-btn{width:48px;padding:0;justify-content:center}
+  body:has(#mod-fabricacion:not([hidden])) .pf-ia-btn .tx{display:none}
+  body:not(.pf-marco-lleno) #mod-fabricacion{padding-right:calc(48px + 20px + 12px - 24px)}
+}
+
+.cal-app{display:flex;flex-direction:column;gap:var(--e3)}
+
+/* ----- La barra de herramientas -----
+   El nombre del mes a la izquierda y los controles a la derecha, como Google Calendar o Notion
+   Calendar: así ‹ Hoy › no bailan de sitio cuando «Mayo» se vuelve «Septiembre». `.cal-cab` es la
+   barra entera y NO se rehace al cambiar de mes (F11): solo cambia el texto del título, y el foco se
+   queda en la flecha que se tocó. */
+.cal-cab{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e3)}
+.cal-mes{flex:1 1 auto;min-width:0;margin:0 auto 0 0;font:800 30px/1.15 var(--f-texto);letter-spacing:-.035em;
+  color:var(--tinta);text-transform:capitalize;white-space:nowrap}
+.cal-navs{display:flex;align-items:center;gap:4px}
+.cal-nav{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--linea);
+  border-radius:999px;background:var(--sup);color:var(--tinta);cursor:pointer;
+  box-shadow:none;font:600 22px/1 var(--f-texto)}
+.cal-nav>span{margin-top:-3px}
+.cal-nav.cal-hoy{width:auto;padding:0 16px;font:700 14px/1 var(--f-texto)}
+@media(hover:hover){.cal-nav:hover{background:var(--es-chip,var(--sup2));border-color:var(--borde-control)}}
 .cal-nav{transition:background var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
 .cal-nav:active{box-shadow:none;transform:scale(.95)}
 .cal-nav .svgi{width:var(--ico1);height:var(--ico1)}
-/* Los 44 px del mínimo táctil, donde de verdad se toca con el dedo. En un monitor con ratón
-   un botón de 34 px es cómodo y es el que pide la maqueta. */
-@media(hover:none),(pointer:coarse){ .cal-nav{width:44px;height:44px} }
+.cal-cab .tipo-seg{order:0;flex:none;width:auto}
+/* «Llevar a mi teléfono»: el archivo con las alarmas, el ritmo y Google Calendar, que antes eran una
+   tarjeta enorme al pie que empujaba todo. Ahora es un botón que abre una hoja con lo mismo. */
+.cal-llevar{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px 0 13px;
+  border:1px solid var(--linea);border-radius:999px;background:var(--sup);color:var(--tinta);
+  font:700 14px/1 var(--f-texto);cursor:pointer;white-space:nowrap}
+.cal-llevar .svgi{width:18px;height:18px;flex:none;color:var(--a-tx)}
+@media(hover:hover){.cal-llevar:hover{background:var(--es-chip,var(--sup2));border-color:var(--borde-control)}}
+.cal-llevar{transition:background var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+.cal-llevar:active{transform:scale(.97)}
+.cal-llevar .tx-corto{display:none}
+/* Los 44 px del mínimo táctil donde se toca con el dedo. Con ratón, 40 se ven más finos. */
+@media(hover:none),(pointer:coarse){ .cal-nav,.cal-llevar{min-width:44px;height:44px;min-height:44px} }
+/* En el teléfono la barra son dos renglones fijos: el mes con ‹ Hoy ›, y la vista con «Al
+   teléfono». Con `flex-wrap` cada ancho partía la barra en otro lado, y a 360 px las flechas se
+   iban solas a un renglón. El mes se achica con la pantalla para que «Septiembre 2026» quepa. */
+@media(max-width:759px){
+  .cal-cab{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 8px}
+  .cal-mes{font-size:clamp(21px,6.6vw,28px);white-space:normal}
+  .cal-navs{grid-column:2}
+  .cal-cab .tipo-seg{grid-column:1;justify-self:start;width:auto}
+  .cal-cab .tipo-seg button{padding:0 12px}
+  .cal-llevar{grid-column:2;justify-self:end;padding:0 14px 0 12px}
+  .cal-llevar .tx{display:none}
+  .cal-llevar .tx-corto{display:inline}
+}
 
-/* La rejilla del mes: sin hueco entre celdas y con las líneas de dentro de 1 px, que es lo
-   que la hace leerse como una tabla de calendario y no como treinta y cinco tarjetas. El
-   `gap:4px` de antes multiplicaba por 35 el aire y dejaba las celdas flotando. */
-.cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;
-  border:1px solid var(--linea);border-radius:var(--rr3);overflow:hidden;background:var(--sup)}
-.cal-dow{padding:var(--e2) 0;text-align:center;font-weight:600;font-size:var(--t1);line-height:1;
-  color:var(--tinta3);text-transform:uppercase;letter-spacing:.08em;
-  border-bottom:1px solid var(--linea)}
-.cal-dia{position:relative;min-height:92px;padding:6px;border:0;
-  border-right:1px solid var(--linea2);border-bottom:1px solid var(--linea2);
-  border-radius:0;background:var(--sup);text-align:left;cursor:pointer;
-  display:flex;flex-direction:column;gap:3px;overflow:hidden;min-width:0}
+/* ----- La tira de las cifras -----
+   Las tres cuentas que eran tarjetas de 80 px de alto son ahora píldoras de una línea: la cifra en
+   negrita y su frase. Las que piden algo («ganado sin fecha», «ya pasó y nadie la marcó») son
+   botones y llevan a donde se resuelven. A la derecha, los colores de las etapas. */
+.cal-tira{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e4)}
+.pf-cuentas.cal-cifras{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin:0}
+.cal-cifra{display:inline-flex;align-items:center;gap:7px;min-height:36px;margin:0;padding:0 14px 0 12px;
+  border:1px solid var(--linea2);border-radius:999px;background:var(--sup);color:var(--tinta2);
+  font:600 13px/1.2 var(--f-texto);white-space:nowrap}
+.cal-cifra b{font:800 15px/1 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
+/* El tono dice de qué es: ámbar lo que espera algo (sin fecha), rojo lo que ya va tarde (ya pasó y
+   nadie la marcó). css/estudio.css lo pasa a sus pasteles con su tinta. */
+.cal-cifra.urge{background:var(--av-bg);border-color:transparent;color:var(--av)}
+.cal-cifra.mal{background:var(--mal-bg);border-color:transparent;color:var(--mal)}
+.cal-cifra.urge b{color:var(--av)}
+.cal-cifra.mal b{color:var(--mal)}
+button.cal-cifra{cursor:pointer}
+button.cal-cifra::after{content:'›';margin-left:2px;font-size:16px;line-height:1}
+@media(hover:hover){button.cal-cifra:hover{filter:brightness(.97)}}
+button.cal-cifra{transition:filter var(--mv-s),transform var(--mv-liq)}
+button.cal-cifra:active{transform:scale(.97)}
+@media(hover:none),(pointer:coarse){ .cal-cifra{min-height:44px} }
+.cal-tira .chips{margin:0}
+.cal-ley{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0 0 0 auto;
+  font:600 12px/1.3 var(--f-texto);color:var(--tinta2)}
+.cal-ley>span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.cal-ley>span::before{content:'';width:10px;height:10px;border-radius:3px;background:var(--ev-pt,var(--n5))}
+.cal-ley.al-pie{display:none}
+@media(max-width:559px){
+  .cal-tira>.cal-ley{display:none}
+  .cal-ley.al-pie{display:flex;margin:0;padding:10px 12px 12px;gap:4px 12px;border-top:1px solid var(--linea2);font-size:11.5px}
+  .cal-ley.al-pie>span::before{width:8px;height:8px;border-radius:50%}
+}
+
+/* ----- El cuerpo: el mes y, de 1 280 px para arriba, el panel al lado ----- */
+.cal-cuerpo{display:flex;flex-direction:column;gap:var(--e4);min-width:0}
+.cal-cuerpo>*{min-width:0}
+/* La tarjeta del mes va sin relleno: la rejilla llega a sus bordes y la esquina redonda la recorta.
+   `clip` y no `hidden` (que ya trae `.card`): `hidden` vuelve a la tarjeta un contenedor de
+   desplazamiento y los encabezados pegajosos de la Lista se quedarían pegados a ella, no a la ventana. */
+.card.cal-card{display:flex;flex-direction:column;margin:0;overflow:hidden;overflow:clip}
+.cal-card>.card-b{flex:1 1 auto;display:flex;flex-direction:column;padding:0}
+.cal-lienzo{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+@media(min-width:760px){
+  /* El mes llena el alto de la ventana: el encabezado mide 64, y lo de arriba de la rejilla se lo
+     lleva la barra en el flujo. Las filas se reparten lo que queda, nunca menos de 120 px. */
+  .cal-app.cal-v-mes,.cal-app.cal-v-semana{min-height:calc(100dvh - 64px - var(--e4) - var(--e4))}
+  .cal-v-mes .cal-cuerpo,.cal-v-semana .cal-cuerpo{flex:1 1 auto}
+  .cal-v-mes .cal-card,.cal-v-semana .cal-card{flex:1 1 auto}
+  /* Y la página no deja la franja de 92 px de abajo que se reserva para el botón del asistente: con
+     el mes ocupando la ventana, esa franja solo servía para que la página se desplazara al vacío. El
+     botón tiene su carril a la derecha (`.pf-mod{padding-right}` hasta 1 699 px). */
+  .pf-wrap:has(#mod-fabricacion:not([hidden]) .cal-v-mes){padding-bottom:var(--e4)}
+}
+@media(min-width:1280px){
+  .cal-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) clamp(300px,24vw,372px);align-items:stretch}
+  /* En Mes y Semana el panel mide lo mismo que el calendario y se recorre por dentro: `height:0`
+     hace que no empuje la fila con su contenido y `min-height:100%` lo estira a la altura del mes.
+     Sin eso, diez ganados sin fecha alargaban la fila y la rejilla con ella. */
+  .cal-v-mes .cal-lado,.cal-v-semana .cal-lado{height:0;min-height:100%;overflow-y:auto;overscroll-behavior:contain}
+  /* En la Lista, que es larga, el panel se queda pegado arriba mientras se baja. */
+  .cal-v-lista .cal-lado{position:sticky;top:calc(64px + var(--e3));align-self:start;
+    max-height:calc(100dvh - 64px - 2 * var(--e3));overflow-y:auto;overscroll-behavior:contain}
+}
+
+/* ----- La rejilla del mes -----
+   Sin hueco entre celdas y con las líneas de dentro de 1 px: se lee como un calendario y no como
+   treinta y cinco tarjetas. La fila de los días de la semana es `auto` y las semanas, implícitas,
+   se reparten el alto con un mínimo de 120 px. */
+.cal-rej{flex:1 1 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+  grid-template-rows:auto;grid-auto-rows:minmax(120px,1fr);gap:0;margin:0;
+  border:0;border-radius:0;box-shadow:none;background:var(--sup)}
+.cal-dow{padding:12px 12px 10px;text-align:left;font:700 11px/1 var(--f-texto);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--tinta3);border-bottom:1px solid var(--linea2)}
+.cal-dia{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:0;min-height:0;
+  margin:0;padding:6px 6px 8px;border:0;border-right:1px solid var(--linea2);border-bottom:1px solid var(--linea2);
+  border-radius:0;background:var(--sup);color:var(--tinta);font:inherit;text-align:left;cursor:pointer;overflow:hidden}
 .cal-rej>.cal-dia:nth-child(7n+7){border-right:0}
+.cal-rej>.cal-dia:nth-last-child(-n+7){border-bottom:0}
 .cal-dia:disabled{cursor:default}
+/* Sábado y domingo, en un tono más callado; los días de otro mes, más todavía. El sábado se trabaja
+   —las instalaciones van de lunes a sábado—, así que el tono es apenas un gris: dice «fin de
+   semana», no «cerrado». */
+.cal-dia.finde{background:var(--cal-finde,var(--sup2))}
 .cal-dia.fuera{background:var(--sup2)}
-.cal-dia.fuera .cal-n{color:var(--tinta3)}
-/* El número del día vive en un círculo de 24 px y centrado, y HOY es ese círculo relleno del
-   acento con la cifra en blanco. Antes «hoy» era un borde azul alrededor de la celda entera,
-   que a un metro de distancia se confunde con el día que está abierto —que también lleva
-   fondo azul tenue— y con la celda que tiene el foco del teclado. Tres señales azules para
-   tres cosas distintas. Ahora hoy es el círculo, el día abierto es el fondo, y el foco es el
-   anillo del sistema. */
-.cal-n{align-self:center;width:24px;height:24px;display:inline-flex;align-items:center;
-  justify-content:center;border-radius:12px;
-  font-family:var(--f-cifra);font-weight:600;font-size:var(--t2);line-height:1;color:var(--tinta)}
-/* Octubre de 2026: HOY se pinta entero, en ámbar —el color de «hoy» en toda la plataforma
-   (`.pf-cuando.hoy`)— para que el equipo lo encuentre de un vistazo y cuente los días a cada
-   entrega. Es otro color que el azul del día abierto, así que no se confunden. */
-.cal-dia.hoy{background:var(--av-bg);box-shadow:inset 0 0 0 2px var(--av)}
-.cal-dia.hoy .cal-n{background:var(--av);color:#fff}
-/* En oscuro --av es el ámbar claro (#f5c26b) y el blanco encima daba 1,6:1: el número de HOY era
-   el que menos se leía del mes (fabmat-4). Marino encima, como la cuenta de la barra de abajo. */
-html[data-tema="oscuro"] .cal-dia.hoy .cal-n{color:var(--nav)}
-/* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
-   sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
-.cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
-  background:var(--n1);border-left:3px solid var(--n4);
-  font-weight:600;font-size:var(--t1);line-height:1.3;color:var(--n8);text-align:left;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cal-ev.cortado,.cal-ev.armado{border-left-color:var(--amber-ico)}
-.cal-ev.listo{border-left-color:var(--a)}
-.cal-ev.instalado{border-left-color:var(--green-ico)}
-.cal-ev.ganado{border-left-color:var(--n4)}
-/* El semáforo de material: un punto. Es la pregunta de fabricación mirando el mes —¿llego?—
-   y tiene que contestarse sin abrir nada. Va acompañado del title y del texto de la ficha:
-   un punto de color solo no es una respuesta accesible. */
-.cal-sem{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%}
+.cal-dia-h{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:28px}
+/* El número va en un círculo de 28 px. HOY es ese círculo relleno del azul de la marca; el día
+   elegido, el círculo en negro y la celda en el tenue del acento. Tres cosas distintas, tres marcas
+   distintas, y el foco del teclado es el anillo del sistema. */
+.cal-n{display:inline-grid;place-items:center;min-width:28px;height:28px;padding:0 5px;border-radius:999px;
+  font:700 13px/1 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
+.cal-dia.finde .cal-n{color:var(--tinta2)}
+.cal-dia.fuera .cal-n{color:var(--tinta3);font-weight:500}
+.cal-dia.hoy .cal-n{background:var(--a-fill);color:#fff;box-shadow:none}
+.cal-dia[aria-current="date"]{background:var(--a-suave)}
+.cal-dia[aria-current="date"]:not(.hoy) .cal-n{background:var(--es-act,var(--tinta));color:var(--es-act-tx,var(--sup))}
+.cal-dia.hoy[aria-current="date"] .cal-n{box-shadow:0 0 0 2px var(--a-suave),0 0 0 4px var(--a-fill)}
+/* El semáforo de material: un punto a la derecha del número. Nunca es la única forma de saberlo: la
+   frase va en la etiqueta de la celda y en la lista del día. */
+.cal-sem{flex:none;width:8px;height:8px;margin-right:4px;border-radius:50%}
 .cal-sem.ok{background:var(--green-ico)}
 .cal-sem.falta{background:var(--amber-ico)}
 .cal-sem.grave{background:var(--red)}
-.cal-mas{font-weight:600;font-size:var(--t1);line-height:1.3;color:var(--muted);padding-left:6px}
-@media(max-width:560px){
-  /* 48 px de celda, que es lo que pide la maqueta: en siete columnas de una pantalla de 360
-     una celda mide 47 de ancho, y más alto que ancho se lee como una columna, no como un mes. */
-  .cal-dia{min-height:48px;padding:3px;gap:2px}
-  .cal-ev{padding:1px 3px;font-size:9.5px}
-  /* En el teléfono el mes cabe pero los títulos no: cada evento se vuelve un PUNTO de 6 px
-     del color de su tipo. El chip con el texto recortado a dos letras no dice nada y ocupa
-     tres veces más; el punto dice «aquí pasa algo» y el detalle está a un toque, en la lista
-     del día. Se apagan el relleno, el borde y el filete de color del chip para que no quede
-     una caja de 6 px con un borde de 3. */
-  .cal-ev{width:6px;height:6px;min-width:6px;flex:0 0 auto;padding:0;border-radius:3px;
-    border-left:0;background:var(--n5);overflow:hidden;text-indent:-99em}
-  .cal-ev.cortado,.cal-ev.armado,.cal-ev.en_diseno{background:var(--av)}
-  .cal-ev.listo,.cal-ev.tal{background:var(--a)}
-  .cal-ev.instalado{background:var(--ok)}
-  .cal-ev.tal.tarde{background:var(--mal)}
-  .cal-ev.off{background:var(--linea)}
-  /* La celda pasa a fila que envuelve: el número se lleva un renglón entero con
-     `flex-basis:100%` y los puntos fluyen debajo, centrados. En columna —como está en
-     escritorio— los puntos saldrían uno debajo de otro y en 48 px caben dos. */
-  .cal-dia{flex-flow:row wrap;justify-content:center;align-content:flex-start;gap:3px}
-  .cal-n{flex:0 0 100%}
+/* Cada entrega del día: a todo el ancho de la celda, con el color de su etapa y una barra a la
+   izquierda del mismo tono lleno. El nombre es el del cliente, sin repetir el del contacto, y la
+   hora va delante cuando la hay. El color sale de `--ev-*`, que css/estudio.css pone por etapa. */
+.cal-evs{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-ev{display:block;width:100%;min-width:0;padding:3px 6px 3px 9px;border:0;border-radius:6px;
+  background:var(--ev-bg,var(--n1));box-shadow:inset 3px 0 0 var(--ev-pt,var(--n4));color:var(--ev-tx,var(--tinta));
+  font:600 12px/1.35 var(--f-texto);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ev .cal-ev-h{font-weight:500;font-variant-numeric:tabular-nums}
+.cal-ev.off{text-decoration:line-through}
+.cal-mas{padding:1px 0 0 9px;font:700 11.5px/1.3 var(--f-texto);color:var(--tinta2)}
+
+/* Un envío o una recolección: otra FORMA, no solo otro color. En la computadora la ficha lleva su
+   palabra al frente y un borde de rayas; en el teléfono, donde cada evento es un punto, el suyo es
+   un rombo hueco. */
+.cal-ev.envio{background:transparent;box-shadow:none;border:1.5px dashed var(--ev-pt,var(--n5));padding:2px 6px 2px 8px}
+.cal-ev .cal-ent{font-weight:800}
+
+.cal-lienzo>.pf-nota{margin:0;padding:10px 14px 12px;border-top:1px solid var(--linea2)}
+
+/* De 560 a 1 279 px sin panel al lado las celdas son más angostas: un poco menos de alto mínimo. */
+@media(max-width:759px){ .cal-rej{grid-auto-rows:minmax(92px,1fr)} }
+
+/* ----- El teléfono: el mes con puntos y la lista del día debajo -----
+   Como el calendario del iPhone: la rejilla compacta, cada entrega es un punto del color de su
+   etapa, y debajo del mes la lista del día elegido —hoy, si no se ha tocado otro—. 54 px de celda y
+   el número en 30: más aire que los 48 de antes, y el mes sigue cabiendo entero en la pantalla. */
+@media(max-width:559px){
+  .cal-rej{grid-auto-rows:minmax(54px,auto)}
+  .cal-dow{padding:9px 0 7px;text-align:center;font-size:10.5px;letter-spacing:.04em}
+  .cal-dia{align-items:center;padding:4px 2px 6px;gap:3px}
+  .cal-dia-h{justify-content:center;min-height:30px}
+  .cal-n{min-width:30px;height:30px;font-size:14px}
+  .cal-sem{position:absolute;top:5px;right:4px;width:6px;height:6px;margin:0}
+  .cal-evs{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:3px}
+  .cal-ev{width:6px;height:6px;min-width:6px;flex:0 0 auto;padding:0;border-radius:50%;box-shadow:none;
+    background:var(--ev-pt,var(--n5));overflow:hidden;text-indent:-99em}
   .cal-ev .tx{display:none}
-  .cal-mas{flex:0 0 100%;text-align:center;padding-left:0;font-size:9.5px}
-}
-/* Un envío o una recolección en el mes: otra FORMA, no solo otro color. En escritorio el chip
-   lleva su palabra al frente y el borde punteado alrededor; en el teléfono, donde cada evento
-   es un punto, el suyo es un rombo hueco. */
-.cal-ev.envio{border:1.5px dashed var(--n5);border-left-width:3px;border-left-style:solid;background:transparent}
-.cal-ev .cal-ent{font-weight:800;color:var(--a-fuerte)}
-.cal-ev.recoleccion .cal-ent{color:var(--n7)}
-@media(max-width:560px){
-  .cal-ev.envio{width:7px;height:7px;min-width:7px;border:1.5px solid var(--n7);border-radius:1px;
+  .cal-ev.envio{width:7px;height:7px;min-width:7px;padding:0;border:1.5px solid var(--ev-pt,var(--n7));border-radius:1px;
     background:transparent;transform:rotate(45deg)}
+  .cal-mas{padding:0;font-size:10px;text-align:center}
+  .cal-mas .tx{display:none}
 }
 
-/* ----- Lista del día -----
-   Lo que el mes no puede decir. Se abre tocando un día. */
-.dia-lista{margin-top:var(--e4)}
-.dia-t{font-weight:700;font-size:var(--t4);line-height:1.3;color:var(--ink);margin-bottom:var(--e2);
-  text-transform:capitalize}
+/* ----- La vista de semana -----
+   En la computadora, siete columnas anchas con una tarjeta por entrega; en el teléfono, donde siete
+   columnas serían de 45 px y ahí no cabe una hora ni un nombre, los siete días uno debajo del otro. */
+.cal-semana{flex:1 1 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-height:0}
+.cal-sd{display:flex;flex-direction:column;gap:6px;min-width:0;padding:10px 8px 12px;border-right:1px solid var(--linea2)}
+.cal-sd:last-child{border-right:0}
+.cal-sd.finde{background:var(--cal-finde,var(--sup2))}
+.cal-sd-h{display:flex;align-items:center;gap:8px;margin:0 0 4px;padding:0 2px;font:inherit}
+.cal-sd-dow{font:700 11px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta3)}
+.cal-sd-n{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 6px;border-radius:999px;
+  font:800 19px/1 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
+.cal-sd.hoy .cal-sd-n{background:var(--a-fill);color:#fff}
+.cal-sd .ag-sem{margin:0;font-size:var(--t1)}
+.cal-sd-libre{margin:0;padding:0 4px;font:500 12.5px/1.4 var(--f-texto);color:var(--tinta3)}
+/* «+ Agendar» al pie de cada día: callado, de rayas, como el «+ Nuevo» de Notion. Un botón de
+   pastilla entera por columna pesaba más que las entregas. */
+.cal-sd-mas{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;min-height:34px;margin-top:2px;
+  padding:0 8px;border:1.5px dashed var(--linea);border-radius:10px;background:transparent;color:var(--tinta2);
+  font:600 12.5px/1.2 var(--f-texto);cursor:pointer}
+.cal-sd-mas>span{font-size:16px;line-height:1}
+@media(hover:hover){.cal-sd-mas:hover{border-color:var(--borde-control);color:var(--tinta);background:var(--sup)}}
+@media(hover:none),(pointer:coarse){ .cal-sd-mas{min-height:44px} }
+.cal-tarj{display:flex;flex-direction:column;gap:2px;width:100%;min-width:0;margin:0;padding:8px 10px 9px 12px;
+  border:0;border-radius:12px;background:var(--ev-bg,var(--n1));box-shadow:inset 3px 0 0 var(--ev-pt,var(--n4));
+  color:var(--ev-tx,var(--tinta));font:inherit;text-align:left;cursor:pointer}
+.cal-tarj.envio{background:transparent;box-shadow:none;border:1.5px dashed var(--ev-pt,var(--n5))}
+.cal-tarj.off .cal-tarj-n{text-decoration:line-through}
+.cal-tarj-h{font:600 11.5px/1.25 var(--f-texto);font-variant-numeric:tabular-nums}
+.cal-tarj-n{font:700 13px/1.3 var(--f-texto);overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cal-tarj-d{font:500 11.5px/1.3 var(--f-texto);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(hover:hover){.cal-tarj:hover{filter:brightness(.97)}}
+.cal-tarj{transition:filter var(--mv-s),transform var(--mv-liq)}
+.cal-tarj:active{transform:scale(.98)}
+@media(max-width:759px){
+  .cal-semana{display:flex;flex-direction:column}
+  .cal-sd{padding:12px 14px 14px;border-right:0;border-bottom:1px solid var(--linea2)}
+  .cal-sd:last-child{border-bottom:0}
+  .cal-sd-h{margin:0}
+  .cal-tarj{padding:10px 12px 11px 14px}
+}
+
+/* ----- La vista de lista -----
+   Un bloque por día con su encabezado pegado arriba mientras se baja: así nunca se pierde de qué día
+   es el renglón que se está leyendo. El encabezado se pega debajo del de la página (56 px en el
+   teléfono, 64 en la computadora). */
+.cal-lista{display:flex;flex-direction:column}
+.cal-ldia+.cal-ldia{border-top:1px solid var(--linea2)}
+.cal-ldia-h{position:sticky;top:56px;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;
+  padding:12px 18px 10px;background:rgba(var(--sup-rgb),.96);border-bottom:1px solid var(--linea2);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  font:800 15px/1.3 var(--f-texto);color:var(--tinta);text-transform:capitalize}
+.cal-ldia-h .pf-cuando{text-transform:none}
+.cal-ldia>.ag-sem{margin:10px 18px 0}
+@media(min-width:760px){ .cal-ldia-h{top:64px} }
+.cal-lista>.vacio{margin:var(--e5) var(--e4)}
+
+/* ----- El renglón de una entrega (la lista, la semana del teléfono y el día) -----
+   La hora en su columna, grande, y una barra del color de la etapa: se lee «10:00 · Dental Sonrisa»
+   de un barrido antes que el resto. Los botones a la derecha, o debajo cuando no caben. */
+.pf-fila.cal-fila{position:relative;display:grid;grid-template-columns:74px minmax(0,1fr) auto;
+  gap:4px 14px;align-items:start;padding:12px 18px 12px 22px;border-top:1px solid var(--linea2)}
+.pf-fila.cal-fila::before{content:'';position:absolute;left:10px;top:12px;bottom:12px;width:4px;border-radius:4px;
+  background:var(--ev-pt,var(--n4))}
+.pf-fila.cal-fila:first-of-type{border-top:0}
+.cal-fila-hora{padding-top:1px;font:800 15px/1.2 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
+.cal-fila-hora small{display:block;margin-top:2px;font:600 11.5px/1.2 var(--f-texto);color:var(--tinta3)}
+.cal-fila .pf-fila-t{font-weight:700}
+.cal-fila .pf-fila-acc{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:6px;width:auto;padding:0}
+/* `.btn` nace a todo el ancho (sistema.css); en el renglón cada botón mide lo que su rótulo, como
+   `.pf-btn-corto`, y los tres caben en uno o dos renglones en vez de tres pastillas apiladas. */
+.cal-fila .pf-fila-acc>.btn{flex:0 0 auto;width:auto;min-height:40px;margin:0;padding:0 15px;font-size:13px}
+@media(hover:none),(pointer:coarse){ .cal-fila .pf-fila-acc>.btn{min-height:44px} }
+.cal-fila .cal-sem-t{display:inline-flex;align-items:center;gap:5px}
+.cal-fila .cal-sem-t::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green-ico)}
+.cal-fila .cal-sem-t.falta::before{background:var(--amber-ico)}
+.cal-fila .cal-sem-t.grave::before{background:var(--red)}
+@media(max-width:899px){
+  .pf-fila.cal-fila{grid-template-columns:62px minmax(0,1fr)}
+  .cal-fila .pf-fila-acc{grid-column:1/-1;justify-content:flex-start;padding-left:76px}
+}
+@media(max-width:559px){ .cal-fila .pf-fila-acc{padding-left:0} }
+
+/* ----- El panel: «Lo que viene» o el día elegido -----
+   Una sola tarjeta con secciones: el día que se tocó (o, sin día, lo de las próximas dos semanas),
+   lo que ya pasó y nadie marcó, y los ganados que no tienen día. En el teléfono va debajo del mes
+   y enseña el día —hoy, si no se tocó otro—, que es lo que se vino a ver. */
+.cal-lado{display:flex;flex-direction:column;gap:0;min-width:0;padding:6px 0 10px;
+  background:var(--sup);border:1px solid var(--linea2);border-radius:var(--es-r-tarjeta,var(--rr4));
+  scrollbar-width:thin;scrollbar-color:var(--linea) transparent}
+.cal-sec{padding:12px 18px 14px}
+.cal-sec+.cal-sec{border-top:1px solid var(--linea2)}
+.cal-sec-cab{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.cal-sec-t{display:flex;align-items:center;gap:8px;margin:0;font:800 16px/1.3 var(--f-texto);letter-spacing:-.01em;color:var(--tinta)}
+.cal-sec-t .n{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;
+  background:var(--es-chip,var(--sup2));font:800 12px/1 var(--f-cifra);color:var(--tinta2)}
+.cal-sec.mal .cal-sec-t .n{background:var(--es-rojo,var(--mal-bg));color:var(--es-rojo-tx,var(--mal))}
+.cal-sec.urge .cal-sec-t .n{background:var(--es-mante,var(--av-bg));color:var(--es-mante-tx,var(--av))}
+.cal-sec-d{margin:-2px 0 8px;font:500 12.5px/1.45 var(--f-texto);color:var(--tinta2)}
+.cal-volver{flex:none;width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--linea);border-radius:999px;
+  background:var(--sup);color:var(--tinta);font:600 20px/1 var(--f-texto);cursor:pointer}
+.cal-volver>span{margin-top:-2px}
+@media(hover:hover){.cal-volver:hover{background:var(--es-chip,var(--sup2))}}
+@media(hover:none),(pointer:coarse){ .cal-volver{width:44px;height:44px} }
+.cal-sec .pf-nota{margin:6px 0 0}
+
+/* El día dentro del panel: el renglón angosto, con los botones debajo del texto. */
+.cal-lado .dia-lista{margin:0}
+.cal-lado .dia-t{margin:0;font:800 16px/1.3 var(--f-texto);text-transform:capitalize}
+.cal-lado .dia-t .pf-cuando{text-transform:none}
+.cal-lado .ag-sem{margin:0 0 6px}
+.cal-lado .pf-fila.cal-fila{grid-template-columns:58px minmax(0,1fr);padding:10px 0 12px 14px}
+.cal-lado .pf-fila.cal-fila::before{left:0}
+.cal-lado .cal-fila .pf-fila-acc{grid-column:1/-1;justify-content:flex-start;padding-left:0}
+.cal-lado .dia-lista>p:last-child{margin:8px 0 0}
+
+/* «Lo que viene» y «Ya pasó»: un renglón por entrega que es un botón entero —abre la ficha, donde
+   están «Ya se instaló», «Mover de día» y lo demás—. */
+.cal-prox-dia+.cal-prox-dia{margin-top:10px}
+.cal-prox-f{margin:0 0 5px;font:700 11.5px/1.3 var(--f-texto);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta3)}
+.cal-prox-f b{color:var(--a-tx)}
+.cal-prox-ev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;width:100%;margin:0 0 5px;
+  padding:9px 12px 10px 14px;border:0;border-radius:14px;background:var(--ev-bg,var(--n1));
+  box-shadow:inset 3px 0 0 var(--ev-pt,var(--n4));color:var(--ev-tx,var(--tinta));font:inherit;text-align:left;cursor:pointer}
+.cal-prox-ev.envio{background:transparent;box-shadow:none;border:1.5px dashed var(--ev-pt,var(--n5))}
+.cal-prox-n{grid-column:1;font:700 13.5px/1.3 var(--f-texto);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-prox-h{grid-column:2;grid-row:1;font:600 12px/1.4 var(--f-texto);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cal-prox-d{grid-column:1/-1;font:500 12px/1.35 var(--f-texto);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(hover:hover){.cal-prox-ev:hover{filter:brightness(.97)}}
+.cal-prox-ev{transition:filter var(--mv-s),transform var(--mv-liq)}
+.cal-prox-ev:active{transform:scale(.98)}
+
+/* Los ganados sin fecha, cada uno con su «Agendar». */
+.cal-sf{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--linea2)}
+.cal-sf:first-of-type{border-top:0}
+.cal-sf-tx{flex:1 1 auto;min-width:0}
+.cal-sf-n{margin:0;font:700 13.5px/1.3 var(--f-texto);color:var(--tinta);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-sf-d{margin:1px 0 0;font:500 12px/1.35 var(--f-texto);color:var(--tinta2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-sf .pf-btn-corto{flex:none}
+.cal-sec>.pf-btn-corto{margin-top:6px}
+
+/* La tarjeta de «Se ganó / No se dio» vive al pie del panel, con su lavanda. */
+.cal-lado>.pf-decidir{margin:10px 12px 2px}
+
+/* ----- La hoja «Llevar a mi teléfono» ----- */
+.cal-tel-d{margin:0 0 var(--e2);font:500 14px/1.5 var(--f-texto);color:var(--tinta2)}
+.cal-tel .pf-fila-acc{justify-content:center}
+.cal-tel>.pf-nota{margin-top:var(--e3)}
 
 /* ============================================================================
    Material
@@ -1292,14 +1530,12 @@ button.mapa-cuenta:focus-visible{outline:2px solid var(--a);outline-offset:2px}
    quince días agendados eso se resuelve tocando otro, que abre otra lista—. Fondo tenue del
    acento, el mismo recurso de `.pf-tab.on`, y el `aria-current="date"` lo dice para quien no
    ve el fondo. */
-.cal-dia[aria-current="date"]{background:var(--a-suave);border-color:var(--a-borde)}
+.cal-dia[aria-current="date"]{background:var(--a-suave)}
 
-/* Dos casos que se quedaron sin filete. `en_diseno` va en ámbar por lo mismo que en
-   `.pf-etapa`: ya se vendió y todavía no se corta. Y una instalación CANCELADA no se pinta
-   igual que una viva —el mes estaría prometiendo una visita que no va a pasar—: se tacha,
-   que es lo único que se lee igual sin distinguir colores. */
-.cal-ev.en_diseno{border-left-color:var(--amber-ico)}
-.cal-ev.off{border-left-color:var(--n3);color:var(--muted);text-decoration:line-through}
+/* Una instalación CANCELADA no se pinta igual que una viva —el mes estaría prometiendo una
+   visita que no va a pasar—: se tacha, que es lo único que se lee igual sin distinguir colores.
+   (El color de cada etapa, `en_diseno` incluida, vive en css/estudio.css.) */
+.cal-ev.off{text-decoration:line-through}
 
 /* El semáforo del día, con su palabra y su frase completa. No cabe dentro de `.dia-t`
    porque ese lleva `text-transform:capitalize` y «Falta acrílico blanco 3 mm» salía como
@@ -2037,11 +2273,10 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
 .pj-tarj:active{transform:scale(.985);box-shadow:var(--sombra-reposo);transition-duration:.1s}
 @media(hover:hover){.pj-lista-movil .pj-tarj:hover{transform:none}}
 
-/* ----- El calendario ----- */
-.cal-rej{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
-.cal-dia.hoy .cal-n{box-shadow:none}
-.cal-nav{border-radius:var(--rr2)}
-@media(min-width:561px){ .cal-ev{border-radius:4px} }
+/* ----- El calendario -----
+   Desde el rediseño de octubre de 2026 la rejilla llega al borde de su tarjeta (sin esquina propia)
+   y los botones de la barra son pastilla, como el resto de los botones del estudio: lo dice la
+   sección del Calendario de arriba, y aquí ya no se repite. */
 
 /* ----- El material ----- */
 .mat-formula{border-radius:var(--rr2)}
@@ -2705,6 +2940,14 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .esq-mapa{height:calc(100dvh - var(--mapa-top,72px) - var(--e4));min-height:420px;border:1px solid var(--linea);border-radius:var(--rr4)}
 @media(max-width:759px){.esq-mapa{height:calc(100dvh - var(--mapa-top,56px));min-height:360px;border-radius:0;border:0;
   margin:calc(-1 * var(--e4)) calc(-1 * var(--pad-lat-der,10px)) 0 calc(-1 * var(--pad-lat,10px))}}
+/* La del Calendario: la barra con el nombre del mes y el mes entero, que en la computadora llena la
+   ventana igual que el de verdad (`.cal-app`); en el teléfono, el cuadro de siete por seis. */
+.esq-cal-barra{margin:4px 0 var(--e4)}
+.esq-cal-barra .esq-t{width:min(240px,60%);height:30px}
+.esq-cal{height:calc(100dvh - 64px - 150px);min-height:420px;border:1px solid var(--linea2);border-radius:var(--es-r-tarjeta,var(--rr4))}
+@media(max-width:759px){.esq-cal{height:auto;min-height:0;aspect-ratio:7/6}}
+/* El carril del botón del asistente, el mismo que deja la sección (`#mod-fabricacion`). */
+@media screen and (min-width:760px){ .esq-cal{margin-right:calc(48px + 20px + 12px - 24px)} }
 @media(prefers-reduced-motion:reduce){
   .pf-arranque,.pf-esqueleto{animation:none}
   .pf-progreso.on::before{animation:none;width:100%;transform:none;opacity:.6}
@@ -2728,7 +2971,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .cal-dia:not(:disabled):active{background:var(--a-suave)}
 /* Sin el día abierto (aria-current) ni el que se está presionando: el gris del hover pesaba
    más y borraba la marca del día elegido y el azul del :active. */
-@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled,:active,.hoy,[aria-current="date"]):hover{background:var(--sup2)}}
+@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled,:active,[aria-current="date"]):hover{background:var(--sup2)}}
 
 /* Las tarjetas de la plataforma no vuelven a «entrar» cuando un módulo repinta. La entrada de
    sistema.css (.card{animation:entra}) se disparaba con cada innerHTML: un filtro, una tecla
@@ -4157,6 +4400,9 @@ button.ct-mes-ver:active{transform:none}
 .pf-mbar.cal-mbar{transition-duration:.15s}
 @starting-style{.pf-mbar.cal-mbar{transform:none}}
 .pf-peek,.pf-peek.ve{transform:translate(var(--x,0px),0);transition-duration:.15s}
+/* Los botones nuevos de la barra, la tira y el panel (octubre de 2026) no se hunden al tocarlos; el
+   color del :hover sí cambia, que es información de que se puede tocar. */
+:is(.cal-llevar,button.cal-cifra,.cal-tarj,.cal-prox-ev):active{transform:none}
 /* ── fin de rm · pf-fabricacion ── */
 /* ── rm · pf-material ── */
 /* La barra de acción sigue apareciendo —es información: llegó una acción—, pero sin subir: solo el
