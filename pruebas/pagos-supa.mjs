@@ -304,12 +304,14 @@ console.log('\nAPAGADO NO CAMBIA NADA');
   const correr = new Function('localStorage', 'Prefs', 'const TABS = ' + (TABS ? TABS[1] : '[]') + ';' + cuerpo('supaEncendido') + cuerpo('tabs') + ' return tabs();');
   const ls = mapa();
   const pagos = { rol: () => 'pagos' }, fab = { rol: () => 'fabricacion' };
-  eq('apagado: las cinco pestañas de siempre, en su orden', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
+  /* Seis desde octubre de 2026: «Ventas» (`lista`), el detalle que salió del Resumen. */
+  const SEIS = ['ventas', 'lista', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
+  eq('apagado: las seis pestañas de siempre, en su orden', correr(ls, pagos), SEIS);
   ls.setItem('al3d_pf_supa', 'basura{');
-  eq('una clave dañada es apagado', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
+  eq('una clave dañada es apagado', correr(ls, pagos), SEIS);
   ls.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
-  eq('encendido: una sexta, al final', correr(ls, pagos), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora', 'asientos']);
-  eq('encendido pero Fabricación: las cinco', correr(ls, fab), ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora']);
+  eq('encendido: una séptima, al final', correr(ls, pagos), SEIS.concat('asientos'));
+  eq('encendido pero Fabricación: las seis', correr(ls, fab), SEIS);
   cierto('la clave que mira Control es la del interruptor de supa.js', /'al3d_pf_supa'/.test(cuerpo('supaEncendido')) &&
     /CLAVE_INTERRUPTOR = 'al3d_pf_supa'/.test(leer('js/nucleo/supa.js')));
   cierto('una dirección vieja «?tab=asientos» con Supabase apagado cae en Resumen', /return tabs\(\)\.includes\(t\) \? t : null;/.test(sinC) &&

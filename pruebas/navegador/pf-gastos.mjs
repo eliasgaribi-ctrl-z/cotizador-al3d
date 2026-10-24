@@ -136,7 +136,8 @@ console.log('\nDIRECCIÓN CON LA HOJA EN LA 15 — capturar, mandar, anular');
   const c = await abrir();
   const { p, errs, mock, toca } = c;
   que(await p.locator('[data-tab="gastos"]').count() === 1, 'Control tiene la pestaña «Gastos»');
-  que(/Gastado en/.test(await texto(p, '#mod-control .pf-cuenta[data-cuenta="gastado"]')), 'el Resumen dice lo gastado en el mes');
+  /* Desde octubre de 2026 va en «Este mes», y el título de la sección ya dice qué mes es. */
+  que(/Gastado/.test(await texto(p, '#mod-control .pf-cuenta[data-cuenta="gastado"]')), 'el Resumen dice lo gastado en el mes');
   que(await p.locator('#mod-control .pf-cuenta[data-cuenta="utilidad"]').count() === 1, '  y la utilidad aproximada');
   await toca('[data-tab="gastos"]'); await esp(p, 600);
   que(await p.locator('#ct-gastos-mes').count() === 1 && await p.locator('#ct-gastos').count() === 1, 'la pestaña abre con «Por categoría» y la lista');

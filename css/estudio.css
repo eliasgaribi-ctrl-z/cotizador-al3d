@@ -522,8 +522,11 @@ body.pf .pf-decidir .pf-fila{border-top-color:rgba(var(--a-rgb),.18)}
 .aj-ir[aria-current="true"]{background:var(--es-act);color:var(--es-act-tx)}
 .aj-progreso{border-radius:2px}
 
-/* ----- Control: las dos bolsas de dinero son fichas, no cajas con borde ----- */
-.ct-fin-bolsa{border:0;border-radius:22px;background:var(--sup2)}
+/* ----- Control: el Resumen de octubre de 2026 -----
+   Las cinco tarjetas de «Este mes» (y las tres de la pestaña Ventas) se quedan blancas sobre el
+   fondo gris aunque la regla de arriba tiña `.pf-cuenta.dinero/.urge/.mal`: en esa fila ninguna
+   lleva tinte —son cinco respuestas del mismo tamaño—, y así se queda si alguna lo estrena. */
+.ct-cinco > .pf-cuenta:where(:not(.tb-etapa)),.ct-tres > .pf-cuenta:where(:not(.tb-etapa)){background:var(--sup);color:var(--tinta2)}
 @media(hover:none),(pointer:coarse){ .ct-busca{min-height:44px} }
 
 /* ----- Los títulos de sección del vectorizador y el escalador: sin la rayita de la izquierda ----- */

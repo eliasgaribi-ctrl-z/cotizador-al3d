@@ -2090,30 +2090,52 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
   letter-spacing:0;text-transform:none;color:var(--tinta3)}
 .ct-cuenta.urge em,.ct-cuenta.mal em,.ct-cuenta.dinero em{color:var(--tinta2)}
 
-/* Las doce barras. Rejilla de tres columnas: el mes, la barra que crece, el importe. */
-.ct-grafica{display:grid;gap:6px}
-.ct-mes{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:var(--e3);
-  padding:4px 0}
-.ct-mes-t{font-weight:600;font-size:var(--t2);color:var(--tinta2);text-transform:capitalize;white-space:nowrap}
-.ct-mes.actual .ct-mes-t{color:var(--a-tx)}
-.ct-barras{display:flex;flex-direction:column;gap:3px;min-width:0}
-/* Sin transición: las barras nacen en cada innerHTML con su ancho puesto, así que la de
-   `width` nunca corría, y si algún día se actualizan en sitio tiene que ser con scaleX. */
-.ct-b{display:block;height:10px;min-width:2px;border-radius:999px;background:var(--a-fill)}
+/* Las doce barras, de pie (octubre de 2026; `graficaMeses`). Doce columnas a partes iguales y
+   sin hueco entre ellas: el hueco lo pone el ancho de la barra, así cada mes se toca en todo su
+   ancho y la base es una sola raya. Cada columna es la zona de la barra —con `--reserva` arriba
+   para el importe del mejor mes— y su nombre abajo, de alto fijo (`--et`), para que la raya del
+   promedio (`.ct-prom-capa`) caiga a la misma altura en todas. La barra mide en porcentaje de
+   su zona, que es la del mejor mes. */
+.ct-grafica{--alto:184px;--reserva:22px;--et:38px;--ct-barra:var(--a-borde);--ct-barra-fuerte:var(--a-fill);
+  position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));container-type:inline-size;margin-top:var(--e2)}
+html[data-tema="oscuro"] .ct-grafica{--ct-barra-fuerte:var(--a)}
+@media(max-width:560px){ .ct-grafica{--alto:156px} }
+.ct-mes{display:flex;flex-direction:column;align-items:stretch;min-width:0;padding:0}
+.ct-mes-zona{position:relative;display:block;height:calc(var(--alto) - var(--reserva));margin-top:var(--reserva);
+  border-bottom:1px solid var(--linea)}
+/* Sin transición: las barras nacen en cada innerHTML con su alto puesto, y lo único que se mueve
+   es el crecer de una vez (P27), con `transform`. */
+.ct-b{position:absolute;bottom:0;left:0;right:0;display:block;width:min(30px,64%);margin:0 auto;min-height:2px;
+  border-radius:6px 6px 2px 2px;background:var(--ct-barra)}
+.ct-mes.mejor .ct-b{background:var(--ct-barra-fuerte)}
+/* El importe corto encima de su barra: en el teléfono solo el del mejor mes; desde 700 px de
+   gráfica, el de todos. En las orillas se alinea hacia dentro para no salirse de la tarjeta. */
+.ct-mes-cifra{position:absolute;left:50%;transform:translateX(-50%);display:none;margin-bottom:4px;padding:1px 3px;white-space:nowrap;
+  border-radius:4px;background:var(--sup);font:600 11px/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta2)}
+.ct-mes.mejor .ct-mes-cifra{display:block;font-weight:800;font-size:12px;color:var(--tinta)}
+.ct-mes.pri .ct-mes-cifra{left:0;transform:none}
+.ct-mes.ult .ct-mes-cifra{left:auto;right:0;transform:none}
+@container (min-width:700px){
+  .ct-mes-cifra{display:block}
+  .ct-mes.pri .ct-mes-cifra{left:50%;transform:translateX(-50%)}
+  .ct-mes.ult .ct-mes-cifra{left:50%;right:auto;transform:translateX(-50%)}
+}
+.ct-mes-t{display:block;height:var(--et);padding-top:7px;text-align:center;font-weight:600;font-size:var(--t1);line-height:1.2;
+  color:var(--tinta2);text-transform:capitalize;white-space:nowrap}
+.ct-mes-t small{display:block;font-weight:500;font-size:10px;color:var(--tinta2)}
+.ct-mes.actual .ct-mes-t{color:var(--a-tx);font-weight:800}
+.ct-mes.vacio .ct-mes-t{font-weight:500}
+/* La raya del promedio: punteada, encima de las barras y sin recibir toques. */
+.ct-prom-capa{position:absolute;left:0;right:0;top:var(--reserva);height:calc(var(--alto) - var(--reserva));pointer-events:none}
+.ct-prom{position:absolute;left:0;right:0;display:block;border-top:1.5px dashed var(--tinta2);opacity:.75}
+/* Las muestras de la leyenda de arriba: la raya del promedio y el azul del mejor mes. */
+.ct-ley-prom,.ct-ley-mejor{display:inline-block;vertical-align:middle;margin-right:6px}
+.ct-ley-prom{width:16px;border-top:1.5px dashed var(--tinta2)}
+.ct-ley-mejor{width:10px;height:10px;border-radius:3px;background:var(--ct-barra-fuerte,var(--a-fill))}
+html[data-tema="oscuro"] .ct-ley-mejor{background:var(--a)}
+.ct-leyenda{margin-top:var(--e2)}
 /* El botón de traer la hoja no cambia de ancho entre «Actualizar» y «Trayendo la hoja…». */
 .ct-hoja .btn{min-width:17ch;justify-content:center}
-.ct-b.perdido{height:6px;background:var(--n4)}
-.ct-mes.actual .ct-b.vendido{background:var(--a-fuerte)}
-.ct-mes-v{text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-.ct-mes-v small{display:block;font-family:var(--f-texto);font-weight:400;font-size:var(--t1);color:var(--tinta3)}
-.ct-leyenda{display:flex;align-items:center;gap:6px}
-.ct-leyenda .ct-b{display:inline-block;width:18px;height:8px}
-.ct-leyenda .ct-b.perdido{height:6px}
-@media(max-width:400px){
-  .ct-mes{grid-template-columns:52px minmax(0,1fr) auto;gap:var(--e2)}
-  .ct-mes-v{font-size:var(--t2)}
-}
 
 /* El importe de un renglón, en su columna: la cifra grande y debajo el saldo. */
 .ct-monto{flex:0 0 auto;text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);
@@ -2134,16 +2156,20 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 /* El campo de búsqueda al lado del segmento: crece lo que sobre, y en el teléfono baja solo. */
 .ct-busca{flex:1 1 220px;min-width:0;min-height:40px;padding:8px 12px}
 /* La línea de la hoja, arriba del récord: de dónde salen los números y de cuándo son. Se
-   construye sobre .pf-frescura —la misma línea del Tablero— con un botón a la derecha en el
-   monitor, que en el teléfono baja a su propio renglón. */
-.ct-hoja{flex-wrap:wrap;row-gap:var(--e2)}
-.ct-hoja>span{flex:1 1 240px;min-width:0}
+   construye sobre .pf-frescura —la misma línea del Tablero— con su botón a la derecha. Desde
+   octubre de 2026 es UNA línea chica también en el teléfono: el botón ya no se lleva el renglón
+   entero, y sin puente el «Conectar la hoja» es un enlace, no un botón del ancho de la pantalla. */
+.ct-hoja{flex-wrap:wrap;row-gap:4px;column-gap:var(--e2);align-items:center;font-size:var(--t1)}
+.ct-hoja>span{flex:1 1 200px;min-width:0}
 .ct-hoja>span b{font-weight:600;color:var(--tinta)}
-.ct-hoja .btn{margin-left:auto}
+.ct-hoja .btn{margin-left:auto;min-height:36px}
+@media(hover:none),(pointer:coarse){ .ct-hoja .btn{min-height:44px} }
+.ct-hoja-ir{appearance:none;-webkit-appearance:none;margin-left:auto;min-height:44px;padding:0 4px;border:0;background:none;
+  font:700 var(--t1)/1 var(--f-texto);color:var(--a-tx);cursor:pointer;white-space:nowrap}
+.ct-hoja-ir::after{content:"\00a0›";content:"\00a0›" / ""}
+.ct-hoja-ir:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px;border-radius:6px}
+@media(hover:hover) and (pointer:fine){ .ct-hoja-ir:hover{text-decoration:underline} }
 .ct-origen{margin-left:6px;vertical-align:middle;font-weight:500;text-transform:none}
-@media (max-width:640px){
-  .ct-hoja .btn{margin-left:0;width:100%}
-}
 .ag-barra .chips{margin:0}
 
 /* Quién y cuándo, la tercera línea de un renglón de bitácora. */
@@ -3658,19 +3684,20 @@ html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user
 
 /* ----- P27 · las doce barras: nacen en cero, crecen una vez y cada mes se abre -----
    `.espera` solo está puesta mientras las barras no se han visto (ver `vigilarBarras` en
-   js/mod/control.js): `scaleX(0)` desde el borde izquierdo, y la animación de crecer la hace
-   `Element.animate` —solo `transform`—. Después de verse la clase se quita para siempre en
-   esta visita, así que un repintado (el buscador) las vuelve a pintar ya terminadas. En
-   papel nunca se esconden: lo que se imprime es lo que dice la pantalla ya vista. */
-.ct-b{transform-origin:left center}
-.ct-grafica.espera .ct-b{transform:scaleX(0)}
-@media print{.ct-grafica.espera .ct-b{transform:none}}
-/* El mes con algo que contar es un botón de ancho completo con la misma rejilla del renglón
-   de siempre; solo hay que quitarle lo que el navegador le pone a un botón. */
+   js/mod/control.js): `scaleY(0)` desde la base, y la animación de crecer la hace
+   `Element.animate` —solo `transform`, y `opacity` para el importe de encima—. Después de
+   verse la clase se quita para siempre en esta visita, así que un repintado las vuelve a pintar
+   ya terminadas. En papel nunca se esconden: lo que se imprime es lo que dice la pantalla ya vista. */
+.ct-b{transform-origin:center bottom}
+.ct-grafica.espera .ct-b{transform:scaleY(0)}
+.ct-grafica.espera .ct-mes-cifra{opacity:0}
+@media print{.ct-grafica.espera .ct-b{transform:none}.ct-grafica.espera .ct-mes-cifra{opacity:1}}
+/* El mes con algo que contar es un botón del alto de su columna; solo hay que quitarle lo que el
+   navegador le pone a un botón. */
 button.ct-mes-ver{width:100%;appearance:none;-webkit-appearance:none;background:none;border:0;
-  border-radius:var(--rr2);font:inherit;color:inherit;text-align:left;cursor:pointer;
+  border-radius:var(--rr2);font:inherit;color:inherit;text-align:center;cursor:pointer;
   transition:transform var(--mv-liq),background-color var(--mv-s)}
-button.ct-mes-ver:active{transform:scale(.98)}
+button.ct-mes-ver:active{transform:scale(.97)}
 button.ct-mes-ver:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
 button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 @media(hover:hover) and (pointer:fine){
@@ -3700,45 +3727,182 @@ button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 .ct-cobro .medidor{margin:4px 0 2px}
 .ct-cobro-t{display:block;font-size:var(--t1);line-height:1.4;color:var(--tinta2);font-variant-numeric:tabular-nums}
 
-/* ----- Dinero de los proyectos activos: en fabricación y cobrando (`htmlFinanzas`) -----
-   Una frase arriba con la respuesta, y dos bolsas lado a lado en la computadora (una sobre otra
-   en el teléfono). Cada bolsa: su barra «ya cobrado / falta cobrar» con la leyenda en las
-   cifras de abajo, y sus proyectos. Verde lo cobrado y ámbar lo que falta, siempre con su
-   palabra al lado: el color no va solo. */
-.ct-fin-resumen{margin:0 0 var(--e4);font-size:var(--t4);line-height:1.5;color:var(--tinta)}
-.ct-fin-resumen b{font-family:var(--f-cifra);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.ct-fin-bolsas{display:grid;gap:var(--e4)}
-@media(min-width:960px){ .ct-fin-bolsas{grid-template-columns:1fr 1fr;align-items:start} }
-.ct-fin-bolsa{min-width:0;padding:var(--e4);border:1px solid var(--linea);border-radius:14px;background:var(--sup2)}
-.ct-fin-cab{display:flex;gap:var(--e3);align-items:flex-start;margin-bottom:var(--e3)}
-.ct-fin-ico{flex:0 0 auto;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--av-bg);color:var(--av)}
-.ct-fin-bolsa.fabricacion .ct-fin-ico{background:var(--a-suave);color:var(--a-tx)}
-.ct-fin-ico svg{width:20px;height:20px}
-.ct-fin-t{margin:0;font-size:var(--t4);display:flex;align-items:center;gap:var(--e2);flex-wrap:wrap}
-.ct-fin-sub{margin:2px 0 0;font-size:var(--t2);color:var(--tinta2)}
-/* La barra: dos tramos con 2 px de aire entre ellos y las puntas redondas. */
-.ct-fin-barra{display:flex;gap:2px;height:12px;margin:var(--e2) 0;border-radius:999px;overflow:hidden;background:var(--sup)}
-.ct-fin-barra > i{display:block;min-width:4px}
-.ct-fin-barra > .cob{background:var(--ok-fill)}
-.ct-fin-barra > .falta{background:var(--amber-ico)}
-.ct-cobro .ct-fin-barra{height:6px;margin:4px 0 2px;max-width:28rem}
-.ct-fin-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:var(--e2);margin:var(--e3) 0 0}
-.ct-fin-nums > div{min-width:0}
-.ct-fin-nums dt{display:flex;align-items:center;gap:6px;font-size:var(--t1);font-weight:600;letter-spacing:.04em;
+/* ----- El Resumen (octubre de 2026; `pintarVentas` en js/mod/control.js) -----
+   Un tablero que se lee de arriba abajo en unas dos pantallas: las cifras clave en una tarjeta,
+   las dos listas lado a lado, cinco tarjetas iguales de este mes y las doce barras. Todo con los
+   tokens del estudio —la tarjeta blanca y redonda, la letra única— y solo dos colores con
+   significado: el verde de lo cobrado (`--ok-fill`) y el ámbar de lo que falta (`--amber-ico`),
+   siempre con su palabra al lado. */
+
+/* 1 · Las cifras clave, en una sola tarjeta. En la computadora ancha, las tres en una fila —el
+   total, con su frase y su barra, y a su derecha lo de fabricación y lo de cobrando, separados
+   por rayas— con las etiquetas a la misma altura, como se lee un tablero. Más angosta, el total
+   arriba y los otros dos lado a lado debajo. En el teléfono, el total arriba y los otros dos como
+   renglones de dos líneas con la cifra a la derecha. */
+.ct-clave-card{padding:var(--e5)}
+.ct-clave-rej{display:grid;gap:var(--e4)}
+.ct-clave-pri,.ct-clave-sec{min-width:0}
+@media(min-width:600px){
+  .ct-clave-sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding-top:var(--e4);border-top:1px solid var(--linea)}
+}
+@media(min-width:1100px){
+  .ct-clave-rej{grid-template-columns:minmax(0,1.45fr) minmax(0,2fr);gap:0}
+  .ct-clave-pri{padding-right:var(--e5)}
+  .ct-clave-sec{padding-top:0;border-top:0;border-left:1px solid var(--linea)}
+}
+.ct-clave{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;margin:0;padding:0;border:0;background:none;
+  text-align:left;font:inherit;color:var(--tinta2);container-type:inline-size}
+button.ct-clave{appearance:none;-webkit-appearance:none;cursor:pointer;border-radius:var(--rr2);
+  transition:transform var(--mv-liq),background-color var(--mv-s)}
+button.ct-clave:active{transform:scale(.985)}
+button.ct-clave:focus-visible{outline:2px solid var(--a-tx);outline-offset:4px}
+/* La etiqueta es texto corrido —no flex— para que la flechita, pegada con un espacio duro a la
+   última palabra, se quede con ella cuando la etiqueta se parte en dos renglones. */
+.ct-clave .pf-cuenta-t{display:block;font-size:var(--t1);font-weight:700;line-height:28px;letter-spacing:.06em;
   text-transform:uppercase;color:var(--tinta2)}
-.ct-fin-nums dt i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
-.ct-fin-nums .cob dt i{background:var(--ok-fill)}
-.ct-fin-nums .falta dt i{background:var(--amber-ico)}
-.ct-fin-nums dd{margin:4px 0 0;font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);line-height:1.2;
-  color:var(--tinta);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.ct-fin-nums .falta dd{color:var(--av)}
-.ct-fin-nums dd small{font-family:var(--f-texto);font-weight:600;font-size:var(--t2);color:var(--ok)}
-@media(max-width:420px){ .ct-fin-nums dd{font-size:var(--t4)} }
-.ct-fin-est{margin:var(--e2) 0 0;font-size:var(--t1);color:var(--tinta2)}
-.ct-fin-lt{margin:var(--e4) 0 0;padding-top:var(--e3);border-top:1px solid var(--linea);font-size:var(--t1);font-weight:600;
-  letter-spacing:.04em;text-transform:uppercase;color:var(--tinta2)}
-.ct-fin-fila{background:transparent}
-.ct-fin-mas{margin-top:var(--e2)}
+.ct-clave.va .pf-cuenta-t::after{content:"\00a0›";content:"\00a0›" / "";color:var(--a-tx);font-weight:800}
+@media(hover:hover) and (pointer:fine){ button.ct-clave:hover .pf-cuenta-t{color:var(--a-tx)} }
+.ct-clave-ico{display:inline-grid;place-items:center;width:28px;height:28px;margin-right:8px;border-radius:9px;vertical-align:middle}
+.ct-clave-ico .svgi{width:16px;height:16px}
+.ct-clave.fab .ct-clave-ico{background:var(--es-lav,var(--a-suave));color:var(--es-lav-tx,var(--a-tx))}
+.ct-clave.cob .ct-clave-ico{background:var(--es-mante,var(--av-bg));color:var(--es-mante-tx,var(--av))}
+/* La cifra se achica a lo que quepa en su caja (`--c` = sus caracteres, lo pone cifraQueCabe), y
+   nunca crece de su tamaño: 48 px el total, 28 las otras dos. */
+.ct-clave > b{display:block;font-family:var(--f-cifra);font-weight:800;letter-spacing:-.03em;line-height:1.05;color:var(--tinta);
+  font-variant-numeric:tabular-nums;white-space:nowrap;font-size:min(28px,calc(100cqi / (var(--c,11) * .64)))}
+.ct-clave.principal > b{font-size:min(48px,calc(100cqi / (var(--c,11) * .64)))}
+.ct-clave-d{font-size:var(--t2);line-height:1.45;color:var(--tinta2)}
+.ct-clave.principal .ct-clave-d{font-size:var(--t4);color:var(--tinta)}
+@media(min-width:600px){
+  .ct-clave-sec .ct-clave{padding:0 var(--e4) 0 0}
+  .ct-clave-sec .ct-clave + .ct-clave{padding:0 0 0 var(--e4);border-left:1px solid var(--linea);border-radius:0}
+}
+@media(min-width:1100px){
+  .ct-clave-sec .ct-clave,.ct-clave-sec .ct-clave + .ct-clave{padding:0 var(--e5)}
+}
+@media(max-width:599px){
+  .ct-clave-sec{border-top:1px solid var(--linea)}
+  .ct-clave-sec .ct-clave{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--e3);row-gap:4px;align-items:center;
+    min-height:60px;padding:var(--e3) 0;container-type:normal}
+  .ct-clave-sec .ct-clave + .ct-clave{border-top:1px solid var(--linea)}
+  /* El icono se cuelga a la izquierda para que una etiqueta de dos renglones («Cobrando · ya /
+     entregados») empiece los dos a la misma altura, y la línea de abajo se alinee con ellos. */
+  .ct-clave-sec .ct-clave .pf-cuenta-t{position:relative;grid-column:1;grid-row:1;padding-left:36px;line-height:1.35}
+  .ct-clave-sec .ct-clave-ico{position:absolute;left:0;top:50%;margin:-14px 0 0}
+  .ct-clave-sec .ct-clave .ct-clave-d{grid-column:1;grid-row:2;padding-left:36px}
+  .ct-clave-sec .ct-clave > b{grid-column:2;grid-row:1 / 3;font-size:var(--t5)}
+}
+/* La barra de cobrado contra lo que falta: dos tramos con 3 px de aire y las puntas redondas. */
+.ct-clave-barra{display:flex;gap:3px;height:14px;margin:var(--e4) 0 var(--e2);border-radius:999px;overflow:hidden;background:var(--sup2)}
+.ct-clave-barra > i{display:block;min-width:6px;border-radius:3px}
+.ct-clave-barra > .cob{background:var(--ok-fill)}
+.ct-clave-barra > .falta{background:var(--amber-ico)}
+.ct-clave-ley{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px var(--e4);margin:0;font-size:var(--t2);font-weight:600;
+  color:var(--tinta2);font-variant-numeric:tabular-nums}
+.ct-clave-ley span{display:inline-flex;align-items:center;gap:6px}
+.ct-clave-ley i{width:10px;height:10px;border-radius:3px;flex:none}
+.ct-clave-ley .cob i{background:var(--ok-fill)}
+.ct-clave-ley .falta i{background:var(--amber-ico)}
+.ct-clave-aparte{margin:var(--e3) 0 0;font-size:var(--t2);color:var(--tinta2)}
+
+/* 2 · Las dos listas, una tarjeta cada una: lado a lado desde 1000 px y alineadas arriba. */
+.ct-fin{display:grid;gap:var(--e4);margin-top:var(--e4)}
+.ct-fin > .card + .card{margin-top:0}
+@media(min-width:1000px){ .ct-fin{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start} }
+.ct-fin-bolsa{min-width:0}
+.ct-fin-bolsa .card-h h2{display:flex;align-items:center;gap:var(--e2);flex-wrap:wrap}
+.ct-fin-tot{flex:none;text-align:right;font:800 var(--t5)/1.1 var(--f-cifra);letter-spacing:-.02em;color:var(--tinta);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-fin-tot small{display:block;margin-top:2px;font:600 var(--t1)/1.2 var(--f-texto);letter-spacing:0;color:var(--tinta2)}
+/* En el teléfono el total baja a su propio renglón, debajo del título, en vez de empujar la cuenta
+   de proyectos a otro renglón: el título se lee entero y la cifra, de un vistazo. */
+@media(max-width:560px){
+  .ct-fin-bolsa .card-h{flex-wrap:wrap;row-gap:2px}
+  .ct-fin-bolsa .card-h h2{flex-wrap:nowrap}
+  .ct-fin-tot{width:100%;text-align:left;font-size:var(--t4)}
+  .ct-fin-tot small{display:inline;margin-left:6px}
+}
+.ct-fin-nota{margin:0 0 var(--e2);font-size:var(--t1);line-height:1.45;color:var(--tinta2)}
+.ct-fin-est b{font-weight:800;color:var(--tinta)}
+.ct-fin-lista{list-style:none;margin:0;padding:0}
+.ct-fin-lista > li + li{border-top:1px solid var(--linea2)}
+/* El renglón que se toca entero: dos líneas a la izquierda, la cifra y su medidor a la derecha y
+   la flechita al final. Un botón del ancho de la tarjeta, con el blanco del toque en todo su alto. */
+.ct-renglon{display:flex;align-items:center;gap:var(--e3);width:100%;min-height:60px;margin:0;padding:10px 6px 10px 2px;border:0;
+  background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:var(--rr2);
+  appearance:none;-webkit-appearance:none;transition:background-color var(--mv-s)}
+.ct-renglon:focus-visible{outline:2px solid var(--a-tx);outline-offset:-2px}
+.ct-renglon[aria-expanded="true"]{background:var(--sup2)}
+@media(hover:hover) and (pointer:fine){ .ct-renglon:hover{background:var(--sup2)} }
+.ct-fin-tx{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ct-fin-nom{font-weight:700;font-size:var(--t3);line-height:1.3;color:var(--tinta);overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.ct-fin-meta{font-size:var(--t1);line-height:1.5;color:var(--tinta2);font-variant-numeric:tabular-nums}
+.ct-fin-meta .pf-etapa{vertical-align:1px}
+.ct-fin-der{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:96px}
+.ct-fin-monto{font:700 var(--t3)/1.2 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-fin-monto.cobrado{color:var(--tinta2)}
+.ct-fin-monto.cancelado{color:var(--tinta2);text-decoration:line-through}
+.ct-aprox{margin-right:3px;font-weight:600;color:var(--tinta2)}
+.ct-fin-cob{display:flex;align-items:center;gap:6px}
+.ct-fin-cob .medidor{width:64px;margin:0}
+.ct-fin-pct{min-width:4ch;text-align:right;font-size:var(--t1);font-weight:600;color:var(--tinta2);font-variant-numeric:tabular-nums}
+.ct-fin-sub{font-size:var(--t1);font-weight:600;color:var(--tinta2);white-space:nowrap}
+.ct-fin-sub.saldo{color:var(--av)}
+/* La flechita de «se abre», dibujada con dos bordes: no hay icono de chevrón en el sprite. */
+.ct-chev{flex:none;width:8px;height:8px;margin:0 2px 0 -2px;border-right:2px solid var(--tinta2);border-top:2px solid var(--tinta2);
+  transform:rotate(45deg);opacity:.7}
+.ct-fin-mas{display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;margin-top:var(--e2);border:0;
+  border-radius:999px;background:var(--es-chip,var(--sup2));font:700 var(--t2)/1 var(--f-texto);color:var(--tinta);cursor:pointer}
+.ct-fin-mas:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+@media(hover:hover) and (pointer:fine){ .ct-fin-mas:hover{color:var(--a-tx)} }
+
+/* 3 · Este mes: un título de sección sobre el fondo y cinco tarjetas blancas del mismo ancho, con
+   la etiqueta arriba, la cifra y debajo la cuenta y su ficha del cambio. Ni tinte ni lomo de color:
+   las cinco se leen como lo que son, cinco respuestas del mismo tamaño. `.ct-tres` es la misma
+   fila con tres, la de la pestaña Ventas. */
+.ct-sec{margin-top:var(--e5)}
+.ct-sec-t{margin:0 0 var(--e3);padding:0 4px;font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--tinta)}
+.ct-sec-t span{margin-left:6px;font-size:var(--t3);font-weight:600;letter-spacing:0;color:var(--tinta2)}
+.pf-cuentas.ct-cinco,.pf-cuentas.ct-tres{grid-template-columns:repeat(auto-fill,minmax(176px,1fr));margin:0}
+@media(min-width:1180px){ .pf-cuentas.ct-cinco{grid-template-columns:repeat(5,minmax(0,1fr))} }
+.pf-cuentas.ct-tres{margin-bottom:var(--e4)}
+@media(min-width:760px){ .pf-cuentas.ct-tres{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media(max-width:400px){ .pf-cuentas.ct-cinco,.pf-cuentas.ct-tres{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.ct-cinco > .pf-cuenta,.ct-tres > .pf-cuenta{display:flex;flex-direction:column;align-items:stretch;gap:0;
+  background:var(--sup);border-color:transparent;box-shadow:none}
+.ct-cinco > .pf-cuenta::before,.ct-tres > .pf-cuenta::before{display:none}
+.ct-cinco .pf-cuenta-t,.ct-tres .pf-cuenta-t{order:-1;margin-bottom:10px}
+.ct-cinco .pf-cuenta > b,.ct-tres .pf-cuenta > b{color:var(--tinta);margin-bottom:6px}
+.ct-cinco .pf-cuenta.neg > b{color:var(--mal)}
+.ct-cambio{align-self:flex-start;margin-top:8px;padding:3px 8px;border-radius:999px;background:var(--es-chip,var(--sup2));
+  font:700 var(--t1)/1.3 var(--f-texto);letter-spacing:0;text-transform:none;color:var(--tinta2);font-variant-numeric:tabular-nums}
+.ct-cambio.sube{background:var(--es-menta,var(--ok-bg));color:var(--es-menta-tx,var(--ok))}
+.ct-cambio.baja{background:var(--es-rojo,var(--mal-bg));color:var(--es-rojo-tx,var(--mal))}
+
+/* 4 · Los doce meses: la tarjeta y las tres respuestas de arriba, más chicas que antes. */
+.ct-meses{margin-top:var(--e4)}
+.ct-meses-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--e3);margin:0 0 var(--e2)}
+.ct-meses-res dt{display:flex;align-items:center;font-size:var(--t1);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tinta2)}
+.ct-meses-res dd{margin:4px 0 0;font-family:var(--f-cifra);font-weight:800;font-size:var(--t4);letter-spacing:-.01em;color:var(--tinta);
+  font-variant-numeric:tabular-nums;text-transform:capitalize}
+.ct-meses-res dd small{font-family:var(--f-texto);font-weight:500;font-size:var(--t2);color:var(--tinta2);text-transform:none}
+
+/* El almacén: un renglón chico, blanco y redondo, que se toca entero y lleva a Material. */
+.ct-almacen{display:flex;align-items:center;gap:var(--e3);width:100%;min-height:56px;margin-top:var(--e4);padding:8px var(--e4);
+  border:0;border-radius:var(--es-r-ficha,20px);background:var(--sup);font:inherit;color:var(--tinta2);text-align:left;cursor:pointer;
+  appearance:none;-webkit-appearance:none}
+.ct-almacen:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.ct-almacen-ico{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:var(--sup2);color:var(--tinta2)}
+.ct-almacen-ico.urge{background:var(--es-mante,var(--av-bg));color:var(--es-mante-tx,var(--av))}
+.ct-almacen-ico .svgi{width:16px;height:16px}
+.ct-almacen-tx{flex:1 1 auto;min-width:0;font-size:var(--t2)}
+.ct-almacen-tx b{font-weight:700;color:var(--tinta)}
+.ct-almacen .pf-sem{flex:none}
+
+/* El globo de una venta de la hoja: sus cifras en la rejilla del globo. */
+.ct-vz-det{margin-top:8px}
+
 /* «¿De dónde salen estos números?»: la letra chica, plegada, con un blanco de 44 px. */
 .ct-como{margin-top:var(--e4)}
 .ct-como > summary{display:inline-flex;align-items:center;gap:6px;min-height:44px;cursor:pointer;list-style:none;
@@ -3749,16 +3913,7 @@ button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 .ct-como[open] > summary::after{transform:rotate(-135deg) translateY(-1px)}
 .ct-como > summary:focus-visible{outline:2px solid var(--a-borde);outline-offset:2px;border-radius:6px}
 .ct-como p{margin:0;font-size:var(--t2);line-height:1.55;color:var(--tinta2)}
-/* Los doce meses: las tres respuestas arriba, y los meses vacíos más bajos y en gris. */
-.ct-meses-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--e3);margin:0 0 var(--e4)}
-.ct-meses-res dt{font-size:var(--t1);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tinta2)}
-.ct-meses-res dd{margin:4px 0 0;font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);color:var(--tinta);
-  font-variant-numeric:tabular-nums;text-transform:capitalize}
-.ct-meses-res dd small{font-family:var(--f-texto);font-weight:500;font-size:var(--t2);color:var(--tinta2);text-transform:none}
-.ct-mes.vacio{padding:0}
-.ct-mes.vacio .ct-mes-t{font-weight:500;color:var(--tinta3)}
-.ct-mes-v.cero{color:var(--tinta3);font-weight:400}
-.ct-otros .pf-cuentas{margin:0}
+.ct-como p + p{margin-top:var(--e2)}
 
 /* ----- F54 · comisiones, primero las chicas -----
    Una cuenta de lo que se puede pagar y una caja: el monto, la barra de cuánto alcanza (el
