@@ -7,7 +7,7 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 | Carpeta o archivo | Qué es |
 |---|---|
 | [`DISENO.md`](DISENO.md) | El diseño del esquema: tablas, reglas de acceso, funciones, vista de fórmulas, plan de pruebas |
-| `migrations/` | Las 20 migraciones SQL, en orden (`0001` a `0020`); ver [`migrations/README.md`](migrations/README.md) |
+| `migrations/` | Las 21 migraciones SQL, en orden (`0001` a `0021`); ver [`migrations/README.md`](migrations/README.md) |
 | `tests/` | Pruebas de la base con PGlite (PostgreSQL en WASM, sin Docker): `sh supabase/tests/correr.sh`; ver [`tests/README.md`](tests/README.md) |
 | `functions/` | Funciones del servidor (Deno): `salud`, `verificar`, `maps`, `ia`, `espejo`, `autorizar`, `respaldo` e `importar-diario` (la copia diaria hoja → nube; abajo), con su código compartido en `_shared/` (`autorizar` y `respaldo`, de la segunda entrega y apagadas: [`docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md`](../docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md)) |
 | `opcional/` | Lo que no corre en PGlite: `prueba-de-humo.sql` (para un proyecto real), `storage.sql` (el bucket de las imágenes y sus políticas; abajo), `semilla_materiales.mjs`, `keepalive.md` |
@@ -18,9 +18,9 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 1. **Crear el proyecto** con «Enable Data API» encendido, «Automatically expose new tables» **apagado** y «Enable automatic RLS»
    encendido (cada migración declara sus propios `GRANT`/`REVOKE`; con la exposición automática encendida los privilegios finales
    quedan iguales, y una prueba lo demuestra).
-2. **Correr `migrations/0001` … `0020` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
+2. **Correr `migrations/0001` … `0021` en orden** en el Editor SQL del panel (o `supabase db push`). Cada archivo es completo y
    se corre de una vez. `0011` es la **auditoría**: si algo quedó mal protegido, aborta nombrando la regla (GR-xx); `0012` es el
-   endurecimiento que dejó la revisión adversarial y `0013` cierra lo que esa revisión dejó abierto (termina corriendo la auditoría él mismo); `0014` y `0015` son las decisiones de Elías del 2026-10-16 (sellos: gana el más reciente con 10 min para todos; el V-### de la hoja); `0016`, los plazos de conservación; `0017`, las decisiones de Elías del mismo día sobre etapas e IA, `0018`, la bitácora de la copia diaria (`cuadre_diario`); `0019`, los precios editables del cotizador (`tarifas`), y `0020`, los gastos (`gastos`). `0014` **borra** la columna `proyectos.sellos_area` (solo la usaba `0013`): Supabase avisará de una operación destructiva, y es esperado.
+   endurecimiento que dejó la revisión adversarial y `0013` cierra lo que esa revisión dejó abierto (termina corriendo la auditoría él mismo); `0014` y `0015` son las decisiones de Elías del 2026-10-16 (sellos: gana el más reciente con 10 min para todos; el V-### de la hoja); `0016`, los plazos de conservación; `0017`, las decisiones de Elías del mismo día sobre etapas e IA, `0018`, la bitácora de la copia diaria (`cuadre_diario`); `0019`, los precios editables del cotizador (`tarifas`), `0020`, los gastos (`gastos`), y `0021`, que la subida única llene el talón de una cotización autorizada. `0014` **borra** la columna `proyectos.sellos_area` (solo la usaba `0013`): Supabase avisará de una operación destructiva, y es esperado.
    Después de cada una conviene volver a correr `0011` (es idempotente).
    Si Supabase pregunta por «operaciones destructivas» es el aviso genérico por los `REVOKE`/`ALTER`; en un proyecto vacío es seguro.
 3. **Correr `opcional/storage.sql`** completo (el bucket privado de las imágenes de las cotizaciones y sus políticas; ver
@@ -128,8 +128,9 @@ que la función, la copia sigue igual (la función vieja ignora la comprobación
 
 **Los gastos (2026-10-24), con la copia ya en marcha (una vez, en este orden):**
 
-1. **La tabla.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0020_gastos.sql` completo y ejecutarlo. Termina
-   corriendo la auditoría: si sale «AUDITORIA DE SEGURIDAD…», no se aplicó nada y el mensaje dice por qué.
+1. **Las dos migraciones.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0020_gastos.sql` completo y ejecutarlo;
+   después, igual, `supabase/migrations/0021_talon_de_la_hoja.sql`. Cada una termina corriendo la auditoría: si sale «AUDITORIA DE
+   SEGURIDAD…», no se aplicó nada y el mensaje dice por qué.
 2. **La función otra vez**, como arriba (pegar entero el `desplegar/index.ts` nuevo y *Deploy*; los secretos no cambian).
 3. **El Apps Script «Copia diaria» otra vez**, como arriba (pegar entero `puente/copia-diaria.gs` nuevo y guardar). `Código.gs` no
    cambia.

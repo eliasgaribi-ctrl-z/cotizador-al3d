@@ -315,11 +315,14 @@ const ESCRIBIR = {
     insert into _imp_cambios (tabla, llave, accion) select 'autorizaciones', llave, 'alta' from w;`,
 
   cotizaciones: `
+    -- Un TALÓN (la cotización que se arma de una fila de «Autorizaciones» sin teléfono: procedencia.stub) no pisa una que no es talón: la
+    -- que subió el aparato que emitió el folio (subida_unica, 0021) se queda. Sin esto, la copia diaria la volvía talón cada madrugada.
     with w as (
       insert into public.cotizaciones as t (empresa_id, folio_global, folio, disp, estado, datos, hitos, procedencia)
       select l.empresa_id, l.folio_global, l.folio, l.disp, l.estado, interno.datos_cotizacion(l.datos), l.hitos, l.procedencia from _lote l
       on conflict (empresa_id, folio_global) do update set datos = excluded.datos, hitos = excluded.hitos, procedencia = excluded.procedencia
        where (t.datos, t.hitos, t.procedencia) is distinct from (excluded.datos, excluded.hitos, excluded.procedencia)
+         and (not (excluded.procedencia ? 'stub') or t.procedencia ? 'stub')
       returning t.folio_global as llave, (t.xmax = 0) as nuevo)
     insert into _imp_cambios (tabla, llave, accion) select 'cotizaciones', llave, case when nuevo then 'alta' else 'cambio' end from w;`,
 };
