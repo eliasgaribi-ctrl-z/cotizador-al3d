@@ -292,35 +292,36 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     cierto(d.restos === 0, 'al llegar no queda nada de la ficha', d);
     cierto(!/va-(adelante|atras)/.test(d.clases), 'la dirección se quita al terminar la entrada: la siguiente sincronización no la hereda', d);
 
-    /* Las pestañas del grupo, en su tira debajo del encabezado. */
+    /* Las pestañas de un grupo de DOS van en el encabezado, en el lugar del título, como dos
+       iconos: una tira debajo le quitaba al Mapa 72 px de alto (pf-mapa). */
     const t = await ev(() => {
       const tira = document.getElementById('pf-pest-tira'), cab = document.getElementById('pf-pest');
-      const as = [...tira.querySelectorAll('a')], r = tira.getBoundingClientRect(), h = document.querySelector('.pf-cab').getBoundingClientRect();
-      return { visible: !tira.hidden && getComputedStyle(tira).display !== 'none', cabOculta: getComputedStyle(cab).display === 'none',
-        nombres: as.map(a => a.textContent.replace(/\d+/g, '').trim()), actual: as.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.dataset.ruta),
-        hrefs: as.map(a => a.getAttribute('href')), altos: as.map(a => Math.round(a.getBoundingClientRect().height)),
-        anchos: as.map(a => Math.round(a.getBoundingClientRect().width)), debajo: Math.round(r.top - h.bottom), titulo: document.getElementById('pf-sub').textContent,
-        etiqueta: tira.getAttribute('aria-label') };
+      const as = [...cab.querySelectorAll('a')], h = document.querySelector('.pf-cab').getBoundingClientRect(), r = cab.getBoundingClientRect();
+      return { enCab: !cab.hidden && getComputedStyle(cab).display !== 'none' && r.top >= h.top && r.bottom <= h.bottom, tiraOculta: getComputedStyle(tira).display === 'none',
+        nombres: as.map(a => a.querySelector('.tx').textContent), iconos: as.map(a => !!a.querySelector('svg') && getComputedStyle(a.querySelector('svg')).display !== 'none'),
+        actual: as.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.dataset.ruta), hrefs: as.map(a => a.getAttribute('href')),
+        cajas: as.map(a => [Math.round(a.getBoundingClientRect().width), Math.round(a.getBoundingClientRect().height)]),
+        etiqueta: cab.getAttribute('aria-label'), titulo: document.getElementById('pf-sub').textContent, altoCab: Math.round(h.height) };
     });
-    cierto(t.visible && t.cabOculta && t.nombres.join() === 'Calendario,Mapa' && t.actual.join() === 'agenda',
-      'en el teléfono, «Calendario · Mapa» sale en la tira de debajo del encabezado, con el Calendario elegido (la del encabezado no se pinta)', t);
-    cierto(t.hrefs.join() === '#/agenda,#/mapa' && t.etiqueta === 'Pantallas de Calendario', '  cada pestaña es un enlace a su ruta, y la tira se nombra', t);
-    cierto(t.altos.every(x => x >= 44) && Math.abs(t.anchos[0] - t.anchos[1]) <= 1, '  de 44 px de alto, mitad y mitad', t);
-    cierto(t.debajo >= 0 && t.titulo === 'Calendario', '  debajo del encabezado, que dice «Calendario»', t);
-    cierto(await sinDesborde(p), 'sin desborde de lado con la tira puesta');
-    await toque(p, '#pf-pest-tira a[data-ruta="mapa"]');
+    cierto(t.enCab && t.tiraOculta && t.nombres.join() === 'Calendario,Mapa' && t.iconos.every(Boolean) && t.actual.join() === 'agenda',
+      'en el teléfono, «Calendario · Mapa» son dos iconos en el encabezado, con el Calendario elegido, y no hay tira', t);
+    cierto(t.hrefs.join() === '#/agenda,#/mapa' && t.etiqueta === 'Pantallas de Calendario' && t.titulo === 'Calendario',
+      '  cada uno es un enlace a su ruta con su nombre para el lector de pantalla, y el grupo se nombra', t);
+    cierto(t.cajas.every(([w, h]) => w >= 44 && h >= 44) && t.altoCab === 56, '  de 44 px como mínimo, sin que el encabezado crezca', t);
+    cierto(await sinDesborde(p), 'sin desborde de lado con las pestañas puestas');
+    await toque(p, '#pf-pest a[data-ruta="mapa"]');
     await p.waitForTimeout(1200);
     const m = await ev(() => ({ hash: location.hash, on: [...document.querySelectorAll('#pf-abajo > button.on')].map(b => b.dataset.grupo || 'mas'),
-      actual: [...document.querySelectorAll('#pf-pest-tira a[aria-current="page"]')].map(a => a.dataset.ruta), titulo: document.getElementById('pf-sub').textContent }));
-    cierto(m.hash === '#/mapa' && m.actual.join() === 'mapa' && m.on.join() === 'calendario' && m.titulo === 'Calendario',
-      'tocar «Mapa» lleva a #/mapa, la pestaña se mueve y el botón del Calendario sigue encendido', m);
+      actual: [...document.querySelectorAll('#pf-pest a[aria-current="page"]')].map(a => a.dataset.ruta), tira: getComputedStyle(document.getElementById('pf-pest-tira')).display }));
+    cierto(m.hash === '#/mapa' && m.actual.join() === 'mapa' && m.on.join() === 'calendario' && m.tira === 'none',
+      'tocar el mapa lleva a #/mapa, la pestaña se mueve, el botón del Calendario sigue encendido y el mapa no pierde alto', m);
     await toque(p, '#pf-abajo [data-grupo="hoy"]');
     await p.waitForTimeout(700);
-    cierto(await ev(() => document.getElementById('pf-pest-tira').hidden), 'en el Tablero no hay tira: es un botón de una pantalla');
+    cierto(await ev(() => document.getElementById('pf-pest').hidden && document.getElementById('pf-pest-tira').hidden), 'en el Tablero no hay pestañas: es un botón de una pantalla');
     await toque(p, '#pf-abajo [data-grupo="calendario"]');
     await p.waitForTimeout(1200);
     cierto(await ev(() => location.hash === '#/mapa'), 'y el botón del Calendario vuelve a la última que se usó: el Mapa');
-    await toque(p, '#pf-pest-tira a[data-ruta="agenda"]');
+    await toque(p, '#pf-pest a[data-ruta="agenda"]');
     await p.waitForTimeout(800);
 
     /* De vuelta, del otro lado. */

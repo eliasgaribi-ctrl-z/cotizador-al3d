@@ -1161,11 +1161,14 @@ function pintarPestanas(activa, grupos) {
       const f = _fichasPest.get(id);
       if (f && f.destruir) { try { f.destruir(); } catch (_) {} }
       _fichasPest.delete(id);
+      /* Cada pestaña lleva también su icono: en la computadora no se pinta, y en el teléfono es lo
+         que se ve cuando el grupo es de dos (`data-n`, ver css/estudio.css). */
       nav.innerHTML = con ? g.rutas.map(x =>
         '<a href="#/' + x.ruta + '" data-ruta="' + x.ruta + '" aria-current="false">' +
-        '<span class="tx">' + esc(x.nombre) + '</span>' +
+        ico(x.icono) + '<span class="tx">' + esc(x.nombre) + '</span>' +
         '<span class="cta" data-cta-pest="' + x.ruta + '" hidden></span></a>').join('') : '';
       nav.hidden = !con;
+      nav.dataset.n = con ? String(g.rutas.length) : '0';
       if (con) nav.setAttribute('aria-label', 'Pantallas de ' + g.nombre);
       else nav.removeAttribute('aria-label');
     }
@@ -1404,6 +1407,10 @@ function pintarCuentasNav() {
      pantalla oiría «Más módulos» sin saber que dentro espera algo. */
   const bm = document.querySelector('#pf-abajo [data-mas]');
   if (bm) bm.setAttribute('aria-label', 'Más módulos' + (sumaMas ? ', ' + sumaMas + (sumaMas === 1 ? ' cosa que atender' : ' cosas que atender') : ''));
+  /* Un globo que aparece ensancha su pestaña, y la elegida que estaba justo a la vista queda
+     cortada por el borde (Material con su «3», a 360 px). Se vuelve a acomodar con los anchos de
+     ahora. */
+  for (const id of ['pf-pest', 'pf-pest-tira']) asomarPestana($(id));
 }
 ctx.ponerCuenta = ponerCuenta;
 

@@ -352,10 +352,29 @@ html[data-tema="oscuro"] .pf-tab .cta,html[data-tema="oscuro"] .pf-abajo .cta{ba
   .pf-pest-tira{margin:8px max(var(--e4),env(safe-area-inset-right,0px)) 0 max(var(--e4),env(safe-area-inset-left,0px))}
   .pf-pest-tira a{flex:1 1 0;min-width:max-content}
   body:has(> .pf-pest-tira:not([hidden])) .pf-wrap{padding-top:var(--e3)}
-  /* El mapa se pega al encabezado con un margen negativo del tamaño de ese aire; con la tira en
-     medio se quedaría montado sobre ella. */
-  body:has(> .pf-pest-tira:not([hidden])) .mapa-app{margin-top:0}
+  /* UN GRUPO DE DOS —Calendario · Mapa— NO LLEVA TIRA: sus dos pestañas van en el encabezado, en
+     el lugar del título, como dos iconos (calendario y mapa) de 44 px. La tira le quitaba al Mapa
+     72 px de alto, y el Mapa del teléfono vive de cada píxel: la rendija entre los chips y las
+     tarjetas de la ruta bajaba de 120, el mapa dejaba de centrar la parada encima de ellas, un
+     toque a media pantalla caía en la hoja y los botones redondos quedaban debajo del asistente
+     (pf-mapa lo midió). En el encabezado caben: el título y los dos iconos miden lo mismo, 104 px
+     a 360. El nombre de cada pantalla sigue ahí para el lector de pantalla, y la barra de abajo
+     dice «Calendario» encendido. Las cuatro herramientas no caben en iconos que se entiendan y se
+     quedan con su tira. */
+  .pf-pest-tira[data-n="2"]{display:none}
+  .pf-pest-cab[data-n="2"]{display:flex;flex:0 0 auto}
+  .pf-pest-cab .tx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .pf-pest-cab a{min-width:44px;min-height:44px;padding:0}
+  .pf-pest-cab a .svgi{width:20px;height:20px}
+  .pf-pest-cab .cta{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;font-size:11px;line-height:16px}
+  .pf-pest-cab{overflow:visible}
+  .pf-cab:has(> .pf-pest-cab[data-n="2"]:not([hidden])) .pf-cab-t{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap}
+  .pf-cab:has(> .pf-pest-cab[data-n="2"]:not([hidden])) .pf-pest-cab{margin-right:auto}
 }
+/* En la computadora las pestañas son palabras: el icono no se pinta. */
+.pf-pest a .svgi{display:none}
+@media(max-width:759px){ .pf-pest-cab a .svgi{display:block} }
 
 /* ==========================================================================
    5. Las piezas comunes
