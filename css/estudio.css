@@ -170,7 +170,9 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     height:auto;min-height:54px;padding:8px 3px 7px;border-radius:20px;
     color:var(--tinta2);font-size:12px;font-weight:700;line-height:1.15;text-align:center;
   }
-  .pf-tab .tx{flex:none;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;hyphens:manual}
+  /* Un centésimo de em menos de espacio entre letras: «Herramientas» en negrita, el nombre más
+     largo de la barra, quedaba a un píxel de cada canto de la pastilla negra. */
+  .pf-tab .tx{flex:none;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;hyphens:manual;letter-spacing:-.01em}
   .pf-tab .svgi{width:22px;height:22px;color:inherit}
   .pf-tab.on{background:var(--es-act);color:var(--es-act-tx);font-weight:800;box-shadow:none}
   /* `content:none` y no `display:none`: la ficha que viaja entre pestañas (piezas.js,
@@ -191,19 +193,36 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     background:var(--sup)}
   .pf-tab:focus-visible,.pf-lat-item:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
 
-  .pf-lat-pie{display:flex;flex-direction:column;gap:4px;padding-top:10px}
+  /* El pie: dos renglones chicos, separados de los seis botones por un filete. Eran tres
+     bloques del mismo tamaño que un módulo —tema, Ajustes y el rol desplegado— y la columna se
+     leía como diez cosas iguales; ahora se lee como seis lugares y, abajo, el aparato. */
+  .pf-lat-pie{display:flex;flex-direction:column;gap:2px;padding-top:8px;border-top:1px solid var(--linea2)}
   .pf-lat-item{
-    flex-direction:column;justify-content:center;gap:4px;height:auto;min-height:50px;padding:6px 3px;
-    border-radius:18px;color:var(--tinta2);font-size:11px;font-weight:700;line-height:1.15;text-align:center;
+    flex-direction:row;justify-content:center;gap:7px;height:auto;min-height:36px;padding:0 6px;
+    border-radius:999px;color:var(--tinta2);font-size:12px;font-weight:700;line-height:1.15;text-align:center;
   }
-  .pf-lat-item.btn-tema{justify-content:center}
-  .pf-lat-item .svgi{width:20px;height:20px;color:inherit}
+  .pf-lat-item .svgi{width:17px;height:17px;color:inherit}
   @media(hover:hover){.pf-lat-item:hover{background:var(--es-chip);color:var(--tinta)}.pf-lat-item:hover .svgi{color:inherit}}
 
-  /* El rol de este aparato: los tres botones uno debajo del otro, que en 98 px no caben juntos. */
-  .pf-lat-rol{margin-top:6px;padding:9px 5px 6px;border:0;border-radius:20px;background:var(--es-chip)}
-  .pf-lat-rol-t{text-align:center;color:var(--tinta3);font-size:10px;letter-spacing:.06em;margin-bottom:6px}
-  body.pf .pf-lat .pf-lat-rol .seg{display:flex;width:100%;flex-direction:column;gap:2px;padding:0;
+  /* El rol de este aparato, plegado en un renglón (`<details>` en index.html): la etiqueta chica y
+     el rol debajo, con un ángulo que dice que se abre. Abierto, los tres botones uno debajo del
+     otro, que en 98 px no caben juntos. */
+  .pf-lat-rol{margin-top:0;padding:0;border:0;border-radius:18px;background:transparent}
+  .pf-lat-rol>summary{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:44px;padding:6px 4px;
+    border-radius:16px;list-style:none;cursor:pointer;text-align:center;color:var(--tinta)}
+  .pf-lat-rol>summary::-webkit-details-marker{display:none}
+  .pf-lat-rol>summary:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+  @media(hover:hover){.pf-lat-rol>summary:hover{background:var(--es-chip)}}
+  .pf-lat-rol-t{margin:0;text-align:center;color:var(--tinta3);font-size:10px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase}
+  /* El ángulo es un borde girado y no un icono del sprite: dos trazos de 6 px no merecen un
+     símbolo, y así sigue el color de la letra en los dos temas sin pedirle nada a nadie. */
+  .pf-lat-rol-n{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;line-height:1.2}
+  .pf-lat-rol-n::after{content:'';width:5px;height:5px;margin-top:-3px;border:solid currentColor;border-width:0 1.6px 1.6px 0;
+    rotate:45deg;opacity:.7;transition:rotate var(--mv-s),margin var(--mv-s)}
+  .pf-lat-rol[open] .pf-lat-rol-n::after{rotate:-135deg;margin-top:3px}
+  .pf-lat-rol[open]{background:var(--es-chip);padding-bottom:4px}
+  body.pf .pf-lat .pf-lat-rol .seg{display:flex;width:100%;flex-direction:column;gap:2px;padding:0 4px;
     background:transparent;border:0;border-radius:0;box-shadow:none}
   body.pf .pf-lat .pf-lat-rol .seg button{flex:none;width:100%;min-height:34px;padding:0 2px;border-radius:999px;
     background:transparent;color:var(--tinta2);font-size:11px;font-weight:700}
@@ -211,9 +230,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 }
 @media(min-width:760px) and (max-width:1023px){ :root{--lat:124px} .pf-tab{font-size:11px} }
 @media(min-width:760px) and (hover:none),(min-width:760px) and (pointer:coarse){
-  .pf-lat-item{min-height:56px}
+  .pf-lat-item{min-height:44px}
   body.pf .pf-lat .pf-lat-rol .seg button{min-height:44px}
 }
+@media(prefers-reduced-motion:reduce){ .pf-lat-rol-n::after{transition:none} }
 
 /* ==========================================================================
    3. El encabezado
@@ -238,6 +258,63 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
    de la hoja «Más» se queda como estaba: sigue en ámbar. */
 .pf-tab .cta,.pf-abajo .cta,
 html[data-tema="oscuro"] .pf-tab .cta,html[data-tema="oscuro"] .pf-abajo .cta{background:var(--es-alerta);color:#fff}
+
+/* ----- Las pestañas de un grupo: el segmentado del estudio -----
+   Calendario · Mapa, o las cuatro herramientas. Es el mismo control que «Mes · Semana · Lista»
+   del calendario —la cápsula blanca con la elegida en una pastilla— pero con la tinta de «lo
+   elegido» del estudio (`--es-act`), la misma de la barra lateral: negra de día, blanca de
+   noche. Con `--nav`, que es lo que usa el segmentado viejo, de noche la elegida era casi del
+   color de la cápsula.
+
+   46 px de alto en la computadora, los mismos que los botones redondos del encabezado, para que
+   la fila se lea como una; con el dedo cada pestaña sube a 44. Si no caben —las cuatro
+   herramientas en un teléfono de 360, o en una tableta— la cápsula se desliza de lado sin
+   barra, y el borde que corta se desvanece (`data-corre`, lo pone js/app.js). */
+.pf-pest{gap:2px;padding:3px;border:1px solid var(--linea2);border-radius:999px;background:var(--sup);
+  overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.pf-pest::-webkit-scrollbar{display:none}
+.pf-pest a{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:38px;padding:0 15px;border-radius:999px;color:var(--tinta2);font:700 13px/1 var(--f-texto);
+  text-decoration:none;white-space:nowrap;-webkit-tap-highlight-color:transparent;
+  transition:background-color var(--mv-s),color var(--mv-s),transform .16s var(--ease-out)}
+.pf-pest a[aria-current="page"]{background:var(--es-act);color:var(--es-act-tx)}
+@media(hover:hover){ .pf-pest a:not([aria-current="page"]):hover{background:var(--es-chip);color:var(--tinta)} }
+.pf-pest a:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+.pf-pest a:active{transform:scale(.97)}
+@media(pointer:coarse){ .pf-pest a{min-height:44px} }
+/* El globo de cada pestaña va en línea, después del nombre: dice de dónde sale la suma del botón
+   de la barra. Rojo cerrado con número blanco en los dos temas, como los de la barra (5,1:1). */
+.pf-pest .cta{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--es-alerta);color:#fff;
+  font:700 11px/18px var(--f-cifra);text-align:center}
+.pf-pest[data-corre="der"]{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent);
+  mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent)}
+.pf-pest[data-corre="izq"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 32px);
+  mask-image:linear-gradient(90deg,transparent,#000 32px)}
+.pf-pest[data-corre="izq der"]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 32px,#000 calc(100% - 32px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 32px,#000 calc(100% - 32px),transparent)}
+@media(prefers-reduced-motion:reduce){ .pf-pest a{transition:none} .pf-pest a:active{transform:none} }
+/* En la computadora, junto al título. El título no se encoge —es el nombre del grupo y es lo que
+   ancla la fila—; lo que cede primero es la línea de qué se ve, después el tamaño del título y al
+   final el título entero. Medido con las cuatro herramientas (430 px de cápsula) y con el
+   Calendario y sus teclas en el hueco de acciones: de 1100 px para arriba cabe todo; de 960 a
+   1099 la línea se va y el título baja a 24 px; por debajo de 960 el título se aparta —la pastilla
+   negra ya dice en qué pantalla estás y la barra lateral, en qué grupo— y se queda para el lector
+   de pantalla. Sin esto, a 760 px la cápsula del Calendario quedaba en 85 px y el Mapa, fuera. */
+@media(min-width:760px){
+  .pf-cab:has(> .pf-pest:not([hidden])) .pf-cab-t{flex-shrink:0}
+  .pf-pest-cab{flex:0 1 auto;margin-left:4px}
+}
+@media(min-width:760px) and (max-width:1099px){
+  .pf-cab:has(> .pf-pest:not([hidden])) .pf-cab-d{display:none}
+  .pf-cab:has(> .pf-pest:not([hidden])) .pf-cab-t{font-size:24px}
+  /* La línea de qué se ve era la que empujaba los botones a la derecha (`flex:1`); sin ella, lo
+     hace la cápsula. */
+  .pf-cab:has(> .pf-pest:not([hidden])) .pf-pest-cab{margin-right:auto;margin-left:0}
+}
+@media(min-width:760px) and (max-width:959px){
+  .pf-cab:has(> .pf-pest:not([hidden])) .pf-cab-t{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap}
+}
 
 /* ==========================================================================
    4. El teléfono: encabezado claro y la barra de abajo flotando
@@ -265,6 +342,19 @@ html[data-tema="oscuro"] .pf-tab .cta,html[data-tema="oscuro"] .pf-abajo .cta{ba
   .pf-abajo .cta{background:var(--es-alerta);color:#fff}
   .pf-wrap{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px))}
   .pf-mbar{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+
+  /* Las pestañas del grupo, en su tira debajo del encabezado. A lo ancho de la pantalla y
+     repartidas a partes iguales cuando caben —Calendario · Mapa, mitad y mitad, como un
+     segmentado de iPhone—; `min-width:max-content` es lo que impide que una se encoja por
+     debajo de su nombre, así que cuando no caben se deslizan en vez de cortarse. Debajo, la
+     página pierde la mitad de su aire de arriba: la tira ya separa, y en las pantallas de marco
+     cada píxel de aquí es un píxel menos de herramienta. */
+  .pf-pest-tira{margin:8px max(var(--e4),env(safe-area-inset-right,0px)) 0 max(var(--e4),env(safe-area-inset-left,0px))}
+  .pf-pest-tira a{flex:1 1 0;min-width:max-content}
+  body:has(> .pf-pest-tira:not([hidden])) .pf-wrap{padding-top:var(--e3)}
+  /* El mapa se pega al encabezado con un margen negativo del tamaño de ese aire; con la tira en
+     medio se quedaría montado sobre ella. */
+  body:has(> .pf-pest-tira:not([hidden])) .mapa-app{margin-top:0}
 }
 
 /* ==========================================================================

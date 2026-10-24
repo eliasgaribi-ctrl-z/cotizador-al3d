@@ -56,27 +56,48 @@ import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
    esta pantalla, en cinco palabras. No es decoración —el encabezado antes decía «Obra,
    material y agenda» en las seis— y en el teléfono no se pinta, que es donde no cabe.
 
-   `movil` marca las que se quedan en la barra de abajo del teléfono cuando el rol tiene más
-   rutas de las que caben. La barra son CINCO botones y no seis: con seis, cada uno mide 60 px en
-   una pantalla de 360 y el nombre no cabe debajo del icono. Así que si el rol ve más de cinco
-   rutas, se quedan las cuatro marcadas y el quinto botón es «Más», que abre una hoja con todas
-   las demás —las del rol que NO llevan `movil`—, cada una con su globo de cuenta. Si el rol ve
-   cinco o menos (pagos: Tablero, Calendario, Proyectos, Cotizador y Control), no hay «Más» y la
-   barra las lleva todas: es lo que hace que pagos tenga a un toque Control, que es SU pantalla.
-   Material, Control, la Mesa de corte y el Vectorizador solo se alcanzaban bajando hasta el pie
-   del Tablero. Quién se queda a la vista es cuestión de mover una marca aquí, que es la única
-   lista (`repartirBarra`, más abajo, es la regla). */
+   `grupo` junta varias pantallas detrás de UN botón de la barra (octubre de 2026). Elías: «siento
+   que hay muchos elementos y algunos pudiéramos meterlos dentro de algún botón… que máximo haya
+   unos 6 botones». Eran diez en una columna de iconos: ya no se leían de un vistazo, y en una
+   pantalla de 900 px de alto el selector de rol quedaba cortado al pie. Ahora son seis, y en este
+   orden: Tablero, Calendario (con el Mapa), Proyectos, Cotizador, Control y Herramientas (Mesa de
+   corte, Vectorizador, Publicaciones y Material). Una ruta sin `grupo` es un grupo de una sola
+   pantalla, y un grupo del que un rol ve una sola pantalla —pagos no tiene el Mapa— es un botón
+   normal, sin pestañas.
+
+   Lo que NO cambia con el grupo es la RUTA: `#/mapa`, `#/anidador`, `#/vectorizar`,
+   `#/publicaciones` y `#/material` siguen siendo direcciones propias, por lo mismo que `hoy` sigue
+   siendo `hoy` —hay iconos instalados y enlaces que las llevan grabadas—. El grupo solo decide qué
+   botón se enciende; dentro de él, las hermanas se cambian con las pestañas del encabezado
+   (`pintarPestanas`). El orden de esta lista es el de la barra y, dentro de cada grupo, el de sus
+   pestañas: por eso Material va al final, detrás de las tres herramientas de marco.
+
+   `movil` marca los grupos que se quedan en la barra de abajo del teléfono cuando el rol tiene
+   más de los que caben. La barra son CINCO botones y no seis: con seis, cada uno mide 60 px en
+   una pantalla de 360 y el nombre no cabe debajo del icono. Así que si el rol tiene más de cinco
+   grupos, se quedan los cuatro marcados y el quinto botón es «Más», que abre una hoja con los
+   demás, ordenados por grupo y cada pantalla con su globo de cuenta. Si el rol tiene cinco o
+   menos (pagos: Tablero, Calendario, Proyectos, Cotizador y Control), no hay «Más» y la barra los
+   lleva todos: es lo que hace que pagos tenga a un toque Control, que es SU pantalla. Quién se
+   queda a la vista es cuestión de mover una marca aquí, que es la única lista (`repartirBarra`,
+   más abajo, es la regla). */
 const RUTAS = [
   { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'fechas de entrega',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'fechas de entrega',               movil: true, grupo: 'calendario', roles: ['direccion', 'fabricacion', 'pagos'] },
+  /* El mapa va con el Calendario porque contestan lo mismo —qué obra toca y cuándo— desde dos
+     lados: la fecha y el lugar. Pagos no lo tiene, así que para pagos el Calendario es un botón
+     normal. */
+  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',                   grupo: 'calendario', roles: ['direccion', 'fabricacion'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         roles: ['direccion', 'fabricacion'] },
   /* `conservar` — ver js/nucleo/conservar.js. Esta pantalla NO es DOM que se repinta: es un
      documento entero dentro de un <iframe>. Vaciarle la sección al salir y volver a escribir
      el marco al entrar costaba 795 KB de guiones reinterpretados por visita. Con la marca, el
      router la esconde en vez de tirarla y al volver solo la enseña. */
   { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'], conservar: true },
-  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',                   roles: ['direccion', 'fabricacion'] },
+  /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
+     el rol que no ve importes— y en el teléfono de Dirección vive en «Más»; el de Pagos la lleva
+     en la barra, porque es SU pantalla. */
+  { ruta: 'control',   mod: 'control',     seccion: 'mod-control',     icono: 'i-control',   nombre: 'Control',     sub: 'ventas, cobranza y bitácora',                       roles: ['direccion', 'pagos'] },
   /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
      ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
      de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
@@ -88,25 +109,37 @@ const RUTAS = [
      apunta ahí. El del vectorizador, que no trae proyecto, el Tablero lo sigue de largo hasta
      ESTA ruta: el Tablero no se conserva, y el trazo se perdía al cambiar de pestaña y volver
      (ver `montar()` en js/mod/tablero.js). */
-  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'], conservar: true },
+  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                grupo: 'herramientas', roles: ['direccion', 'fabricacion'], conservar: true },
   /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
      el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
      había que abrir una cotización que nadie iba a mandar. El botón del cotizador se queda
      donde está: son dos puertas al mismo documento, no dos implementaciones. */
-  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'], conservar: true },
+  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  grupo: 'herramientas', roles: ['direccion', 'fabricacion'], conservar: true },
   /* El editor de publicaciones: las plantillas de marca para redes. Es la tercera herramienta
      de marco —un documento propio, publicaciones/, igual que la mesa de corte— y por eso se
      conserva: cargar las 554 plantillas es un mega de JSON y volver de otra pantalla no debe
      costarlo otra vez ni perder lo que se estaba escribiendo. Solo Dirección: es la voz de la
      marca, no una herramienta del taller ni de la cobranza. */
-  { ruta: 'publicaciones', mod: 'herramientas', seccion: 'mod-publicaciones', icono: 'i-publicar', nombre: 'Publicaciones', sub: 'plantillas de marca para redes',              roles: ['direccion'], conservar: true },
-  /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
-     el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
-     Material: se llega desde el Tablero. */
-  { ruta: 'control',   mod: 'control',     seccion: 'mod-control',     icono: 'i-control',   nombre: 'Control',     sub: 'ventas, cobranza y bitácora',                       roles: ['direccion', 'pagos'] },
+  { ruta: 'publicaciones', mod: 'herramientas', seccion: 'mod-publicaciones', icono: 'i-publicar', nombre: 'Publicaciones', sub: 'plantillas de marca para redes',              grupo: 'herramientas', roles: ['direccion'], conservar: true },
+  /* El almacén va con las herramientas y al final de ellas: no es una herramienta de marco, pero
+     es de los mismos dos roles y de la misma mesa de trabajo —qué hay, qué falta, qué se compra—.
+     A Material se sigue llegando derecho desde el Tablero («Ver material»): es la misma ruta. */
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         grupo: 'herramientas', roles: ['direccion', 'fabricacion'] },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
   { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
+
+/* El nombre y el icono del botón de un grupo de varias pantallas. Solo lleva renglón el que no se
+   llama como su primera pantalla: el Calendario se llama Calendario. NO es una segunda lista de
+   pantallas —esa sigue siendo RUTAS, y un grupo sin renglón aquí funciona igual—; son los rótulos
+   de los botones que juntan.
+
+   `cabeAbajo: false` es una medida y no un gusto: en la barra de abajo del teléfono cada botón
+   mide 64 px a 360 de ancho y el nombre va debajo del icono en 11 px; «Herramientas» pide 79. Así
+   que ese grupo vive en «Más» aunque al rol le sobre un lugar abajo —fabricación—. */
+const GRUPOS = {
+  herramientas: { nombre: 'Herramientas', icono: 'i-herramientas', cabeAbajo: false },
+};
 
 const rutasDeRol = () => RUTAS.filter(r => r.roles.includes(Prefs.rol()));
 const rutaPorNombre = n => RUTAS.find(r => r.ruta === n) || null;
@@ -639,7 +672,7 @@ async function montarDeVerdad(ruta, opts = {}) {
      píxeles, no 24. La auditoría de movimiento de PR #71 dejó `.pf-mod` en un fundido de 120 ms
      a propósito —«una entrada dice esto es nuevo; repetida en la navegación se lee como que la
      app va lenta»— y esto no lo deshace: el desplazamiento es corto, dura 200 ms, solo se pone
-     cuando las DOS pantallas tienen sitio en la barra, y con las teclas 1-9 y con movimiento
+     cuando las DOS pantallas tienen sitio en la barra, y con las teclas 1-6 y con movimiento
      reducido no hay nada.
 
      No es `Piezas.transicion()` con `contenedor` y `direccion`, que es lo que sugería la
@@ -663,14 +696,19 @@ async function montarDeVerdad(ruta, opts = {}) {
 
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
   _actual = ruta;
+  /* ANTES de pintar la barra: el botón del grupo apunta a la última de sus pantallas, y desde
+     este momento la última es ésta. */
+  recordarEnGrupo(ruta);
   pintarNav();
   /* El título del encabezado se escribe AQUÍ, antes de cargar, y no al final del montaje:
      con una carga lenta la barra ya marcaba «Mapa» y el encabezado seguía diciendo «Tablero»
      durante seis segundos. Lo que sí se queda para el final es anunciarlo por voz, porque un
-     lector de pantalla tiene que oír el nombre cuando la pantalla ya está, no cuando empieza. */
+     lector de pantalla tiene que oír el nombre cuando la pantalla ya está, no cuando empieza.
+     Con pestañas el título es el del grupo (`tituloDe`): cambiar de pestaña no lo mueve. */
   const sub = $('pf-sub');
-  if (sub && sub.textContent !== r.nombre) {
-    sub.textContent = r.nombre;
+  const titulo = tituloDe(r);
+  if (sub && sub.textContent !== titulo) {
+    sub.textContent = titulo;
     /* El título también cambia de lugar, no de letras: sube y aparece (plataforma.css). */
     if (!enSilencio) { sub.classList.remove('cambia'); void sub.offsetWidth; sub.classList.add('cambia'); }
   }
@@ -797,27 +835,102 @@ function rematar(r, ruta, opts) {
    Cinco y no seis está medido y escrito desde antes en css/plataforma.css: con seis, cada botón
    mide 60 px en una pantalla de 360 y el nombre no cabe debajo del icono. Con cinco, 72.
 
-   La regla, y no hay otra: se toman las rutas visibles del rol con las marcadas `movil` primero
-   y las demás detrás, en el orden de RUTAS. Si son cinco o menos, todas van en la barra y no hay
-   «Más» —pagos: Tablero, Calendario, Proyectos, Cotizador y Control—. Si son más, se quedan las
-   primeras cuatro y el quinto botón abre la hoja con lo que sobró —dirección: Mapa, Material,
-   Mesa de corte, Vectorizador y Control—. Los nombres, los iconos y las líneas de la hoja son
-   los de RUTAS: no hay una segunda lista que se pueda desincronizar, y un módulo nuevo aparece en
-   la barra lateral, en la de abajo o en «Más» con el mismo renglón. */
+   Desde octubre de 2026 lo que se reparte son los BOTONES —los grupos de `armarGrupos`—, no las
+   pantallas: el Mapa va dentro del Calendario y no ocupa lugar propio.
+
+   La regla, y no hay otra: se toman los grupos del rol con los marcados `movil` primero y los
+   demás detrás, en el orden de RUTAS. Si son cinco o menos y todos caben abajo, van todos en la
+   barra y no hay «Más» —pagos: Tablero, Calendario, Proyectos, Cotizador y Control—. Si no, se
+   quedan los primeros cuatro que caben y el quinto botón abre la hoja con lo demás —dirección:
+   Control y Herramientas; fabricación: Herramientas, cuyo nombre no cabe debajo del icono (ver
+   GRUPOS)—. Los nombres, los iconos y las líneas de la hoja son los de RUTAS: no hay una segunda
+   lista que se pueda desincronizar, y un módulo nuevo aparece en la barra lateral, en la de abajo
+   o en «Más» con el mismo renglón. */
 const TOPE_BARRA = 5;
 
-/** El reparto, sin tocar nada: las rutas visibles de un rol entran, y salen las que van en la
- *  barra y las que van dentro de «Más». Es la única regla de esta zona que se puede probar sin
- *  pintar, y por eso es una función con nombre y no un `if` metido en `pintarNav()`. */
-export function repartirBarra(visibles, tope = TOPE_BARRA) {
-  const orden = visibles.filter(r => r.movil).concat(visibles.filter(r => !r.movil));
-  if (orden.length <= tope) return { barra: orden, mas: [] };
-  return { barra: orden.slice(0, tope - 1), mas: orden.slice(tope - 1) };
+/** Los botones de la barra: las rutas visibles de un rol, juntadas por `grupo` en el orden de
+ *  RUTAS. Un grupo del que el rol ve una sola pantalla es un botón normal —su nombre, su icono y
+ *  sin pestañas—. Pura, como `repartirBarra`: se prueba en node sin pintar nada. */
+export function armarGrupos(visibles) {
+  const grupos = [];
+  for (const r of visibles) {
+    const id = r.grupo || r.ruta;
+    let g = grupos.find(x => x.id === id);
+    if (!g) { g = { id, rutas: [] }; grupos.push(g); }
+    g.rutas.push(r);
+  }
+  return grupos.map(g => {
+    const meta = (g.rutas.length > 1 && GRUPOS[g.id]) || {};
+    return {
+      id: g.id, rutas: g.rutas,
+      nombre: meta.nombre || g.rutas[0].nombre,
+      icono: meta.icono || g.rutas[0].icono,
+      movil: g.rutas.some(r => r.movil),
+      cabeAbajo: meta.cabeAbajo !== false,
+    };
+  });
 }
 
-/** Lo mismo, ya aplicado al rol de ahora. */
-function rutasDeLaBarra() {
-  return repartirBarra(rutasDeRol().filter(r => !r.oculto));
+/** El reparto, sin tocar nada: los botones de un rol entran, y salen los que van en la barra y los
+ *  que van dentro de «Más». Es la única regla de esta zona que se puede probar sin pintar, y por
+ *  eso es una función con nombre y no un `if` metido en `pintarNav()`. `cabeAbajo !== false` y no
+ *  `cabeAbajo`: un botón que no dice nada, cabe. */
+export function repartirBarra(grupos, tope = TOPE_BARRA) {
+  const orden = grupos.filter(g => g.movil).concat(grupos.filter(g => !g.movil));
+  const caben = orden.filter(g => g.cabeAbajo !== false);
+  if (orden.length <= tope && caben.length === orden.length) return { barra: orden, mas: [] };
+  const barra = caben.slice(0, tope - 1);
+  return { barra, mas: orden.filter(g => !barra.includes(g)) };
+}
+
+/** Los botones del rol de ahora, y su reparto. */
+const gruposDelRol = () => armarGrupos(rutasDeRol().filter(r => !r.oculto));
+function gruposDeLaBarra(grupos = gruposDelRol()) {
+  return repartirBarra(grupos);
+}
+/** El botón donde vive una ruta, o null si no tiene (las ocultas). */
+function grupoDe(ruta, grupos = gruposDelRol()) {
+  return grupos.find(g => g.rutas.some(r => r.ruta === ruta)) || null;
+}
+
+/* ----- A dónde lleva el botón de un grupo -----
+   A la última pantalla que se usó de ese grupo EN ESTE APARATO y, si no hay, a la primera: quien se
+   pasa la tarde en la Mesa de corte no tiene que cruzar por otra pestaña cada vez que vuelve de
+   Proyectos. Sin almacenamiento (Safari privado) no se recuerda y el botón lleva a la primera,
+   que es lo que hacía antes. Una ruta guardada que ya no es del grupo, o que este rol no ve, no
+   cuenta: se valida contra el grupo de ahora, no contra lo que se guardó.
+
+   La clave vive aquí y no en `Prefs.CLAVES`, igual que `K_ULTIMA_BAJADA`: es comodidad de este
+   aparato, no viaja en los respaldos, y js/datos/prefs.js va empaquetado con su huella dentro de
+   la función importar-diario de Supabase —tocarlo por esto obligaría a volver a desplegarla—. */
+const K_GRUPOS = 'al3d_pf_grupos';
+function ultimasDeGrupo() {
+  try {
+    const m = JSON.parse(localStorage.getItem(K_GRUPOS) || 'null');
+    return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+  } catch (_) { return {}; }
+}
+function destinoDelGrupo(g) {
+  const ult = ultimasDeGrupo()[g.id];
+  return (g.rutas.find(r => r.ruta === ult) || g.rutas[0]).ruta;
+}
+function recordarEnGrupo(ruta) {
+  const g = grupoDe(ruta);
+  if (!g || g.rutas.length < 2) return;
+  const m = ultimasDeGrupo();
+  if (m[g.id] === ruta) return;
+  m[g.id] = ruta;
+  try { localStorage.setItem(K_GRUPOS, JSON.stringify(m)); } catch (_) { /* sin almacenamiento: lleva a la primera */ }
+}
+
+/* El título del encabezado es el del BOTÓN encendido: con pestañas, el nombre del grupo
+   («Herramientas»), y la pestaña elegida dice en cuál de sus pantallas estás. Con el nombre de la
+   pantalla el encabezado decía «Mesa de corte» al lado de una pestaña que decía «Mesa de corte»,
+   y la barra lateral, encendida en «Herramientas», decía una tercera cosa. La voz y el
+   `aria-label` de cada sección siguen diciendo el nombre de la pantalla. */
+function tituloDe(r) {
+  const g = r && !r.oculto ? grupoDe(r.ruta) : null;
+  return g && g.rutas.length > 1 ? g.nombre : r.nombre;
 }
 
 /* ----- P19 · LAS BARRAS SE PINTAN UNA VEZ -----
@@ -828,8 +941,9 @@ function rutasDeLaBarra() {
    y `aria-current`. Encima de eso, la pieza 2 desliza UNA marca del elegido anterior al nuevo:
    el filete en la barra lateral y la píldora del icono en la de abajo.
 
-   `_navFirma` es lo que decide si hay que reescribir. Incluye el rol, las rutas visibles y las
-   que caben en la barra: si una de las tres cambia, los botones son otros. */
+   `_navFirma` es lo que decide si hay que reescribir. Incluye el rol, los botones con sus
+   pantallas y los que caben en la barra de abajo: si una de las tres cambia, los botones son
+   otros. */
 let _navFirma = null;
 let _fichaLat = null, _fichaAbajo = null;
 
@@ -838,40 +952,49 @@ function pintarNav() {
      la tira ENTERA apagada: la pantalla no dice dónde estás y la única salida visible es
      adivinar. Es el defecto que Ajustes ya tenía y que aquí se arregla para las dos. */
   const madre = (rutaPorNombre(_actual) || {}).padre || null;
-  const activa = r => r.ruta === _actual || r.ruta === madre;
-  const visibles = rutasDeRol().filter(r => !r.oculto);
-  const { barra, mas } = rutasDeLaBarra();
+  const activa = r => !!r && (r.ruta === _actual || r.ruta === madre);
+  const grupos = gruposDelRol();
+  const { barra, mas } = gruposDeLaBarra(grupos);
 
-  const firma = Prefs.rol() + '|' + visibles.map(r => r.ruta).join(',') + '|' + barra.map(r => r.ruta).join(',');
-  if (firma !== _navFirma) { _navFirma = firma; escribirNav(visibles, barra, mas); }
-  marcarNav(activa, mas);
+  const firma = Prefs.rol() + '|' + grupos.map(g => g.id + ':' + g.rutas.map(r => r.ruta).join('+')).join(',') +
+    '|' + barra.map(g => g.id).join(',');
+  if (firma !== _navFirma) { _navFirma = firma; escribirNav(grupos, barra, mas); }
+  marcarNav(activa, grupos, mas);
+  pintarPestanas(activa, grupos);
 }
 
-function escribirNav(visibles, barra, mas) {
+/* Lo que distingue a un botón de la barra. `data-grupo` siempre —es lo que lee el oyente del
+   clic—, y `data-ruta` además cuando el botón es de UNA pantalla, porque entonces es un botón
+   normal y su ruta no se mueve. Uno de varias no lleva `data-ruta`: lleva a la última que se usó
+   (`destinoDelGrupo`), y un atributo con una ruta fija diría una cosa y haría otra. */
+const atributosDeBoton = g => ' data-grupo="' + g.id + '"' +
+  (g.rutas.length === 1 ? ' data-ruta="' + g.rutas[0].ruta + '"' : '') + ' aria-current="false"';
+
+function escribirNav(grupos, barra, mas) {
   /* Una barra nueva son globos nuevos y vacíos: lo que se recordaba de cada cuenta ya no es de
      nadie, y sin olvidarlo el primer llenado parecería una subida. `pintarCuentasNav()` corre
      justo después de montar, así que se vuelven a escribir sin saltar. */
   _cuentaAntes.clear();
   const nav = $('pf-nav');
-  /* La tecla de cada pestaña es su lugar: solo hay atajo del 1 al 9, así que una décima ruta
-     —hoy no hay— saldría con un «tecla 10» que no existe. */
+  /* La tecla de cada botón es su lugar, del 1 al 6: los atajos solo llegan al 9, así que un
+     décimo botón —no lo hay— saldría con un «tecla 10» que no existe. */
   /* ENLACES y no botones (marco-8): en la computadora, Ctrl+clic, clic central y «copiar enlace»
      abren Proyectos en otra pestaña o mandan el link del Mapa. El clic normal lo sigue llevando
-     `ir()` (oyente de abajo); con una tecla de modificación se deja al navegador. */
-  if (nav) nav.innerHTML = visibles.map((r, i) =>
-    '<a class="pf-tab" href="#/' + r.ruta + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="false"' +
+     `ir()` (oyente de abajo); con una tecla de modificación se deja al navegador. El `href` de un
+     grupo es su destino de ahora, y `marcarNav()` lo mueve cuando cambia. */
+  if (nav) nav.innerHTML = grupos.map((g, i) =>
+    '<a class="pf-tab" href="#/' + destinoDelGrupo(g) + '"' + atributosDeBoton(g) +
     /* El nombre y el atajo los enseña la pieza 4 con su propio globo (P31); el `title` se
        queda como respaldo para quien navegue sin las piezas. La pieza lo aparta mientras el
        ratón está encima, para que los dos no se encimen. */
-    (i < 9 ? ' data-nombre="' + esc(r.nombre) + '" data-tecla="' + (i + 1) + '" aria-keyshortcuts="' + (i + 1) + '"' +
-             ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">'
-           : ' title="' + esc(r.nombre) + '">') +
-    ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
-    '<span class="cta" data-cta="' + r.ruta + '" hidden></span></a>'
+    (i < 9 ? ' data-nombre="' + esc(g.nombre) + '" data-tecla="' + (i + 1) + '" aria-keyshortcuts="' + (i + 1) + '"' +
+             ' title="' + esc(g.nombre) + ' · tecla ' + (i + 1) + '">'
+           : ' title="' + esc(g.nombre) + '">') +
+    ico(g.icono) + '<span class="tx">' + esc(g.nombre) + '</span>' +
+    '<span class="cta" data-cta="' + g.id + '" hidden></span></a>'
   ).join('');
 
-  /* La barra de abajo. Es la MISMA lista y el mismo `data-ruta`, así que un módulo nuevo
+  /* La barra de abajo. Son los MISMOS botones y el mismo `data-grupo`, así que un módulo nuevo
      aparece en los dos sitios con un solo renglón —que es la promesa que hace RUTAS—. Lo
      único suyo es que se queda en cinco y que el nombre va debajo del icono.
      `aria-hidden` no: son botones de verdad y se navegan con el teclado igual que los de la
@@ -879,12 +1002,11 @@ function escribirNav(visibles, barra, mas) {
      a su ancho, y eso el árbol de accesibilidad ya lo respeta. */
   const ab = $('pf-abajo');
   if (ab) {
-    ab.innerHTML = barra.map(r =>
-      '<button type="button"' +
-      ' data-ruta="' + r.ruta + '" aria-current="false">' +
-      '<span class="pil">' + ico(r.icono) +
-      '<span class="cta" data-cta-movil="' + r.ruta + '" hidden></span></span>' +
-      esc(r.nombre) + '</button>'
+    ab.innerHTML = barra.map(g =>
+      '<button type="button"' + atributosDeBoton(g) + '>' +
+      '<span class="pil">' + ico(g.icono) +
+      '<span class="cta" data-cta-movil="' + g.id + '" hidden></span></span>' +
+      esc(g.nombre) + '</button>'
     ).join('') + (mas.length
       /* «Más» lleva su palabra debajo, como los otros cuatro: un icono de tres puntos solo no
          dice a dónde lleva, y a 360 px la palabra cabe (cada botón mide 72). Lo suyo es el globo,
@@ -933,7 +1055,7 @@ function escribirNav(visibles, barra, mas) {
    enseña «Material · 3 por comprar» tiene que decir la verdad en el momento en que se abre. */
 function abrirMas() {
   const capa = $('pf-mas');
-  const { mas } = rutasDeLaBarra();
+  const { mas } = gruposDeLaBarra();
   if (!capa || !mas.length) return;
   const fila = r => {
     const n = _cuentas.get(r.ruta) || 0;
@@ -946,10 +1068,27 @@ function abrirMas() {
       (n ? '<span class="cta" aria-hidden="true">' + (n > 99 ? '99+' : n) + '</span>' : '') +
       '</button></li>';
   };
+  /* Por grupo y en el orden de la barra de la computadora, para que la misma cosa esté en el
+     mismo sitio en los dos aparatos. Un grupo de una pantalla es una fila suelta —un encabezado
+     «Control» encima de la fila «Control» diría lo mismo dos veces—; uno de varias lleva encima
+     su nombre, que es el del botón de la computadora. Un grupo que va en la barra de abajo no
+     sale aquí con sus pantallas: el Mapa se alcanza con la pestaña del Calendario. */
+  let cuerpo = '', sueltas = [];
+  const vaciarSueltas = () => {
+    if (sueltas.length) cuerpo += '<ul class="pf-mas-rej">' + sueltas.map(fila).join('') + '</ul>';
+    sueltas = [];
+  };
+  for (const g of mas) {
+    if (g.rutas.length === 1) { sueltas.push(g.rutas[0]); continue; }
+    vaciarSueltas();
+    cuerpo += '<h3 class="pf-mas-g" id="pf-mas-g-' + g.id + '">' + esc(g.nombre) + '</h3>' +
+      '<ul class="pf-mas-rej" aria-labelledby="pf-mas-g-' + g.id + '">' + g.rutas.map(fila).join('') + '</ul>';
+  }
+  vaciarSueltas();
   capa.innerHTML = '<div class="pf-panel pf-mas-panel">' +
     '<div class="pf-panel-h"><h2 id="pf-mas-t">Más módulos</h2>' +
     '<button type="button" class="pf-cerrar" data-mas-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
-    '<div class="pf-panel-b"><ul class="pf-mas-rej">' + mas.map(fila).join('') + '</ul></div></div>';
+    '<div class="pf-panel-b">' + cuerpo + '</div></div>';
   capa.setAttribute('aria-labelledby', 'pf-mas-t');
   const btn = document.querySelector('#pf-abajo [data-mas]');
   if (btn) btn.setAttribute('aria-expanded', 'true');
@@ -962,29 +1101,126 @@ function cerrarMas() {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
-/** Mueve el encendido. Es lo único que corre en un cambio de pantalla. */
-function marcarNav(activa, mas) {
-  const enMas = mas.some(activa);
-  for (const b of document.querySelectorAll('#pf-nav [data-ruta],#pf-abajo [data-ruta]')) {
-    const r = rutaPorNombre(b.dataset.ruta);
-    const on = !!r && activa(r);
+/** Mueve el encendido. Es lo único que corre en un cambio de pantalla. Un botón se enciende si
+ *  CUALQUIERA de sus pantallas es la de ahora: estando en el Mapa, el Calendario. */
+function marcarNav(activa, grupos, mas) {
+  const enGrupo = g => !!g && g.rutas.some(activa);
+  for (const b of document.querySelectorAll('#pf-nav [data-grupo],#pf-abajo [data-grupo]')) {
+    const g = grupos.find(x => x.id === b.dataset.grupo);
+    const on = enGrupo(g);
     b.classList.toggle('on', on);
     b.setAttribute('aria-current', on ? 'page' : 'false');
+    /* El destino de un grupo se mueve con lo que se usa: estando en el Mapa, el botón del
+       Calendario ya lleva al Mapa, y el Ctrl+clic tiene que abrir lo mismo que el clic. */
+    if (g && b.tagName === 'A') {
+      const h = '#/' + destinoDelGrupo(g);
+      if (b.getAttribute('href') !== h) b.setAttribute('href', h);
+    }
   }
   /* Estando en una pantalla que vive dentro de «Más», el que se enciende es «Más»: si no, la
      barra de abajo se queda entera apagada y no dice dónde estás. */
+  const enMas = mas.some(enGrupo);
   const bm = document.querySelector('#pf-abajo [data-mas]');
   /* `true` y no `page`: «Más» no es la página, es el sitio donde está. */
   if (bm) { bm.classList.toggle('on', enMas); bm.setAttribute('aria-current', enMas ? 'true' : 'false'); }
 }
 
+/* ----- LAS PESTAÑAS DE UN GRUPO -----
+   Las hermanas de un botón —Calendario y Mapa; Mesa de corte, Vectorizador, Publicaciones y
+   Material— se cambian con un segmentado del estudio: la pastilla negra es la pantalla de ahora,
+   como en la barra lateral, y se desliza a la elegida (pieza 2, la misma ficha de la barra).
+   Cada pestaña es un ENLACE a su ruta, así que no necesita oyente: el clic cambia el hash, el
+   Ctrl+clic abre otra pestaña del navegador, y tocar la que ya está elegida no hace nada.
+
+   Son dos <nav> con el mismo marcado, y cada ancho enciende el suyo (css/plataforma.css): en la
+   computadora va en el encabezado, junto al título, y no le quita alto a nada —las pantallas de
+   marco siguen midiendo lo que medían—; en el teléfono el encabezado ya lleva el título y cuatro
+   botones de 44, y va en una tira debajo que se va con el scroll. No viven dentro de la sección
+   del módulo a propósito: la sección es del módulo (el Calendario pone ahí su propia barra), y
+   las pestañas son de la plataforma.
+
+   Se reescriben solo cuando cambia el grupo —`_pestFirma`, el mismo truco que la barra— para que
+   entre hermanas la pastilla viaje en vez de nacer en su sitio. Al cambiar de grupo la ficha se
+   suelta y se vuelve a enganchar: si no, volaría de «Mapa» a «Mesa de corte», dos pestañas que no
+   tienen nada que ver. Un grupo de una sola pantalla para este rol no lleva pestañas. */
+let _pestFirma = null;
+const _fichasPest = new Map();
+
+function pintarPestanas(activa, grupos) {
+  const r = rutaPorNombre(_actual);
+  const g = r && !r.oculto ? grupoDe(r.ruta, grupos) : null;
+  const con = !!g && g.rutas.length > 1;
+  const firma = con ? Prefs.rol() + '|' + g.id + '|' + g.rutas.map(x => x.ruta).join(',') : '';
+  const nueva = firma !== _pestFirma;
+  _pestFirma = firma;
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  for (const id of ['pf-pest', 'pf-pest-tira']) {
+    const nav = $(id);
+    if (!nav) continue;
+    if (nueva) {
+      const f = _fichasPest.get(id);
+      if (f && f.destruir) { try { f.destruir(); } catch (_) {} }
+      _fichasPest.delete(id);
+      nav.innerHTML = con ? g.rutas.map(x =>
+        '<a href="#/' + x.ruta + '" data-ruta="' + x.ruta + '" aria-current="false">' +
+        '<span class="tx">' + esc(x.nombre) + '</span>' +
+        '<span class="cta" data-cta-pest="' + x.ruta + '" hidden></span></a>').join('') : '';
+      nav.hidden = !con;
+      if (con) nav.setAttribute('aria-label', 'Pantallas de ' + g.nombre);
+      else nav.removeAttribute('aria-label');
+    }
+    if (!con) continue;
+    for (const a of nav.querySelectorAll('[data-ruta]')) {
+      const on = activa(rutaPorNombre(a.dataset.ruta));
+      if (a.getAttribute('aria-current') !== (on ? 'page' : 'false')) a.setAttribute('aria-current', on ? 'page' : 'false');
+    }
+    /* Con su propia `clave` por grupo: la pieza recuerda 1,5 s dónde estaba la marca de cada
+       clave, y con la del <nav> a secas la de las herramientas saldría volando desde donde
+       estaba la del Calendario. */
+    if (nueva && P && P.fichaQueViaja) _fichasPest.set(id, P.fichaQueViaja(nav, { clave: id + ':' + g.id }));
+    asomarPestana(nav);
+    /* Y otra vez en el cuadro siguiente: recién escrita o recién destapada, la tira todavía no
+       tiene sus anchos finales (medido en un teléfono de 360: Material quedaba a medio cortar). */
+    requestAnimationFrame(() => asomarPestana(nav));
+  }
+}
+
+/* Cuando las pestañas no caben —las cuatro herramientas en un teléfono de 360— la tira se
+   desliza de lado, y dos cosas hacen falta para que eso no esconda nada: que la elegida quede a
+   la vista, y que el borde que corta diga que hay más (un desvanecido; `data-corre`). */
+function asomarPestana(nav) {
+  if (!nav || nav.hidden) return;
+  const a = nav.querySelector('[aria-current="page"]');
+  if (a && nav.scrollWidth > nav.clientWidth + 1) {
+    const izq = a.offsetLeft - 16, der = a.offsetLeft + a.offsetWidth + 16 - nav.clientWidth;
+    if (nav.scrollLeft > izq) nav.scrollLeft = Math.max(0, izq);
+    else if (nav.scrollLeft < der) nav.scrollLeft = der;
+  }
+  marcarCorte(nav);
+}
+function marcarCorte(nav) {
+  const lados = [];
+  if (nav.scrollLeft > 2) lados.push('izq');
+  if (nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2) lados.push('der');
+  const v = lados.join(' ');
+  if ((nav.dataset.corre || '') !== v) { if (v) nav.dataset.corre = v; else delete nav.dataset.corre; }
+}
+
 /* El globo con los nombres y las teclas de la barra lateral (pieza 4, variante «nombres»). */
 let _nombresLat = null;
 
-/** En qué lugar de la barra está una ruta. −1 = no tiene sitio (las ocultas: «Qué atender» y
- *  Ajustes, que son de adentro y no un lugar al que ir de lado). */
+/** En qué lugar de la barra está una ruta: el del botón de su grupo y, dentro, el de su pestaña
+ *  —el Mapa (1·1) va después del Calendario (1·0) y antes de Proyectos (2·0)—. Se cuenta en
+ *  centenas para que siga siendo un entero, que es lo que `direccionDeEntrada` exige. −1 = no
+ *  tiene sitio (las ocultas: «Qué atender» y Ajustes, que son de adentro y no un lugar al que ir
+ *  de lado). */
 function lugarEnLaBarra(ruta) {
-  return rutasDeRol().filter(r => !r.oculto).findIndex(r => r.ruta === ruta);
+  const grupos = gruposDelRol();
+  for (let i = 0; i < grupos.length; i++) {
+    const j = grupos[i].rutas.findIndex(r => r.ruta === ruta);
+    if (j >= 0) return i * 100 + j;
+  }
+  return -1;
 }
 
 /** De qué lado entra la pantalla, o '' si no tiene lado: sale de comparar los LUGARES en la
@@ -1010,7 +1246,7 @@ function ponerDireccion(desde, hacia, seccion) {
   const h = document.documentElement;
   h.classList.remove('va-adelante', 'va-atras');
   const dir = direccionDeEntrada(lugarEnLaBarra(desde), lugarEnLaBarra(hacia));
-  /* Con las teclas 1-9 no hay lado: lo que dispara el teclado se repite cien veces y no se anima
+  /* Con las teclas 1-6 no hay lado: lo que dispara el teclado se repite cien veces y no se anima
      (mismo criterio que el fundido de `.pf-mod`, ver `data-nav` en plataforma.css). */
   if (!dir || !seccion || h.dataset.nav === 'teclado') return;
   const clase = 'va-' + dir;
@@ -1039,7 +1275,7 @@ function ponerDireccion(desde, hacia, seccion) {
    como siempre, así que el router no cambia en nada— y se va hacia el lado contrario al que
    entra la nueva mientras se desvanece. El clon no lleva ids ni recibe toques, y se quita solo.
    Las pantallas con <iframe> (Cotizador, herramientas) no se clonan: clonar un marco lo vuelve a
-   cargar entero. Con movimiento reducido o con las teclas 1-9, nada. */
+   cargar entero. Con movimiento reducido o con las teclas 1-6, nada. */
 /* 120 ms con la curva de salida de la casa (ease-out) y solo 16 px: con 170 ms y ease-in lo viejo
    seguía casi opaco cuando entraba lo nuevo, y a los 125 ms se leían las dos pantallas encimadas
    (auditoría de movimiento 2026-10, marco-2). */
@@ -1130,31 +1366,39 @@ function globoSube(el) {
 }
 
 function pintarCuentasNav() {
-  const { mas } = rutasDeLaBarra();
-  /* «Más» esconde módulos, no pendientes: su globo es la suma de los que esconde. */
-  const filas = RUTAS.map(r => ({ ruta: r.ruta, nombre: r.nombre, n: _cuentas.get(r.ruta) || 0 }));
-  const sumaMas = mas.reduce((t, r) => t + (_cuentas.get(r.ruta) || 0), 0);
-  filas.push({ ruta: '__mas', nombre: 'lo que está en «Más»', n: sumaMas });
+  const grupos = gruposDelRol();
+  const { mas } = gruposDeLaBarra(grupos);
+  const cuenta = r => _cuentas.get(r.ruta) || 0;
+  /* Un botón que junta pantallas esconde pantallas, no pendientes: su globo es la suma de los de
+     sus pestañas —si el Mapa tiene doce obras por instalar, meterlo dentro del Calendario no
+     puede esconder el doce—, y cada pestaña lleva el suyo para decir de dónde salen. «Más» es lo
+     mismo un piso arriba: la suma de los botones que esconde. Las claves llevan prefijo porque un
+     botón de una pantalla se llama como ella (`proyectos`) y su globo y el de la pestaña son
+     dos cuentas que recordar por separado. */
+  const suma = g => g.rutas.reduce((t, r) => t + cuenta(r), 0);
+  const filas = grupos.map(g => ({ clave: 'boton:' + g.id, nombre: g.nombre, n: suma(g),
+    sel: '[data-cta="' + g.id + '"],[data-cta-movil="' + g.id + '"]' }));
+  for (const r of RUTAS) filas.push({ clave: 'pestana:' + r.ruta, nombre: r.nombre, n: cuenta(r), sel: '[data-cta-pest="' + r.ruta + '"]' });
+  const sumaMas = mas.reduce((t, g) => t + suma(g), 0);
+  filas.push({ clave: '__mas', nombre: 'lo que está en «Más»', n: sumaMas, sel: '[data-cta-mas]' });
 
   for (const f of filas) {
-    const sel = f.ruta === '__mas'
-      ? '[data-cta-mas]'
-      : '[data-cta="' + f.ruta + '"],[data-cta-movil="' + f.ruta + '"]';
-    const primera = !_cuentaAntes.has(f.ruta);
-    const antes = _cuentaAntes.get(f.ruta) || 0;
+    const sel = f.sel;
+    const primera = !_cuentaAntes.has(f.clave);
+    const antes = _cuentaAntes.get(f.clave) || 0;
     const texto = f.n > 99 ? '99+' : String(f.n);
     for (const el of document.querySelectorAll(sel)) {
       /* Con el mismo número no se toca nada: reescribir el texto de un nodo que un lector de
          pantalla vigila lo vuelve a anunciar, y esto corre en cada `ponerCuenta`. */
       if (el.textContent !== texto) el.textContent = texto;
       el.hidden = f.n <= 0;
-      if (f.ruta !== '__mas') {
+      if (f.clave !== '__mas') {
         if (f.n > 0) el.setAttribute('aria-label', (f.n === 1 ? '1 cosa que atender en ' : f.n + ' cosas que atender en ') + f.nombre);
         else el.removeAttribute('aria-label');
       }
       if (!primera && f.n > antes && f.n > 0) globoSube(el);
     }
-    _cuentaAntes.set(f.ruta, f.n);
+    _cuentaAntes.set(f.clave, f.n);
   }
   /* El botón «Más» dice la suma con palabras: su globo es `aria-hidden` y sin esto un lector de
      pantalla oiría «Más módulos» sin saber que dentro espera algo. */
@@ -1207,6 +1451,14 @@ function pintarRolSeg() {
     ' data-rol="' + r + '" title="' +
     esc(deLaHoja && r !== actual ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_DESC[r]) + '">' +
     esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('');
+  /* El renglón compacto del pie de la barra (index.html, `#pf-rol`): plegado dice el rol de
+     ahora, y los tres botones de arriba solo salen al abrirlo. Cambiar de rol es cosa de una vez
+     por aparato; tenerlo desplegado era un cuarto bloque grande en una barra de seis. Se pliega
+     al elegir, que es cuando ya cumplió. */
+  const n = $('pf-rol-n');
+  if (n) n.textContent = Prefs.ROL_NOMBRE[actual] || '';
+  const caja = $('pf-rol');
+  if (caja) caja.open = false;
 }
 
 function cambiarRol(r) {
@@ -1237,7 +1489,7 @@ function cambiarRol(r) {
    ============================================================================
    Para contestarle al cliente «¿cómo va mi letrero?» había que ir a Proyectos, escribir en su
    buscador y abrir la tarjeta: tres pasos y perder lo que estabas haciendo. La lupa del
-   encabezado —y la tecla «/» en la computadora, al lado de los números 1-9 que ya cambian de
+   encabezado —y la tecla «/» en la computadora, al lado de los números 1-6 que ya cambian de
    módulo— abre una paleta que filtra en vivo y lleva a la ficha.
 
    Tres decisiones que no son de gusto:
@@ -1689,20 +1941,27 @@ async function arrancar() {
   if (seg) seg.addEventListener('click', ev => {
     const b = ev.target.closest('[data-rol]'); if (b) cambiarRol(b.dataset.rol);
   });
-  /* Las dos barras hablan el mismo idioma —`data-ruta`— así que el oyente es el mismo escrito
+  /* Las dos barras hablan el mismo idioma —`data-grupo`— así que el oyente es el mismo escrito
      dos veces y no dos manejadores distintos que se puedan desincronizar. */
   for (const id of ['pf-nav', 'pf-abajo']) {
     const nav = $(id);
     if (nav) nav.addEventListener('click', ev => {
-      /* «Más» va primero: no lleva `data-ruta` porque no ES una ruta, es la puerta a las que no
-         cupieron. */
+      /* «Más» va primero: no lleva `data-grupo` porque no ES un botón de la barra, es la puerta a
+         los que no cupieron. */
       if (ev.target.closest('[data-mas]')) { abrirMas(); return; }
-      const b = ev.target.closest('[data-ruta]'); if (!b) return;
+      const b = ev.target.closest('[data-grupo]'); if (!b) return;
       /* Un enlace de la barra lateral con Ctrl/⌘/Mayús: otra pestaña o ventana, como cualquier
          enlace. Sin tecla, la navegación es la de siempre y no la del navegador. */
       if (b.tagName === 'A') { if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) return; ev.preventDefault(); }
-      ir(b.dataset.ruta);
+      const g = gruposDelRol().find(x => x.id === b.dataset.grupo);
+      if (g) ir(destinoDelGrupo(g));
     });
+  }
+  /* Las pestañas de un grupo son enlaces y navegan solas. Lo único que se les cuelga es el
+     desvanecido del borde mientras se deslizan de lado (`marcarCorte`). */
+  for (const id of ['pf-pest', 'pf-pest-tira']) {
+    const nav = $(id);
+    if (nav) nav.addEventListener('scroll', () => marcarCorte(nav), { passive: true });
   }
   /* La hoja de «Más»: elegir una pantalla la cierra y navega. El cierre va ANTES de navegar
      —para que la entrada de historial de la capa se consuma antes de empujar la del módulo— y
@@ -1771,15 +2030,17 @@ async function arrancar() {
        el foco en un botón —el selector de rol de Ajustes, una tarjeta— un «2» de teclado o de
        dictado mandaba al Calendario sin querer (marco-4, WCAG 2.1.4). */
     if (t && t !== document.body && t !== document.documentElement && t.id !== 'pf-contenido' &&
-        !(t.closest && t.closest('#pf-nav,#pf-abajo'))) return;
-    const visibles = rutasDeRol().filter(r => !r.oculto);
-    const r = visibles[Number(ev.key) - 1];
-    if (!r) return;
+        !(t.closest && t.closest('#pf-nav,#pf-abajo,#pf-pest,#pf-pest-tira'))) return;
+    /* Las teclas son los BOTONES de la barra, del 1 al 6, y un grupo lleva a donde lleva su botón:
+       la última de sus pantallas. Las pestañas de dentro no tienen número; se llega a ellas con
+       Tab, como a cualquier enlace. */
+    const g = gruposDelRol()[Number(ev.key) - 1];
+    if (!g) return;
     ev.preventDefault();
     /* Lo que dispara el teclado no se anima: ni el fundido de la pantalla. La marca se quita en
        cuanto vuelve el puntero (ver .pf-mod en plataforma.css). */
     document.documentElement.dataset.nav = 'teclado';
-    ir(r.ruta);
+    ir(destinoDelGrupo(g));
   });
   window.addEventListener('pointerdown', () => { delete document.documentElement.dataset.nav; }, { passive: true, capture: true });
 
@@ -1950,7 +2211,12 @@ async function arrancar() {
   let _rz = 0;
   window.addEventListener('resize', () => {
     if (_rz) return;
-    _rz = requestAnimationFrame(() => { _rz = 0; ajustarAltoBarra(); });
+    _rz = requestAnimationFrame(() => {
+      _rz = 0; ajustarAltoBarra();
+      /* Al girar el teléfono las pestañas pueden pasar de no caber a caber: el desvanecido del
+         borde se vuelve a decidir con el ancho nuevo. */
+      for (const id of ['pf-pest', 'pf-pest-tira']) asomarPestana($(id));
+    });
   });
 }
 

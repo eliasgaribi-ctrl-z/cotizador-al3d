@@ -98,6 +98,16 @@ body.pf::before{display:none}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
 /* La línea de debajo del título solo existe donde hay sitio para leerla. */
 .pf-cab-d{display:none}
+/* Las pestañas de un grupo (Calendario · Mapa, las cuatro herramientas): dos <nav> con el mismo
+   marcado, y cada ancho enciende el suyo. En la computadora, `#pf-pest` dentro del encabezado;
+   en el teléfono, `#pf-pest-tira` debajo de él, porque en 360 px el encabezado ya lleva el título
+   y cuatro botones de 44. Las dos nacen `hidden` y solo las enciende js/app.js cuando el botón de
+   la barra junta más de una pantalla, así que el `[hidden]` de más abajo manda sobre esto. El
+   aspecto —la cápsula del estudio— está en css/estudio.css. `position:relative` es para que el
+   `offsetLeft` de cada pestaña se mida desde la cápsula al llevar la elegida a la vista. */
+.pf-pest{display:flex;align-items:center;min-width:0;position:relative}
+.pf-pest-cab{display:none}
+@media(min-width:760px){ .pf-pest-cab{display:flex} .pf-pest-tira{display:none} }
 .pf-cab-acc{display:flex;align-items:center;gap:var(--e2);margin-left:auto}
 .pf-cab-tema{margin-left:auto;width:36px;height:36px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
   border:0;border-radius:var(--rr2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
@@ -233,23 +243,10 @@ body.pf::before{display:none}
     font-family:inherit;font-size:var(--t2);font-weight:500;text-align:left;cursor:pointer;
   }
   @media(hover:hover){.pf-lat-item:hover{background:rgba(255,255,255,.06);color:#fff}}
-  /* El interruptor de tema es, además, `.btn-tema`, y esa clase lo formatea en el sistema como
-     un botón cuadrado de icono: 44 px de ancho y de alto mínimo. En esta barra no es eso —es
-     un renglón con su palabra— y el ancho ya se lo devuelve la regla de arriba, pero el alto
-     mínimo se quedaba y dejaba «Tema oscuro» 4 px más alto que «Ajustes», que está pegado
-     debajo. Se veía como un renglón torcido. El alto de esta barra lo decide esta barra.
-     Y el CENTRADO también se quedaba: `.btn-tema` centra su icono, y aquí la luna y su palabra
-     salían 31 px a la derecha de los iconos de «Ajustes» y de los módulos, todos alineados a la
-     izquierda. Lo mismo: la alineación de esta barra la decide esta barra. */
-  .pf-lat-item.btn-tema{width:100%;min-height:0;justify-content:flex-start}
+  /* Aquí vivían las reglas del interruptor de tema de la barra («Tema oscuro» / «Tema claro»).
+     El renglón se quitó en octubre de 2026 —la luna del encabezado hace lo mismo desde todas las
+     pantallas— y sus reglas se fueron con él. */
   .pf-lat-item .svgi{width:var(--ico2);height:var(--ico2);flex:0 0 auto}
-  /* El interruptor de tema dice A DÓNDE va, no dónde estás: en claro, «Tema oscuro» con la
-     luna; en oscuro, «Tema claro» con el sol. La hoja del sistema ya enseña un glifo u otro
-     según html[data-tema]; aquí hace falta lo mismo con la palabra, que en la barra lateral
-     sí cabe. Sin esto salían las dos, una al lado de la otra. */
-  .pf-lat-item .tx-sol{display:none}
-  html[data-tema="oscuro"] .pf-lat-item .tx-luna{display:none}
-  html[data-tema="oscuro"] .pf-lat-item .tx-sol{display:inline}
   .pf-lat-rol{margin-top:10px;padding:12px 10px 4px;border-top:1px solid rgba(255,255,255,.08)}
   .pf-lat-rol-t{display:block;font-size:var(--t1);font-weight:600;color:#fff;margin-bottom:6px}
   /* El segmento de rol dentro de la barra: marino sobre marino, con el elegido en claro. */
@@ -937,7 +934,7 @@ button.cal-cifra:active{transform:scale(.97)}
      caminos de impresión de la plataforma —la lista de compra y la orden de obra de más abajo—
      salían en el tamaño que el navegador tuviera por omisión, o sea A4 fuera de MX y US. */
   @page{size:letter portrait;margin:18mm 12mm 14mm}
-  .topbar,.pf-lat,.pf-cab,.pf-abajo,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
+  .topbar,.pf-lat,.pf-cab,.pf-abajo,.pf-nav,.pf-pest,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
   /* Y sin barra lateral, el hueco que se le reservaba tampoco. */
   .pf-wrap{padding-left:0!important}
   /* El hueco del encabezado y del pie fijos. Sin esto se pintan ENCIMA de la primera fila: en
@@ -3131,6 +3128,12 @@ html[data-tema="oscuro"] .pf-mas-op .cta{color:var(--nav)}
    El quinto botón es de la misma familia que los otros cuatro —las reglas de `.pf-abajo button`
    ya lo visten— y lo único suyo es que su globo suma los de las rutas que esconde. */
 .pf-mas-rej{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
+/* La hoja va por grupo: las filas sueltas (Control) primero y, debajo, cada grupo de varias
+   pantallas con su nombre encima —«Herramientas»—, el mismo del botón de la computadora. El
+   encabezado es una etiqueta chica y callada, no un título: lo que se toca son las filas. */
+.pf-mas-g{margin:var(--e4) 0 var(--e2);padding:0 var(--e1);color:var(--tinta3);
+  font-size:var(--t1);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.pf-mas-g:first-child{margin-top:0}
 .pf-mas-op{display:grid;grid-template-columns:auto 1fr auto;align-items:center;
   gap:var(--e1) var(--e3);width:100%;min-height:56px;padding:var(--e3);
   border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
