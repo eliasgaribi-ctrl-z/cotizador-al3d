@@ -640,6 +640,10 @@ export function esqueletoModulo(mod, nombre) {
   let cuerpo;
   /* El mapa ocupa la sección entera y las cuentas viven en su hoja: la silueta es el bloque solo. */
   if (mod === 'mapa') cuerpo = '<div class="esq-b esq-bloque esq-mapa"></div>';
+  /* El Calendario (octubre de 2026) abre con su barra y el mes a lo alto de la ventana, no con la
+     cinta de cuentas: la silueta de antes saltaba a una pantalla de otra forma al llegar. */
+  else if (mod === 'fabricacion') cuerpo = '<div class="esq-cal-barra"><div class="esq-b esq-t"></div></div>' +
+    '<div class="esq-b esq-bloque esq-cal"></div>';
   else if (mod === 'ajustes') cuerpo = _esqTarjeta(_esqFila.repeat(4));
   /* El Tablero despejado (octubre de 2026) ya no abre con la cinta de cuentas: abre con el resumen
      de dos renglones, «Necesita tu decisión» y el taller. */

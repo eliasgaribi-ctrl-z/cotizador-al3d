@@ -201,8 +201,10 @@ for (const tab of ['ventas', 'cobrar']) {
     const cs = await cifras('#mod-control .pf-cuentas');
     const px = cs.map(x => x.px);
     const que = (tab === 'ventas' ? 'Ventas' : 'Por cobrar') + ' a ' + ancho + ' px';
-    cierto(cs.length >= 3 && cs.some(x => x.dinero) && cs.some(x => x.t.length >= 11),
-      que + ': la fila trae ' + cs.length + ' cuentas, con el importe largo en la del dinero');
+    /* En el Resumen (octubre de 2026) la fila es «Este mes»: cinco tarjetas iguales y sin tinte, así
+       que ninguna es «la del dinero»; lo que importa es que el importe largo esté en la fila. */
+    cierto(cs.length >= 3 && (tab === 'ventas' || cs.some(x => x.dinero)) && cs.some(x => x.t.length >= 11),
+      que + ': la fila trae ' + cs.length + ' cuentas, con el importe largo' + (tab === 'ventas' ? '' : ' en la del dinero'));
     /* La tolerancia es la del reparto de la rejilla: Chromium mide las pistas en 1/64 de px, y
        una pista 1/64 más ancha le da 0,002 px más de letra a su cifra. */
     cierto(Math.max(...px) - Math.min(...px) < 0.05, que + ': todas las cifras al mismo tamaño (' + lista(cs) + ')');

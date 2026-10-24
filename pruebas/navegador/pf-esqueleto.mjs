@@ -235,14 +235,18 @@ async function rondaTelefono({ ancho, tema, reducido }) {
   /* ---- los globos: «Más» suma, y salta solo si sube ---- */
   console.log('\nLOS GLOBOS DE LA BARRA');
   {
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 3); a.ponerCuenta('mapa', 2); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 3); a.ponerCuenta('control', 2); a.ponerCuenta('agenda', 1); a.ponerCuenta('mapa', 4); });
     await p.waitForTimeout(700);
     const g = await ev(() => {
       const mas = document.querySelector('#pf-abajo [data-cta-mas]');
-      return { mas: mas.textContent, visible: !mas.hidden, etiqueta: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-label'), ariaOculto: mas.getAttribute('aria-hidden') };
+      const cal = document.querySelector('#pf-abajo [data-cta-movil="calendario"]');
+      return { mas: mas.textContent, visible: !mas.hidden, etiqueta: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-label'), ariaOculto: mas.getAttribute('aria-hidden'),
+        cal: cal && !cal.hidden ? cal.textContent : null };
     });
-    cierto(g.visible && g.mas === '5', '«Más» suma lo que esconde: Material 3 + Mapa 2 = 5', g);
+    cierto(g.visible && g.mas === '5', '«Más» suma lo que esconde: Material 3 (en Herramientas) + Control 2 = 5', g);
     cierto(/5 cosas que atender/.test(g.etiqueta) && g.ariaOculto === 'true', '  y el botón lo dice con palabras, porque el globo es adorno', g);
+    cierto(g.cal === '5', 'el Calendario suma lo de sus pestañas: Calendario 1 + Mapa 4 = 5 (meter el Mapa dentro no esconde sus doce obras)', g);
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('agenda', 0); a.ponerCuenta('mapa', 0); });
     await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 4); });
     await p.waitForTimeout(60);
     const sube = await ev(() => { const e = document.querySelector('#pf-abajo [data-cta-mas]'); return { clase: e.classList.contains('sube'), anim: getComputedStyle(e).animationName, txt: e.textContent }; });
@@ -256,15 +260,15 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     cierto(await ev(() => !document.querySelector('.cta.sube')), 'cuando la cuenta BAJA no salta nada');
     const cont = await contraste(p, '#pf-abajo [data-cta-mas]');
     cierto(cont && cont.ratio >= 4.5, 'el número del globo lee a ' + (cont && cont.ratio) + ':1 (mínimo 4,5)', cont);
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 0); a.ponerCuenta('mapa', 0); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 0); a.ponerCuenta('control', 0); });
   }
 
   /* ---- la marca se desliza: la barra se pinta UNA vez ---- */
   console.log('\nLA MARCA SE DESLIZA Y LA PANTALLA ENTRA POR SU LADO');
   {
-    await ev(() => { window.__tablero = document.querySelector('#pf-abajo [data-ruta="hoy"]'); window.__cal = document.querySelector('#pf-abajo [data-ruta="agenda"]'); });
+    await ev(() => { window.__tablero = document.querySelector('#pf-abajo [data-grupo="hoy"]'); window.__cal = document.querySelector('#pf-abajo [data-grupo="calendario"]'); });
     const viajeIda = vigilarViaje(p);
-    await toque(p, '#pf-abajo [data-ruta="agenda"]');
+    await toque(p, '#pf-abajo [data-grupo="calendario"]');
     const v = await viajeIda;
     if (reducido) {
       cierto(!v.ficha, 'con menos movimiento no viaja ninguna ficha', v);
@@ -276,19 +280,53 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     }
     await p.waitForTimeout(300);
     const d = await ev(() => ({
-      mismo: document.querySelector('#pf-abajo [data-ruta="hoy"]') === window.__tablero && document.querySelector('#pf-abajo [data-ruta="agenda"]') === window.__cal,
-      on: [...document.querySelectorAll('#pf-abajo > button.on')].map(b => b.dataset.ruta || 'mas'),
-      actual: [...document.querySelectorAll('#pf-abajo [aria-current="page"]')].map(b => b.dataset.ruta),
+      mismo: document.querySelector('#pf-abajo [data-grupo="hoy"]') === window.__tablero && document.querySelector('#pf-abajo [data-grupo="calendario"]') === window.__cal,
+      on: [...document.querySelectorAll('#pf-abajo > button.on')].map(b => b.dataset.grupo || 'mas'),
+      actual: [...document.querySelectorAll('#pf-abajo [aria-current="page"]')].map(b => b.dataset.grupo),
       restos: document.querySelectorAll('.ficha-viaja,.ficha-destino').length,
       clases: document.documentElement.className,
+      hash: location.hash,
     }));
     cierto(d.mismo, 'la barra NO se reescribió: son los mismos nodos de antes (por eso la marca puede deslizarse)', d);
-    cierto(d.on.join() === 'agenda' && d.actual.join() === 'agenda', 'y solo Calendario queda encendido, con aria-current', d);
+    cierto(d.hash === '#/agenda' && d.on.join() === 'calendario' && d.actual.join() === 'calendario', 'el Calendario lleva a #/agenda la primera vez, y solo él queda encendido, con aria-current', d);
     cierto(d.restos === 0, 'al llegar no queda nada de la ficha', d);
     cierto(!/va-(adelante|atras)/.test(d.clases), 'la dirección se quita al terminar la entrada: la siguiente sincronización no la hereda', d);
+
+    /* Las pestañas de un grupo de DOS van en el encabezado, en el lugar del título, como dos
+       iconos: una tira debajo le quitaba al Mapa 72 px de alto (pf-mapa). */
+    const t = await ev(() => {
+      const tira = document.getElementById('pf-pest-tira'), cab = document.getElementById('pf-pest');
+      const as = [...cab.querySelectorAll('a')], h = document.querySelector('.pf-cab').getBoundingClientRect(), r = cab.getBoundingClientRect();
+      return { enCab: !cab.hidden && getComputedStyle(cab).display !== 'none' && r.top >= h.top && r.bottom <= h.bottom, tiraOculta: getComputedStyle(tira).display === 'none',
+        nombres: as.map(a => a.querySelector('.tx').textContent), iconos: as.map(a => !!a.querySelector('svg') && getComputedStyle(a.querySelector('svg')).display !== 'none'),
+        actual: as.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.dataset.ruta), hrefs: as.map(a => a.getAttribute('href')),
+        cajas: as.map(a => [Math.round(a.getBoundingClientRect().width), Math.round(a.getBoundingClientRect().height)]),
+        etiqueta: cab.getAttribute('aria-label'), titulo: document.getElementById('pf-sub').textContent, altoCab: Math.round(h.height) };
+    });
+    cierto(t.enCab && t.tiraOculta && t.nombres.join() === 'Calendario,Mapa' && t.iconos.every(Boolean) && t.actual.join() === 'agenda',
+      'en el teléfono, «Calendario · Mapa» son dos iconos en el encabezado, con el Calendario elegido, y no hay tira', t);
+    cierto(t.hrefs.join() === '#/agenda,#/mapa' && t.etiqueta === 'Pantallas de Calendario' && t.titulo === 'Calendario',
+      '  cada uno es un enlace a su ruta con su nombre para el lector de pantalla, y el grupo se nombra', t);
+    cierto(t.cajas.every(([w, h]) => w >= 44 && h >= 44) && t.altoCab === 56, '  de 44 px como mínimo, sin que el encabezado crezca', t);
+    cierto(await sinDesborde(p), 'sin desborde de lado con las pestañas puestas');
+    await toque(p, '#pf-pest a[data-ruta="mapa"]');
+    await p.waitForTimeout(1200);
+    const m = await ev(() => ({ hash: location.hash, on: [...document.querySelectorAll('#pf-abajo > button.on')].map(b => b.dataset.grupo || 'mas'),
+      actual: [...document.querySelectorAll('#pf-pest a[aria-current="page"]')].map(a => a.dataset.ruta), tira: getComputedStyle(document.getElementById('pf-pest-tira')).display }));
+    cierto(m.hash === '#/mapa' && m.actual.join() === 'mapa' && m.on.join() === 'calendario' && m.tira === 'none',
+      'tocar el mapa lleva a #/mapa, la pestaña se mueve, el botón del Calendario sigue encendido y el mapa no pierde alto', m);
+    await toque(p, '#pf-abajo [data-grupo="hoy"]');
+    await p.waitForTimeout(700);
+    cierto(await ev(() => document.getElementById('pf-pest').hidden && document.getElementById('pf-pest-tira').hidden), 'en el Tablero no hay pestañas: es un botón de una pantalla');
+    await toque(p, '#pf-abajo [data-grupo="calendario"]');
+    await p.waitForTimeout(1200);
+    cierto(await ev(() => location.hash === '#/mapa'), 'y el botón del Calendario vuelve a la última que se usó: el Mapa');
+    await toque(p, '#pf-pest a[data-ruta="agenda"]');
+    await p.waitForTimeout(800);
+
     /* De vuelta, del otro lado. */
     const viajeVuelta = vigilarViaje(p);
-    await toque(p, '#pf-abajo [data-ruta="hoy"]');
+    await toque(p, '#pf-abajo [data-grupo="hoy"]');
     const a = await viajeVuelta;
     if (!reducido) cierto(/va-atras/.test(a.clases) && a.anims.includes('pf-entra-izq'), 'de vuelta a Tablero entra desde la izquierda (' + a.anims.join() + ')', a);
     else cierto(!a.anims.some(x => /entra-(der|izq)/.test(x)), 'y de vuelta tampoco se desplaza', a);
@@ -314,12 +352,16 @@ async function rondaTelefono({ ancho, tema, reducido }) {
       return { abierta: capa.classList.contains('show'), expandido: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-expanded'),
         rotulo: capa.getAttribute('aria-labelledby'), titulo: document.getElementById('pf-mas-t') && document.getElementById('pf-mas-t').textContent,
         filas: [...capa.querySelectorAll('.pf-mas-op')].map(b => ({ ruta: b.dataset.ruta, n: b.querySelector('.pf-mas-n').textContent, cta: (b.querySelector('.cta') || {}).textContent || '', h: Math.round(b.getBoundingClientRect().height) })),
+        grupos: [...capa.querySelectorAll('.pf-mas-g')].map(x => ({ t: x.textContent, lista: (x.nextElementSibling && x.nextElementSibling.getAttribute('aria-labelledby')) === x.id })),
         foco: document.activeElement && document.activeElement.closest('#pf-mas') ? 'dentro' : 'fuera' };
     });
     cierto(h.abierta && h.expandido === 'true', 'tocar «Más» abre la hoja, con aria-expanded', h);
-    cierto(h.filas.map(f => f.n).join() === 'Material,Mapa,Mesa de corte,Vectorizador,Publicaciones,Control', 'lleva las rutas del rol que NO están abajo, con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
+    cierto(h.filas.map(f => f.n).join() === 'Control,Mesa de corte,Vectorizador,Publicaciones,Material', 'lleva lo que NO está abajo, por grupo y con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
+    cierto(h.grupos.length === 1 && h.grupos[0].t === 'Herramientas' && h.grupos[0].lista, '  las herramientas bajo su encabezado, «Herramientas», que nombra su lista; Control va suelto', h.grupos);
+    cierto(!h.filas.some(f => f.ruta === 'mapa'), '  y el Mapa no: se llega con la pestaña del Calendario', h.filas);
     cierto(h.filas.every(f => f.h >= 44), 'cada fila mide al menos 44 px', h.filas.map(f => f.h));
-    cierto(h.filas[0].cta === '3', 'Material trae su globo: 3', h.filas[0]);
+    const mat = h.filas.find(f => f.ruta === 'material') || {};
+    cierto(mat.cta === '3', 'Material trae su globo: 3', mat);
     cierto(h.foco === 'dentro' && /Más módulos/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más módulos»', h);
     cierto(await sinDesborde(p), 'sin desborde de lado con la hoja abierta');
     const c1 = await contraste(p, '.pf-mas-op .cta'), c2 = await contraste(p, '.pf-mas-d');
@@ -344,22 +386,30 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     /* Elegir una. */
     await toque(p, '#pf-abajo [data-mas]');
     await p.waitForTimeout(500);
-    await toque(p, '#pf-mas [data-ruta="mapa"]');
+    await toque(p, '#pf-mas [data-ruta="material"]');
     await p.waitForTimeout(1200);
     const el = await ev(() => ({ hash: location.hash, abierta: document.getElementById('pf-mas').classList.contains('show'),
-      mapa: !document.getElementById('mod-mapa').hidden, masOn: document.querySelector('#pf-abajo [data-mas]').classList.contains('on'),
+      material: !document.getElementById('mod-material').hidden, masOn: document.querySelector('#pf-abajo [data-mas]').classList.contains('on'),
       masActual: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-current'), otros: document.querySelectorAll('#pf-abajo > button.on:not([data-mas])').length,
-      titulo: document.getElementById('pf-sub').textContent }));
-    cierto(el.hash === '#/mapa' && el.mapa && !el.abierta, 'elegir «Mapa» cierra la hoja y navega a #/mapa: la navegación no se pierde', el);
-    cierto(el.masOn && el.masActual === 'true' && el.otros === 0, 'y «Más» queda encendido, porque el Mapa vive ahí: la barra no se queda entera apagada', el);
+      titulo: document.getElementById('pf-sub').textContent,
+      pest: [...document.querySelectorAll('#pf-pest-tira a')].map(a => a.textContent.replace(/\d+/g, '').trim()),
+      pestActual: [...document.querySelectorAll('#pf-pest-tira a[aria-current="page"]')].map(a => a.dataset.ruta) }));
+    cierto(el.hash === '#/material' && el.material && !el.abierta, 'elegir «Material» cierra la hoja y navega a #/material: la navegación no se pierde', el);
+    cierto(el.masOn && el.masActual === 'true' && el.otros === 0, 'y «Más» queda encendido, porque Herramientas vive ahí: la barra no se queda entera apagada', el);
+    cierto(el.titulo === 'Herramientas' && el.pest.join() === 'Mesa de corte,Vectorizador,Publicaciones,Material' && el.pestActual.join() === 'material',
+      'el encabezado dice «Herramientas» y la tira trae sus cuatro pantallas, con Material elegido', el);
+    const corre = await ev(() => { const t = document.getElementById('pf-pest-tira'), a = t.querySelector('[aria-current="page"]'), r = t.getBoundingClientRect(), q = a.getBoundingClientRect();
+      return { desborda: t.scrollWidth > t.clientWidth, aLaVista: q.left >= r.left - 1 && q.right <= r.right + 1, corre: t.dataset.corre || '' }; });
+    cierto(corre.aLaVista && (!corre.desborda || /izq|der/.test(corre.corre)),
+      '  si no caben, la tira se desliza con la elegida a la vista y el borde que corta se desvanece', corre);
+    cierto(await sinDesborde(p), '  y la página no se desplaza de lado');
     /* Elegir la que ya estás mirando solo cierra. */
     await toque(p, '#pf-abajo [data-mas]');
     await p.waitForTimeout(500);
-    const antes = await ev(() => document.getElementById('mod-mapa').childNodes.length);
-    await ev(() => { window.__mapaNodo = document.getElementById('mod-mapa').firstElementChild; });
-    await toque(p, '#pf-mas [data-ruta="mapa"]');
+    await ev(() => { window.__matNodo = document.getElementById('mod-material').firstElementChild; });
+    await toque(p, '#pf-mas [data-ruta="material"]');
     await p.waitForTimeout(900);
-    cierto(await ev(() => !document.getElementById('pf-mas').classList.contains('show') && document.getElementById('mod-mapa').firstElementChild === window.__mapaNodo),
+    cierto(await ev(() => !document.getElementById('pf-mas').classList.contains('show') && document.getElementById('mod-material').firstElementChild === window.__matNodo),
       'elegir la pantalla en que ya estás solo cierra la hoja: no la vuelve a montar');
     await toque(p, '#pf-abajo [data-ruta="hoy"]');
     await p.waitForTimeout(800);
@@ -586,7 +636,7 @@ console.log('\n══ LA BARRA SEGÚN EL ROL ══');
   await fa.p.tap('#pf-abajo [data-mas]');
   await fa.p.waitForTimeout(500);
   const f = await fa.p.evaluate(() => [...document.querySelectorAll('#pf-mas .pf-mas-n')].map(x => x.textContent));
-  cierto(f.join() === 'Material,Mapa,Mesa de corte,Vectorizador', 'fabricación: «Más» no trae Control, que no ve importes: ' + f.join(' · '), f);
+  cierto(f.join() === 'Mesa de corte,Vectorizador,Material', 'fabricación: «Más» trae sus herramientas y no Control, que no ve importes: ' + f.join(' · '), f);
   await fa.p.keyboard.press('Escape');
   await fa.p.waitForTimeout(400);
   await fa.p.tap('#pf-cab-buscar');
@@ -608,29 +658,39 @@ for (const tema of ['claro', 'oscuro']) {
   const ev = (f, a) => p.evaluate(f, a);
   await sembrar(p);
   cierto(!(await ev(() => !!document.querySelector('#pf-abajo') && getComputedStyle(document.getElementById('pf-abajo')).display !== 'none')), 'la barra de abajo no existe con ratón: manda la lateral');
-  const lat = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, teclas: [...document.querySelectorAll('#pf-nav .pf-tab')].map(t => t.dataset.tecla).join('') }));
-  cierto(lat.n === 10 && lat.teclas === '123456789', 'la barra lateral lleva las diez pestañas, las nueve primeras con su tecla (Publicaciones, la décima, no tiene)', lat);
+  const lat = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, teclas: [...document.querySelectorAll('#pf-nav .pf-tab')].map(t => t.dataset.tecla).join(''),
+    nombres: [...document.querySelectorAll('#pf-nav .pf-tab .tx')].map(t => t.textContent),
+    pie: [...document.querySelectorAll('.pf-lat-pie > *')].filter(x => x.getClientRects().length).map(x => x.id || x.className),
+    tema: !!document.querySelector('.pf-lat [data-tema-btn]'),
+    rol: (() => { const d = document.getElementById('pf-rol'); return d ? { abierto: d.open, alto: Math.round(d.getBoundingClientRect().height), dice: document.getElementById('pf-rol-n').textContent } : null; })() }));
+  cierto(lat.n === 6 && lat.teclas === '123456', 'la barra lateral lleva seis botones, cada uno con su tecla del 1 al 6', lat);
+  cierto(lat.nombres.join() === 'Tablero,Calendario,Proyectos,Cotizador,Control,Herramientas', '  Tablero, Calendario, Proyectos, Cotizador, Control y Herramientas', lat.nombres);
+  cierto(!lat.tema, '  y ya no lleva «Tema oscuro»: lo hace la luna del encabezado', lat);
+  cierto(lat.rol && !lat.rol.abierto && lat.rol.alto <= 64 && lat.rol.dice === 'Dirección', '  el rol del aparato va plegado: la etiqueta y «Dirección», sin los tres botones', lat.rol);
   cierto(await sinDesborde(p), 'sin desborde de lado');
+  /* La barra entera cabe en una pantalla de 800 px de alto, sin que el pie se corte. */
+  const cabe = await ev(() => { const l = document.getElementById('pf-lat'); return { scroll: l.scrollHeight, alto: l.clientHeight }; });
+  cierto(cabe.scroll <= cabe.alto + 1, 'en 800 px de alto la barra cabe entera, pie incluido: no hay que desplazarla', cabe);
   /* P31, revisado en la auditoría completa 2026-10 (marco-7): con el nombre a la vista, la tecla va
      DENTRO de la fila (`::after`) y no en un globo que tapaba la pestaña de arriba. El globo queda
      para la barra encogida, donde no se lee el nombre. */
   const tecla = sel => ev(s => { const e = document.querySelector(s); const a = getComputedStyle(e, '::after');
     const t = document.querySelector('.nombre-tip'); return { contenido: a.content, display: a.display, globo: !!(t && t.matches(':popover-open')) }; }, sel);
-  await p.hover('#pf-nav .pf-tab[data-ruta="agenda"]');
+  await p.hover('#pf-nav .pf-tab[data-grupo="calendario"]');
   await p.waitForTimeout(700);
-  const tip = await tecla('#pf-nav .pf-tab[data-ruta="agenda"]');
+  const tip = await tecla('#pf-nav .pf-tab[data-grupo="calendario"]');
   cierto(tip.contenido === '"2"' && tip.display !== 'none', 'el ratón sobre «Calendario» enseña su tecla, 2, dentro de la misma fila', tip);
   cierto(!tip.globo, 'y no sale el globo encima de la pestaña vecina', tip);
   await p.mouse.move(700, 500);
   await p.waitForTimeout(300);
-  const fuera = await tecla('#pf-nav .pf-tab[data-ruta="agenda"]');
+  const fuera = await tecla('#pf-nav .pf-tab[data-grupo="calendario"]');
   cierto(fuera.display === 'none', 'al irse el ratón la tecla se esconde', fuera);
   /* Teclado: Tab hasta una pestaña enseña la tecla. */
   await ev(() => document.querySelector('#pf-nav .pf-tab[data-ruta="hoy"]').focus());
   await p.keyboard.press('Tab');
   await p.waitForTimeout(500);
-  const tab = { ...(await tecla('#pf-nav .pf-tab[data-ruta="agenda"]')), foco: await ev(() => document.activeElement.dataset.ruta) };
-  cierto(tab.foco === 'agenda' && tab.display !== 'none' && tab.contenido === '"2"', 'con el teclado, llegar a una pestaña enseña su tecla', tab);
+  const tab = { ...(await tecla('#pf-nav .pf-tab[data-grupo="calendario"]')), foco: await ev(() => document.activeElement.dataset.grupo) };
+  cierto(tab.foco === 'calendario' && tab.display !== 'none' && tab.contenido === '"2"', 'con el teclado, llegar a una pestaña enseña su tecla', tab);
   await p.keyboard.press('Escape');
   /* Los números siguen cambiando de pantalla, y no dan lado. */
   await p.mouse.move(700, 500);
@@ -648,11 +708,40 @@ for (const tema of ['claro', 'oscuro']) {
   await p.waitForTimeout(800);
   /* La barra lateral no se reescribió, y la ficha con su filete viajó. */
   await ev(() => { window.__t = document.querySelector('#pf-nav .pf-tab[data-ruta="hoy"]'); });
-  await p.click('#pf-nav .pf-tab[data-ruta="material"]');
+  await p.click('#pf-nav .pf-tab[data-ruta="control"]');
   await p.waitForTimeout(40);
   const vuelo = await ev(() => ({ ficha: !!document.querySelector('#pf-nav .ficha-viaja'), mismo: document.querySelector('#pf-nav .pf-tab[data-ruta="hoy"]') === window.__t }));
   cierto(vuelo.ficha && vuelo.mismo, 'el filete de la barra lateral VIAJA al módulo nuevo, sin que la barra se reescriba', vuelo);
   await p.waitForTimeout(800);
+  /* Herramientas: el botón junta cuatro pantallas y las cambia con pestañas en el encabezado. */
+  await p.click('#pf-nav .pf-tab[data-grupo="herramientas"]');
+  await p.waitForTimeout(900);
+  const herr = await ev(() => {
+    const cab = document.getElementById('pf-pest'), as = [...cab.querySelectorAll('a')], h = document.querySelector('.pf-cab').getBoundingClientRect(), r = cab.getBoundingClientRect();
+    return { hash: location.hash, titulo: document.getElementById('pf-sub').textContent, enCab: !cab.hidden && getComputedStyle(cab).display !== 'none' && r.top >= h.top && r.bottom <= h.bottom,
+      tira: getComputedStyle(document.getElementById('pf-pest-tira')).display, nombres: as.map(a => a.textContent.replace(/\d+/g, '').trim()),
+      actual: as.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.dataset.ruta), on: [...document.querySelectorAll('#pf-nav .pf-tab.on')].map(b => b.dataset.grupo),
+      altoCab: Math.round(h.height) };
+  });
+  cierto(herr.hash === '#/anidador' && herr.titulo === 'Herramientas' && herr.on.join() === 'herramientas',
+    '«Herramientas» lleva a la Mesa de corte la primera vez, se enciende y el encabezado dice «Herramientas»', herr);
+  cierto(herr.enCab && herr.tira === 'none' && herr.nombres.join() === 'Mesa de corte,Vectorizador,Publicaciones,Material' && herr.actual.join() === 'anidador',
+    '  las cuatro pestañas van en el encabezado, junto al título, con la Mesa de corte elegida', herr);
+  cierto(herr.altoCab === 64, '  y el encabezado sigue midiendo 64 px: a las pantallas de marco no se les quita alto', herr);
+  await p.click('#pf-pest a[data-ruta="material"]');
+  await p.waitForTimeout(900);
+  const mat = await ev(() => ({ hash: location.hash, actual: [...document.querySelectorAll('#pf-pest a[aria-current="page"]')].map(a => a.dataset.ruta),
+    on: [...document.querySelectorAll('#pf-nav .pf-tab.on')].map(b => b.dataset.grupo), href: document.querySelector('#pf-nav [data-grupo="herramientas"]').getAttribute('href') }));
+  cierto(mat.hash === '#/material' && mat.actual.join() === 'material' && mat.on.join() === 'herramientas' && mat.href === '#/material',
+    'la pestaña «Material» lleva a #/material; Herramientas sigue encendido y ya apunta ahí', mat);
+  await p.click('#pf-nav .pf-tab[data-ruta="hoy"]');
+  await p.waitForTimeout(700);
+  cierto(await ev(() => document.getElementById('pf-pest').hidden), 'en el Tablero no hay pestañas');
+  await p.mouse.move(700, 500);
+  await ev(() => document.activeElement && document.activeElement.blur());
+  await p.keyboard.press('6');
+  await p.waitForTimeout(900);
+  cierto(await ev(() => location.hash === '#/material'), 'la tecla 6 es Herramientas, y lleva a la última que se usó: Material');
   await p.click('#pf-nav .pf-tab[data-ruta="hoy"]');
   await p.waitForTimeout(700);
   /* «/» abre la búsqueda. */
@@ -706,10 +795,17 @@ for (const tema of ['claro', 'oscuro']) {
   /* Cambiar de rol reescribe la barra, y el globo no salta por eso. */
   await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 2); });
   await p.waitForTimeout(600);
+  /* El rol va plegado: primero se abre, y al elegir se vuelve a plegar. */
+  await p.click('#pf-rol > summary');
+  await p.waitForTimeout(300);
+  cierto(await ev(() => document.getElementById('pf-rol').open && document.querySelectorAll('#pf-rolseg [data-rol]').length === 3), 'tocar el rol lo abre y enseña los tres');
   await p.click('#pf-rolseg [data-rol="fabricacion"]');
   await p.waitForTimeout(1200);
-  const rol = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, sube: !!document.querySelector('.cta.sube'), mat: (document.querySelector('#pf-nav [data-cta="material"]') || {}).textContent }));
-  cierto(rol.n === 8 && !rol.sube, 'al cambiar de rol la barra se reescribe (8 pestañas) y ningún globo salta como si hubiera subido', rol);
+  const rol = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, sube: !!document.querySelector('.cta.sube'),
+    herr: (document.querySelector('#pf-nav [data-cta="herramientas"]') || {}).textContent, plegado: !document.getElementById('pf-rol').open, dice: document.getElementById('pf-rol-n').textContent }));
+  cierto(rol.n === 5 && !rol.sube, 'al cambiar de rol la barra se reescribe (5 botones para fabricación) y ningún globo salta como si hubiera subido', rol);
+  cierto(rol.herr === '2', '  y el globo de Material sigue en el botón de Herramientas', rol);
+  cierto(rol.plegado && rol.dice === 'Fabricación', '  el rol se vuelve a plegar y ya dice «Fabricación»', rol);
   cierto(errores.length === 0, 'cero errores de página', errores);
   await ctx.close();
 }

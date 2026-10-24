@@ -193,6 +193,11 @@
 <symbol id="i-puntos" viewBox="0 0 24 24"><circle fill="currentColor" stroke="none" cx="6" cy="12" r="1.7"/><circle fill="currentColor" stroke="none" cx="12" cy="12" r="1.7"/><circle fill="currentColor" stroke="none" cx="18" cy="12" r="1.7"/></symbol>
 <!-- Publicaciones: un cuadro de publicación con su foto y una chispa, la de «nuevo». -->
 <symbol id="i-publicar" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="15" height="15" rx="2.2"/><path d="m2.5 16.8 4.2-4.2 3.6 3.6 2.2-2.2 5 5"/><path d="M19.6 1.8l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/></symbol>
+<!-- Herramientas: la caja con su asa, la junta de la tapa y el broche. Es el botón que junta la
+     mesa de corte, el vectorizador, las publicaciones y el material. Cuatro trazos, como el banco
+     del taller, que es lo que sobrevive a los 22 px de la barra; sin llave ni martillo encima, que
+     a ese tamaño se leen como una mancha. -->
+<symbol id="i-herramientas" viewBox="0 0 24 24"><rect x="2.8" y="7.6" width="18.4" height="12.6" rx="2.2"/><path d="M8.6 7.6V5.8c0-.8.6-1.4 1.4-1.4h4c.8 0 1.4.6 1.4 1.4v1.8"/><path d="M2.8 12.8h18.4"/><path d="M10.2 12.8v2h3.6v-2"/></symbol>
 </defs></svg>
 
 <!-- ============================================================================
@@ -216,7 +221,12 @@
      scroll sale recortado a la altura de la ventana—. Fija por la izquierda, con el hueco
      hecho por `padding-left` en el cuerpo, se ve igual y no cuesta nada de eso.
 
-     En el teléfono se apaga entera y manda la barra de abajo. ============================ -->
+     En el teléfono se apaga entera y manda la barra de abajo.
+
+     Octubre de 2026: diez módulos ya eran demasiados para una columna de iconos, y Elías pidió
+     «que máximo haya unos 6 botones». Son seis: Tablero, Calendario, Proyectos, Cotizador,
+     Control y Herramientas. Los que juntan varias pantallas las cambian con pestañas en el
+     encabezado (ver `grupo` en RUTAS, js/app.js). ============================ -->
 <aside class="pf-lat" id="pf-lat">
   <div class="pf-lat-marca">
     <!-- El logotipo es el archivo, no un dibujo aparte. Aquí vivía un SVG de tres círculos
@@ -234,17 +244,24 @@
        nada que hacer en el mapa. -->
   <nav class="pf-nav" id="pf-nav" aria-label="Módulos de la plataforma"></nav>
 
+  <!-- El pie. Aquí vivía también «Tema oscuro», y se fue: la luna del encabezado, arriba a la
+       derecha, hace lo mismo y se ve desde todas las pantallas. Lo que queda son dos renglones
+       chicos, que no compiten con los seis botones de arriba. -->
   <div class="pf-lat-pie">
-    <button type="button" class="pf-lat-item btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg><span class="tx tx-luna">Tema oscuro</span><span class="tx tx-sol">Tema claro</span></button>
     <button type="button" class="pf-lat-item" id="pf-ajustes-btn" title="Ajustes de la plataforma"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg><span class="tx">Ajustes</span></button>
     <button type="button" class="pf-lat-item" id="pf-instalar" hidden title="Instalar la app en este aparato"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg><span class="tx">Instalar la app</span></button>
     <!-- El rol de este aparato. En la maqueta este bloque es el nombre de quien usa la app;
          aquí dice lo que esta app de verdad sabe —con qué rol trabaja el dispositivo— y sigue
-         siendo tocable, que es para lo que existe. -->
-    <div class="pf-lat-rol">
-      <span class="pf-lat-rol-t">Este dispositivo</span>
+         siendo tocable, que es para lo que existe.
+         Plegado: los tres botones abiertos eran un bloque más alto que dos módulos y se leían
+         como otro botón grande de la barra. Un <details> dice el rol en un renglón y abre los tres
+         al tocarlo; es nativo, así que el teclado, el lector de pantalla y el «expandido» salen
+         solos. js/app.js escribe el rol de ahora y lo vuelve a plegar al elegir. Los botones siguen
+         en #pf-rolseg aunque esté plegado: Ajustes los aprieta desde allá (`aplicarRol`). -->
+    <details class="pf-lat-rol" id="pf-rol">
+      <summary title="Con qué rol trabaja este aparato"><span class="pf-lat-rol-t">Este dispositivo</span><span class="pf-lat-rol-n" id="pf-rol-n"></span></summary>
       <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
-    </div>
+    </details>
   </div>
 </aside>
 
@@ -265,6 +282,10 @@
        con su frase en `aria-label` y nace escondida: sin puente configurado no hay con qué
        estar al día. -->
   <button type="button" class="pf-sync" id="pf-sync" data-sync="quieto" title="Sincronización: al día" aria-label="Sincronización: al día" hidden><span class="pf-sync-nube" aria-hidden="true"><svg class="svgi nube"><use href="#i-nube"/></svg><svg class="svgi nube-off"><use href="#i-nube-off"/></svg></span></button>
+  <!-- Las pestañas del grupo, en la computadora: Calendario · Mapa, o las cuatro herramientas.
+       Nace vacío y escondido; lo escribe `pintarPestanas()` de js/app.js solo cuando el botón
+       encendido junta más de una pantalla. Su gemela del teléfono va debajo del encabezado. -->
+  <nav class="pf-pest pf-pest-cab" id="pf-pest" hidden></nav>
   <span class="pf-cab-d" id="pf-cab-sub"></span>
   <div class="pf-cab-acc" id="pf-cab-acc"></div>
   <!-- Buscar un proyecto desde cualquier pantalla. Antes había que ir a Proyectos, escribir y
@@ -296,6 +317,11 @@
   <button type="button" class="pf-cab-tema pf-cab-instalar" id="pf-cab-instalar" hidden title="Instalar la app en este aparato" aria-label="Instalar la app"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg></button>
   <button type="button" class="pf-cab-tema pf-cab-ajustes" id="pf-cab-ajustes" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
 </header>
+
+<!-- Las pestañas del grupo, en el TELÉFONO: una tira debajo del encabezado, que se va con el
+     scroll en vez de quedarse pegada —en una pantalla de 844 px, otra franja fija de 56 sería
+     comerse el calendario—. Mismo marcado que #pf-pest; el CSS enciende una u otra por ancho. -->
+<nav class="pf-pest pf-pest-tira" id="pf-pest-tira" hidden></nav>
 
 <!-- La barra de progreso de las transiciones. Tres píxeles pegados arriba que corren mientras
      un módulo carga y se llenan al pintar. Nace apagada, y js/app.js la enciende en cada
@@ -416,10 +442,9 @@
 <!-- ============================================================================
      LA BARRA DE ABAJO, solo en el teléfono.
 
-     Cinco módulos y no seis: Material se queda fuera. No es que sobre —es la lista de
-     compra, y es de las pantallas que más se abren— sino que con seis, cada botón mide 60 px
-     en una pantalla de 360 y el nombre no cabe debajo del icono. Se llega a Material desde
-     el Tablero, que es de donde se sale a comprar. La lista de qué módulos entran la decide
+     Cinco botones y no seis: con seis, cada uno mide 60 px en una pantalla de 360 y el nombre
+     no cabe debajo del icono. Son los mismos botones de la barra lateral —el Calendario lleva
+     dentro el Mapa—, y lo que no cabe va en «Más», ordenado por grupo. Qué entra lo decide
      app.js, que es donde ya vive la lista de rutas. ============================ -->
 <nav class="pf-abajo" id="pf-abajo" aria-label="Módulos"></nav>
 

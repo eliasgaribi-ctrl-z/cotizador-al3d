@@ -14,9 +14,9 @@
  *           verde con «N cambios» o rojo con «Reintentar»; la pantalla NO se repinta mientras baja
  *           (solo el botón); la bajada silenciosa de la entrada no lo enciende, pero un toque la
  *           enciende; un repintado a media bajada le devuelve su estado al botón nuevo;
- *   · P27 · las doce barras nacen en cero y crecen UNA vez, al verse; el buscador que repinta no
- *           las vuelve a mover; cada mes con algo es un botón que abre un globo con sus ventas y su
- *           total, igual al de la barra; un mes en cero no es botón;
+ *   · P27 · las doce barras (de pie desde octubre de 2026) nacen en cero y crecen UNA vez, al verse;
+ *           un repintado no las vuelve a mover; cada mes con algo es un botón que abre un globo con
+ *           sus ventas y su total, igual al de la barra; un mes en cero no es botón;
  *   · P30 · cada saldo por cobrar lleva su medidor quieto con el porcentaje escrito, y rayado y con
  *           la palabra «estimado» cuando el saldo no es el de la hoja;
  *   · F54 · comisiones, primero las chicas: con un monto, se marcan las que alcanzan completas
@@ -210,10 +210,13 @@ const infinitas = p => p.evaluate(() => document.getAnimations()
 const desborde = p => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const caja = (p, sel) => p.$eval(sel, e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, b: r.bottom, r: r.right }; });
 const tab = async (p, t) => { await p.locator('[data-tab="' + t + '"]').tap(); await esp(p, 500); };
-const cuentas = p => p.evaluate(() => [...document.querySelectorAll('#mod-control .pf-cuenta[data-cuenta]')].map(e => ({
+/* Las cuentas de cada pestaña y, en el Resumen de octubre de 2026, sus tres cifras clave (`.ct-clave`:
+   lo que falta cobrar, lo de fabricación y lo de cobrando), que también llevan a algo y ruedan. */
+const CUENTAS = '#mod-control .pf-cuenta[data-cuenta], #mod-control .ct-clave[data-cuenta]';
+const cuentas = p => p.evaluate(sel => [...document.querySelectorAll(sel)].map(e => ({
   clave: e.dataset.cuenta, tag: e.tagName, va: e.dataset.va || '', n: e.querySelector(':scope > b').textContent,
   flecha: getComputedStyle(e.querySelector('.pf-cuenta-t'), '::after').content,
-  nombre: e.textContent.replace(/\s+/g, ' ').trim() })));
+  nombre: e.textContent.replace(/\s+/g, ' ').trim() })), CUENTAS);
 const money = n => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pesos = t => Number(String(t).replace(/[^\d.]/g, ''));
 const lim = t => String(t || '').replace(/\s+/g, ' ').trim();
@@ -244,11 +247,15 @@ const seApaga = p => p.waitForFunction(() => !document.querySelector('.mira.ve')
 /* Las animaciones de una barra de la gráfica (lo único que debe moverse al verse). */
 const animsDeBarras = p => p.evaluate(() => document.getAnimations()
   .filter(a => { const t = a.effect && a.effect.target; return t && t.classList && t.classList.contains('ct-b'); }).length);
+/* La escala VERTICAL de una barra: desde octubre de 2026 las doce barras van de pie y crecen con
+   `scaleY`, que es el cuarto número de `matrix(a, b, c, d, e, f)`. */
 const escalaBarra = (p, sel) => p.evaluate(s => {
   const e = document.querySelector(s); if (!e) return null;
-  const m = /matrix\(([-\d.e]+)/.exec(getComputedStyle(e).transform);
-  return m ? +m[1] : 1;      // `none` es escala 1
+  const m = /matrix\(([-\d.e]+),\s*([-\d.e]+),\s*([-\d.e]+),\s*([-\d.e]+)/.exec(getComputedStyle(e).transform);
+  return m ? +m[4] : 1;      // `none` es escala 1
 }, sel);
+/* Repintar la pantalla sin moverla: tocar la pestaña en la que ya se está la vuelve a pintar entera. */
+const repintar = p => p.evaluate(() => document.querySelector('#mod-control [data-tab][aria-pressed="true"]').click());
 
 /* ══ 1 · P3 · LAS CUENTAS QUE LLEVAN A LO QUE CUENTAN ═══════════════════════ */
 titulo('p3', 'P3 · CADA CUENTA CON ALGO QUE CONTAR ES UNA PUERTA');
@@ -259,19 +266,30 @@ if (activa('p3')) {
   const ym1 = await p.evaluate(async () => { const F = await import('./js/nucleo/fechas.js'); return F.masMeses(F.hoyISO().slice(0, 7) + '-01', -1).slice(0, 7); });
   let d = await cuentas(p);
   const de = k => d.find(x => x.clave === k) || {};
-  que(['mes', 'ant', 'pipe', 'cobrar', 'conv', 'perdido'].every(k => de(k).clave), 'las seis cuentas de Ventas llevan su clave (' + d.map(x => x.clave).join(', ') + ')');
-  que(de('mes').tag === 'BUTTON' && de('mes').va === 'lista:mes', '«Vendido en este mes» es un botón que lleva a la lista del mes');
-  que(de('ant').tag === 'BUTTON' && de('ant').va === 'mes:' + ym1, '«Vendido el mes pasado» lleva a su renglón en las doce barras');
-  que(de('pipe').tag === 'BUTTON' && de('pipe').va === 'ir:proyectos', '«Autorizado sin decidir» (con una sin decidir) lleva a Proyectos, donde se decide');
-  que(de('cobrar').tag === 'BUTTON' && de('cobrar').va === 'tab:cobrar', '«Por cobrar» abre la pestaña de Por cobrar');
-  que(de('perdido').tag === 'BUTTON' && de('perdido').va === 'mes:' + hoyYm, '«No se dio» lleva al renglón del mes en las barras');
-  que(de('conv').tag === 'P', 'la conversión es un porcentaje y no una lista: sigue siendo un párrafo');
-  que(['mes', 'ant', 'pipe', 'cobrar', 'perdido'].every(k => /›/.test(de(k).flecha)), 'cada botón lleva la flecha de «ir» tras su etiqueta');
-  que(/ver las ventas de/.test(de('mes').nombre) && /abrir Por cobrar/.test(de('cobrar').nombre),
-    'el nombre que oye el lector dice A DÓNDE lleva («' + de('cobrar').nombre.slice(-40) + '»)');
-  que(de('conv').flecha === 'none' || !/›/.test(de('conv').flecha), 'y la que no lleva a ningún lado no lleva flecha');
+  /* El Resumen de octubre de 2026: las tres cifras clave arriba y las cinco de «Este mes». */
+  que(['falta', 'fab', 'cob', 'mes', 'pipe', 'gastado', 'utilidad', 'perdido'].every(k => de(k).clave),
+    'las cifras clave y las cinco cuentas del mes llevan su clave (' + d.map(x => x.clave).join(', ') + ')');
+  que(de('falta').tag === 'BUTTON' && de('falta').va === 'tab:cobrar', '«Falta cobrar», la cifra grande, abre la pestaña de Por cobrar');
+  que(de('cob').tag === 'BUTTON' && de('cob').va === 'fin:cobrando', '«Cobrando · ya entregados» baja a su lista');
+  que(de('fab').tag === 'P', 'y «En fabricación», sin nada en el taller, no lleva a ningún lado');
+  que(de('mes').tag === 'BUTTON' && de('mes').va === 'lista:mes', '«Vendido» de este mes es un botón que lleva a la lista del mes');
+  que(de('pipe').tag === 'BUTTON' && de('pipe').va === 'ir:proyectos', '«Cotizaciones por cerrar» (con una sin decidir) lleva a Proyectos, donde se decide');
+  que(de('perdido').tag === 'BUTTON' && de('perdido').va === 'mes:' + hoyYm, '«Perdido» lleva a la columna del mes en las barras');
+  que(de('utilidad').tag === 'P' && de('gastado').tag === 'P', 'la utilidad es una resta y sin gastos no hay lista: los dos son párrafos');
+  que(['falta', 'cob', 'mes', 'pipe', 'perdido'].every(k => /›/.test(de(k).flecha)), 'cada botón lleva la flecha de «ir» tras su etiqueta');
+  que(/ver las ventas de/.test(de('mes').nombre) && /abrir Por cobrar/.test(de('falta').nombre),
+    'el nombre que oye el lector dice A DÓNDE lleva («' + de('falta').nombre.slice(-40) + '»)');
+  que(de('utilidad').flecha === 'none' || !/›/.test(de('utilidad').flecha), 'y la que no lleva a ningún lado no lleva flecha');
 
-  /* «Por cobrar»: abre su pestaña, baja a la cartera, la enciende UNA vez y deja el foco ahí. */
+  /* «Cobrando» baja a su lista y la enciende una vez. */
+  await p.locator('#mod-control [data-va="fin:cobrando"]').tap();
+  que(await aparece(p), '«Cobrando» enciende su lista con las esquinas de la pieza 17');
+  await seApaga(p);
+  que(await p.evaluate(() => !!(document.activeElement && document.activeElement.closest('#ct-fin-cobrando > .card-h'))),
+    'y el foco queda en el título de la lista');
+  await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
+
+  /* «Falta cobrar»: abre Por cobrar, baja a la cartera, la enciende UNA vez y deja el foco ahí. */
   await p.locator('#mod-control [data-va="tab:cobrar"]').tap();
   que(await aparece(p), '«Por cobrar» enciende la cartera con las esquinas de la pieza 17');
   que(await seApaga(p), 'las esquinas se van solas: se enciende UNA vez');
@@ -295,22 +313,31 @@ if (activa('p3')) {
   que(t2.foco, 'y el foco cae en el renglón del proyecto instalado');
   await tab(p, 'ventas');
 
-  /* «Vendido en este mes»: la lista cambia a «Este mes» para que cuadre con la cifra. */
+  /* «Vendido» de este mes: la lista vive en la pestaña Ventas, y cambia a «Este mes» para que
+     cuadre con la cifra. */
   await p.locator('#mod-control [data-va="lista:mes"]').tap();
-  que(await aparece(p), '«Vendido en este mes» enciende la lista de ventas');
+  que(await aparece(p), '«Vendido» de este mes enciende la lista de ventas');
   await seApaga(p);
+  que((await p.evaluate(() => document.querySelector('[data-tab="lista"]').getAttribute('aria-pressed'))) === 'true',
+    'en la pestaña Ventas, que es donde vive la lista');
+  que(/[?&]tab=lista/.test(p.url()), 'y la dirección lo dice (' + p.url().split('#')[1] + ')');
   que((await p.locator('[data-periodo="mes"][aria-pressed="true"]').count()) === 1,
     'y pone el periodo en «Este mes»: la lista a la que llega es la que cuenta la cifra');
   const nFilas = await p.locator('#ct-lista .ct-fila').count();
   que(nFilas === 3, 'con las 3 filas del mes (2 vendidas y 1 que no se dio): ' + nFilas);
 
-  /* «Vendido el mes pasado»: su renglón en las doce barras, con el foco en su botón. */
+  /* «Vendido el mes pasado» (pestaña Ventas): vuelve al Resumen, a su columna en las doce barras,
+     con el foco en su botón. */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
+  d = await cuentas(p);
+  que(de('ant').tag === 'BUTTON' && de('ant').va === 'mes:' + ym1 && de('conv').tag === 'P',
+    'en Ventas, «Vendido el mes pasado» lleva a su mes y la conversión, que es un porcentaje, es un párrafo');
   await p.locator('#mod-control [data-va="mes:' + ym1 + '"]').tap();
-  que(await aparece(p), '«Vendido el mes pasado» enciende su renglón en las barras');
+  que(await aparece(p), '«Vendido el mes pasado» enciende su columna en las barras');
   await seApaga(p);
-  const t3 = await p.evaluate(() => document.activeElement && document.activeElement.id);
-  que(t3 === 'ct-mes-' + ym1, 'con el foco en el botón de ese mes (' + t3 + ')');
+  const t3 = await p.evaluate(() => ({ id: document.activeElement && document.activeElement.id,
+    tab: document.querySelector('[data-tab="ventas"]').getAttribute('aria-pressed') }));
+  que(t3.id === 'ct-mes-' + ym1 && t3.tab === 'true', 'de vuelta en el Resumen, con el foco en el botón de ese mes (' + t3.id + ')');
 
   /* Con teclado: Enter en una cuenta hace lo mismo que el dedo. */
   await p.evaluate(() => window.scrollTo(0, 0)); await esp(p, 300);
@@ -338,7 +365,7 @@ if (activa('p3')) {
   const v = await entrar({ touch: true, sembrar: false });
   d = await cuentas(v.p);
   que(d.length >= 6 && d.every(x => x.tag === 'P' && !/›/.test(x.flecha)),
-    'sin una sola venta, las ' + d.length + ' cuentas de Ventas son párrafos sin flecha: no llevan a ningún lado');
+    'sin una sola venta, las ' + d.length + ' cuentas del Resumen son párrafos sin flecha: no llevan a ningún lado');
   await tab(v.p, 'cobrar');
   d = await cuentas(v.p);
   que(d.length === 3 && d.every(x => x.tag === 'P'), 'y las tres de Por cobrar también');
@@ -364,16 +391,18 @@ if (activa('p18')) {
       for (const m of ms) {
         const t = m.target;
         if (t.classList && t.classList.contains('rueda-rodando')) {
-          const cu = t.closest('.pf-cuenta[data-cuenta]');
+          const cu = t.closest('.pf-cuenta[data-cuenta], .ct-clave[data-cuenta]');
           if (cu) { window.__giro.cifra = true; window.__giro.claves.push(cu.dataset.cuenta); }
         }
       }
     }).observe(document.getElementById('mod-control'), { attributes: true, subtree: true, attributeFilter: ['class'] });
   });
-  const rueda = () => p.evaluate(() => !!document.querySelector('#mod-control .pf-cuenta .rueda-rodando, #mod-control .pf-cuenta .rueda-vista'));
+  const rueda = () => p.evaluate(() => !!document.querySelector('#mod-control .pf-cuenta .rueda-rodando, #mod-control .pf-cuenta .rueda-vista, ' +
+    '#mod-control .ct-clave .rueda-rodando, #mod-control .ct-clave .rueda-vista'));
   que(!(await rueda()), 'al entrar a la pantalla ninguna cuenta rueda');
   const antes = (await cuentas(p)).find(x => x.clave === 'mes').n;
-  que((await p.$$eval('#mod-control .pf-cuenta[data-cuenta] > b', e => e.length)) >= 6, 'las cuentas llevan su clave: un cambio SÍ rueda');
+  que((await p.$$eval('#mod-control .pf-cuenta[data-cuenta] > b, #mod-control .ct-clave[data-cuenta] > b', e => e.length)) >= 8,
+    'las cuentas y las cifras clave llevan su clave: un cambio SÍ rueda');
   await observar();
   /* Llega «algo de otro teléfono»: una venta más este mes. */
   await llegaOtra(p, 'V-199', 'Llegó de otro teléfono', 10000);
@@ -383,7 +412,8 @@ if (activa('p18')) {
   const despues = (await cuentas(p)).find(x => x.clave === 'mes').n;
   que(pesos(despues) === pesos(antes) + 11600 && /\.\d\d$/.test(despues),
     'con el importe bien escrito, con sus dos decimales: ' + antes + ' → ' + despues);
-  que(!g.claves.includes('conv') && !g.claves.includes('anticipos'), 'y solo ruedan las que cambiaron (no la conversión)');
+  que(!g.claves.includes('pipe') && !g.claves.includes('falta'),
+    'y solo ruedan las que cambiaron (no las cotizaciones por cerrar, ni lo que falta cobrar: la venta llegó liquidada)');
   /* El importe no pierde su tamaño ajustado: la rueda no cambia la caja. */
   const ajusta = await p.evaluate(() => { const b = document.querySelector('#mod-control .pf-cuenta[data-cuenta="mes"] > b'); return { clase: b.className, c: b.style.getPropertyValue('--c') }; });
   que(/ajusta/.test(ajusta.clase) && Number(ajusta.c) >= 9, 'el importe conserva su ancho ajustado `--c` (' + ajusta.clase + ' · ' + ajusta.c + ')');
@@ -399,9 +429,12 @@ if (activa('p18')) {
   que(!g2.cifra, 'al volver a «Ventas» después de un cambio que pasó en otra pestaña, sus cuentas NO ruedan');
   /* Y un cambio que sí pasa frente a ella, rueda otra vez. */
   await observar();
-  await llegaOtra(p, 'V-197', 'Y otra', 5000);
+  await llegaOtra(p, 'V-197', 'Y otra', 5000, { estatus: 'COBRANDO', pago_pendiente: 2000 });
   await remontar(p);
-  que((await p.evaluate(() => window.__giro.cifra)), 'pero un cambio que pasa frente a quien mira, rueda');
+  const g3 = await p.evaluate(() => window.__giro);
+  que(g3.cifra, 'pero un cambio que pasa frente a quien mira, rueda');
+  que(g3.claves.includes('falta') && g3.claves.includes('cob'),
+    'y una venta que llega cobrándose hace rodar las cifras clave de arriba: «Falta cobrar» y «Cobrando» (' + g3.claves.join(', ') + ')');
 
   /* Entrar de verdad NO rueda: se sale, algo cambia por otro lado y se vuelve. */
   await irA(c.p, '#/proyectos', 1200);
@@ -600,13 +633,12 @@ if (activa('p27')) {
   const e0 = await escalaBarra(p, '.ct-grafica .ct-b.vendido');
   que(e0 === 0, 'sus barras nacen en cero (escala ' + e0 + ')');
   que((await animsDeBarras(p)) === 0, 'y no se anima nada mientras nadie la ve');
-  /* Mientras no se ve, un repintado (el buscador) las deja igual de esperando. Se teclea SIN mover la
-     pantalla: `fill` traería el campo a la vista y, al pasar, la gráfica se vería. */
-  const teclear = txt => p.evaluate(t => { const i = document.querySelector('[data-busca]'); i.value = t; i.dispatchEvent(new Event('input', { bubbles: true })); }, txt);
-  await teclear('a'); await esp(p, 500);
+  /* Mientras no se ve, un repintado las deja igual de esperando. Se repinta SIN mover la pantalla
+   (tocando la pestaña en la que ya se está): si la gráfica pasara por la vista, se vería. El
+   buscador que se usaba para esto se fue a la pestaña Ventas en octubre de 2026. */
+  await repintar(p); await esp(p, 500);
   que((await p.locator('.ct-grafica.espera').count()) === 1 && (await escalaBarra(p, '.ct-grafica .ct-b.vendido')) === 0,
     'si se repinta antes de verlas, siguen esperando (no se pierde el crecimiento)');
-  await teclear(''); await esp(p, 500);
 
   await p.evaluate(() => document.querySelector('#ct-meses').scrollIntoView({ block: 'start' }));
   let visto = 0, enCurso = 0;
@@ -620,16 +652,22 @@ if (activa('p27')) {
   await esp(p, 1800);
   que((await animsDeBarras(p)) === 0, 'a los dos segundos ya no se mueve nada');
   const e1 = await escalaBarra(p, '.ct-grafica .ct-b.vendido');
-  que(e1 === 1, 'y las barras quedaron con su ancho completo (escala ' + e1 + ')');
+  que(e1 === 1, 'y las barras quedaron con su alto completo (escala ' + e1 + ')');
   que((await infinitas(p)).length === 0, 'nada gira en bucle');
-  const w = await p.evaluate(() => [...document.querySelectorAll('.ct-grafica .ct-b.vendido')].map(b => Math.round(b.getBoundingClientRect().width)));
-  que(w.length === 10 && Math.max(...w) > 60 && w.every(x => x >= 2), 'cada mes con venta tiene su barra con su ancho (' + w.length + ' barras, la mayor de ' + Math.max(...w) + ' px)');
+  const w = await p.evaluate(() => [...document.querySelectorAll('.ct-grafica .ct-b.vendido')].map(b => Math.round(b.getBoundingClientRect().height)));
+  que(w.length === 10 && Math.max(...w) > 60 && w.every(x => x >= 2), 'cada mes con venta tiene su barra de pie con su alto (' + w.length + ' barras, la mayor de ' + Math.max(...w) + ' px)');
+  const forma = await p.evaluate(() => {
+    const mejor = document.querySelectorAll('.ct-grafica .ct-mes.mejor');
+    const cifra = mejor[0] && mejor[0].querySelector('.ct-mes-cifra');
+    return { n: mejor.length, cifra: !!cifra && getComputedStyle(cifra).display !== 'none' && cifra.textContent,
+      prom: !!document.querySelector('.ct-grafica .ct-prom') };
+  });
+  que(forma.n === 1 && forma.cifra && forma.prom, 'el mejor mes va destacado con su importe encima («' + forma.cifra + '») y el promedio es una raya');
 
-  /* UNA vez: el buscador que repinta no las vuelve a mover, ni cambiar de pestaña y volver. */
-  await teclear('Gym'); await esp(p, 600);
+  /* UNA vez: un repintado no las vuelve a mover, ni cambiar de pestaña y volver. */
+  await repintar(p); await esp(p, 600);
   que((await animsDeBarras(p)) === 0 && (await p.locator('.ct-grafica.espera').count()) === 0,
-    'el buscador, que repinta la pantalla, NO las vuelve a animar');
-  await teclear(''); await esp(p, 500);
+    'un repintado de la pantalla NO las vuelve a animar');
   await tab(p, 'bitacora'); await tab(p, 'ventas'); await esp(p, 300);
   que((await animsDeBarras(p)) === 0 && (await escalaBarra(p, '.ct-grafica .ct-b.vendido')) === 1,
     'ni cambiar de pestaña y volver: crecen UNA vez por visita');
@@ -898,10 +936,21 @@ if (activa('medidas')) {
     await esp(p, 600);
     que((await desborde(p)) <= 0, donde + ': Ventas sin desborde horizontal');
     que((await infinitas(p)).length === 0, donde + ': Ventas sin animaciones en bucle en reposo');
-    const cs = await p.evaluate(() => [...document.querySelectorAll('#mod-control .pf-cuenta.va .pf-cuenta-t')].map(e => e.getBoundingClientRect().width));
+    const cs = await p.evaluate(() => [...document.querySelectorAll('#mod-control .pf-cuenta.va .pf-cuenta-t, #mod-control .ct-clave.va .pf-cuenta-t')]
+      .map(e => e.getBoundingClientRect().width));
     que(cs.length >= 4 && cs.every(w => w > 20), donde + ': las cuentas tocables caben y se leen (' + cs.length + ')');
     const k1 = await contraste(p, '#mod-control .pf-cuenta.va .pf-cuenta-t');
     que(k1 >= 4.5, donde + ': la etiqueta de una cuenta tocable pasa de 4,5:1 (' + (k1 && k1.toFixed(2)) + ')');
+    /* Lo nuevo del Resumen de octubre de 2026: la frase y la leyenda de las cifras clave, la nota y
+       los renglones de las listas, y la ficha del cambio contra el mes pasado. */
+    const nuevos = [['#ct-clave .ct-clave-d', 'la frase de las cifras clave'], ['#ct-clave .ct-clave-ley', 'la leyenda de la barra'],
+      ['#ct-fin-cobrando .ct-fin-nota', 'la nota de la lista'], ['#ct-fin-cobrando .ct-fin-meta', 'la segunda línea de un renglón'],
+      ['#ct-fin-cobrando .ct-fin-pct', 'el porcentaje cobrado'], ['#ct-fin-cobrando .ct-fin-monto', 'lo que falta cobrar'],
+      ['#ct-este-mes .ct-cambio', 'la ficha del cambio'], ['#ct-este-mes .pf-cuenta em', 'la línea de abajo de una cuenta']];
+    const kn = [];
+    for (const [sel] of nuevos) kn.push(await contraste(p, sel));
+    que(kn.every(k => k != null && k >= 4.5), donde + ': ' + nuevos.map(x => x[1]).join(', ') + ' pasan de 4,5:1 (' +
+      kn.map(k => k && k.toFixed(2)).join(' · ') + ')');
     /* Las barras ya vistas, con su globo abierto. */
     await p.evaluate(() => document.querySelector('#ct-meses').scrollIntoView({ block: 'start' })); await esp(p, 1700);
     que((await desborde(p)) <= 0, donde + ': con las barras a la vista, sin desborde');
@@ -945,33 +994,73 @@ if (activa('medidas')) {
 }
 
 /* ---------------------------------------------------------------------------------------------
-   Octubre de 2026: lo primero de Ventas son las finanzas de lo que está en fabricación y de lo que
-   se está cobrando, luego los doce meses, y lo vendido por tipo de trabajo hasta el final. Y el
-   CSV de ventas es de la dirección: a pagos no se le pinta, ni en el encabezado ni en la tarjeta.
+   Octubre de 2026: el Resumen abre con las cifras clave —lo que falta cobrar, de fabricación y de
+   cobrando—, luego las dos listas de lo vivo (de lo que más falta cobrar a lo que menos, con un
+   renglón que se toca entero), este mes y los doce meses. La lista de ventas y lo vendido por tipo
+   de trabajo están en la pestaña Ventas. Y el CSV de ventas es de la dirección: a pagos no se le
+   pinta, ni en el encabezado ni en la tarjeta.
    --------------------------------------------------------------------------------------------- */
-titulo('fin', 'FINANZAS DE LO VIVO, EL ORDEN DE VENTAS Y EL CSV SOLO PARA DIRECCIÓN');
+titulo('fin', 'EL RESUMEN: CIFRAS CLAVE, LAS DOS LISTAS DE LO VIVO, LA PESTAÑA VENTAS Y EL CSV SOLO PARA DIRECCIÓN');
 if (activa('fin')) {
   const c = await entrar({ ancho: 360 });
   const { p, errs } = c;
   await llegaOtra(p, 'V-120', 'Rótulo en taller', 10000, { estatus: 'FABRICACION', pago_pendiente: 5800 });
   await llegaOtra(p, 'V-121', 'Letras reparando', 5000, { estatus: 'REPARANDO', pago_pendiente: null });
   await remontar(p);
+  /* El Resumen de octubre de 2026: arriba las cifras clave, luego las dos listas, este mes y los doce
+     meses. La lista de ventas y lo vendido por tipo se fueron a la pestaña Ventas. */
   const orden = await p.evaluate(() => {
     const m = document.getElementById('mod-control');
     const pos = sel => { const e = m.querySelector(sel); return e ? [...m.querySelectorAll('*')].indexOf(e) : -1; };
-    return { fin: pos('#ct-fin'), meses: pos('#ct-meses'), cuentas: pos(':scope .pf-cuentas:not(#ct-fin .pf-cuentas)'), lista: pos('#ct-lista'), tt: pos('#ct-tt') };
+    return { clave: pos('#ct-clave'), fin: pos('#ct-fin'), mes: pos('#ct-este-mes'), meses: pos('#ct-meses'),
+      lista: pos('#ct-lista'), tt: pos('#ct-tt') };
   });
-  que(orden.fin >= 0 && orden.fin < orden.meses, 'las finanzas van antes que los doce meses');
-  que(orden.meses < orden.cuentas && orden.cuentas < orden.lista, 'y los doce meses antes que las cuentas del mes y la lista');
-  que(orden.tt > orden.lista, 'lo vendido por tipo de trabajo va hasta el final');
+  que(orden.clave >= 0 && orden.clave < orden.fin, 'lo primero son las cifras clave: lo que falta cobrar y dónde');
+  que(orden.fin < orden.mes && orden.mes < orden.meses, 'luego las dos listas, este mes y los doce meses');
+  que(orden.lista === -1 && orden.tt === -1, 'la lista de ventas y lo vendido por tipo de trabajo ya no están en el Resumen');
   const n = sel => p.$$eval(sel, e => e.length);
-  que((await n('#ct-fin-fabricacion .ct-fila')) === 2, 'en fabricación: FABRICACION y REPARANDO (2)');
-  que((await n('#ct-fin-cobrando .ct-fila')) === 3, 'cobrando: las tres de la hoja en COBRANDO (3)');
-  que((await n('#ct-fin-cobrando .ct-fin-fila .ct-fin-barra')) === 3, 'y cada renglón lleva su barra de cobro');
-  const nombres = await p.$$eval('#ct-fin-cobrando .ct-fin-fila .pf-fila-t', e => e.map(x => x.childNodes[0].textContent.trim()));
-  que(nombres.join('|') === 'Barbería El Toro|Óptica Visión|Clínica Norte',
-    'por orden de entrada: la más reciente arriba y la más antigua abajo (' + nombres.join(', ') + ')');
+  const txt = sel => p.$eval(sel, e => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '');
+  /* Las cifras clave: lo que falta de las 5 vivas (5,800 + 2,900 estimado; 9,000 + 6,960 estimado + 5,394). */
+  que(pesos(await txt('#ct-clave [data-cuenta="falta"] > b')) === 30054, 'falta cobrar: la suma de las dos listas ($30,054.00)');
+  que(pesos(await txt('#ct-clave [data-cuenta="fab"] > b')) === 8700 && pesos(await txt('#ct-clave [data-cuenta="cob"] > b')) === 21354,
+    'en fabricación $8,700.00 y cobrando $21,354.00');
+  que(/ya entró el \d+ %/.test(await txt('#ct-clave .ct-clave-d')) && (await n('#ct-clave .ct-clave-barra .cob')) === 1,
+    'una frase con una idea («' + (await txt('#ct-clave .ct-clave-d')) + '») y la barra de cobrado contra lo que falta');
+  que((await n('#ct-clave .ct-clave-aparte')) === 0, 'sin ventas con otro estatus, no hay diferencia que explicar con Por cobrar');
+  que((await n('#ct-fin-fabricacion .ct-fin-fila')) === 2, 'en fabricación: FABRICACION y REPARANDO (2)');
+  que((await n('#ct-fin-cobrando .ct-fin-fila')) === 3, 'cobrando: las tres de la hoja en COBRANDO (3)');
+  que((await n('#ct-fin-cobrando .ct-fin-fila .medidor')) === 3, 'y cada renglón lleva su medidor de cobro');
+  const nombres = await p.$$eval('#ct-fin-cobrando .ct-fin-nom', e => e.map(x => x.childNodes[0].textContent.trim()));
+  que(nombres.join('|') === 'Clínica Norte|Óptica Visión|Barbería El Toro',
+    'de lo que más falta cobrar a lo que menos: arriba el dinero que más pesa (' + nombres.join(', ') + ')');
+  const fab = await p.$$eval('#ct-fin-fabricacion .ct-fin-fila', e => e.map(x => x.textContent.replace(/\s+/g, ' ')));
+  que(/^Rótulo en taller/.test(fab[0]) && /Reparando/.test(fab[1]), 'en fabricación también, y la que se repara lo dice en su ficha');
+  /* «Estimado» una vez arriba de la lista, y en el renglón solo la marca «≈» y la barra rayada. */
+  que((await n('#ct-fin .ct-fin-est')) === 2 && (await n('#ct-fin .ct-aprox')) === 2 && (await n('#ct-fin .ct-fin-fila .medidor.estimado')) === 2,
+    'lo estimado se dice UNA vez por lista, y cada renglón estimado lleva «≈» y su barra rayada');
+  que(!(await p.$$eval('#ct-fin .ct-fin-meta, #ct-fin .ct-fin-pct', e => e.some(x => /estimado/.test(x.textContent)))),
+    'sin repetir «estimado» con letras en cada renglón');
+  /* El renglón se toca entero; uno de la hoja, sin ficha, abre su globo con sus cifras. */
+  que((await n('#ct-fin .ct-fin-fila [data-abrir], #ct-fin .pf-fila-acc')) === 0, 'sin botón «Abrir» en cada renglón');
+  await p.locator('#ct-fin-cobrando .ct-fin-ver').first().scrollIntoViewIfNeeded();
+  await p.locator('#ct-fin-cobrando .ct-fin-ver').first().tap(); await esp(p, 400);
+  const g0 = lim(await p.locator('.vistazo:popover-open').innerText().catch(() => ''));
+  que(/Clínica Norte/.test(g0) && /Falta cobrar/.test(g0) && /\$9,000\.00/.test(g0) && /solo está en la hoja/.test(g0),
+    'tocar un renglón de la hoja abre su globo («' + g0.slice(0, 70) + '…»)');
+  await p.keyboard.press('Escape'); await esp(p, 250);
+  /* Con más de seis, «Ver los N» abre el resto. */
+  for (let i = 0; i < 5; i++) await llegaOtra(p, 'V-13' + i, 'Taller extra ' + i, 1000 + i * 100, { estatus: 'FABRICACION', pago_pendiente: 500 });
+  await remontar(p);
+  que((await n('#ct-fin-fabricacion .ct-fin-fila')) === 6 && /Ver los 7/.test(await txt('#ct-fin-fabricacion [data-fin-todos]')),
+    'con siete en el taller se ven los seis que más deben y «Ver los 7 proyectos»');
+  await p.locator('#ct-fin-fabricacion [data-fin-todos]').tap(); await esp(p, 400);
+  que((await n('#ct-fin-fabricacion .ct-fin-fila')) === 7 &&
+    (await p.getAttribute('#ct-fin-fabricacion [data-fin-todos]', 'aria-expanded')) === 'true', 'y al tocarlo se ven los siete');
+  que((await desborde(p)) <= 0, 'el Resumen sin desborde');
+  await tab(p, 'lista');
+  que((await n('#ct-lista')) === 1 && (await n('#ct-tt')) === 1, 'la pestaña Ventas trae la lista y lo vendido por tipo de trabajo');
   que((await n('#ct-lista [data-csv]')) === 1, 'dirección en el teléfono: el CSV está en la tarjeta de ventas');
+  que((await desborde(p)) <= 0, 'Ventas sin desborde');
   await tab(p, 'cobrar');
   que((await n('#ct-tt')) === 0, 'en Por cobrar ya no va lo de por tipo de trabajo');
   que((await desborde(p)) <= 0, 'sin desborde');
@@ -980,8 +1069,9 @@ if (activa('fin')) {
 
   for (const ancho of [360, 1200]) {
     const g = await entrar({ ancho, rol: 'pagos', touch: ancho < 760 });
-    que((await g.p.$$eval('[data-csv]', e => e.length)) === 0, 'pagos a ' + ancho + ' px: no hay botón de CSV de ventas');
     que((await g.p.$$eval('#ct-fin', e => e.length)) === 1, 'pagos a ' + ancho + ' px: sí ve las finanzas');
+    await g.p.locator('[data-tab="lista"]').click(); await esp(g.p, 500);
+    que((await g.p.$$eval('[data-csv]', e => e.length)) === 0, 'pagos a ' + ancho + ' px: no hay botón de CSV de ventas, ni en la pestaña Ventas');
     await g.ctx.close();
   }
   const d = await entrar({ ancho: 1200, touch: false });

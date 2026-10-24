@@ -7,10 +7,12 @@
    qué se atrasa»; nadie contestaba «cuánto vendimos este mes, cuánto hay en la calle sin
    cobrar, cuánto dejamos de vender y quién movió esto». Esa es esta pantalla.
 
-   Cinco pestañas, y las cinco se apoyan en lo que ya existe:
-     · VENTAS — lo vendido este mes contra el anterior, el pipeline valorizado (autorizadas
-       sin decidir), lo perdido, la conversión, el ticket promedio; los últimos doce meses
-       en barras; y la lista de ventas filtrable por periodo, con su CSV completo.
+   Seis pestañas, y las seis se apoyan en lo que ya existe:
+     · RESUMEN (`ventas` por dentro, para no romper `#/control`) — lo que falta cobrar y dónde
+       está, las dos listas de lo vivo (en fabricación y cobrando), cinco tarjetas de este mes y
+       los doce meses en barras. Ver «El Resumen», abajo: se rehízo en octubre de 2026.
+     · VENTAS (`lista`) — el detalle: el mes pasado, el ticket promedio y la conversión; la lista
+       de ventas filtrable por periodo, con su buscador y su CSV; y lo vendido por tipo de trabajo.
      · POR COBRAR — la cartera: cada venta con saldo, de mayor a menor, con el mensaje de
        WhatsApp ya armado. El saldo es el de la hoja cuando bajó; si no, ESTIMADO (total
        menos anticipo pactado), y la pantalla dice cuál de los dos es.
@@ -29,10 +31,8 @@
    en este aparato (Ajustes, `al3d_pf_supa`): los formularios de cobro, abono, reparto y
    corrección contra la base de pruebas. Apagado, Control es exactamente las cinco de arriba y
    js/mod/pagos-supa.js ni se descarga. Ver `supaEncendido` y docs/supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md.
-   Desde octubre de 2026 la pestaña Ventas abre con lo que la dirección quiere ver primero: las
-   FINANZAS de los proyectos en fabricación y de los que se están cobrando (`htmlFinanzas`) y los
-   últimos doce meses. Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes
-   o año por año— va hasta el final de esa pestaña. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
+   Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes o año por año— va
+   al final de la pestaña Ventas. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
 
    El CSV de ventas (lo que se abre en Excel) solo lo baja la dirección: a pagos no se le pinta. El
    de gastos, con la misma regla (`puedeBajarCSV`).
@@ -59,7 +59,8 @@
      · P16 — «Traer la hoja» se vuelve la ficha de lo que pasa (pieza 14): página, reloj y su
              resultado en el propio botón.
      · P27 — las doce barras crecen una vez al verse y cada mes se abre en un globo (pieza 4).
-     · P30 — cada saldo por cobrar lleva su medidor quieto (pieza 20).
+     · P30 — cada saldo por cobrar lleva su medidor quieto (pieza 20), también en las listas
+             del Resumen.
      · F54 — comisiones, primero las chicas.
    ============================================================================ */
 
@@ -78,12 +79,12 @@ import { CUENTAS, VERSION_DE_LOS_GASTOS } from '../datos/puente.js';
 import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, telWa, descargarArchivo,
          hoyISO, cifraQueCabe, repintarAlrededor, conservandoFoco, voz, copiarTexto,
          abrirCapa, cerrarCapa, confirmarPf } from '../nucleo/ui.js';
-import { masMeses } from '../nucleo/fechas.js';
+import { masMeses, diasEntre } from '../nucleo/fechas.js';
 
 let cont = null;
 let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
-let TAB = 'ventas';          // ventas | cobrar | comisiones | gastos | bitacora (| asientos) — sobrevive a salir y volver
+let TAB = 'ventas';          // ventas (el Resumen) | lista | cobrar | comisiones | gastos | bitacora (| asientos) — sobrevive a salir y volver
 let _PS = null;              // js/mod/pagos-supa.js, ya cargado (solo con Supabase encendido)
 let PERIODO = '3m';          // mes | 3m | 12m | todo
 /* Lo vendido por tipo de trabajo, arriba de todo: el periodo de las tarjetas y la gráfica que
@@ -94,9 +95,11 @@ let TT_VISTA = 'mes';        // mes | anio — la gráfica de abajo de las tarje
 let _ttScroll = null;        // dónde se dejó la gráfica de meses (null: al final, lo más nuevo)
 let _vzTT = null;            // el globo de un mes o un año de la gráfica por tipo
 let BUSCA = '';
-/* Las finanzas de lo vivo: cada bolsa enseña sus primeros renglones y «Ver todos» la abre. */
+/* Las finanzas de lo vivo: cada lista enseña sus primeros seis renglones —los que más deben, que
+   casi siempre son el grueso del dinero— y «Ver los N» la abre. */
 let FIN_TODOS = { fabricacion: false, cobrando: false };
-const FIN_TOPE = 8;
+const FIN_TOPE = 6;
+let _vzFin = null;           // el globo de una venta que solo está en la hoja (no tiene ficha que abrir)
 let ENTIDAD = '';            // filtro de la bitácora
 let BUSCA_BIT = '';
 /* Los gastos: el periodo de la lista —los mismos cuatro que la de ventas, pero arranca en «Este
@@ -195,6 +198,11 @@ export async function montar(contenedor, ctx) {
        teléfono. */
     _vzTT = P.vistazo(cont, { delegar: '.ct-tt-ver', titulo: 'Por tipo de trabajo', alinear: 'centro',
       contenido: ancla => vistazoTipo(ancla && ancla.dataset ? ancla.dataset.ttSerie : '', ancla && ancla.dataset ? ancla.dataset.ttK : '') });
+    /* Y uno para el renglón de una venta que solo está en la hoja: no tiene ficha en Proyectos,
+       pero tocarlo tiene que dar algo —sus cifras, su estatus y de dónde sale el saldo—, o el
+       renglón con su flechita sería una puerta pintada. */
+    _vzFin = P.vistazo(cont, { delegar: '.ct-fin-ver', titulo: 'Venta de la hoja', alinear: 'fin',
+      contenido: ancla => vistazoVenta(ancla && ancla.dataset ? ancla.dataset.fin : '') });
   }
 
   if (!DB.estado().ok) {
@@ -235,6 +243,7 @@ export function desmontar() {
      la pantalla siguiente. */
   if (_vz) { try { _vz.destruir(); } catch (_) {} _vz = null; }
   if (_vzTT) { try { _vzTT.destruir(); } catch (_) {} _vzTT = null; }
+  if (_vzFin) { try { _vzFin.destruir(); } catch (_) {} _vzFin = null; }
   if (_io) { _io.disconnect(); _io = null; }
   clearTimeout(_vozCom); _vozCom = 0;
   /* El hueco de acciones del encabezado NO es de este módulo: vive en index.html y lo
@@ -497,7 +506,9 @@ function haceCuanto(ts) {
 }
 
 /* La línea de arriba del récord: de dónde salen los números y de cuándo son. Es lo que
-   evita que una cifra de hace tres días se lea como la de hoy. */
+   evita que una cifra de hace tres días se lea como la de hoy. Desde el Resumen de octubre de
+   2026 va en UNA línea chica (`.ct-hoja`): ocupaba media pantalla del teléfono con un botón
+   del ancho de la pantalla encima de las cifras que se vienen a ver. Lo que dice no cambió. */
 function lineaHoja() {
   const b = D.bajada || {};
   const u = D.union || {};
@@ -509,10 +520,9 @@ function lineaHoja() {
     (ocupado ? ' disabled' : '') + '>' + ico(ocupado ? 'i-reloj' : 'i-bajar') + ' ' +
     esc(ocupado ? 'Trayendo la hoja…' : txt) + '</button>';
   if (!b.configurado) {
-    return '<p class="pf-frescura ct-hoja">' + ico('i-nube-off') +
-      '<span>Sin puente a la hoja de finanzas: esto es lo que se registró desde este dispositivo. ' +
-      'El récord completo del negocio se conecta en Ajustes → Conectar la hoja.</span>' +
-      '<button type="button" class="btn btn-gho pf-btn-corto" data-ir="ajustes">' + ico('i-nube') + ' Conectar la hoja</button></p>';
+    return '<p class="pf-frescura ct-hoja ct-hoja-sin">' + ico('i-nube-off') +
+      '<span>Sin conexión a la hoja de finanzas: solo se ve lo registrado en este dispositivo.</span>' +
+      '<button type="button" class="ct-hoja-ir" data-ir="ajustes">Conectar la hoja</button></p>';
   }
   if (!b.completa) {
     return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span>' +
@@ -520,8 +530,8 @@ function lineaHoja() {
       (b.ultimo_error ? ' ' + esc(b.ultimo_error) : '') + '</span>' + boton('Traer la hoja') + '</p>';
   }
   const n = (Number(u.de_hoja) || 0) + (Number(u.enlazados) || 0);
-  return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span>Con la hoja de finanzas: <b>' + n +
-    (n === 1 ? ' venta' : ' ventas') + '</b> de la hoja' +
+  return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span><b>' + n +
+    (n === 1 ? ' venta' : ' ventas') + '</b> de la hoja de finanzas' +
     (u.solo_aqui ? ' y ' + u.solo_aqui + (u.solo_aqui === 1 ? ' que solo está' : ' que solo están') + ' en este dispositivo' : '') +
     ' · actualizado ' + esc(haceCuanto(b.completa)) +
     (b.a_medias ? ' · hay una bajada a medias' : '') + '</span>' + boton('Actualizar') + '</p>';
@@ -555,6 +565,7 @@ function htmlPantalla() {
   if (!tabs().includes(TAB)) TAB = 'ventas';            // se apagó Supabase con la pestaña abierta
   const opciones = [
     { v: 'ventas', t: 'Resumen' },
+    { v: 'lista', t: 'Ventas' },
     { v: 'cobrar', t: 'Por cobrar' + (D.kpi.porCobrar.n ? ' · ' + D.kpi.porCobrar.n : '') },
     { v: 'comisiones', t: 'Comisiones' + (nCom ? ' · ' + nCom : '') },
     { v: 'gastos', t: 'Gastos' },
@@ -565,6 +576,7 @@ function htmlPantalla() {
 
   let cuerpo;
   if (TAB === 'asientos') cuerpo = '<div id="ct-asientos" class="pg-supa">' + (_PS ? _PS.html() : '<p class="pf-nota" role="status">Abriendo…</p>') + '</div>';
+  else if (TAB === 'lista') cuerpo = pintarLista();
   else if (TAB === 'cobrar') cuerpo = pintarCobrar();
   else if (TAB === 'comisiones') cuerpo = pintarComisiones();
   else if (TAB === 'gastos') cuerpo = pintarGastos();
@@ -752,171 +764,368 @@ function ubicarMesesTipo() {
   c.addEventListener('scroll', () => { _ttScroll = c.scrollLeft; }, { passive: true });
 }
 
-/* ----- Ventas ----- */
 /* ============================================================================
-   Las finanzas de los proyectos vivos — lo primero de la pestaña Ventas
+   EL RESUMEN — rehecho en octubre de 2026
    ============================================================================
-   Dos bolsas por el estatus de la hoja (`Ventas.finanzasVivas`): EN FABRICACIÓN (FABRICACION y
-   REPARANDO) y COBRANDO. De cada una, cuánto se vendió, cuánto ya entró y cuánto falta, y sus
-   proyectos por orden de entrada —lo más nuevo arriba, lo más antiguo abajo— con su barra de cobro. */
-function htmlFinanzas() {
-  const F = D.finanzas;
-  const total = red2(F.fabricacion.saldo + F.cobrando.saldo);
-  /* La respuesta en una frase, antes que cualquier cifra suelta: cuánto falta cobrar y de dónde. */
-  const resumen = total > 0
-    ? 'Falta cobrar <b>' + esc(money(total)) + '</b>: <b>' + esc(money(F.fabricacion.saldo)) + '</b> de lo que se está fabricando y <b>' +
-      esc(money(F.cobrando.saldo)) + '</b> de lo que ya se entregó.'
-    : (F.fabricacion.n + F.cobrando.n ? 'Todo lo que está en fabricación y en cobranza ya está cobrado.' : 'No hay proyectos en fabricación ni cobrándose.');
-  return '<section class="card ct-fin" id="ct-fin" aria-labelledby="ct-fin-h">' +
-    '<div class="card-h"><h2 id="ct-fin-h">' + ico('i-venta') + ' Dinero de los proyectos activos</h2></div>' +
-    '<div class="card-b">' +
-      '<p class="ct-fin-resumen">' + resumen + '</p>' +
-      '<div class="ct-fin-bolsas">' +
-        bolsaFinanzas('fabricacion', 'En fabricación', 'Trabajos que se están haciendo en el taller', 'i-taller', F.fabricacion,
-          'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
-        bolsaFinanzas('cobrando', 'Cobrando', 'Trabajos ya entregados a los que les falta pagar', 'i-reloj', F.cobrando,
-          'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con su saldo.') +
-      '</div>' +
-      comoSeCuenta('Se reparte por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se ' +
-        'entregó y falta cobrarlo; LIQUIDADO ya no aparece. «Ya cobrado» es lo vendido menos lo que falta. Lo que falta es el ' +
-        'saldo de la hoja; si la hoja todavía no lo trae, el total menos el anticipo pactado, y se marca como «estimado».') +
-    '</div></section>';
+   Lo que pidió Elías el 23/10/2026: «es muy difícil de entenderle… que en el principio
+   claramente se vean los proyectos que tenemos en fabricación y cobrando… se ve muy amontonado».
+   La pestaña medía 5,400 px: una frase con tres importes, dos bolsas con tres cifras cada una,
+   renglones de cuatro líneas con un botón «Abrir» y «estimado» repetido en cada uno, ocho
+   cuentas de ocho colores, la lista de ventas, el almacén y lo vendido por tipo. Ahora contesta
+   tres preguntas, en ese orden, y cabe en unas dos pantallas de computadora:
+     1. ¿Cuánto falta cobrar y dónde está? (`htmlClave`) — el total, grande; lo que falta de lo
+        que está en el taller y de lo que ya se entregó; y UNA barra de cobrado contra lo que falta.
+     2. ¿De quién? (`htmlFinanzas`) — dos listas limpias, un renglón de dos líneas por proyecto.
+     3. ¿Cómo va el mes y el año? (`htmlEsteMes`, `graficaMeses`) — cinco tarjetas iguales y las
+        doce barras de verdad, de pie, con el mejor mes y el promedio.
+   El detalle —la lista de ventas con su buscador y su CSV, el ticket, la conversión, el mes
+   pasado y lo vendido por tipo de trabajo— se fue a la pestaña Ventas (`pintarLista`).
+
+   Ningún número cambió de cálculo: salen de las mismas funciones puras de js/datos/ventas.js
+   (`finanzasVivas`, `indicadores`, `resumenMensual`) y de js/datos/gastos.js. Lo único que se
+   decide aquí es el ORDEN de las dos listas (`ordenCobro`) y cómo se dice cada cosa.
+   ============================================================================ */
+
+function pintarVentas() {
+  const partes = [lineaHoja(), htmlClave(), htmlFinanzas(), htmlEsteMes(), graficaMeses()];
+  if (D.almacen) partes.push(filaAlmacen());
+  partes.push(comoSeCuenta([
+    '«Falta cobrar» suma el saldo de los proyectos en fabricación y de los que ya se entregaron y se están cobrando. ' +
+    'Se reparte por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se entregó; ' +
+    'LIQUIDADO ya no aparece. «Ya cobrado» es lo vendido menos lo que falta.',
+    'Lo que falta es el saldo de la hoja. Si la hoja todavía no lo trae, es el total menos el anticipo pactado: ' +
+    'se marca con «≈» y su barra va rayada.',
+    'Las dos listas van de lo que más falta cobrar a lo que menos, para que arriba quede el dinero que más pesa. ' +
+    'Si dos deben lo mismo, primero la más antigua.',
+    '«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la venta está allá, y el ' +
+    'que se firmó aquí cuando todavía no ha salido de este dispositivo. «Gastado» suma los gastos del mes por el día en ' +
+    'que se pagaron, sin los anulados (pestaña Gastos), y la utilidad aproximada es lo vendido menos eso: no es la del ' +
+    'contador —lo vendido no es lo cobrado, y solo cuenta lo que alguien capturó—, pero dice hacia dónde va el mes.',
+  ]));
+  return partes.join('');
 }
 
 const red2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const nProy = n => n + (n === 1 ? ' proyecto' : ' proyectos');
+const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre',
+                   'octubre', 'noviembre', 'diciembre'];
+/* «octubre de 2026» de un 'YYYY-MM': el título de «Este mes» se lee entero, no «oct 2026». */
+const mesLargo = ym => {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  return m ? (MES_LARGO[Number(m[2]) - 1] || m[2]) + ' de ' + m[1] : '';
+};
+
+/* «$630 mil», «$1.2 M»: el importe corto que va encima de cada barra de los doce meses. El exacto
+   está en el globo del mes y en lo que oye el lector; encima de una columna de 60 px no cabe. */
+function moneyCorto(n) {
+  const v = Math.abs(Number(n) || 0);
+  if (v >= 1e6) return '$' + (Math.round(v / 1e5) / 10).toLocaleString('es-MX') + ' M';
+  if (v >= 1e3) return '$' + Math.round(v / 1e3).toLocaleString('es-MX') + ' mil';
+  return '$' + Math.round(v).toLocaleString('es-MX');
+}
 
 /* Un plegable con la letra chica: la explicación sigue a un toque, pero ya no es un párrafo gris
-   entre las cifras que hay que saltarse para llegar a la siguiente tarjeta. */
+   entre las cifras que hay que saltarse para llegar a la siguiente tarjeta. Recibe un texto o una
+   lista de párrafos: uno solo de cinco ideas no se lee. */
 function comoSeCuenta(texto) {
-  return '<details class="ct-como"><summary>¿De dónde salen estos números?</summary><p>' + esc(texto) + '</p></details>';
+  const parrafos = Array.isArray(texto) ? texto : [texto];
+  return '<details class="ct-como"><summary>¿De dónde salen estos números?</summary>' +
+    parrafos.map(t => '<p>' + esc(t) + '</p>').join('') + '</details>';
 }
 
-/* La barra de una bolsa: lo cobrado en verde y lo que falta en ámbar, con su leyenda y sus cifras
-   escritas al lado: ni el color ni el largo van solos. */
-function barraCobro(cobrado, falta) {
-  const tot = cobrado + falta;
-  if (!(tot > 0)) return '';
-  const pc = Math.round(cobrado / tot * 1000) / 10;
-  return '<div class="ct-fin-barra" role="img" aria-label="' + esc(Math.floor(pc) + ' % cobrado, ' + (100 - Math.floor(pc)) + ' % falta cobrar') + '">' +
-    (cobrado > 0 ? '<i class="cob" style="flex-basis:' + pc + '%"></i>' : '') +
-    (falta > 0 ? '<i class="falta" style="flex-basis:' + (100 - pc) + '%"></i>' : '') + '</div>';
+/* ----- 1 · Las cifras clave -----
+   Lo primero que se lee: cuánto falta cobrar en total —la cifra más grande de la pantalla— y de
+   dónde: de lo que se está fabricando y de lo que ya se entregó. Debajo del total, una frase con
+   UNA idea y la barra de cobrado contra lo que falta, con su palabra y su porcentaje al lado: el
+   color no va solo. Las tres cifras son puertas (P3): el total abre Por cobrar y las otras dos
+   bajan a su lista; y ruedan (P18) cuando la sincronización las cambia delante de quien mira, con
+   la misma memoria por clave que las cuentas (`rodarCuentas`). */
+function htmlClave() {
+  const F = D.finanzas;
+  const falta = red2(F.fabricacion.saldo + F.cobrando.saldo);
+  const vendido = red2(F.fabricacion.vendido + F.cobrando.vendido);
+  const cobrado = red2(F.fabricacion.cobrado + F.cobrando.cobrado);
+  const n = F.fabricacion.n + F.cobrando.n;
+  const pc = vendido > 0 ? Math.floor(cobrado / vendido * 100) : 0;
+  const frase = !n ? 'No hay proyectos en fabricación ni cobrándose.'
+    : !(falta > 0) ? 'Todo lo que está en fabricación y en cobranza ya está cobrado.'
+    : 'De ' + money(vendido) + ' vendidos en ' + nProy(n) + ', ya entró el ' + pc + ' %.';
+  /* «Por cobrar» suma el saldo de TODAS las ventas vivas; aquí, solo el de las que están en
+     fabricación o cobrándose. Casi siempre es lo mismo; si una venta con saldo trae otro estatus en
+     la hoja, la diferencia se dice, para que la cifra de aquí y la de la pestaña no parezcan
+     contradecirse. */
+  const otras = red2(D.kpi.porCobrar.total - falta);
+  const nOtras = D.kpi.porCobrar.n - F.fabricacion.lista.concat(F.cobrando.lista).filter(x => x.saldo > 0).length;
+  const aparte = otras > 0.005 && nOtras > 0
+    ? '<p class="ct-clave-aparte">Además hay ' + esc(money(otras)) + ' por cobrar de ' + esc(nVentas(nOtras)) +
+      ' con otro estatus en la hoja. Están en Por cobrar.</p>'
+    : '';
+  const barra = vendido > 0
+    ? '<div class="ct-clave-barra" aria-hidden="true">' +
+        (cobrado > 0 ? '<i class="cob" style="flex-grow:' + cobrado + '"></i>' : '') +
+        (falta > 0 ? '<i class="falta" style="flex-grow:' + falta + '"></i>' : '') + '</div>' +
+      '<p class="ct-clave-ley"><span class="cob"><i aria-hidden="true"></i>Ya cobrado · ' + pc + ' %</span>' +
+        '<span class="falta"><i aria-hidden="true"></i>Falta · ' + (100 - pc) + ' %</span></p>'
+    : '';
+  return '<section class="card ct-clave-card" id="ct-clave" aria-labelledby="ct-clave-h">' +
+    '<h2 id="ct-clave-h" class="solo-voz">Lo que falta cobrar</h2>' +
+    '<div class="ct-clave-rej">' +
+      '<div class="ct-clave-pri">' +
+        clave('falta', 'Falta cobrar', money(falta), frase,
+          D.kpi.porCobrar.n > 0 ? { dest: 'tab:cobrar', que: 'abrir Por cobrar' } : null, 'principal') +
+        barra + aparte +
+      '</div>' +
+      '<div class="ct-clave-sec">' +
+        clave('fab', 'En fabricación', money(F.fabricacion.saldo), nProy(F.fabricacion.n) + ' en el taller',
+          F.fabricacion.n ? { dest: 'fin:fabricacion', que: 'ir a la lista de En fabricación' } : null, 'fab', 'i-taller') +
+        clave('cob', 'Cobrando · ya entregados', money(F.cobrando.saldo), nProy(F.cobrando.n) + ' por terminar de pagar',
+          F.cobrando.n ? { dest: 'fin:cobrando', que: 'ir a la lista de Cobrando' } : null, 'cob', 'i-reloj') +
+      '</div>' +
+    '</div></section>';
 }
 
-function bolsaFinanzas(g, titulo, sub, icono, b, vacioT, vacioD) {
-  const pct = b.vendido > 0 ? Math.floor(b.cobrado / b.vendido * 100) : 0;
-  const todos = FIN_TODOS[g] || b.lista.length <= FIN_TOPE;
-  const lista = todos ? b.lista : b.lista.slice(0, FIN_TOPE);
-  const mas = b.lista.length > FIN_TOPE
-    ? '<button type="button" class="btn btn-gho pf-btn-corto ct-fin-mas" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') + '">' +
-      (todos ? 'Ver menos' : 'Ver los ' + b.lista.length + ' proyectos') + '</button>'
-    : '';
-  const nums = b.n
-    ? barraCobro(b.cobrado, b.saldo) +
-      '<dl class="ct-fin-nums">' +
-        '<div><dt>Vendido</dt><dd>' + esc(money(b.vendido)) + '</dd></div>' +
-        '<div class="cob"><dt><i aria-hidden="true"></i>Ya cobrado</dt><dd>' + esc(money(b.cobrado)) + ' <small>' + pct + ' %</small></dd></div>' +
-        '<div class="falta"><dt><i aria-hidden="true"></i>Falta cobrar</dt><dd>' + esc(money(b.saldo)) + '</dd></div>' +
-      '</dl>' +
-      (b.estimados ? '<p class="ct-fin-est">' + b.estimados + (b.estimados === 1 ? ' saldo es estimado' : ' saldos son estimados') +
-        ': la hoja todavía no ' + (b.estimados === 1 ? 'lo' : 'los') + ' trae.</p>' : '')
-    : '';
-  return '<div class="ct-fin-bolsa ' + g + '" id="ct-fin-' + g + '">' +
-    '<div class="ct-fin-cab"><span class="ct-fin-ico" aria-hidden="true">' + ico(icono) + '</span>' +
-      '<div><h3 class="ct-fin-t">' + esc(titulo) + ' <span class="folio">' + b.n + (b.n === 1 ? ' proyecto' : ' proyectos') + '</span></h3>' +
-      '<p class="ct-fin-sub">' + esc(sub) + '</p></div></div>' +
-    nums +
-    (b.lista.length
-      ? '<p class="ct-fin-lt">Proyectos, del más reciente al más antiguo</p>' + lista.map(filaFinanza).join('') + mas
-      : vacio(vacioT, vacioD)) +
+/* Una cifra clave: botón si lleva a algún lado (P3), párrafo si no. La etiqueta va arriba, en su
+   `.pf-cuenta-t` (de ahí cuelga la flechita de «ir»), y la cifra en un `<b>` hijo directo, que es lo
+   que `rodarCuentas` hace rodar, con su ancho en `--c` para achicarse a lo que quepa en su caja. */
+function clave(k, etiqueta, valor, detalle, va, cls, icono) {
+  const cuerpo = '<span class="pf-cuenta-t">' +
+      (icono ? '<span class="ct-clave-ico" aria-hidden="true">' + ico(icono) + '</span>' : '') + esc(etiqueta) + '</span>' +
+    cifraQueCabe(valor) +
+    '<span class="ct-clave-d">' + esc(detalle) + '</span>';
+  const c = 'ct-clave ' + cls;
+  if (!va) return '<p class="' + c + '" data-cuenta="' + esc(k) + '">' + cuerpo + '</p>';
+  return '<button type="button" class="' + c + ' va" data-va="' + esc(va.dest) + '" data-cuenta="' + esc(k) + '">' + cuerpo +
+    '<span class="solo-voz">, ' + esc(va.que) + '</span></button>';
+}
+
+/* ----- 2 · Las dos listas: en fabricación y cobrando -----
+   Una tarjeta por bolsa de `Ventas.finanzasVivas`, lado a lado en la computadora y una sobre otra en
+   el teléfono. Cada renglón tiene dos líneas y nada más (`filaRenglon`):
+     · el nombre del CLIENTE, una vez (`nombreCliente`), y debajo el folio, la etapa en su ficha de
+       color y cuánto lleva;
+     · a la derecha, lo que falta cobrar y su medidor quieto con el porcentaje (pieza 20, P30).
+   El renglón entero se toca: abre la ficha del proyecto o, si la venta solo está en la hoja y no
+   tiene ficha, un globo con sus cifras (`vistazoVenta`). «Estimado» ya no se repite en cada
+   renglón: lo dice UN aviso arriba de la lista, y el renglón lleva «≈» y su barra rayada. */
+function htmlFinanzas() {
+  const F = D.finanzas;
+  return '<div class="ct-fin" id="ct-fin">' +
+    listaFinanzas('fabricacion', 'En fabricación', 'i-taller', F.fabricacion,
+      'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
+    listaFinanzas('cobrando', 'Cobrando', 'i-reloj', F.cobrando,
+      'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con lo que le falta.') +
   '</div>';
 }
 
+/* El orden de las dos listas: de lo que más falta cobrar a lo que menos y, si dos deben lo mismo, la
+   más antigua primero. Se eligió sobre «lo más antiguo arriba» porque la pantalla es para COBRAR:
+   arriba queda el dinero que más pesa, los seis primeros renglones suelen ser casi todo lo que
+   falta y «Ver los N» esconde lo chico, no lo grande. La antigüedad no se pierde: cada renglón la
+   dice («hace 8 meses»). Es solo el orden en que se pinta: `finanzasVivas` sigue entregando las
+   suyas por fecha, y sus pruebas no cambian. */
+function ordenCobro(a, b) {
+  const fa = String(a.proyecto.fecha_ganado || '9999'), fb = String(b.proyecto.fecha_ganado || '9999');
+  return (b.saldo - a.saldo) || (fa < fb ? -1 : fa > fb ? 1 : 0);
+}
+
+function listaFinanzas(g, titulo, icono, b, vacioT, vacioD) {
+  const orden = b.lista.slice().sort(ordenCobro);
+  const todos = FIN_TODOS[g] || orden.length <= FIN_TOPE;
+  const vis = todos ? orden : orden.slice(0, FIN_TOPE);
+  const est = b.estimados;
+  const nota = orden.length > 1 || est
+    ? '<p class="ct-fin-nota">' + (orden.length > 1 ? 'De lo que más falta cobrar a lo que menos.' : '') +
+      (est ? ' <span class="ct-fin-est"><b aria-hidden="true">≈</b> ' + esc(est === 1
+        ? 'Un saldo es estimado: la hoja todavía no lo trae.'
+        : est + ' saldos son estimados: la hoja todavía no los trae.') + '</span>' : '') + '</p>'
+    : '';
+  const mas = orden.length > FIN_TOPE
+    ? '<button type="button" class="ct-fin-mas" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') +
+      '" aria-controls="ct-fin-l-' + g + '">' + (todos ? 'Ver menos' : 'Ver los ' + orden.length + ' proyectos') + '</button>'
+    : '';
+  return '<section class="card ct-fin-bolsa ' + g + '" id="ct-fin-' + g + '" aria-labelledby="ct-fin-' + g + '-h">' +
+    '<div class="card-h"><h2 id="ct-fin-' + g + '-h">' + ico(icono) + ' ' + esc(titulo) +
+      ' <span class="folio">' + b.n + '</span></h2>' +
+      (b.n ? '<span class="ct-fin-tot">' + esc(money(b.saldo)) + '<small>por cobrar</small></span>' : '') + '</div>' +
+    '<div class="card-b">' +
+      (orden.length
+        ? nota + '<ul class="ct-fin-lista" id="ct-fin-l-' + g + '">' + vis.map(x => '<li>' + filaFinanza(x) + '</li>').join('') + '</ul>' + mas
+        : vacio(vacioT, vacioD)) +
+    '</div></section>';
+}
+
+/* El renglón de una lista del Resumen. A la derecha, lo que falta cobrar —«≈» si es estimado— y el
+   medidor quieto de la pieza 20 con lo cobrado en verde, lo que falta punteado y, si el saldo no es
+   el de la hoja, rayado (P30); el porcentaje va escrito, redondeado hacia abajo como en Por cobrar. */
 function filaFinanza(x) {
-  const p = x.proyecto;
   const pct = x.vendido > 0 ? Math.floor(x.cobrado / x.vendido * 100) : 100;
-  return '<div class="pf-fila ct-fila ct-fin-fila">' +
-    '<div class="pf-fila-tx">' +
-      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
-      '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
-        ' · entró ' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') +
-        (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
-        (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
-      '</p>' +
-      '<div class="ct-cobro">' + barraCobro(x.cobrado, x.saldo) +
-        '<span class="ct-cobro-t">' + pct + ' % cobrado de ' + esc(money(x.vendido)) + (x.deNotion || !(x.saldo > 0) ? '' : ' · estimado') + '</span></div>' +
-    '</div>' +
-    '<div class="ct-monto' + (x.saldo > 0 ? ' saldo' : '') + '">' +
-      esc(money(x.saldo > 0 ? x.saldo : x.vendido)) + '<small>' + (x.saldo > 0 ? 'falta cobrar' : 'cobrado') + '</small></div>' +
-    (p.de_hoja ? '' :
-      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>') +
-  '</div>';
+  const est = !x.deNotion && x.saldo > 0;
+  const P = piezas();
+  const medidor = P && typeof P.medidorHTML === 'function'
+    ? P.medidorHTML({ valor: x.cobrado, max: x.vendido, meta: x.vendido, tono: 'ok', estimado: est }) : '';
+  const der = '<span class="ct-fin-der">' +
+      '<span class="ct-fin-monto' + (x.saldo > 0 ? '' : ' cobrado') + '">' +
+        (est ? '<span class="ct-aprox" aria-hidden="true">≈</span>' : '') + esc(money(x.saldo > 0 ? x.saldo : x.vendido)) +
+        '<span class="solo-voz">' + (x.saldo > 0 ? ' por cobrar' + (est ? ', estimado' : '') : ' cobrado') + '</span></span>' +
+      '<span class="ct-fin-cob">' + medidor + '<span class="ct-fin-pct">' + pct + ' %<span class="solo-voz"> cobrado</span></span></span>' +
+    '</span>';
+  return filaRenglon(x.proyecto, der, { cls: 'ct-fin-fila' });
 }
 
-function pintarVentas() {
-  const k = D.kpi;
-  const c = [];
-  const cob = etiquetaCobrar();
-  /* P3. Los destinos. Una cuenta es puerta solo si hay algo detrás: con 0 ventas, 0 cotizaciones
-     o 0 saldos NO lleva a ningún lado (un botón que no hace nada es peor que ninguno), y la
-     conversión, que es un porcentaje y no una lista, tampoco. Las del mes llevan a donde se ven
-     esas ventas: la lista de abajo con el periodo en «Este mes», o su renglón en las doce barras.
-     «Sin decidir» se decide en Proyectos y solo la dirección tiene esa tarjeta. */
+/* El renglón que se toca entero, el de las listas del Resumen y el de la pestaña Ventas. Dos líneas
+   a la izquierda —el cliente; el folio, la etapa y cuándo entró— y a la derecha lo que se pide
+   (`der`). Un proyecto de aquí abre su ficha en Proyectos; una venta que solo está en la hoja abre
+   su globo. Ninguno lleva su propio botón «Abrir»: la flechita del final dice que el renglón se
+   abre, y el lector oye a dónde. El nombre completo («Ale - Paréntesis (Vinil)») queda en el
+   `title`. Lo único que se marca del origen es «solo aquí» —lo que todavía no sale hacia la hoja—,
+   porque es un aviso; «hoja» en cada renglón era ruido, y su globo ya lo dice. */
+function filaRenglon(p, der, o = {}) {
+  const nombre = nombreCliente(p);
+  /* Cada pedazo de la segunda línea va entero (`.nw`): en el teléfono la línea se parte entre
+     pedazos, no a media frase («entró / hoy»). */
+  const meta = ['<span class="nw">' + esc(foliosDe(p) || 'sin folio') + '</span>'];
+  const et = chipEtapa(p);
+  if (et) meta.push(et);
+  if (o.fecha === 'exacta') meta.push('<span class="nw">' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') + '</span>');
+  else {
+    const cuando = antiguedad(p.fecha_ganado);
+    if (cuando) meta.push('<span class="nw" title="' + esc('Entró el ' + fmtFecha(p.fecha_ganado)) + '">' + esc(cuando) + '</span>');
+  }
+  if (o.extra) meta.push('<span class="nw">' + o.extra + '</span>');
+  const soloAqui = !p.de_hoja && origenDe(p);
+  const interior = '<span class="ct-fin-tx"><span class="ct-fin-nom">' + esc(nombre) + (soloAqui || '') + '</span>' +
+      '<span class="ct-fin-meta">' + meta.join(' · ') + '</span></span>' + der +
+    '<span class="ct-chev" aria-hidden="true"></span>';
+  const titulo = p.nombre && p.nombre !== nombre ? ' title="' + esc(p.nombre) + '"' : '';
+  const cls = 'ct-fila ct-renglon ' + (o.cls || '');
+  if (p.de_hoja) {
+    return '<button type="button" class="' + cls + ' ct-fin-ver" data-fin="' + esc(p.id) + '" aria-haspopup="dialog" aria-expanded="false"' +
+      titulo + '>' + interior + '<span class="solo-voz">, ver el detalle</span></button>';
+  }
+  return '<button type="button" class="' + cls + '" data-abrir="' + esc(p.id) + '"' + titulo + '>' +
+    interior + '<span class="solo-voz">, abrir la ficha</span></button>';
+}
+
+/* El nombre que se lee en un renglón: el del CLIENTE, una sola vez. El nombre del proyecto es
+   «Contacto - Negocio — qué se hace (Tipo)» (`nombreDerivado` en js/datos/proyectos.js), y en una
+   lista de cobro se leía «Óptica Visión - Óptica Visión — anuncio (Letras Luz)»: tres veces el
+   cliente y dos cosas que ya dice la ficha. Se queda el NEGOCIO, que es lo que se reconoce de un
+   vistazo (lo mismo que hace el Calendario con sus fichas):
+     · sin el «(Tipo)» del final;
+     · sin lo que va después de una raya larga («Farmacia San Juan – Letrero fachada»: el campo
+       Proyecto del cotizador lleva el negocio y lo que se hace);
+     · y de una fila de la hoja, que trae el nombre entero sin partir, la mitad de después del
+       « - », como la parte proyectos.js al importarla (`partirNombreDeHoja`).
+   Sin negocio, el contacto; sin nada, el folio. No cambia ningún dato: es lo que se pinta. */
+function nombreCliente(p) {
+  const sinTipo = s => String(s || '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+  let t = sinTipo(p && p.negocio);
+  if (t && p.de_hoja && !p.contacto) {
+    const i = t.indexOf(' - ');
+    if (i > 0 && t.slice(i + 3).trim()) t = t.slice(i + 3).trim();
+  }
+  t = t.split(/\s+[–—]\s+/)[0].trim();
+  return t || sinTipo(p && p.contacto) || sinTipo(p && p.nombre) || (p && (p.folio_local || p.folio_hoja)) || 'Sin nombre';
+}
+
+/* La etapa en su ficha de color, solo si es una que la plataforma conoce: la columna «Etapa de
+   obra» de la hoja puede traer otro texto, y pintado tal cual («en_fabricacion») parecía un error.
+   Una venta REPARANDO lo dice: en la lista de fabricación es lo que la distingue. */
+function chipEtapa(p) {
+  if (p.etapa === 'cancelado') return '<span class="pf-etapa cerrado">No se dio</span>';
+  const n = p.etapa && Proy.ETAPA_NOMBRE[p.etapa];
+  if (n) return '<span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(n) + '</span>';
+  if (String(p.estatus_notion || '').trim().toUpperCase() === 'REPARANDO') return '<span class="pf-etapa armado">Reparando</span>';
+  return '';
+}
+
+/* Cuánto lleva una venta desde que entró (la fecha de su anticipo), dicho como se dice: «hace 3
+   días», «hace 8 meses». En una lista de cobro la antigüedad pesa más que el día exacto, que queda
+   en el `title` y en la ficha. */
+function antiguedad(iso) {
+  const d = D && iso ? diasEntre(iso, D.hoy) : null;
+  if (d === null || d < 0) return '';
+  if (d === 0) return 'entró hoy';
+  if (d === 1) return 'entró ayer';
+  if (d < 45) return 'hace ' + d + ' días';
+  const m = Math.round(d / 30.44);
+  if (m < 24) return 'hace ' + m + ' meses';
+  return 'hace ' + Math.floor(d / 365) + ' años';
+}
+
+/* El globo de una venta que solo está en la hoja: sus cifras, de dónde sale el saldo y por qué no
+   abre una ficha. Se calcula al abrir, con lo que hay en `D` en ese momento. */
+function vistazoVenta(id) {
+  if (!D || !id) return '';
+  const p = D.ventas.find(x => String(x.id) === String(id));
+  if (!p) return '';
+  const vendido = Ventas.vendidoDe(p), saldo = Ventas.saldoDe(p);
+  const cobrado = Math.max(0, Math.min(vendido, red2(vendido - saldo)));
+  const pct = vendido > 0 ? Math.floor(cobrado / vendido * 100) : 0;
+  const cancelado = p.etapa === 'cancelado';
+  const fila = (t, v) => '<dt>' + esc(t) + '</dt><dd>' + esc(v) + '</dd>';
+  const suma = cancelado ? ['No se dio', money(vendido)] : saldo > 0 ? ['Falta cobrar', money(saldo)] : ['Cobrado', money(vendido)];
+  return '<span class="vistazo-t">' + esc(nombreCliente(p)) + '</span>' +
+    '<dl class="ct-vz-tot"><dt class="suma">' + esc(suma[0]) + '</dt><dd class="suma">' + esc(suma[1]) + '</dd></dl>' +
+    '<dl class="ct-vz-det">' +
+      (cancelado ? '' : fila('Vendido', money(vendido)) + fila('Ya cobrado', money(cobrado) + ' · ' + pct + ' %')) +
+      (p.anti_pactado ? fila('Anticipo pactado', money(p.anti_pactado)) : '') +
+      fila('Folio', foliosDe(p) || 'sin folio') +
+      (p.fecha_ganado ? fila('Entró', fmtFecha(p.fecha_ganado)) : '') +
+      (p.estatus_notion ? fila('Estatus en la hoja', p.estatus_notion) : '') +
+      (p.cuenta ? fila('Cuenta', p.cuenta) : '') +
+    '</dl>' +
+    (p.nombre && p.nombre !== nombreCliente(p) ? '<p class="ct-vz-nota">' + esc(p.nombre) + '</p>' : '') +
+    '<p class="ct-vz-nota">' + (!cancelado && saldo > 0
+      ? (Ventas.saldoEsDeHoja(p) ? 'El saldo es el de la hoja. ' : 'Saldo estimado: el total menos el anticipo pactado; la hoja todavía no lo trae. ')
+      : '') + 'Esta venta solo está en la hoja de finanzas: no tiene ficha en la plataforma.</p>';
+}
+
+/* ----- 3 · Este mes -----
+   Cinco tarjetas iguales —mismo tamaño, misma letra, mismo blanco— en vez de las ocho de ocho
+   colores que había: lo vendido (con el cambio contra el mes pasado en su ficha, con flecha Y
+   palabra), las cotizaciones por cerrar, lo gastado, la utilidad aproximada y lo perdido. Siguen
+   siendo las cuentas de siempre (`cuenta`, P3 y P18): las que llevan a algo son botones con su
+   flechita, y ruedan cuando cambian frente a quien mira. Las cifras van todas al mismo tamaño
+   (`filaCuentas`), sin tinte de fondo; el único color que queda es el de una utilidad negativa y el
+   de la ficha del cambio, que además lo dicen con palabras. El mes pasado, el ticket y la
+   conversión son de consulta y están en la pestaña Ventas. */
+function htmlEsteMes() {
+  const k = D.kpi, G = D.resGastos;
   const ymHoy = D.meses[D.meses.length - 1].mes;
-  const ymAnt = (D.meses[D.meses.length - 2] || {}).mes;
   const aProyectos = Prefs.esDireccion() && CTX && typeof CTX.tieneRuta === 'function' && CTX.tieneRuta('proyectos');
-  c.push([money(k.mes.total), 'Vendido en ' + k.mes.etiqueta, { dinero: true, clave: 'mes',
-    va: k.mes.n > 0 ? { dest: 'lista:mes', que: 'ver las ventas de ' + k.mes.etiqueta } : null,
-    em: k.mes.n + (k.mes.n === 1 ? ' venta' : ' ventas') +
-        (k.variacion === null ? '' : ' · ' + (k.variacion >= 0 ? '+' : '') + k.variacion + ' % vs ' + k.mesAnterior.etiqueta) }]);
-  c.push([money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta, { clave: 'ant',
-    va: k.mesAnterior.n > 0 && ymAnt ? { dest: 'mes:' + ymAnt, que: 'ir a ' + k.mesAnterior.etiqueta + ' en las doce barras' } : null,
-    em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' venta' : ' ventas') }]);
-  c.push([money(k.pipeline.total), 'Cotizaciones por cerrar', { urge: k.pipeline.n > 0, clave: 'pipe',
-    va: k.pipeline.n > 0 && aProyectos ? { dest: 'ir:proyectos', que: 'abrir Proyectos para decidirlas' } : null,
-    em: k.pipeline.n + (k.pipeline.n === 1 ? ' autorizada, sin respuesta' : ' autorizadas, sin respuesta') }]);
-  c.push([money(k.porCobrar.total), 'Por cobrar en total', { urge: k.porCobrar.n > 0, clave: 'cobrar',
-    va: k.porCobrar.n > 0 ? { dest: 'tab:cobrar', que: 'abrir Por cobrar' } : null,
-    em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }]);
-  c.push([D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Cotizaciones ganadas', { clave: 'conv',
-    em: D.conv.ganadas + (D.conv.ganadas === 1 ? ' ganada de ' : ' ganadas de ') +
-          (D.conv.ganadas + D.conv.perdidas) +
-          (D.conv.ganadas + D.conv.perdidas === 1 ? ' decidida' : ' decididas') }]);
-  c.push([money(k.perdidoMes.total), 'Perdido en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0, clave: 'perdido',
-    va: k.perdidoMes.n > 0 ? { dest: 'mes:' + ymHoy, que: 'ir a ' + k.mes.etiqueta + ' en las doce barras' } : null,
-    em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }]);
-  /* Lo que salió este mes y lo que queda: vendido menos gastado. «Aproximada», y la letra chica
-     de abajo dice por qué —lo vendido es lo firmado, no lo cobrado, y los gastos son los que
-     alguien capturó—. La de gastos lleva a su pestaña si hay alguno (P3: con 0 no es puerta); la
-     utilidad es una resta y no lleva a nada. */
-  const G = D.resGastos;
   const util = Gastos.utilidad(k.mes.total, G.mes.total);
-  c.push([money(G.mes.total), 'Gastado en ' + G.mes.etiqueta, { clave: 'gastado',
-    va: G.mes.n > 0 ? { dest: 'tab:gastos', que: 'abrir Gastos' } : null,
-    em: G.mes.n + (G.mes.n === 1 ? ' gasto' : ' gastos') + (G.variacion === null ? '' : ' · ' + (G.variacion >= 0 ? '+' : '') + G.variacion + ' % vs ' + G.anterior.etiqueta) }]);
-  c.push([money(util), 'Utilidad aproximada de ' + k.mes.etiqueta, { mal: util < 0, clave: 'utilidad',
-    em: 'vendido menos gastado' }]);
+  const c = [
+    [money(k.mes.total), 'Vendido', { clave: 'mes',
+      va: k.mes.n > 0 ? { dest: 'lista:mes', que: 'ver las ventas de ' + k.mes.etiqueta } : null,
+      em: nVentas(k.mes.n), chip: chipCambio(k.variacion, k.mesAnterior, true) }],
+    [money(k.pipeline.total), 'Cotizaciones por cerrar', { clave: 'pipe',
+      va: k.pipeline.n > 0 && aProyectos ? { dest: 'ir:proyectos', que: 'abrir Proyectos para decidirlas' } : null,
+      em: k.pipeline.n + (k.pipeline.n === 1 ? ' autorizada, sin respuesta' : ' autorizadas, sin respuesta') }],
+    [money(G.mes.total), 'Gastado', { clave: 'gastado',
+      va: G.mes.n > 0 ? { dest: 'tab:gastos', que: 'abrir Gastos' } : null,
+      em: nGastos(G.mes.n), chip: chipCambio(G.variacion, G.anterior, false) }],
+    [money(util), 'Utilidad aproximada', { clave: 'utilidad', neg: util < 0, em: 'vendido menos gastado' }],
+    [money(k.perdidoMes.total), 'Perdido', { clave: 'perdido',
+      va: k.perdidoMes.n > 0 ? { dest: 'mes:' + ymHoy, que: 'ir a ' + k.mes.etiqueta + ' en las doce barras' } : null,
+      em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización no se dio' : ' cotizaciones no se dieron') }],
+  ];
+  return '<section class="ct-sec" id="ct-este-mes" aria-labelledby="ct-este-mes-h">' +
+    '<h2 class="ct-sec-t" id="ct-este-mes-h">Este mes <span>' + esc(mesLargo(ymHoy)) + '</span></h2>' +
+    filaCuentas(c, 'ct-cinco') + '</section>';
+}
 
-  /* Lo primero, desde octubre de 2026 y por petición de la dirección: las finanzas de lo que está
-     en fabricación y de lo que se está cobrando, y los últimos doce meses. Lo demás —las cuentas
-     del mes, el almacén, la lista de ventas y lo vendido por tipo de trabajo— va debajo. */
-  const partes = [lineaHoja(), htmlFinanzas(), graficaMeses(),
-    '<section class="card ct-otros" aria-labelledby="ct-otros-h"><div class="card-h"><h2 id="ct-otros-h">' + ico('i-control') +
-      ' Ventas del mes y cotizaciones</h2></div><div class="card-b">' + filaCuentas(c) + '</div></section>'];
-
-  if (D.almacen) partes.push(filaAlmacen());
-
-  partes.push(listaProyectos());
-
-  partes.push(comoSeCuenta('«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la ' +
-    'venta está allá, y el que se firmó aquí cuando todavía no ha salido de este dispositivo. «Por cobrar» es el saldo que calcula ' +
-    'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
-    'El ticket promedio de los últimos doce meses es ' + money(k.ticket) +
-    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '. ' +
-    '«Gastado» suma los gastos del mes por el día en que se pagaron, sin los anulados (pestaña Gastos), y la utilidad ' +
-    'aproximada es lo vendido menos eso: no es la del contador —lo vendido no es lo cobrado, y solo cuenta lo que alguien capturó—, ' +
-    'pero dice hacia dónde va el mes.'));
-  partes.push(htmlPorTipo());
-  return partes.join('');
+/* El cambio contra el mes pasado, en su ficha: flecha Y palabra, nunca solo color. En lo vendido,
+   subir es bueno (verde) y bajar es malo (rojo); en lo gastado la ficha va neutra, porque gastar
+   más puede ser comprar el material de una venta grande. Sin mes pasado (en cero) no hay
+   porcentaje que dar —«+∞ %» no le dice nada a nadie— y no se pinta. */
+function chipCambio(v, ant, alza) {
+  if (v === null || v === undefined || !ant) return '';
+  const mes = String(ant.etiqueta || '').split(' ')[0].toLowerCase();
+  const cls = !alza || v === 0 ? '' : (v > 0 ? ' sube' : ' baja');
+  const t = v > 0 ? '▲ ' + v.toLocaleString('es-MX') + ' % vs ' + mes
+    : v < 0 ? '▼ ' + (-v).toLocaleString('es-MX') + ' % vs ' + mes : '= igual que ' + mes;
+  return '<span class="ct-cambio' + cls + '">' + esc(t) + '</span>';
 }
 
 /* Una fila de cuentas, con la cifra al MISMO tamaño en todas: el que pida la más larga. Cada
@@ -924,10 +1133,12 @@ function pintarVentas() {
    el número más grande de la fila parecía el más chico. Ver `cifraQueCabe()` en ui.js.
    El mismo `--c` es la mitad de la promesa: la hoja saca el tamaño del ancho de CADA tarjeta,
    así que la otra mitad es que todas midan lo mismo. Por eso en esta fila la del dinero no se
-   lleva el renglón entero en el teléfono angosto (`.pf-cuenta.dinero` en css/plataforma.css). */
-function filaCuentas(c) {
+   lleva el renglón entero en el teléfono angosto (`.pf-cuenta.dinero` en css/plataforma.css).
+   `cls` es la forma de la fila: `ct-cinco` (Este mes) y `ct-tres` (la pestaña Ventas) van con la
+   etiqueta arriba y sin tinte, como tarjetas de tablero. */
+function filaCuentas(c, cls) {
   const largo = Math.max(1, ...c.map(x => String(x[0]).length));
-  return '<div class="pf-cuentas">' + c.map(x => cuenta(x[0], x[1], x[2], largo)).join('') + '</div>';
+  return '<div class="pf-cuentas' + (cls ? ' ' + cls : '') + '">' + c.map(x => cuenta(x[0], x[1], x[2], largo)).join('') + '</div>';
 }
 
 /* P3 + P18. La cuenta es un `<p>` o, si lleva a algún lado (`o.va`), un `<button class="va">` con
@@ -935,73 +1146,93 @@ function filaCuentas(c) {
    con palabras para el lector («…, abrir Por cobrar»): el color y la flecha solos no lo cuentan.
    `o.clave` es la memoria del odómetro (la cifra se repinta con cada toque y el valor anterior
    no puede vivir en el nodo). La etiqueta va en su `<span class="pf-cuenta-t">` porque ahí cuelga
-   la flecha. */
+   la flecha. `o.chip` es la ficha del cambio contra el mes pasado y `o.neg` pinta la cifra de una
+   resta que quedó abajo de cero. */
 function cuenta(valor, etiqueta, o = {}, largo) {
-  const cls = o.dinero ? ' dinero' : (o.mal ? ' mal' : (o.urge ? ' urge' : ''));
+  const tono = o.dinero ? ' dinero' : (o.mal ? ' mal' : (o.urge ? ' urge' : ''));
+  const cls = tono + (o.neg ? ' neg' : '');
   const clave = o.clave ? ' data-cuenta="' + esc(o.clave) + '"' : '';
   const cuerpo = cifraQueCabe(valor, largo) + '<span class="pf-cuenta-t">' + esc(etiqueta) + '</span>' +
-    (o.em ? '<em>' + esc(o.em) + '</em>' : '');
+    (o.em ? '<em>' + esc(o.em) + '</em>' : '') + (o.chip || '');
   if (!o.va) return '<p class="pf-cuenta ct-cuenta' + cls + '"' + clave + '>' + cuerpo + '</p>';
   return '<button type="button" class="pf-cuenta ct-cuenta va' + cls + '" data-va="' + esc(o.va.dest) + '"' + clave + '>' +
     cuerpo + '<span class="solo-voz">, ' + esc(o.va.que) + '</span></button>';
 }
 
-/* Las barras de doce meses, en HTML y CSS y nada más: un `<i>` con su ancho en porcentaje del
-   mes más alto. Sin librería, sin lienzo, y se imprime igual que se ve. Debajo de cada barra,
-   el mes; a la derecha, el importe. Lo perdido va como una segunda barra más tenue.
+/* ----- 4 · Los doce meses -----
+   En barras DE PIE —como se leen las ventas por mes en cualquier tablero—, en HTML y CSS y nada
+   más: cada mes es una columna con su barra (`height` en porcentaje del mejor mes) y su nombre
+   abajo. Sin librería ni lienzo, y se imprime igual que se ve. Antes eran doce renglones con la
+   barra acostada y el importe a la derecha: se leían como una lista, no como una forma, y lo que
+   se busca aquí es la forma (¿va subiendo?, ¿qué mes fue bueno?). De un vistazo:
+     · el MEJOR mes, en el azul lleno de la marca y con su importe encima; los demás, en lavanda;
+     · el PROMEDIO, una raya punteada de lado a lado (su cifra, arriba, en «Promedio por mes»);
+     · el mes en curso, con su nombre en azul;
+     · y en la computadora, el importe corto de cada mes encima de su barra («$630 mil»). En el
+       teléfono no caben doce: queda el del mejor mes, y el de cada uno está en su globo.
+   Lo perdido ya no lleva su barra gris: la cifra del mes está en la tarjeta «Perdido» y la de
+   cada mes, en su globo («No se dio · 1 cotización»). Dos barras por mes en 25 px no se leían.
 
-   P27 · Dos cosas nuevas, y ninguna cambia lo que dice la gráfica.
-   Un mes con algo que contar (una venta o una que no se dio) es un BOTÓN que abre un globo con
-   sus ventas y su total (pieza 4, `vistazoMes`): para saber qué se vendió en agosto había que
-   filtrar la lista a mano. Un mes en cero sigue siendo un renglón sin botón: no hay nada que
-   abrir. Cada botón lleva su `id` para que el globo, si la pantalla se repinta con él abierto,
-   encuentre a su gemelo y se quede.
-   Y las barras crecen UNA vez, la primera que se ven (`_barras`, `vigilarBarras`): la
-   `transition:width` que había nunca corría, porque cada innerHTML las recrea con su ancho
-   puesto. Aquí nacen en `scaleX(0)` con la clase `espera` solo mientras está pendiente; después
-   nacen terminadas, y por eso una búsqueda que repinta no las vuelve a mover. */
+   P27 · Lo mismo que antes, y nada de esto cambia lo que dice la gráfica. Un mes con algo que
+   contar (una venta o una que no se dio) es un BOTÓN que abre un globo con sus ventas y su total
+   (pieza 4, `vistazoMes`); un mes en cero sigue siendo una columna sin botón. Cada botón lleva su
+   `id` para que el globo, si la pantalla se repinta con él abierto, encuentre a su gemelo y se
+   quede. El importe exacto y sus ventas van en `.ct-mes-v`, escritos para el lector. Y las barras
+   crecen UNA vez, la primera que se ven (`_barras`, `vigilarBarras`): nacen en `scaleY(0)` con la
+   clase `espera` solo mientras está pendiente; después nacen terminadas, y por eso un repintado
+   no las vuelve a mover. */
 function graficaMeses() {
   const M = D.meses;
-  const tope = Math.max(1, ...M.map(m => Math.max(m.vendido, m.perdido)));
-  const filas = M.map(m => {
-    const pv = Math.round(m.vendido / tope * 100), pp = Math.round(m.perdido / tope * 100);
+  const tope = Math.max(1, ...M.map(m => m.vendido));
+  const total = M.reduce((s, m) => s + m.vendido, 0);
+  const prom = red2(total / M.length);
+  const mejor = M.reduce((a, m) => (m.vendido > 0 && (!a || m.vendido > a.vendido) ? m : a), null);
+  const ymHoy = D.hoy.slice(0, 7);
+  const cols = M.map((m, i) => {
     const abre = m.ganados > 0 || m.perdidos > 0;
+    const pv = m.vendido > 0 ? Math.max(1.5, Math.round(m.vendido / tope * 1000) / 10) : 0;
+    const [mm, aa] = String(m.etiqueta).split(' ');
+    const conAnio = i === 0 || m.mes.endsWith('-01');
+    const esMejor = !!mejor && m.mes === mejor.mes;
     const interior =
-      '<span class="ct-mes-t">' + esc(m.etiqueta) + '</span>' +
-      '<span class="ct-barras" aria-hidden="true">' +
-        /* Un mes en CERO no lleva barra. La barra tiene 2 px de mínimo para que una venta chica
-           junto a un mes de 200 mil se siga viendo, y con eso los once meses vacíos salían cada
-           uno con su rayita azul: se leían como once ventas pequeñas. Igual que la de perdido. */
-        (m.vendido > 0 ? '<i class="ct-b vendido" style="width:' + pv + '%"></i>' : '') +
-        (m.perdido > 0 ? '<i class="ct-b perdido" style="width:' + pp + '%"></i>' : '') +
+      '<span class="ct-mes-zona" aria-hidden="true">' +
+        (m.vendido > 0 ? '<i class="ct-b vendido" style="height:' + pv + '%"></i>' +
+          '<span class="ct-mes-cifra" style="bottom:' + pv + '%">' + esc(moneyCorto(m.vendido)) + '</span>' : '') +
       '</span>' +
-      /* Un mes sin nada no repite «$0.00 · 0 ventas»: una raya tenue basta, y la gráfica se lee
-         por los meses que sí tienen algo. */
+      '<span class="ct-mes-t">' + esc(mm) + (conAnio ? ' <small>' + esc(aa) + '</small>' : '') + '</span>' +
       (abre
-        ? '<span class="ct-mes-v">' + esc(money(m.vendido)) +
-          '<small>' + m.ganados + (m.ganados === 1 ? ' venta' : ' ventas') +
-          (m.perdidos ? ' · ' + m.perdidos + ' no se ' + (m.perdidos === 1 ? 'dio' : 'dieron') : '') + '</small></span>'
-        : '<span class="ct-mes-v cero">—<span class="solo-voz">sin ventas</span></span>') +
-      (abre ? '<span class="solo-voz">, ver sus ventas</span>' : '');
-    const clase = 'ct-mes' + (m.mes === D.hoy.slice(0, 7) ? ' actual' : '') + (abre ? '' : ' vacio');
+        ? '<span class="ct-mes-v solo-voz">' + esc(money(m.vendido)) + ' <small>' + nVentas(m.ganados) +
+          (m.perdidos ? ' · ' + m.perdidos + ' no se ' + (m.perdidos === 1 ? 'dio' : 'dieron') : '') +
+          (esMejor ? ' · el mejor mes' : '') + '</small></span><span class="solo-voz">, ver sus ventas</span>'
+        : '<span class="ct-mes-v cero solo-voz"> sin ventas</span>');
+    const clase = 'ct-mes' + (m.mes === ymHoy ? ' actual' : '') + (esMejor ? ' mejor' : '') + (abre ? '' : ' vacio') +
+      (i === 0 ? ' pri' : '') + (i === M.length - 1 ? ' ult' : '');
     return abre
       ? '<button type="button" class="' + clase + ' ct-mes-ver" id="ct-mes-' + esc(m.mes) + '" data-mes="' + esc(m.mes) +
         '" aria-haspopup="dialog" aria-expanded="false">' + interior + '</button>'
       : '<div class="' + clase + '">' + interior + '</div>';
   }).join('');
-  const total = M.reduce((s, m) => s + m.vendido, 0);
-  const conVenta = M.filter(m => m.vendido > 0);
-  const mejor = conVenta.reduce((a, m) => (!a || m.vendido > a.vendido ? m : a), null);
-  /* Las tres respuestas que se buscan en esta gráfica, dichas arriba para no tener que sumar a ojo. */
+  /* La raya del promedio, a la altura que le toca contra el mejor mes. Va primero en el marcado
+     para quedar DETRÁS de las barras y de sus importes (que llevan el fondo de la tarjeta), como
+     una raya de referencia, y no recibe toques. */
+  const pProm = prom > 0 ? Math.round(prom / tope * 1000) / 10 : 0;
+  const capa = pProm > 0
+    ? '<span class="ct-prom-capa" aria-hidden="true"><i class="ct-prom" style="bottom:' + pProm + '%"></i></span>' : '';
+  /* Las tres respuestas que se buscan en esta gráfica, dichas arriba para no tener que sumar a ojo;
+     la del promedio y la del mejor mes llevan la muestra de cómo se ven abajo. */
   const resumen = '<dl class="ct-meses-res">' +
     '<div><dt>Vendido en 12 meses</dt><dd>' + esc(money(total)) + '</dd></div>' +
-    '<div><dt>Promedio por mes</dt><dd>' + esc(money(red2(total / M.length))) + '</dd></div>' +
-    (mejor ? '<div><dt>Mejor mes</dt><dd>' + esc(mejor.etiqueta) + ' <small>' + esc(money(mejor.vendido)) + '</small></dd></div>' : '') +
+    '<div><dt><i class="ct-ley-prom" aria-hidden="true"></i>Promedio por mes</dt><dd>' + esc(money(prom)) + '</dd></div>' +
+    (mejor ? '<div><dt><i class="ct-ley-mejor" aria-hidden="true"></i>Mejor mes</dt><dd>' + esc(mejor.etiqueta) +
+      ' <small>' + esc(money(mejor.vendido)) + '</small></dd></div>' : '') +
   '</dl>';
-  return '<div class="card" id="ct-meses"><div class="card-h"><h2>' + ico('i-control') + ' Últimos doce meses</h2></div>' +
-    '<div class="card-b">' + resumen + '<div class="ct-grafica' + (_barras === 'espera' ? ' espera' : '') + '">' + filas + '</div>' +
-    '<p class="pf-nota ct-leyenda"><i class="ct-b vendido"></i> vendido &nbsp; <i class="ct-b perdido"></i> no se dio &nbsp;·&nbsp; toca un mes para ver sus ventas</p>' +
-    '</div></div>';
+  return '<section class="card ct-meses" id="ct-meses" aria-labelledby="ct-meses-h">' +
+    '<div class="card-h"><h2 id="ct-meses-h">' + ico('i-control') + ' Últimos doce meses</h2></div>' +
+    '<div class="card-b">' + resumen +
+      '<div class="ct-grafica' + (_barras === 'espera' ? ' espera' : '') + '" role="group" aria-label="' +
+        esc('Lo vendido mes a mes, de ' + M[0].etiqueta + ' a ' + M[M.length - 1].etiqueta) + '">' + capa + cols + '</div>' +
+      '<p class="pf-nota ct-leyenda">Toca un mes para ver sus ventas.</p>' +
+    '</div></section>';
 }
 
 /* P27 · El globo de un mes: lo vendido, de mayor a menor, con su total arriba (el mismo que
@@ -1038,24 +1269,55 @@ function vistazoMes(ym) {
   return h;
 }
 
+/* El almacén, en un renglón chico al pie del Resumen y solo para la dirección: no es dinero de
+   ventas, pero es dinero parado, y Material no dice cuánto vale. Era una tarjeta entera con su
+   párrafo; ahora es una línea, y la línea entera lleva a Material. */
 function filaAlmacen() {
   const a = D.almacen;
   const v = a.valor || {};
   const conCosto = Number(v.con_costo) || 0, sinCosto = Number(v.sin_costo) || 0;
   const texto = conCosto
-    ? 'Vale ' + money(v.total) + ' con el costo de ' + conCosto + (conCosto === 1 ? ' material' : ' materiales') +
-      (sinCosto ? '; ' + sinCosto + ' no tienen costo capturado y no suman.' : '.')
-    : 'Ningún material tiene costo capturado, así que el valor del almacén no se puede sumar. Se pone en el catálogo, uno por uno.';
-  return '<div class="card"><div class="card-b">' +
-    '<div class="pf-fila">' +
-      '<span class="pf-fila-ico' + (a.bajoMinimo ? ' urge' : '') + '">' + ico('i-material') + '</span>' +
-      '<div class="pf-fila-tx"><p class="pf-fila-t">El almacén' +
-        (a.bajoMinimo ? ' <span class="pf-sem falta">' + a.bajoMinimo + ' bajo mínimo</span>' : '') + '</p>' +
-      '<p class="pf-fila-d">' + esc(texto) + '</p></div>' +
-      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-ir="material">Ver material</button></div>' +
-    '</div></div></div>';
+    ? 'vale ' + money(v.total) + (sinCosto ? ' · ' + sinCosto + (sinCosto === 1 ? ' material sin costo no suma' : ' materiales sin costo no suman') : '')
+    : 'sin costos capturados, su valor no se puede sumar';
+  return '<button type="button" class="ct-almacen" data-ir="material">' +
+    '<span class="ct-almacen-ico' + (a.bajoMinimo ? ' urge' : '') + '" aria-hidden="true">' + ico('i-material') + '</span>' +
+    '<span class="ct-almacen-tx"><b>Almacén</b> · ' + esc(texto) + '</span>' +
+    (a.bajoMinimo ? '<span class="pf-sem falta">' + a.bajoMinimo + ' bajo mínimo</span>' : '') +
+    '<span class="ct-chev" aria-hidden="true"></span><span class="solo-voz">, ver Material</span></button>';
 }
 
+/* ============================================================================
+   LA PESTAÑA VENTAS — el detalle que salió del Resumen (octubre de 2026)
+   ============================================================================
+   Tres cifras de consulta —el mes pasado, el ticket promedio y la conversión—, la lista de ventas
+   con su periodo, su buscador y su CSV, y lo vendido por tipo de trabajo. La lista y sus filtros
+   son los de siempre; cambió el renglón (`filaProyecto`), que ahora es el de las listas del
+   Resumen: se toca entero, y abre la ficha o el globo de la venta. */
+function pintarLista() {
+  const k = D.kpi;
+  const ymAnt = (D.meses[D.meses.length - 2] || {}).mes;
+  const decididas = D.conv.ganadas + D.conv.perdidas;
+  const c = [
+    [money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta, { clave: 'ant',
+      va: k.mesAnterior.n > 0 && ymAnt ? { dest: 'mes:' + ymAnt, que: 'ir a ' + k.mesAnterior.etiqueta + ' en las doce barras del Resumen' } : null,
+      em: nVentas(k.mesAnterior.n) }],
+    [money(k.ticket), 'Ticket promedio', { clave: 'ticket',
+      em: k.ultimos12.n ? 'de ' + nVentas(k.ultimos12.n) + ' en 12 meses' : 'sin ventas en 12 meses' }],
+    [D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Cotizaciones ganadas', { clave: 'conv',
+      em: D.conv.ganadas + (D.conv.ganadas === 1 ? ' ganada de ' : ' ganadas de ') + decididas +
+          (decididas === 1 ? ' decidida' : ' decididas') }],
+  ];
+  return lineaHoja() + filaCuentas(c, 'ct-tres') + listaProyectos() + htmlPorTipo() +
+    comoSeCuenta([
+      '«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la venta está allá, y el ' +
+      'que se firmó aquí cuando todavía no ha salido de este dispositivo. El ticket promedio es lo vendido en los últimos ' +
+      'doce meses entre el número de ventas.',
+      '«Cotizaciones ganadas» cuenta las cotizaciones de este dispositivo que ya se decidieron: las ganadas entre las ganadas ' +
+      'y las perdidas. Las que nadie ha contestado todavía no cuentan.',
+      'Un renglón de la hoja abre su detalle; uno de aquí abre la ficha del proyecto. «Solo aquí» es una venta que todavía ' +
+      'no sale de este dispositivo hacia la hoja.',
+    ]);
+}
 function proyectosDelPeriodo() {
   const hoy = D.hoy;
   let desde = null;
@@ -1079,7 +1341,7 @@ function listaProyectos() {
     { v: 'mes', t: 'Este mes' }, { v: '3m', t: '3 meses' }, { v: '12m', t: '12 meses' }, { v: 'todo', t: 'Todo' },
   ], PERIODO, 'data-periodo', 'Periodo');
   const filas = lista.length
-    ? lista.map(filaProyecto).join('')
+    ? '<ul class="ct-fin-lista">' + lista.map(p => '<li>' + filaProyecto(p) + '</li>').join('') + '</ul>'
     : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de la hoja, aparece aquí con su importe.');
   /* En el teléfono el «Bajar CSV de ventas» del encabezado no existe —el hueco de acciones va
      en `display:none` abajo de 760 px, y app.js pide que lo que va ahí exista también dentro de
@@ -1125,27 +1387,18 @@ function origenDe(p) {
   return '';
 }
 
+/* El renglón de la lista de ventas: el de las listas del Resumen (`filaRenglon`), con el importe
+   vendido a la derecha y, debajo, lo que le falta o «cobrado». Aquí la fecha va exacta —es un
+   récord, no una lista de cobro— y la cuenta a la que entró, al final de la segunda línea. */
 function filaProyecto(p) {
   const saldo = Ventas.saldoDe(p);
   const cancelado = p.etapa === 'cancelado';
-  const etapa = cancelado ? 'No se dio' : (p.etapa ? (Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) : '');
-  return '<div class="pf-fila ct-fila">' +
-    '<span class="pf-fila-ico' + (cancelado ? '' : (saldo > 0 ? ' urge' : ' bien')) + '">' +
-      ico(p.etapa ? (Proy.ICO_ETAPA[p.etapa] || 'i-proyectos') : 'i-venta') + '</span>' +
-    '<div class="pf-fila-tx">' +
-      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
-      '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') + ' · ' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') +
-        (etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(etapa) + '</span>' : '') +
-        (p.cuenta ? ' · ' + esc(p.cuenta) : '') + (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
-      '</p>' +
-    '</div>' +
-    '<div class="ct-monto' + (cancelado ? ' cancelado' : '') + '">' + esc(money(Ventas.vendidoDe(p))) +
-      (!cancelado && saldo > 0 ? '<small>saldo ' + esc(money(saldo)) + '</small>' : '') +
-      (!cancelado && saldo <= 0 ? '<small>cobrado</small>' : '') +
-    '</div>' +
-    (p.de_hoja ? '' :
-      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>') +
-  '</div>';
+  const der = '<span class="ct-fin-der">' +
+      '<span class="ct-fin-monto vendido' + (cancelado ? ' cancelado' : '') + '">' + esc(money(Ventas.vendidoDe(p))) + '</span>' +
+      '<span class="ct-fin-sub' + (!cancelado && saldo > 0 ? ' saldo' : '') + '">' +
+        esc(cancelado ? 'no se dio' : saldo > 0 ? 'falta ' + money(saldo) : 'cobrado') + '</span>' +
+    '</span>';
+  return filaRenglon(p, der, { cls: 'ct-venta-fila', fecha: 'exacta', extra: p.cuenta ? esc(p.cuenta) : '' });
 }
 
 /* ----- Por cobrar ----- */
@@ -1212,7 +1465,9 @@ function filaCobro(x) {
   return '<div class="pf-fila ct-fila"' + (x.entregado ? ' data-instalado' : '') + '>' +
     '<span class="pf-fila-ico' + (x.entregado ? ' mal' : ' urge') + '">' + ico(x.entregado ? 'i-check' : 'i-reloj') + '</span>' +
     '<div class="pf-fila-tx">' +
-      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
+      /* El cliente una vez, como en el Resumen (`nombreCliente`); el nombre entero, en el `title`. */
+      '<p class="pf-fila-t"' + (p.nombre && p.nombre !== nombreCliente(p) ? ' title="' + esc(p.nombre) + '"' : '') + '>' +
+        esc(nombreCliente(p)) + origenDe(p) + '</p>' +
       '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
         (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
         ' · vendido ' + esc(money(Ventas.vendidoDe(p))) + ' · anticipo ' + esc(money(p.anti_pactado)) +
@@ -1799,8 +2054,8 @@ function cambiarTab(tab) {
   pintar();
 }
 
-const TABS = ['ventas', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
-/* La quinta pestaña solo con Supabase encendido en ESTE aparato. Se lee la clave como la lee
+const TABS = ['ventas', 'lista', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
+/* La séptima pestaña solo con Supabase encendido en ESTE aparato. Se lee la clave como la lee
    app.js —sin importar js/nucleo/supa.js—: apagado no se carga nada. Fabricación no tiene Control,
    y aun así no se le ofrece. */
 function supaEncendido() {
@@ -1909,15 +2164,21 @@ function alSalirDelCampo(ev) {
 /* ============================================================================
    P3 · Las cuentas llevan a lo que cuentan
    ============================================================================
-   `data-va` dice a dónde: `tab:cobrar` (otra pestaña), `lista:mes` (la lista de ventas con el
-   periodo en «Este mes»), `mes:2026-08` (su renglón en las doce barras), `cartera`, `instalado`
-   (el primer renglón ya instalado) e `ir:proyectos` (otra pantalla). Es un texto y no un índice
-   a una lista de acciones: lo que está pintado se explica solo, y no hay lista que se
-   desincronice cuando el buscador repinta. */
+   `data-va` dice a dónde: `tab:cobrar` (otra pestaña), `lista:mes` (la pestaña Ventas con el
+   periodo en «Este mes»), `mes:2026-08` (su columna en las doce barras del Resumen),
+   `fin:cobrando` (una de las dos listas del Resumen), `cartera`, `instalado` (el primer renglón
+   ya instalado) e `ir:proyectos` (otra pantalla). Es un texto y no un índice a una lista de
+   acciones: lo que está pintado se explica solo, y no hay lista que se desincronice cuando el
+   buscador repinta. */
 function irA(dest) {
   const i = String(dest).indexOf(':');
   const tipo = i < 0 ? dest : dest.slice(0, i), arg = i < 0 ? '' : dest.slice(i + 1);
   if (tipo === 'ir') { if (CTX && typeof CTX.ir === 'function') CTX.ir(arg); return; }
+  if (tipo === 'fin') {
+    llevarA(cont && cont.querySelector('#ct-fin-' + CSS.escape(arg) + ' > .card-h'),
+      arg === 'cobrando' ? 'la lista de Cobrando' : 'la lista de En fabricación');
+    return;
+  }
   if (tipo === 'tab') {
     cambiarTab(arg);
     if (arg === 'gastos') llevarA(cont && cont.querySelector('#ct-gastos-mes > .card-h'), 'Gastos por categoría');
@@ -1931,13 +2192,21 @@ function irA(dest) {
     return;
   }
   if (tipo === 'lista') {
-    /* El periodo se pone en «Este mes» para que la lista a la que se llega sea la que cuenta la
-       cifra; con otro periodo, la cifra y la lista no cuadraban y la cuenta mentía por omisión. */
-    if (PERIODO !== 'mes') { PERIODO = 'mes'; pintar(); }
+    /* La lista vive en la pestaña Ventas desde octubre de 2026. El periodo se pone en «Este mes»
+       para que la lista a la que se llega sea la que cuenta la cifra; con otro periodo, la cifra y
+       la lista no cuadraban y la cuenta mentía por omisión. */
+    const otra = TAB !== 'lista';
+    if (otra) { olvidarCuentas('lista'); TAB = 'lista'; escribirTabEnDireccion(); }
+    if (otra || PERIODO !== 'mes') { PERIODO = 'mes'; pintar(); }
     llevarA(cont && cont.querySelector('#ct-lista > .card-h'), 'Ventas de este mes');
     return;
   }
-  if (tipo === 'mes') { llevarA(cont && cont.querySelector('#ct-mes-' + CSS.escape(arg)), 'su mes en las doce barras'); return; }
+  if (tipo === 'mes') {
+    /* Las barras son del Resumen: desde la pestaña Ventas («Vendido el mes pasado») se vuelve a él. */
+    if (TAB !== 'ventas') cambiarTab('ventas');
+    llevarA(cont && cont.querySelector('#ct-mes-' + CSS.escape(arg)), 'su mes en las doce barras');
+    return;
+  }
   if (tipo === 'cartera') { llevarA(cont && cont.querySelector('#ct-cartera > .card-h'), 'Cartera'); return; }
   if (tipo === 'instalado') { llevarA(cont && cont.querySelector('[data-instalado]'), 'el primer proyecto ya instalado'); }
 }
@@ -1973,7 +2242,8 @@ function llevarA(el, que) {
 function rodarCuentas(raiz) {
   const P = piezas();
   if (!P || typeof P.rodarCifra !== 'function' || !raiz) return;
-  for (const c of raiz.querySelectorAll('.pf-cuenta[data-cuenta]')) {
+  /* Las cuentas y las tres cifras clave del Resumen (`clave`): las dos llevan su cifra en un `<b>` hijo. */
+  for (const c of raiz.querySelectorAll('.pf-cuenta[data-cuenta], .ct-clave[data-cuenta]')) {
     const b = c.querySelector(':scope > b');
     if (!b) continue;
     const clave = 'ct:' + TAB + ':' + c.dataset.cuenta;
@@ -1992,14 +2262,14 @@ function olvidarCuentas(tab) {
    P27 · Las doce barras crecen una vez, al verse
    ============================================================================
    Mientras `_barras` es 'espera', la gráfica nace con la clase `espera` (las barras en
-   `scaleX(0)`) y un IntersectionObserver espera a que se vea: en el teléfono la gráfica queda
-   bajo las cuentas, y crecer donde nadie mira es gastar el movimiento. «Se ve» es que su borde de
-   arriba ya entró 96 px a la pantalla, no un porcentaje de su área: la gráfica mide más de 700 px
-   en un teléfono y con `threshold` por área tenía que entrar casi un tercio para empezar. Al verse, `_barras` pasa a
-   'hecho' —para siempre en esta visita— y cada barra crece de 0 a su ancho con un escalón de 35 ms
-   entre renglones (casi un segundo en total, que es lo máximo que aguanta un adorno). Solo
-   `transform`: nada de animar `width`. Se vuelve a llamar después de cada pintado, porque el
-   renglón que se observaba pudo haberse ido con un innerHTML. */
+   `scaleY(0)`, desde su base) y un IntersectionObserver espera a que se vea: la gráfica queda
+   abajo de las listas, y crecer donde nadie mira es gastar el movimiento. «Se ve» es que su borde
+   de arriba ya entró 96 px a la pantalla, no un porcentaje de su área. Al verse, `_barras` pasa a
+   'hecho' —para siempre en esta visita— y cada barra crece de 0 a su alto con un escalón de 35 ms
+   entre columnas (casi un segundo en total, que es lo máximo que aguanta un adorno); el importe
+   corto de encima aparece cuando su barra ya casi llegó. Solo `transform` y `opacity`: nada de
+   animar `height`. Se vuelve a llamar después de cada pintado, porque la columna que se
+   observaba pudo haberse ido con un innerHTML. */
 function vigilarBarras() {
   if (_io) { _io.disconnect(); _io = null; }
   if (_barras !== 'espera' || !cont) return;
@@ -2018,11 +2288,16 @@ function crecerBarras() {
   if (!g) return;
   g.classList.remove('espera');
   if (sinMov()) return;
-  g.querySelectorAll('.ct-mes').forEach((fila, i) => {
-    fila.querySelectorAll('.ct-b').forEach(b => {
+  g.querySelectorAll('.ct-mes').forEach((col, i) => {
+    const espera = Math.min(i, 12) * 35;
+    col.querySelectorAll('.ct-b').forEach(b => {
       if (!b.animate) return;
-      b.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
-        { duration: 650, delay: Math.min(i, 12) * 35, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+      b.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }],
+        { duration: 650, delay: espera, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+    });
+    col.querySelectorAll('.ct-mes-cifra').forEach(c => {
+      if (!c.animate) return;
+      c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: espera + 420, easing: 'ease-out', fill: 'backwards' });
     });
   });
 }
