@@ -28,9 +28,9 @@ language plpgsql stable set search_path = '' as $$
 declare
   c_cliente     constant text[] := array['almacen_aplicar','alta_venta','cancelar_solicitud','comisiones_cobradas','constante_guardar','corregir_abono','corregir_venta','cotizacion_guardar',
                                          'cuaderno_guardar','descartar_cotizacion','emitir_salidas_derivadas','estado_solicitudes','ganar_proyecto','instalacion_guardar','mi_acceso','miembro_alta',
-                                         'miembro_baja','miembro_cambiar_area','mover_etapa','proyecto_actualizar','rechazar_solicitud','reclamar_acceso','registrar_abono_comision','registrar_cobro',
+                                         'miembro_baja','miembro_cambiar_area','mover_etapa','pantalla_aprobar','pantalla_revocar','proyecto_actualizar','rechazar_solicitud','reclamar_acceso','registrar_abono_comision','registrar_cobro',
                                          'repartir_abono_fifo','revocar_autorizacion','solicitar','subida_unica','tarifas_guardar','tarifas_leer','version_contrato','vista_previa_reparto'];
-  c_servicio    constant text[] := array['autorizacion_para_verificar','contador_sembrar','cuadre_hoja','ia_cuota','ia_turno','registrar_autorizacion','tarifas_de','verificar_cupo'];
+  c_servicio    constant text[] := array['autorizacion_para_verificar','contador_sembrar','cuadre_hoja','ia_cuota','ia_turno','pantalla_solicitar','pantalla_tablero','registrar_autorizacion','tarifas_de','verificar_cupo'];
   c_int_cliente constant text[] := array['comision','empresas_donde','hoy_mx','neto'];
   c_int_servicio constant text[] := array['comision','contiene_dinero','empresas_donde','hoy_mx','neto','sellos_validos'];
   c_vistas_cli  constant text[] := array['comisiones_pendientes','ventas_calculadas'];
@@ -164,9 +164,9 @@ begin
     end if;
   end loop;
 
-  -- ---- GR-09: nada de negocio se borra: toda tabla de `public` (salvo `contadores`, que limpia sus ventanas vencidas) lleva su trigger `sin_borrar` ----------
+  -- ---- GR-09: nada de negocio se borra: toda tabla de `public` (salvo `contadores`, que limpia sus ventanas vencidas, y `pantallas` de 0022, que borra códigos de vinculación vencidos) lleva su trigger `sin_borrar` ----------
   for r in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-            where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname <> 'contadores'
+            where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relname not in ('contadores', 'pantallas')
               and not exists (select 1 from pg_trigger g where g.tgrelid = c.oid and not g.tgisinternal and g.tgenabled <> 'D' and g.tgfoid = 'interno.sin_borrar()'::regprocedure)
             order by 1 loop
     v := v || format('GR-09 la tabla public.%I no tiene su trigger sin_borrar (o está desactivado)', r.relname);

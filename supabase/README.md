@@ -264,7 +264,9 @@ medidas, el límite de fabricación, la nota y el plano). Tres piezas:
    un código de 6 letras. Dirección lo escribe en Ajustes → Supabase → «Pantallas del taller», y queda vinculada.
 
 `importar-diario` también se volvió a armar en esta entrega (el respaldo semanal ahora incluye la tabla `pantallas`); pegarlo es
-opcional: el que está desplegado respalda todo lo demás igual.
+opcional: el que está desplegado respalda todo lo demás igual. Antes de pegarlo, la base necesita el permiso con que el respaldo
+lee `pantallas`. Ese renglón entró a `0022` después de aplicarla, así que en una base donde ya estaba se corre aparte:
+`grant select, insert, update on public.pantallas to service_role;`. En `al3d-pruebas` ya está; en `al3d-produccion`, todavía no.
 
 ## Secretos: qué es cada uno, dónde vive y quién lo carga
 

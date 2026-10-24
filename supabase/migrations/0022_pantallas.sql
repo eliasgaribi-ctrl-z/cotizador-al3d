@@ -63,6 +63,7 @@ alter table public.pantallas enable row level security;
 revoke all on public.pantallas from public, anon, authenticated, service_role;
 -- Dirección lee lo suyo, y solo estas columnas: la huella y el código no salen hacia la app.
 grant select (id, empresa_id, nombre, estado, aprobada_en, revocada_en, ultima_vez, created_at) on public.pantallas to authenticated;
+grant select, insert, update on public.pantallas to service_role;   -- sin DELETE, como todas; el respaldo semanal la lee
 drop policy if exists pantallas_sel_direccion on public.pantallas;
 create policy pantallas_sel_direccion on public.pantallas for select to authenticated
   using (empresa_id in (select interno.empresas_donde(array['direccion'])));
