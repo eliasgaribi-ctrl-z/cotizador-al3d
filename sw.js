@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 141;
+const APP_VERSION = 142;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -76,6 +76,10 @@ const APP_FILES = [
   './condiciones.html',
   './verificar.html',
   './js/verificar.js',  // su guion: vivía en línea, ver la cabecera del archivo
+  /* La pantalla del taller (taller.html): una TV en la pared. Su guion es JavaScript viejo a propósito (ver su cabecera). */
+  './taller.html',
+  './js/taller-tv.js',
+  './css/taller.css',
   './css/publico.css',
   './js/tema.js',
   /* Las piezas compartidas: las cargan el cotizador, la plataforma, el anidador y verificar. */
@@ -253,7 +257,7 @@ const APP_FILES = [
    /verificar.html caían en la ruta del cotizador, que solo busca en `al3d-v1`, así que sin
    señal daban el error del navegador —o, por el respaldo de navegación de allá, el
    cotizador con la dirección de la verificación arriba—. */
-const PAGINAS = /\/(index|cotizador|plataforma|acerca|privacidad|condiciones|verificar)(\.html)?$/;
+const PAGINAS = /\/(index|cotizador|plataforma|acerca|privacidad|condiciones|verificar|taller)(\.html)?$/;
 function esDeLaPlataforma(url) {
   const p = url.pathname;
   return p.endsWith('/') ||                    // la portada del sitio

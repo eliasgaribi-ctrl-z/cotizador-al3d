@@ -236,6 +236,21 @@ export const cambiarArea = (correo, area) => rpc('miembro_cambiar_area', { p_cor
 export const darDeBaja = correo => rpc('miembro_baja', { p_correo: correo });
 
 /* ============================================================================
+   Pantallas del taller (solo Dirección; la base lo vuelve a comprobar)
+   Las TV que enseñan taller.html. Se vinculan con el código de 6 letras que sale en la TV y se
+   desconectan desde aquí. Ver supabase/migrations/0022_pantallas.sql.
+   ============================================================================ */
+
+export async function pantallas() {
+  const c = await cliente();
+  const { data, error } = await c.from('pantallas').select('id, nombre, aprobada_en, ultima_vez').eq('estado', 'activa').order('aprobada_en');
+  if (error) throw error;
+  return data || [];
+}
+export const vincularPantalla = (codigo, nombre = '') => rpc('pantalla_aprobar', { p_codigo: codigo, p_nombre: nombre });
+export const desconectarPantalla = id => rpc('pantalla_revocar', { p_id: id });
+
+/* ============================================================================
    Vigilar el acceso (candados 1 a 3)
    ============================================================================ */
 

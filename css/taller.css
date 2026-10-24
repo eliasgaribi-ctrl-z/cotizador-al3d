@@ -1,0 +1,98 @@
+/* ============================================================================
+   TALLER — la pantalla de la pared (taller.html). Oscura a propósito: en un taller con luz de
+   lámparas, una TV blanca deslumbra y se lee peor de lejos.
+
+   Se dibuja en un escenario fijo de 1920 × 1080 que js/taller-tv.js escala a la ventana (una TV
+   ya es eso; una computadora o un Google TV de 720p, no). Los tamaños están pensados para leerse
+   a tres metros: nada de texto por debajo de 22 px.
+
+   CSS de navegador viejo, como su guion: sin variables, sin grid, sin gap en flex (una TV de 2017
+   no los entiende). Colores del semáforo del Tablero: rojo «va tarde», ámbar «toca hoy».
+   ============================================================================ */
+
+html, body { margin: 0; padding: 0; height: 100%; background: #0e0f12; overflow: hidden; }
+body { color: #f5f5f7; font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+
+#escena { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; -webkit-transform-origin: 0 0; transform-origin: 0 0; }
+
+/* ----- Cabeza ----- */
+.tv-cabeza { position: absolute; left: 56px; right: 56px; top: 36px; height: 120px; }
+.tv-marca { position: absolute; left: 0; top: 20px; font-size: 44px; font-weight: 700; letter-spacing: 0.01em; }
+.tv-marca img { vertical-align: middle; margin-right: 22px; }
+.tv-marca span { vertical-align: middle; color: #c7c7cc; }
+.tv-resumen { position: absolute; left: 520px; top: 34px; font-size: 32px; color: #c7c7cc; white-space: nowrap; }
+.tv-resumen b { color: #f5f5f7; }
+.tv-resumen .rojo { color: #ff453a; }
+.tv-resumen .ambar { color: #ffb020; }
+.tv-resumen .sep { color: #48484a; margin: 0 18px; }
+.tv-hora { position: absolute; right: 0; top: 0; text-align: right; }
+.tv-reloj { font-size: 76px; font-weight: 300; line-height: 1; }
+.tv-reloj small { font-size: 32px; font-weight: 500; margin-left: 10px; color: #c7c7cc; }
+.tv-fecha { font-size: 28px; color: #8e8e93; margin-top: 8px; }
+
+/* ----- Las cinco estaciones ----- */
+.tv-contenido { position: absolute; left: 56px; right: 56px; top: 186px; height: 690px; }
+.tv-col { position: absolute; top: 0; width: 344px; height: 690px; overflow: hidden; }
+/* La columna de cada estación, por clase y no con style="": la CSP de la página (style-src 'self') no deja estilos en línea. */
+.tv-col.c0 { left: 0; } .tv-col.c1 { left: 366px; } .tv-col.c2 { left: 732px; } .tv-col.c3 { left: 1098px; } .tv-col.c4 { left: 1464px; }
+.tv-col h2 { margin: 0 0 18px; font-size: 30px; font-weight: 700; color: #f5f5f7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-col h2 .n { display: inline-block; min-width: 40px; margin-left: 12px; padding: 2px 12px; border-radius: 20px; background: #2c2c2e;
+                color: #c7c7cc; font-size: 24px; font-weight: 600; text-align: center; vertical-align: 3px; }
+.tv-ficha { position: relative; margin-bottom: 14px; padding: 16px 18px 16px 24px; border-radius: 16px; background: #1c1c1f; overflow: hidden; }
+.tv-ficha:before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: #3a3a3c; }
+.tv-ficha.tarde:before, .tv-ficha.no_llega:before { background: #ff453a; }
+.tv-ficha.justo:before { background: #ffb020; }
+.tv-ficha.a_tiempo:before { background: #30d158; }
+.tv-ficha .t { font-size: 27px; font-weight: 600; line-height: 33px; max-height: 66px; overflow: hidden;
+               display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tv-ficha .e { margin-top: 8px; font-size: 23px; line-height: 29px; color: #8e8e93; max-height: 58px; overflow: hidden;
+               display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tv-ficha.tarde .e, .tv-ficha.no_llega .e { color: #ff8a80; }
+.tv-ficha.justo .e { color: #ffcc66; }
+.tv-mas { font-size: 24px; color: #8e8e93; padding: 6px 4px; }
+.tv-vacia { font-size: 24px; color: #48484a; padding: 6px 4px; }
+
+/* ----- Pie: próximas instalaciones y frescura ----- */
+.tv-pie { position: absolute; left: 56px; right: 56px; top: 896px; height: 168px; border-top: 2px solid #2c2c2e; }
+.tv-proximas { position: absolute; left: 0; right: 380px; top: 18px; height: 140px; overflow: hidden; white-space: nowrap; }
+.tv-proximas h3 { margin: 0 0 12px; font-size: 26px; font-weight: 600; color: #8e8e93; }
+.tv-inst { display: inline-block; vertical-align: top; width: 330px; margin-right: 24px; white-space: normal; }
+.tv-inst .d { font-size: 25px; font-weight: 700; }
+.tv-inst .d .ok { color: #30d158; font-weight: 600; margin-left: 8px; }
+.tv-inst .o { font-size: 23px; color: #c7c7cc; line-height: 29px; max-height: 58px; overflow: hidden;
+              display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tv-frescura { position: absolute; right: 0; top: 24px; width: 360px; text-align: right; font-size: 23px; line-height: 31px; color: #8e8e93; }
+.tv-frescura.mal { color: #ffb020; }
+
+/* ----- Vincular y avisos ----- */
+.tv-aviso { margin: 200px 0 0; text-align: center; font-size: 40px; color: #c7c7cc; }
+.tv-vincular { text-align: center; padding-top: 70px; }
+.tv-vincular h1 { margin: 0 0 30px; font-size: 48px; font-weight: 700; }
+.tv-codigo { display: inline-block; margin: 10px 0 40px; padding: 26px 56px; border-radius: 28px; background: #1c1c1f;
+             font-size: 150px; font-weight: 700; letter-spacing: 0.12em; font-family: Menlo, Consolas, 'DejaVu Sans Mono', monospace; }
+.tv-vincular p { margin: 0 0 16px; font-size: 34px; color: #c7c7cc; }
+.tv-vincular p b { color: #f5f5f7; }
+.tv-vincular .chico { font-size: 26px; color: #8e8e93; }
+
+/* ----- La orden de trabajo de una obra en producción (rota con el tablero) ----- */
+.tv-resumen .gris { color: #8e8e93; }
+.tv-orden { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.tv-orden-izq { position: absolute; left: 0; top: 0; width: 1000px; bottom: 0; overflow: hidden; }
+.tv-orden-der { position: absolute; left: 1040px; right: 0; top: 0; bottom: 0; border-radius: 24px; background: #1c1c1f; overflow: hidden; }
+.tv-orden-der img { position: absolute; left: 20px; top: 20px; width: 728px; height: 650px; object-fit: contain; }
+.tv-sin-plano { margin: 280px 40px 0; text-align: center; font-size: 28px; color: #636366; }
+.tv-orden-etapa { font-size: 26px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.08em; }
+.tv-orden h1 { margin: 8px 0 10px; font-size: 46px; line-height: 54px; font-weight: 700; max-height: 108px; overflow: hidden;
+               display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tv-orden-estado { font-size: 26px; line-height: 32px; color: #8e8e93; margin-bottom: 18px; }
+.tv-orden-estado.tarde, .tv-orden-estado.no_llega { color: #ff8a80; }
+.tv-orden-estado.justo { color: #ffcc66; }
+.tv-orden-estado.a_tiempo { color: #7ee2a0; }
+.tv-orden-limite { display: inline-block; margin-bottom: 18px; padding: 10px 18px; border-radius: 14px; background: #2c2c2e; font-size: 28px; font-weight: 700; }
+.tv-orden-limite span, .tv-orden-nota span { display: block; font-size: 20px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.06em; }
+.tv-piezas { width: 100%; border-collapse: collapse; font-size: 25px; }
+.tv-piezas th { text-align: left; font-size: 21px; font-weight: 600; color: #8e8e93; padding: 8px 10px; border-bottom: 2px solid #3a3a3c; }
+.tv-piezas td { padding: 10px; border-bottom: 1px solid #2c2c2e; vertical-align: top; line-height: 30px; }
+.tv-piezas td span { display: block; font-size: 21px; line-height: 27px; color: #8e8e93; max-height: 54px; overflow: hidden; }
+.tv-piezas .c { text-align: center; white-space: nowrap; }
+.tv-orden-nota { margin-top: 16px; font-size: 24px; line-height: 30px; color: #c7c7cc; max-height: 96px; overflow: hidden; }

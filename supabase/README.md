@@ -233,6 +233,39 @@ por `.github/workflows/respaldo-semanal.yml`. Necesita crear la cuenta de servic
 GitHub `RESPALDO_URL_FUNCION`); se despliega con la CLI (`supabase functions deploy respaldo`; para pegarla en el panel habría que
 armarla en un archivo, como `importar-diario/desplegar/armar.mjs`).
 
+## La pantalla del taller (`pantalla`, 2026-10-24)
+
+Elías la pidió el 2026-10-24: una TV en la pared del taller que enseña las obras por etapa, quién va tarde y las próximas
+instalaciones, **sin dinero**, y rotando con eso la **orden de trabajo** de cada obra en diseño, corte o armado (las piezas con sus
+medidas, el límite de fabricación, la nota y el plano). Tres piezas:
+
+- **`migrations/0022_pantallas.sql`**: la tabla `pantallas` y cuatro RPC. `pantalla_solicitar` y `pantalla_tablero` son de servicio
+  (solo la función); `pantalla_aprobar` y `pantalla_revocar` son de Dirección, desde Ajustes → Supabase → «Pantallas del taller».
+  La lectura sale de las columnas de Fabricación y de `origen_obra` (sin precios por su CHECK), y del resto de `origen_obra` solo
+  las piezas, el límite, la nota y los renders: ni cliente, ni teléfono, ni dirección. Pruebas: `tests/pantallas/`.
+- **`functions/pantalla/`**: vincula la TV (inventa el secreto, que se queda la TV; a la base va su huella sha256), lee el tablero,
+  calcula los atrasos con `js/datos/taller.js` (la regla del Tablero, dentro del paquete) y firma el plano de cada orden en el bucket
+  privado por una hora. **Sin secretos propios**: usa las llaves que Supabase ya pone a toda función. `verify_jwt = false` (la TV no
+  tiene sesión; la protege su secreto). Pruebas: `pruebas/supabase-pantalla.mjs`.
+- **`taller.html`** (+ `js/taller-tv.js`, `css/taller.css`): JavaScript viejo a propósito, para el navegador de una TV de 2017.
+  Pruebas: `pruebas/taller-tv.mjs`.
+
+**Cómo se publica** (una vez):
+
+1. `migrations/0022_pantallas.sql` entero en el Editor SQL de `al3d-pruebas` y después de `al3d-produccion` (termina con la
+   auditoría: si algo quedó mal protegido, se detiene sola).
+2. En el panel: Edge Functions → *Deploy a new function* → nombre **`pantalla`** → pegar entero
+   `functions/pantalla/desplegar/index.ts` (se arma con `node supabase/functions/pantalla/desplegar/armar.mjs`) → en *Settings*
+   de la función, **Verify JWT apagado** → *Deploy*.
+3. Como la hoja sigue mandando, la pantalla va tan al día como la copia: desde el 2026-10-24 la copia corre **cada 3 horas**. Hay
+   que volver a pegar `puente/copia-diaria.gs` en el Apps Script de la hoja y correr `instalarCopiaDiaria` una vez (cambia el
+   disparador de las 3 a. m. por ocho: 0, 3, 6, 9, 12, 15, 18 y 21).
+4. En la TV del taller, abrir `https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/taller.html` (o la del espejo de Cloudflare): sale
+   un código de 6 letras. Dirección lo escribe en Ajustes → Supabase → «Pantallas del taller», y queda vinculada.
+
+`importar-diario` también se volvió a armar en esta entrega (el respaldo semanal ahora incluye la tabla `pantallas`); pegarlo es
+opcional: el que está desplegado respalda todo lo demás igual.
+
 ## Secretos: qué es cada uno, dónde vive y quién lo carga
 
 Ninguno va al repositorio, a la hoja ni al chat (regla del plan §4.12). Aquí solo van los **nombres**.

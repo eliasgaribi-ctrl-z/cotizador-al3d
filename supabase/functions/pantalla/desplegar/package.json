@@ -1,0 +1,17 @@
+{
+  "name": "al3d-pantalla-desplegar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arma desplegar/index.ts: la función pantalla en UN archivo, para pegarla en el editor del panel de Supabase (sin CLI).",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "armar": "node armar.mjs",
+    "comprobar": "node armar.mjs --comprobar"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

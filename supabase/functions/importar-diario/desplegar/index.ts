@@ -23,7 +23,7 @@
 //   9c015d4000ba42f9  scripts/importador/plan.mjs
 //   97de8976ab229559  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
-//   5297d40b343537c6  supabase/functions/_shared/respaldo.js
+//   a13fcdd0e2566f5c  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
 //   9612b48459ec19ff  supabase/functions/importar-diario/copia.js
@@ -764,7 +764,8 @@ var TABLAS = Object.freeze([
   ["cuaderno_notas", "empresa_id,clave,autor_id"],
   ["cuadre_diario", "id"],
   ["tarifas", "empresa_id,grupo,clave"],
-  ["gastos", "empresa_id,id"]
+  ["gastos", "empresa_id,id"],
+  ["pantallas", "id"]
 ].map(([nombre, orden]) => Object.freeze({ nombre, orden })));
 var FORMATO = "al3d-respaldo-1";
 var SECRETO_MINIMO = 32;
