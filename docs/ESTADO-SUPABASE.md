@@ -515,3 +515,35 @@ diaria.gs» pegada y guardada (`Código.gs` ya era el de `main`). Después, la s
 las 12:58: **aplicada · CUADRA · 221 ventas · 0 diferencias · 0 conflictos · 35 autorizaciones**, sin cambios en las cotizaciones (la copia
 ya no las vuelve talón). La auditoría de la base: 0 problemas. La hoja todavía no tiene la pestaña «Gastos» (nace con el primer gasto o
 con «3 · Preparar la hoja»): hasta entonces la copia no manda gastos.
+
+## La lectura en vivo contra la base real, y lo que falta para el día del cambio (2026-10-24)
+
+Primera prueba de la fase 4 contra `al3d-produccion`, **sin encender nada y sin escribir**: desde el Chrome de Elías (sesión de Supabase
+como Dirección), en la consola, `crearFuente` de `js/datos/supa-vivo.js` y `suscribir`, comparando con el espejo `ventas_hoja` que ese
+mismo Chrome bajó de la hoja.
+
+| Qué | Resultado |
+|---|---|
+| Las filas de ventas desde la base (`proyectos` + `instalaciones` + `ventas_calculadas`, paginadas de 500) | **221 de 221**, en 0.9 s; PostgREST aceptó los filtros (`not … is null`, `is`, `neq`, `range`) |
+| El almacén (materiales, listas de compra, libro) | 19 materiales y 9 requerimientos, en 0.9 s |
+| Venta por venta contra la hoja, 28 campos | iguales en todo lo del negocio salvo: (1) **un importe vacío en la hoja llega como 0** desde la base (liquidación en 45 ventas, anticipo en 2): el importador guarda `''` como 0 y la base no distingue «sin capturar» de «cero»; las sumas no cambian; (2) **3 ventas en FABRICACION sin «Etapa de obra»** en la hoja salen `ganado` (el importador le pone etapa a toda venta viva) |
+| Realtime | el canal `al3d-vivo` se une en ~1 s; no se probó la llegada de un aviso (haría falta escribir) |
+
+**Por qué la sombra NO se encendió (hallazgo, según el código):** con la sombra, una venta nueva ganada en ese aparato entra a la base por
+`ganar_proyecto` con el id del teléfono; la copia de la madrugada, que no lleva teléfonos, arma esa misma venta como `proy-hoja-V-###` y
+el SQL del importador lo anota como conflicto («su folio ya es de …»): el día no cuadra y la racha vuelve a 0. Lo que dicen las notas de
+la transición («encender la sombra antes no estorba») no es cierto mientras exista ese choque. Arreglo: que el importador adopte el id que
+la base ya tiene para el mismo folio.
+
+**Lo que falta para el día del cambio, en piezas:**
+
+1. El importador adopta el id de la base para el mismo folio (arriba). Chica; deja encender la sombra en el Chrome de Elías sin romper la racha.
+2. «La base manda»: un interruptor por aparato con el que la bandeja escribe en Supabase en vez de la hoja (el traductor de la sombra ya
+   existe), más lo que hoy solo va a la hoja: los gastos (falta su RPC), los precios (`tarifas_guardar` ya existe, falta el cliente) y
+   «Registrar venta» del cotizador. Grande.
+3. Probar la entrada con Google en el iPhone (solo Elías).
+4. Cada persona entra a Supabase en su teléfono (ya están invitados: 3 de Fabricación y 1 de Pagos) y Pagos captura cobros y abonos en
+   la plataforma (las pantallas existen, apagadas).
+5. Los QR de los PDF impresos: la clave del sello tendría que vivir también en Supabase para autorizar y verificar después del cambio, o
+   `/verificar` y `/autorizar` se quedan en el Apps Script. Lo decide Elías.
+6. Siete días seguidos cuadrando (van 1, desde el 2026-10-24) y el día del cambio.
