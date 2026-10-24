@@ -855,7 +855,9 @@ async function enLaApp() {
     await p.waitForTimeout(600);
     cierto(await ev(() => !document.querySelector('.ficha-viaja,.ficha-destino,.ficha-sin-antes')), 'y al llegar no queda nada de ella');
     if (ancho < 760) {
-      await p.goto(B + '/#/control', { waitUntil: 'load' });
+      /* El segmento de cuatro («Este mes · 3 meses · 12 meses · Todo») es el de la lista de ventas,
+         que desde octubre de 2026 vive en la pestaña Ventas de Control y no en el Resumen. */
+      await p.goto(B + '/#/control?tab=lista', { waitUntil: 'load' });
       await p.waitForTimeout(1200);
       const cuatro = await ev(async () => {
         const G = [...document.querySelectorAll('.tipo-seg')].find(x => x.offsetParent && x.querySelectorAll(':scope>button').length === 4);
