@@ -98,7 +98,7 @@ async function sembrar(p, copias = false) {
       ['listo', 'COT-8806', 'Farmacia Guadalupe', 'listo', 13800, 3],
       ['instalado', 'COT-8804', 'Dental Sonrisa', 'instalado', 17004, -30],       // liquidación vencida
       ['instaladoHoy', 'COT-8807', 'Óptica Visión', 'instalado', 12000, 0],        // aún a tiempo
-      ['grande', 'COT-8808', 'Taquería Los Primos', 'instalado', 69400, -30],      // la excepción de $60,000
+      ['grande', 'COT-8808', 'Taquería Los Primos', 'instalado', 69400, -30],      // de más de $60,000: cuenta igual
       ['pagado', 'COT-8812', 'Barbería El Toro', 'instalado', 9300, -12],          // ya liquidado (la hoja dice saldo 0)
       ['venceHoy', 'COT-8813', 'Café Barrio', 'instalado', 6000, 'vence-hoy'],     // solo si hoy es día hábil
       ['copiaA', 'COT-8809', 'Copia importada A', 'ganado', 5000, null],
@@ -680,11 +680,11 @@ for (const rm of activa('f53') ? [false, true] : []) {
     await cerrarFicha(p);
   } else console.log('  · hoy es fin de semana: el vencimiento no cae en hoy, se salta el tono «vence hoy» (lo cubre la prueba de node)');
 
-  /* La excepción de $60,000: no cuenta nada, y lo dice. */
+  /* Sin excepción de $60,000 (se quitó el 24-oct-2026): uno grande instalado hace 30 días
+     también sale vencido, en rojo, y ya no dice «como se pactó». */
   await abrirFicha(p, h.grande.id);
   const g = await p.$eval('#pf-ficha .pj-liq', e => ({ tono: e.dataset.tono, txt: e.textContent.replace(/\s+/g, ' ').trim() }));
-  await tonoSeLee('como se pactó');
-  que(g.tono === 'nada' && /como se pactó/i.test(g.txt) && !/vencida/i.test(g.txt), donde + ': uno de más de $60,000 dice que va «como se pactó» y NO cuenta días (' + g.txt.slice(0, 60) + '…)', donde + ': ' + JSON.stringify(g));
+  que(g.tono === 'mal' && /vencida hace \d+ días? hábiles?/i.test(g.txt) && !/como se pactó/i.test(g.txt), donde + ': uno de más de $60,000 cuenta igual: «vencida hace N días hábiles», en rojo (' + g.txt.slice(0, 60) + '…)', donde + ': ' + JSON.stringify(g));
   await cerrarFicha(p);
 
   /* Solo instalados y en garantía. */

@@ -13,7 +13,7 @@
 //   5e57c990f1be0624  js/datos/entrega.js
 //   eaf5bb4c2a840916  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
-//   b3e7610b983b33fb  js/datos/proyectos.js
+//   043b51568d102586  js/datos/proyectos.js
 //   51362cdf06d05909  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
