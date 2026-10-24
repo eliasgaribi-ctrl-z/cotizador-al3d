@@ -88,6 +88,8 @@ const COLS = {
   cotizaciones: [['empresa_id', 't'], ['folio_global', 't'], ['folio', 't'], ['disp', 't'], ['estado', 't'], ['datos', 'j'], ['hitos', 'j'], ['procedencia', 'j']],
   tarifas: [['empresa_id', 't'], ['grupo', 't'], ['clave', 't'], ['nombre', 't'], ['precio', 'n'], ['como', 't'], ['visible', 'b'], ['orden', 'i'], ['detalle', 't'],
     ['actualizado_por', 't'], ['actualizado_ms', 'ts']],
+  gastos: [['empresa_id', 't'], ['id', 't'], ['fecha', 'd'], ['concepto', 't'], ['categoria', 't'], ['monto', 'n'], ['cuenta', 't'], ['folio', 't'],
+    ['registro_por', 't'], ['registrado_ms', 'ts'], ['anulado', 'b'], ['anulo', 't'], ['anulado_ms', 'ts'], ['subio', 't'], ['fila_hoja', 'i'], ['procedencia', 'j']],
 };
 
 /* Cómo entra el lote a su tabla. `l` es el lote (temporal). Cada sentencia devuelve (llave, nuevo). */
@@ -313,11 +315,14 @@ const ESCRIBIR = {
     insert into _imp_cambios (tabla, llave, accion) select 'autorizaciones', llave, 'alta' from w;`,
 
   cotizaciones: `
+    -- Un TALÓN (la cotización que se arma de una fila de «Autorizaciones» sin teléfono: procedencia.stub) no pisa una que no es talón: la
+    -- que subió el aparato que emitió el folio (subida_unica, 0021) se queda. Sin esto, la copia diaria la volvía talón cada madrugada.
     with w as (
       insert into public.cotizaciones as t (empresa_id, folio_global, folio, disp, estado, datos, hitos, procedencia)
       select l.empresa_id, l.folio_global, l.folio, l.disp, l.estado, interno.datos_cotizacion(l.datos), l.hitos, l.procedencia from _lote l
       on conflict (empresa_id, folio_global) do update set datos = excluded.datos, hitos = excluded.hitos, procedencia = excluded.procedencia
        where (t.datos, t.hitos, t.procedencia) is distinct from (excluded.datos, excluded.hitos, excluded.procedencia)
+         and (not (excluded.procedencia ? 'stub') or t.procedencia ? 'stub')
       returning t.folio_global as llave, (t.xmax = 0) as nuevo)
     insert into _imp_cambios (tabla, llave, accion) select 'cotizaciones', llave, case when nuevo then 'alta' else 'cambio' end from w;`,
 };
@@ -337,9 +342,29 @@ ESCRIBIR.tarifas = `
       returning t.grupo || ':' || t.clave as llave, (t.xmax = 0) as nuevo)
     insert into _imp_cambios (tabla, llave, accion) select 'tarifas', llave, case when nuevo then 'alta' else 'cambio' end from w;`;
 
+/* Los gastos de la pestaña «Gastos» (0020): la hoja manda mientras sea la fuente, así que un renglón que se corrigió allá pisa el de la
+   nube, y uno que había salido de la hoja y volvió pierde su lápida. Los que ya no están en la pestaña los marca sqlDeImportacion. */
+ESCRIBIR.gastos = `
+    with w as (
+      insert into public.gastos as t (empresa_id, id, fecha, concepto, categoria, monto, cuenta, folio, registro_por, registrado_en, anulado, anulo,
+             anulado_en, subio, fila_hoja, procedencia)
+      select l.empresa_id, l.id, l.fecha, l.concepto, l.categoria, l.monto, l.cuenta, l.folio, l.registro_por, l.registrado_ms, l.anulado, l.anulo,
+             l.anulado_ms, l.subio, l.fila_hoja, l.procedencia from _lote l
+      on conflict (empresa_id, id) do update set fecha = excluded.fecha, concepto = excluded.concepto, categoria = excluded.categoria,
+             monto = excluded.monto, cuenta = excluded.cuenta, folio = excluded.folio, registro_por = excluded.registro_por,
+             registrado_en = excluded.registrado_en, anulado = excluded.anulado, anulo = excluded.anulo, anulado_en = excluded.anulado_en,
+             subio = excluded.subio, fila_hoja = excluded.fila_hoja, procedencia = excluded.procedencia, deleted_at = null
+       where (t.fecha, t.concepto, t.categoria, t.monto, t.cuenta, t.folio, t.registro_por, t.registrado_en, t.anulado, t.anulo, t.anulado_en,
+              t.subio, t.fila_hoja, t.procedencia, t.deleted_at)
+             is distinct from (excluded.fecha, excluded.concepto, excluded.categoria, excluded.monto, excluded.cuenta, excluded.folio,
+                               excluded.registro_por, excluded.registrado_en, excluded.anulado, excluded.anulo, excluded.anulado_en, excluded.subio,
+                               excluded.fila_hoja, excluded.procedencia, null::timestamptz)
+      returning t.id as llave, (t.xmax = 0) as nuevo)
+    insert into _imp_cambios (tabla, llave, accion) select 'gastos', llave, case when nuevo then 'alta' else 'cambio' end from w;`;
+
 /* El orden importa: los hijos después de sus padres (FK), los costos después de lo que cuestan. */
 const ORDEN = ['proyectos', 'ventas_dinero', 'abonos', 'miembros', 'instalaciones', 'materiales', 'constantes', 'requerimientos',
-  'almacen_movimientos', 'almacen_costos', 'autorizaciones', 'cotizaciones', 'tarifas'];
+  'almacen_movimientos', 'almacen_costos', 'autorizaciones', 'cotizaciones', 'tarifas', 'gastos'];
 
 function lotes(tabla, filas, conTransaccion) {
   const cols = COLS[tabla];
@@ -389,6 +414,19 @@ insert into _imp_cambios (tabla, llave, accion)
     from public.abonos a
    where a.empresa_id = ${e} and a.op_id like 'hoja:abono:%' and a.op_id <> all (${lit(ops, 'a')});
 `);
+  // un gasto que ya no está en la pestaña «Gastos» (alguien quitó el renglón a mano): no se borra —la tabla no deja—, se le pone lápida.
+  // Solo si el volcado trajo la pestaña: sin ella (un copia-diaria.gs viejo) no se sabe qué hay en la hoja y no se toca nada.
+  if (Array.isArray(plan.gastos_en_hoja)) {
+    partes.push(`-- gastos que ya no están en la hoja: lápida (deleted_at), nunca borrado
+${propias ? 'begin;' : ''}
+with w as (
+  update public.gastos g set deleted_at = now()
+   where g.empresa_id = ${e} and g.deleted_at is null and g.id <> all (${lit(plan.gastos_en_hoja, 'a')})
+  returning g.id as llave)
+insert into _imp_cambios (tabla, llave, accion) select 'gastos', llave, 'cambio: ya no está en la hoja' from w;
+${propias ? 'commit;' : ''}
+`);
+  }
   // el vínculo cotización → autorización (DISENO.md §3.4): la vigente o, si no hay, la de mayor id; la revocación con fecha de hoy
   partes.push(`-- cotizaciones ↔ autorizaciones
 ${propias ? 'begin;' : ''}

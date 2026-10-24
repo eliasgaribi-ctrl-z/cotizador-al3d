@@ -62,6 +62,12 @@ const UNIDADES_COMPRA = ['unidad', 'bolsa', 'caja', 'lamina', 'litro', 'metro'];
    pruebas/tarifas.mjs compara las tres). */
 export const FABRICA_TARIFAS = Object.freeze({ material: ['al-paint', 'al-brush', 'acr-vol', 'acr-vinil', 'acero'], complejidad: ['recta', 'cursiva', 'compleja'],
   recorte: ['sencillo', 'vinil', 'sandwich'], 'recorte-extra': ['sandwich'], bastidor: ['lamina', 'alucobond'], caja: ['std', 'nube'] });
+/* Las categorías de gasto, en el orden del desplegable: las de CATEGORIAS de js/datos/gastos.js, GASTO_CATEGORIAS del .gs y el CHECK
+   de 0020 (pruebas/gastos.mjs compara las cuatro). Copia a propósito: gastos.js trae consigo la base y la bandeja del teléfono. */
+export const CATEGORIAS_GASTO = Object.freeze(['Material', 'Mano de obra', 'Renta y servicios', 'Herramienta',
+  'Transporte y gasolina', 'Publicidad', 'Comisiones y nómina', 'Otros']);
+/* Por qué un renglón de «Gastos» no entra en la copia (lista cerrada: es lo único que se anota de él, junto con su fila). */
+export const MOTIVOS_GASTO = Object.freeze(['sin_id', 'id_no_sirve', 'id_repetido', 'fecha_no_se_entiende', 'sin_concepto', 'monto_no_sirve']);
 const NORM_CONSUMO = { 'm²': 'm2', 'm2': 'm2', 'm² limpiados': 'm2', 'm de cordón': 'm', 'm de cordon': 'm',
   'm': 'm', 'cm': 'cm', 'pieza': 'pieza', 'piezas': 'pieza', 'litro': 'litro' };
 const TIPOS_MOV = ['entrada', 'salida', 'ajuste', 'conteo', 'merma', 'devolucion'];
@@ -159,7 +165,7 @@ export async function planear(entrada) {
   const rep = nuevoReporte();
   const tels = (entrada.telefonos || []).map(leerTelefono);
   const T = { proyectos: [], ventas_dinero: [], abonos: [], miembros: [], instalaciones: [], materiales: [], almacen_costos: [],
-    requerimientos: [], almacen_movimientos: [], constantes: [], cotizaciones: [], autorizaciones: [], tarifas: [] };
+    requerimientos: [], almacen_movimientos: [], constantes: [], cotizaciones: [], autorizaciones: [], tarifas: [], gastos: [] };
   const esperado = [];
   const remapeo = {};
   const ref = (donde, fila) => `${donde}!${fila}`;
@@ -613,6 +619,62 @@ export async function planear(entrada) {
     }
   }
 
+  /* ----- Los gastos (pestaña «Gastos», puente-sheets-15; a la nube desde el 2026-10-24, 0020) ----- */
+  /* Se leen como los lee el teléfono (`gastoDeHoja` de js/datos/gastos.js): la categoría que no está en la lista es «Otros», un monto
+     tecleado como texto se lee, una fecha «23/10/2026» también, y la cuenta se queda como venga. Lo que la base no acepta (sin id, un
+     id repetido, sin día, sin concepto, un monto que no es mayor que cero) se queda fuera con su fila y su motivo —en `no_importado`,
+     como las autorizaciones: no frena la copia de las ventas— y la hoja manda: lo que cambió allá pisa lo de aquí.
+     `gastosEnHoja` son TODOS los ids de la pestaña, entren o no: el SQL le pone lápida solo a lo que ya no está en ella. Sin la pestaña
+     en el volcado (un copia-diaria.gs de antes del 2026-10-24, o una hoja que todavía no la tiene) o sin su columna «ID» es null: no se
+     sabe qué hay en la hoja y no se toca ningún gasto de la base. */
+  let gastosEnHoja = null;
+  const gas = P['Gastos'];
+  if (Array.isArray(gas) && !encabezados(gas).includes('ID')) {
+    const n = filas(gas).filter(x => x.celdas.some(c => !vacia(c))).length;
+    if (n) rep.no_importado.push({ que: 'Gastos', n, por: 'la pestaña «Gastos» no tiene la columna «ID»: no se lee y no se toca ningún gasto de la base' });
+  } else if (Array.isArray(gas)) {
+    gastosEnHoja = [];
+    const h = encabezados(gas), k = n => h.indexOf(n);
+    const leidos = [], fuera = [], veces = new Map();
+    for (const { fila, celdas } of filas(gas)) {
+      const v = n => (k(n) >= 0 ? celdas[k(n)] : '');
+      const id = texto(v('ID')).trim();
+      if (!id) {
+        // un renglón sin ID y sin concepto ni monto es un renglón vacío o una nota (como gastoFilas_ del .gs)
+        if (texto(v('Concepto')).trim() || !vacia(v('Monto'))) fuera.push({ fila, motivo: 'sin_id' });
+        continue;
+      }
+      gastosEnHoja.push(id);
+      veces.set(id, (veces.get(id) || 0) + 1);
+      const fecha = diaDeGasto(v('Fecha'));
+      const concepto = sinApostrofo(texto(v('Concepto'))).trim().slice(0, 200);
+      const monto = montoDeGasto(v('Monto'));
+      const catHoja = texto(v('Categoría')).trim();
+      const categoria = categoriaDeGasto(catHoja);
+      const anulado = siNoDeGasto(v('Anulado'));
+      const motivo = !RE_ID_GASTO.test(id) ? 'id_no_sirve' : !fecha ? 'fecha_no_se_entiende' : !concepto ? 'sin_concepto'
+        : !(monto > 0 && monto <= 10000000) ? 'monto_no_sirve' : null;
+      leidos.push({ fila, id, motivo, g: {
+        empresa_id: empresa, id, fecha, concepto, categoria, monto, cuenta: texto(v('Cuenta')).trim().slice(0, 60),
+        folio: sinApostrofo(texto(v('Folio del proyecto'))).trim().slice(0, 40), registro_por: sinApostrofo(texto(v('Registró'))).trim().slice(0, 200),
+        registrado_ms: msDeCelda(v('Registrado el')), anulado, anulo: anulado ? sinApostrofo(texto(v('Anuló'))).trim().slice(0, 200) : '',
+        anulado_ms: anulado ? msDeCelda(v('Anulado el')) : 0, subio: sinApostrofo(texto(v('Subió'))).trim().slice(0, 200), fila_hoja: fila,
+        procedencia: catHoja && catHoja !== categoria ? { categoria_hoja: catHoja.slice(0, 60) } : {},
+      } });
+    }
+    for (const x of leidos) {
+      const motivo = veces.get(x.id) > 1 ? 'id_repetido' : x.motivo;    // dos renglones con el mismo id: no se decide cuál es
+      if (motivo) fuera.push({ fila: x.fila, motivo }); else T.gastos.push(x.g);
+    }
+    if (fuera.length) {
+      fuera.sort((a, b) => a.fila - b.fila);
+      const motivos = {};
+      for (const x of fuera) motivos[x.motivo] = (motivos[x.motivo] || 0) + 1;
+      rep.no_importado.push({ que: 'Gastos', n: fuera.length, por: 'renglones de la pestaña «Gastos» que la base no acepta: se quedan en la hoja y no frenan la copia (' +
+        Object.entries(motivos).map(([m, n]) => m + ' ' + n).join(', ') + ')', filas: fuera.map(x => x.fila), motivos });
+    }
+  }
+
   /* ----- 7. Requerimientos: (proyecto canónico, material) único (§3.5, M03 H7) ----- */
   const proyectoDeVenta = f => { const p = proyectoDeFolio.get(String(f || '').trim().toUpperCase()); return p ? p.id : null; };
   const reqs = new Map();
@@ -935,7 +997,7 @@ export async function planear(entrada) {
   rep.resumen.con_cotizacion = T.proyectos.filter(p => p.fuente === 'cotizacion').length;
   rep.resumen.telefonos = tels.map(t => ({ etiqueta: t.etiqueta, disp: t.disp, disp_inferido: t.disp_inferido, proyectos: t.proyectos.length, cotizaciones: t.historial.length }));
   delete rep.rechazar; delete rep.conflicto; delete rep.avisar;
-  return { empresa, tablas: T, contadores, esperado, remapeo, reporte: rep };
+  return { empresa, tablas: T, contadores, esperado, remapeo, reporte: rep, gastos_en_hoja: gastosEnHoja };
 }
 
 /* ============================================================================
@@ -977,6 +1039,55 @@ function sellosValidos(s) {
 }
 
 function numONull(v) { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
+
+/* ----- Una celda de «Gastos», leída como la lee el teléfono (`categoriaDe`, `fechaDeCelda`, `montoDe` y `siNo` de js/datos/gastos.js;
+   pruebas/gastos.mjs las compara con estas). Copias a propósito: gastos.js trae consigo la base y la bandeja del teléfono. ----- */
+const RE_ID_GASTO = /^[A-Za-z0-9][A-Za-z0-9:._@-]{0,79}$/;     // el CHECK de 0020
+const planoGasto = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+/* Lo que el puente escribe con apóstrofo para que Sheets no lo vuelva fórmula (gastoTexto_ del .gs) se lee sin él (gastoDeTexto_). */
+const sinApostrofo = s => (/^'[=+\-@]/.test(s) ? s.slice(1) : s);
+
+/** La categoría de la lista que le corresponde («material», «Transporte y Gasolina»…); lo que no es ninguna, «Otros». */
+export function categoriaDeGasto(v) {
+  const p = planoGasto(v);
+  return (p && CATEGORIAS_GASTO.find(c => planoGasto(c) === p)) || 'Otros';
+}
+
+/** 'aaaa-mm-dd' de una celda de fecha, de un ISO o de un «23/10/2026» tecleado; '' si no es un día que exista entre 2000 y 2100. */
+export function diaDeGasto(v) {
+  const s = texto(v).trim();
+  let iso = '';
+  if (s.length === 10 || /^\d{4}-\d{2}-\d{2}T/.test(s)) iso = s.slice(0, 10);
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m) iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!p) return '';
+  const [a, me, d] = [Number(p[1]), Number(p[2]), Number(p[3])];
+  const ok = a >= 2000 && a <= 2100 && me >= 1 && me <= 12 && d >= 1 && d <= new Date(Date.UTC(a, me, 0)).getUTCDate();
+  return ok ? iso : '';
+}
+
+/** El monto en pesos, redondeado a centavos: un número, o lo que se tecleó («$1,234.50»). Negativo, vacío o basura son 0. */
+export function montoDeGasto(v) {
+  const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? r2(v) : 0;
+  const s = texto(v);
+  if (/^\s*[-−]/.test(s)) return 0;
+  const limpio = s.replace(/[^\d.]/g, '');
+  const i = limpio.indexOf('.');
+  const t = i < 0 ? limpio : limpio.slice(0, i + 1) + limpio.slice(i + 1).replace(/\./g, '');
+  const n = parseFloat(t);
+  return Number.isFinite(n) && n > 0 ? r2(n) : 0;
+}
+
+/** «Sí», true, «TRUE», «x», «anulado» o 1 son sí; lo demás, no. */
+export function siNoDeGasto(v) {
+  if (v === true) return true;
+  return ['si', 'true', 'x', 'anulado', '1'].includes(planoGasto(v));
+}
+
+/** Los milisegundos de una celda de fecha y hora (o de un número); 0 si no hay. */
+const msDeCelda = v => (esFecha(v) ? ms(v.$ms) : typeof v === 'number' ? ms(v) : 0);
 
 /** `partirNombreDeHoja` (js/datos/proyectos.js): quita el «(Tipo)» final y parte en el primer « - ». */
 export function partirNombre(nombre) {

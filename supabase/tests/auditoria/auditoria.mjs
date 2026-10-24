@@ -63,7 +63,7 @@ describir('GR-01 a GR-04 funciones, RLS y vistas', () => {
     const db = await plantilla();
     const t = await sql(db, `select c.relname, c.relrowsecurity as rls, c.relforcerowsecurity as forzada, (select count(*)::int from pg_policy p where p.polrelid = c.oid) as politicas
                                from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`);
-    igual(t.length, 19, 'las 19 tablas de public (0019: tarifas)');
+    igual(t.length, 20, 'las 20 tablas de public (0020: gastos)');
     igual(t.filter(x => !x.rls).map(x => x.relname), []);
     igual(t.find(x => x.relname === 'contadores').politicas, 0);
     igual(t.filter(x => x.relname !== 'contadores' && x.politicas === 0).map(x => x.relname), [], 'toda tabla legible tiene su política (la RLS no la deja «abierta» por omisión)');
@@ -167,7 +167,7 @@ describir('GR-10 la clave del sello no existe en la base', () => {
     // la búsqueda: un trozo distintivo de la clave (y la clave entera) en todas las columnas de todas las tablas de public
     const trozos = [CLAVE_DEL_MAPA, CLAVE_DEL_MAPA.slice(0, 20), 'FALSO-0000aaaa', 'FALSO-0000bbbb', 'FALSO-0000cccc'];
     const tablas = (await sql(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`)).map(x => x.relname);
-    igual(tablas.length, 19, 'se recorrieron las 19 tablas');
+    igual(tablas.length, 20, 'se recorrieron las 20 tablas');
     for (const t of tablas) {
       for (const trozo of trozos) igual([t, (await una(db, `select count(*)::int as n from public."${t}" x where x::text like '%' || $1 || '%'`, [trozo])).n], [t, 0]);
     }

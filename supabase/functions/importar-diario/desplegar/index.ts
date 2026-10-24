@@ -20,16 +20,16 @@
 //   5d1bdca9d2c8274a  js/nucleo/ingreso.js
 //   182f2f140a2e13d6  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
-//   31ae699820ae70ac  scripts/importador/plan.mjs
-//   2d982c4996b6654c  scripts/importador/sql.mjs
+//   b4c321ca39e008c6  scripts/importador/plan.mjs
+//   8fbffa9378b353bc  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
-//   1427d39a2d130951  supabase/functions/_shared/respaldo.js
+//   5297d40b343537c6  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
-//   10974f239623e248  supabase/functions/importar-diario/copia.js
+//   9612b48459ec19ff  supabase/functions/importar-diario/copia.js
 //   3effd9bd054b80dd  supabase/functions/importar-diario/handler.js
 //   f258da7bfe7dfd34  supabase/functions/importar-diario/index.ts
-//   ecf62467e71da5fa  supabase/functions/importar-diario/respaldo.js
+//   944d38c278361c01  supabase/functions/importar-diario/respaldo.js
 // ============================================================================
 // supabase/functions/importar-diario/index.ts
 import postgres from "npm:postgres@3.4.5";
@@ -763,7 +763,8 @@ var TABLAS = Object.freeze([
   ["solicitudes", "id"],
   ["cuaderno_notas", "empresa_id,clave,autor_id"],
   ["cuadre_diario", "id"],
-  ["tarifas", "empresa_id,grupo,clave"]
+  ["tarifas", "empresa_id,grupo,clave"],
+  ["gastos", "empresa_id,id"]
 ].map(([nombre, orden]) => Object.freeze({ nombre, orden })));
 var FORMATO = "al3d-respaldo-1";
 var SECRETO_MINIMO = 32;
@@ -1419,6 +1420,17 @@ var FABRICA_TARIFAS = Object.freeze({
   bastidor: ["lamina", "alucobond"],
   caja: ["std", "nube"]
 });
+var CATEGORIAS_GASTO = Object.freeze([
+  "Material",
+  "Mano de obra",
+  "Renta y servicios",
+  "Herramienta",
+  "Transporte y gasolina",
+  "Publicidad",
+  "Comisiones y nómina",
+  "Otros"
+]);
+var MOTIVOS_GASTO = Object.freeze(["sin_id", "id_no_sirve", "id_repetido", "fecha_no_se_entiende", "sin_concepto", "monto_no_sirve"]);
 var NORM_CONSUMO = {
   "m²": "m2",
   "m2": "m2",
@@ -1572,7 +1584,8 @@ async function planear(entrada) {
     constantes: [],
     cotizaciones: [],
     autorizaciones: [],
-    tarifas: []
+    tarifas: [],
+    gastos: []
   };
   const esperado = [];
   const remapeo = {};
@@ -2188,6 +2201,62 @@ async function planear(entrada) {
       });
     }
   }
+  let gastosEnHoja = null;
+  const gas = P2["Gastos"];
+  if (Array.isArray(gas) && !encabezados(gas).includes("ID")) {
+    const n = filas(gas).filter((x) => x.celdas.some((c) => !vacia(c))).length;
+    if (n) rep.no_importado.push({ que: "Gastos", n, por: "la pestaña «Gastos» no tiene la columna «ID»: no se lee y no se toca ningún gasto de la base" });
+  } else if (Array.isArray(gas)) {
+    gastosEnHoja = [];
+    const h = encabezados(gas), k = (n) => h.indexOf(n);
+    const leidos = [], fuera2 = [], veces = /* @__PURE__ */ new Map();
+    for (const { fila, celdas } of filas(gas)) {
+      const v = (n) => k(n) >= 0 ? celdas[k(n)] : "";
+      const id = texto(v("ID")).trim();
+      if (!id) {
+        if (texto(v("Concepto")).trim() || !vacia(v("Monto"))) fuera2.push({ fila, motivo: "sin_id" });
+        continue;
+      }
+      gastosEnHoja.push(id);
+      veces.set(id, (veces.get(id) || 0) + 1);
+      const fecha2 = diaDeGasto(v("Fecha"));
+      const concepto = sinApostrofo(texto(v("Concepto"))).trim().slice(0, 200);
+      const monto = montoDeGasto(v("Monto"));
+      const catHoja = texto(v("Categoría")).trim();
+      const categoria = categoriaDeGasto(catHoja);
+      const anulado = siNoDeGasto(v("Anulado"));
+      const motivo = !RE_ID_GASTO.test(id) ? "id_no_sirve" : !fecha2 ? "fecha_no_se_entiende" : !concepto ? "sin_concepto" : !(monto > 0 && monto <= 1e7) ? "monto_no_sirve" : null;
+      leidos.push({ fila, id, motivo, g: {
+        empresa_id: empresa2,
+        id,
+        fecha: fecha2,
+        concepto,
+        categoria,
+        monto,
+        cuenta: texto(v("Cuenta")).trim().slice(0, 60),
+        folio: sinApostrofo(texto(v("Folio del proyecto"))).trim().slice(0, 40),
+        registro_por: sinApostrofo(texto(v("Registró"))).trim().slice(0, 200),
+        registrado_ms: msDeCelda(v("Registrado el")),
+        anulado,
+        anulo: anulado ? sinApostrofo(texto(v("Anuló"))).trim().slice(0, 200) : "",
+        anulado_ms: anulado ? msDeCelda(v("Anulado el")) : 0,
+        subio: sinApostrofo(texto(v("Subió"))).trim().slice(0, 200),
+        fila_hoja: fila,
+        procedencia: catHoja && catHoja !== categoria ? { categoria_hoja: catHoja.slice(0, 60) } : {}
+      } });
+    }
+    for (const x of leidos) {
+      const motivo = veces.get(x.id) > 1 ? "id_repetido" : x.motivo;
+      if (motivo) fuera2.push({ fila: x.fila, motivo });
+      else T.gastos.push(x.g);
+    }
+    if (fuera2.length) {
+      fuera2.sort((a, b) => a.fila - b.fila);
+      const motivos = {};
+      for (const x of fuera2) motivos[x.motivo] = (motivos[x.motivo] || 0) + 1;
+      rep.no_importado.push({ que: "Gastos", n: fuera2.length, por: "renglones de la pestaña «Gastos» que la base no acepta: se quedan en la hoja y no frenan la copia (" + Object.entries(motivos).map(([m, n]) => m + " " + n).join(", ") + ")", filas: fuera2.map((x) => x.fila), motivos });
+    }
+  }
   const proyectoDeVenta = (f) => {
     const p = proyectoDeFolio.get(String(f || "").trim().toUpperCase());
     return p ? p.id : null;
@@ -2670,7 +2739,7 @@ async function planear(entrada) {
   delete rep.rechazar;
   delete rep.conflicto;
   delete rep.avisar;
-  return { empresa: empresa2, tablas: T, contadores, esperado, remapeo, reporte: rep };
+  return { empresa: empresa2, tablas: T, contadores, esperado, remapeo, reporte: rep, gastos_en_hoja: gastosEnHoja };
 }
 function valorDeTelefono(p, k) {
   const v = p[k];
@@ -2706,6 +2775,41 @@ function numONull(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+var RE_ID_GASTO = /^[A-Za-z0-9][A-Za-z0-9:._@-]{0,79}$/;
+var planoGasto = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+var sinApostrofo = (s) => /^'[=+\-@]/.test(s) ? s.slice(1) : s;
+function categoriaDeGasto(v) {
+  const p = planoGasto(v);
+  return p && CATEGORIAS_GASTO.find((c) => planoGasto(c) === p) || "Otros";
+}
+function diaDeGasto(v) {
+  const s = texto(v).trim();
+  let iso = "";
+  if (s.length === 10 || /^\d{4}-\d{2}-\d{2}T/.test(s)) iso = s.slice(0, 10);
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (m) iso = m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!p) return "";
+  const [a, me, d] = [Number(p[1]), Number(p[2]), Number(p[3])];
+  const ok = a >= 2e3 && a <= 2100 && me >= 1 && me <= 12 && d >= 1 && d <= new Date(Date.UTC(a, me, 0)).getUTCDate();
+  return ok ? iso : "";
+}
+function montoDeGasto(v) {
+  const r2 = (n2) => Math.round((n2 + Number.EPSILON) * 100) / 100;
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? r2(v) : 0;
+  const s = texto(v);
+  if (/^\s*[-−]/.test(s)) return 0;
+  const limpio = s.replace(/[^\d.]/g, "");
+  const i = limpio.indexOf(".");
+  const t = i < 0 ? limpio : limpio.slice(0, i + 1) + limpio.slice(i + 1).replace(/\./g, "");
+  const n = parseFloat(t);
+  return Number.isFinite(n) && n > 0 ? r2(n) : 0;
+}
+function siNoDeGasto(v) {
+  if (v === true) return true;
+  return ["si", "true", "x", "anulado", "1"].includes(planoGasto(v));
+}
+var msDeCelda = (v) => esFecha(v) ? ms(v.$ms) : typeof v === "number" ? ms(v) : 0;
 function partirNombre(nombre) {
   const limpio = String(nombre || "").replace(/\s*\([^()]*\)\s*$/, "").trim();
   const i = limpio.indexOf(" - ");
@@ -2928,6 +3032,24 @@ var COLS = {
     ["detalle", "t"],
     ["actualizado_por", "t"],
     ["actualizado_ms", "ts"]
+  ],
+  gastos: [
+    ["empresa_id", "t"],
+    ["id", "t"],
+    ["fecha", "d"],
+    ["concepto", "t"],
+    ["categoria", "t"],
+    ["monto", "n"],
+    ["cuenta", "t"],
+    ["folio", "t"],
+    ["registro_por", "t"],
+    ["registrado_ms", "ts"],
+    ["anulado", "b"],
+    ["anulo", "t"],
+    ["anulado_ms", "ts"],
+    ["subio", "t"],
+    ["fila_hoja", "i"],
+    ["procedencia", "j"]
   ]
 };
 var ESCRIBIR = {
@@ -3141,11 +3263,14 @@ var ESCRIBIR = {
       returning t.id::text as llave)
     insert into _imp_cambios (tabla, llave, accion) select 'autorizaciones', llave, 'alta' from w;`,
   cotizaciones: `
+    -- Un TALÓN (la cotización que se arma de una fila de «Autorizaciones» sin teléfono: procedencia.stub) no pisa una que no es talón: la
+    -- que subió el aparato que emitió el folio (subida_unica, 0021) se queda. Sin esto, la copia diaria la volvía talón cada madrugada.
     with w as (
       insert into public.cotizaciones as t (empresa_id, folio_global, folio, disp, estado, datos, hitos, procedencia)
       select l.empresa_id, l.folio_global, l.folio, l.disp, l.estado, interno.datos_cotizacion(l.datos), l.hitos, l.procedencia from _lote l
       on conflict (empresa_id, folio_global) do update set datos = excluded.datos, hitos = excluded.hitos, procedencia = excluded.procedencia
        where (t.datos, t.hitos, t.procedencia) is distinct from (excluded.datos, excluded.hitos, excluded.procedencia)
+         and (not (excluded.procedencia ? 'stub') or t.procedencia ? 'stub')
       returning t.folio_global as llave, (t.xmax = 0) as nuevo)
     insert into _imp_cambios (tabla, llave, accion) select 'cotizaciones', llave, case when nuevo then 'alta' else 'cambio' end from w;`
 };
@@ -3161,6 +3286,23 @@ ESCRIBIR.tarifas = `
                                excluded.actualizado_por, excluded.actualizado_en)
       returning t.grupo || ':' || t.clave as llave, (t.xmax = 0) as nuevo)
     insert into _imp_cambios (tabla, llave, accion) select 'tarifas', llave, case when nuevo then 'alta' else 'cambio' end from w;`;
+ESCRIBIR.gastos = `
+    with w as (
+      insert into public.gastos as t (empresa_id, id, fecha, concepto, categoria, monto, cuenta, folio, registro_por, registrado_en, anulado, anulo,
+             anulado_en, subio, fila_hoja, procedencia)
+      select l.empresa_id, l.id, l.fecha, l.concepto, l.categoria, l.monto, l.cuenta, l.folio, l.registro_por, l.registrado_ms, l.anulado, l.anulo,
+             l.anulado_ms, l.subio, l.fila_hoja, l.procedencia from _lote l
+      on conflict (empresa_id, id) do update set fecha = excluded.fecha, concepto = excluded.concepto, categoria = excluded.categoria,
+             monto = excluded.monto, cuenta = excluded.cuenta, folio = excluded.folio, registro_por = excluded.registro_por,
+             registrado_en = excluded.registrado_en, anulado = excluded.anulado, anulo = excluded.anulo, anulado_en = excluded.anulado_en,
+             subio = excluded.subio, fila_hoja = excluded.fila_hoja, procedencia = excluded.procedencia, deleted_at = null
+       where (t.fecha, t.concepto, t.categoria, t.monto, t.cuenta, t.folio, t.registro_por, t.registrado_en, t.anulado, t.anulo, t.anulado_en,
+              t.subio, t.fila_hoja, t.procedencia, t.deleted_at)
+             is distinct from (excluded.fecha, excluded.concepto, excluded.categoria, excluded.monto, excluded.cuenta, excluded.folio,
+                               excluded.registro_por, excluded.registrado_en, excluded.anulado, excluded.anulo, excluded.anulado_en, excluded.subio,
+                               excluded.fila_hoja, excluded.procedencia, null::timestamptz)
+      returning t.id as llave, (t.xmax = 0) as nuevo)
+    insert into _imp_cambios (tabla, llave, accion) select 'gastos', llave, case when nuevo then 'alta' else 'cambio' end from w;`;
 var ORDEN2 = [
   "proyectos",
   "ventas_dinero",
@@ -3174,7 +3316,8 @@ var ORDEN2 = [
   "almacen_costos",
   "autorizaciones",
   "cotizaciones",
-  "tarifas"
+  "tarifas",
+  "gastos"
 ];
 function lotes(tabla, filas2, conTransaccion) {
   const cols = COLS[tabla];
@@ -3220,6 +3363,17 @@ insert into _imp_cambios (tabla, llave, accion)
     from public.abonos a
    where a.empresa_id = ${e} and a.op_id like 'hoja:abono:%' and a.op_id <> all (${lit(ops, "a")});
 `);
+  if (Array.isArray(plan.gastos_en_hoja)) {
+    partes.push(`-- gastos que ya no están en la hoja: lápida (deleted_at), nunca borrado
+${propias ? "begin;" : ""}
+with w as (
+  update public.gastos g set deleted_at = now()
+   where g.empresa_id = ${e} and g.deleted_at is null and g.id <> all (${lit(plan.gastos_en_hoja, "a")})
+  returning g.id as llave)
+insert into _imp_cambios (tabla, llave, accion) select 'gastos', llave, 'cambio: ya no está en la hoja' from w;
+${propias ? "commit;" : ""}
+`);
+  }
   partes.push(`-- cotizaciones ↔ autorizaciones
 ${propias ? "begin;" : ""}
 with ult as (
@@ -3341,7 +3495,8 @@ var TABLAS_PLAN = [
   "constantes",
   "cotizaciones",
   "autorizaciones",
-  "tarifas"
+  "tarifas",
+  "gastos"
 ];
 var PESTANAS = [
   "Ventas",
@@ -3355,7 +3510,8 @@ var PESTANAS = [
   "Bitácora del puente",
   "Ventas (respaldo)",
   "Ventas (antes de realinear)",
-  "Tarifas"
+  "Tarifas",
+  "Gastos"
 ];
 var entero = (v) => Number.isInteger(v) && v >= 0 ? v : 0;
 var folioDe = (s) => {
@@ -3402,9 +3558,10 @@ function noImportado(x) {
   const o = { que: RE_TEMA.test(String(x.que)) ? x.que : "otro", n: entero(x.n) };
   if (Array.isArray(x.filas)) o.filas = x.filas.filter((f) => Number.isInteger(f) && f > 0).slice(0, TOPE_LISTA);
   if (x.motivos && typeof x.motivos === "object") {
+    const validos = o.que === "Gastos" ? MOTIVOS_GASTO : MOTIVOS_AUTORIZACION;
     o.motivos = {};
     for (const [k, n] of Object.entries(x.motivos)) {
-      const m = MOTIVOS_AUTORIZACION.includes(k) ? k : "otro";
+      const m = validos.includes(k) ? k : "otro";
       o.motivos[m] = (o.motivos[m] || 0) + entero(n);
     }
   }

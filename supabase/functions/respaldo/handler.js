@@ -22,7 +22,7 @@
              502 DRIVE_NO_ACEPTO    Drive no aceptó el archivo (403 storageQuotaExceeded: la carpeta tiene que ser
                                     de una unidad compartida; ver _shared/respaldo.js)
 
-   QUÉ SE GUARDA: las 18 tablas de `public`, con la llave secreta (service_role, que salta la RLS y tiene SELECT en
+   QUÉ SE GUARDA: las 20 tablas de `public`, con la llave secreta (service_role, que salta la RLS y tiene SELECT en
    todas), página por página en el orden de su llave primaria. Es una FOTO aproximada: si alguien escribe a media
    exportación, una tabla puede quedar un momento por delante de otra (no hay una transacción que abarque las 18
    lecturas de PostgREST). Para el propósito —no perderlo todo— basta; el importador de la fase 2 sabe cuadrar.
@@ -76,7 +76,7 @@ async function pedir(deps, url, init) {
   finally { clearTimeout(reloj); }
 }
 
-/* Las 18 tablas, completas. Con la llave nueva (sb_secret_…) va solo en `apikey`; con la antigua (un JWT), también en Authorization. */
+/* Las 20 tablas, completas. Con la llave nueva (sb_secret_…) va solo en `apikey`; con la antigua (un JWT), también en Authorization. */
 async function exportar(deps, base) {
   const cabeceras = { apikey: base.llave, Accept: 'application/json', ...(base.llave.startsWith('sb_') ? {} : { Authorization: 'Bearer ' + base.llave }) };
   const tablas = {};

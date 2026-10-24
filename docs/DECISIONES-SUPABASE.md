@@ -228,6 +228,20 @@ otro) es la misma que la de `/verificar` de la hoja.
 - **El límite:** arriba de 45 MB la función contesta `RESPALDO_GRANDE` y no manda nada. Ese día se enciende la alternativa (la función
   `respaldo` con cuenta de servicio, que sigue en el repositorio, probada y apagada).
 
+
+### Toda la información en Supabase; en Drive, solo los diseños (decidido por Elías el 2026-10-24)
+
+Elías lo dijo así: toda la información de la plataforma en Supabase, y en Google Drive solo los archivos de los diseños, porque ahí ya
+paga 5 TB. Es lo que el plan ya decía (Supabase es la fuente de verdad, §2); lo nuevo es la regla para lo que venga: **un dato nuevo
+nace con su tabla en Supabase** y entra a la copia diaria mientras la hoja mande; no se agrega una pestaña a la hoja sin su par aquí.
+
+- **Gastos** (lo que faltaba, `0020`): misma llave que la hoja, la hoja manda mientras sea la fuente (lo corregido allá pisa lo de
+  aquí), y lo que se quita de la pestaña no se borra: queda con `deleted_at`. Lo que la base no acepta no frena la copia de las ventas.
+- **El respaldo semanal** sigue yendo a Drive («AL3D Respaldos»): no es donde vive la información, es su copia de seguridad, y el plan
+  gratuito de Supabase no respalda.
+- **Las imágenes de las cotizaciones** (plano, renders y propuesta): Q-02 bis y la cuarta entrega las mandan a Storage de Supabase (1 GB
+  en el plan gratuito). Con esta regla irían a Drive; **queda para que Elías lo decida** (se le preguntó el 2026-10-24).
+
 ---
 
 ## C. Lo que queda para después de esta rama (y por qué)

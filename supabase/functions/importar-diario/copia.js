@@ -26,7 +26,7 @@
    ============================================================================ */
 
 import { sqlDeImportacion, sqlDeDiferencias } from '../../../scripts/importador/sql.mjs';
-import { MOTIVOS_AUTORIZACION } from '../../../scripts/importador/plan.mjs';
+import { MOTIVOS_AUTORIZACION, MOTIVOS_GASTO } from '../../../scripts/importador/plan.mjs';
 
 /** El candado de la copia (pg_try_advisory_xact_lock): dos corridas a la vez no se pisan; la segunda se va. */
 export const LLAVE_CANDADO = 7316250418;
@@ -46,9 +46,9 @@ const RE_FOLIO = /^V-\d{3,7}$/;
 const RE_TEMA = /^[a-záéíóúñü ]{1,80}$/i;                    // los temas de plan.mjs: solo palabras
 const COLUMNAS_CUADRE = ['fila', 'H', 'K', 'R', 'S', 'T', 'X', 'O', 'V', 'W'];
 const TABLAS_PLAN = ['proyectos', 'ventas_dinero', 'abonos', 'miembros', 'instalaciones', 'materiales', 'almacen_costos', 'requerimientos',
-  'almacen_movimientos', 'constantes', 'cotizaciones', 'autorizaciones', 'tarifas'];
+  'almacen_movimientos', 'constantes', 'cotizaciones', 'autorizaciones', 'tarifas', 'gastos'];
 const PESTANAS = ['Ventas', 'Abonos comisión', 'Accesos', 'Autorizaciones', 'Solicitudes de autorización', 'Almacén', 'Catálogo de material',
-  'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)', 'Ventas (antes de realinear)', 'Tarifas'];
+  'Listas de compra', 'Bitácora del puente', 'Ventas (respaldo)', 'Ventas (antes de realinear)', 'Tarifas', 'Gastos'];
 
 const entero = v => (Number.isInteger(v) && v >= 0 ? v : 0);
 const folioDe = s => { const m = /V-\d{3,7}/.exec(String(s || '')); return m ? m[0] : null; };
@@ -97,14 +97,15 @@ export function resumenDelPlan(plan, volcado) {
   };
 }
 
-/* Lo que no se importó: qué y cuántas; y, cuando el plan lo dice (las autorizaciones de la copia diaria), los números de fila y
-   cuántas por cada motivo de MOTIVOS_AUTORIZACION. Nunca el folio ni lo que decía la fila. */
+/* Lo que no se importó: qué y cuántas; y, cuando el plan lo dice (las autorizaciones y los gastos de la copia diaria), los números de
+   fila y cuántas por cada motivo de su lista cerrada (MOTIVOS_AUTORIZACION, MOTIVOS_GASTO). Nunca el folio ni lo que decía la fila. */
 function noImportado(x) {
   const o = { que: RE_TEMA.test(String(x.que)) ? x.que : 'otro', n: entero(x.n) };
   if (Array.isArray(x.filas)) o.filas = x.filas.filter(f => Number.isInteger(f) && f > 0).slice(0, TOPE_LISTA);
   if (x.motivos && typeof x.motivos === 'object') {
+    const validos = o.que === 'Gastos' ? MOTIVOS_GASTO : MOTIVOS_AUTORIZACION;
     o.motivos = {};
-    for (const [k, n] of Object.entries(x.motivos)) { const m = MOTIVOS_AUTORIZACION.includes(k) ? k : 'otro'; o.motivos[m] = (o.motivos[m] || 0) + entero(n); }
+    for (const [k, n] of Object.entries(x.motivos)) { const m = validos.includes(k) ? k : 'otro'; o.motivos[m] = (o.motivos[m] || 0) + entero(n); }
   }
   return o;
 }
