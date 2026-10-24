@@ -5,10 +5,15 @@
  * casi todo interfaz, y eso se ejerce en pruebas/navegador/pf-esqueleto.mjs. Pero hay reglas que
  * no se ven cuando fallan y que salen números y marcado plausibles:
  *
- *   · QUÉ RUTAS VAN EN LA BARRA Y CUÁLES EN «MÁS». Si la cuenta se equivoca por uno, un rol se
- *     queda sin su pantalla en el teléfono (pagos sin Control era el defecto de origen) o la
- *     barra lleva seis botones y cada uno mide 60 px en una pantalla de 360, donde el nombre ya
- *     no cabe. Se prueba por rol y con listas inventadas de 0 a 12 rutas.
+ *   · QUÉ BOTONES LLEVA LA BARRA. Desde octubre de 2026 las pantallas se juntan en seis botones
+ *     como mucho (`grupo` en RUTAS): Tablero, Calendario con el Mapa, Proyectos, Cotizador,
+ *     Control y Herramientas. Se prueba que cada rol tiene los suyos, que ninguna pantalla se
+ *     pierde ni sale dos veces, y que un grupo del que el rol ve una sola pantalla es un botón
+ *     normal.
+ *   · QUÉ BOTONES VAN EN LA BARRA DE ABAJO Y CUÁLES EN «MÁS». Si la cuenta se equivoca por uno,
+ *     un rol se queda sin su pantalla en el teléfono (pagos sin Control era el defecto de origen)
+ *     o la barra lleva seis botones y cada uno mide 60 px en una pantalla de 360, donde el nombre
+ *     ya no cabe. Se prueba por rol y con listas inventadas de 0 a 12 botones.
  *   · DE QUÉ LADO ENTRA UNA PANTALLA. Sale de comparar lugares en la barra, no de la historia.
  *   · LA FRASE QUE DICE EL INDICADOR DE SINCRONIZACIÓN, que es también su `aria-label`.
  *   · LO QUE NO SE PUEDE ROMPER SIN QUE NADIE LO NOTE: que entre el clic de la puerta y la
@@ -63,56 +68,104 @@ function trozo(ancla, cierre) {
 const contexto = vm.createContext({});
 vm.runInContext([
   trozo('const RUTAS = [', '\n];'),
+  trozo('const GRUPOS = {', '\n};'),
   trozo('const TOPE_BARRA = 5;', ';'),
+  trozo('export function armarGrupos(', '\n}'),
   trozo('export function repartirBarra(', '\n}'),
   trozo('export function direccionDeEntrada(', '\n}'),
   trozo('export function fraseDeSync(', '\n}'),
-  'this.RUTAS = RUTAS; this.repartirBarra = repartirBarra; this.direccionDeEntrada = direccionDeEntrada; this.fraseDeSync = fraseDeSync;',
+  /* `lugarEnLaBarra` pregunta por los botones del rol de ahora; aquí el rol es una variable. */
+  'let ROL = "direccion"; const gruposDelRol = () => armarGrupos(RUTAS.filter(r => r.roles.includes(ROL) && !r.oculto));',
+  trozo('function lugarEnLaBarra(', '\n}'),
+  'this.RUTAS = RUTAS; this.GRUPOS = GRUPOS; this.armarGrupos = armarGrupos; this.repartirBarra = repartirBarra;',
+  'this.direccionDeEntrada = direccionDeEntrada; this.fraseDeSync = fraseDeSync;',
+  'this.lugar = (rol, ruta) => { ROL = rol; return lugarEnLaBarra(ruta); };',
 ].join('\n'), contexto);
-const { RUTAS, repartirBarra, direccionDeEntrada, fraseDeSync } = contexto;
+const { RUTAS, armarGrupos, repartirBarra, direccionDeEntrada, fraseDeSync, lugar } = contexto;
 
 const visibles = rol => RUTAS.filter(r => !r.oculto && r.roles.includes(rol));
+const grupos = rol => armarGrupos(visibles(rol));
 const nombres = l => l.map(r => r.ruta);
+const ids = l => l.map(g => g.id);
+const pantallas = g => g.rutas.map(r => r.ruta);
+
+console.log('\nLA BARRA SON SEIS BOTONES COMO MUCHO, Y LOS QUE JUNTAN LLEVAN SUS PANTALLAS DENTRO');
+{
+  const di = grupos('direccion');
+  eq('dirección: Tablero, Calendario, Proyectos, Cotizador, Control y Herramientas, en ese orden', ids(di),
+    ['hoy', 'calendario', 'proyectos', 'cotizador', 'control', 'herramientas']);
+  eq('  sus nombres en la barra', di.map(g => g.nombre), ['Tablero', 'Calendario', 'Proyectos', 'Cotizador', 'Control', 'Herramientas']);
+  eq('  el Calendario lleva el Mapa dentro', pantallas(di[1]), ['agenda', 'mapa']);
+  eq('  y Herramientas, la mesa, el vectorizador, las publicaciones y el material, en ese orden', pantallas(di[5]),
+    ['anidador', 'vectorizar', 'publicaciones', 'material']);
+  eq('  con su caja de herramientas por icono', di[5].icono, 'i-herramientas');
+
+  const fa = grupos('fabricacion');
+  eq('fabricación: cinco, sin Control, que no ve importes', ids(fa), ['hoy', 'calendario', 'proyectos', 'cotizador', 'herramientas']);
+  eq('  su Calendario también lleva el Mapa', pantallas(fa[1]), ['agenda', 'mapa']);
+  eq('  y sus herramientas son tres: sin Publicaciones, que es de Dirección', pantallas(fa[4]), ['anidador', 'vectorizar', 'material']);
+
+  const pa = grupos('pagos');
+  eq('pagos: cinco, con Control', ids(pa), ['hoy', 'calendario', 'proyectos', 'cotizador', 'control']);
+  eq('  y su Calendario es un botón normal: pagos no tiene el Mapa', pantallas(pa[1]), ['agenda']);
+  eq('  que se llama y se dibuja como la pantalla', [pa[1].nombre, pa[1].icono], ['Calendario', 'i-agenda']);
+
+  for (const rol of ['direccion', 'fabricacion', 'pagos']) {
+    const g = grupos(rol);
+    cierto(rol + ': seis botones como mucho en la barra lateral: son ' + g.length, g.length <= 6);
+    eq(rol + ': cada pantalla del rol está en un botón, una sola vez', g.flatMap(pantallas).sort(), nombres(visibles(rol)).sort());
+  }
+
+  /* Un grupo del que el rol ve una sola pantalla no toma el nombre del grupo: si un día un rol
+     solo tuviera Material, su botón diría «Material», no «Herramientas» con una pestaña. */
+  const solo = armarGrupos([{ ruta: 'material', nombre: 'Material', icono: 'i-material', grupo: 'herramientas' }]);
+  eq('un grupo de una sola pantalla es esa pantalla: su nombre y su icono', [solo[0].nombre, solo[0].icono], ['Material', 'i-material']);
+}
 
 console.log('\nLA BARRA DE ABAJO SE QUEDA EN CINCO, Y LA QUINTA ES «MÁS»');
 {
-  const pa = repartirBarra(visibles('pagos'));
-  eq('pagos ve cinco rutas y las lleva todas: no hay «Más»', nombres(pa.barra), ['hoy', 'agenda', 'proyectos', 'cotizador', 'control']);
+  const pa = repartirBarra(grupos('pagos'));
+  eq('pagos tiene cinco botones y los lleva todos: no hay «Más»', ids(pa.barra), ['hoy', 'calendario', 'proyectos', 'cotizador', 'control']);
   eq('  y no sobra nada', pa.mas, []);
-  cierto('  y Control, que es SU pantalla, está a un toque', nombres(pa.barra).includes('control'));
+  cierto('  y Control, que es SU pantalla, está a un toque', ids(pa.barra).includes('control'));
 
-  const di = repartirBarra(visibles('direccion'));
-  eq('dirección: las cuatro marcadas `movil` se quedan abajo', nombres(di.barra), ['hoy', 'agenda', 'proyectos', 'cotizador']);
-  eq('  y «Más» abre lo demás, en el orden de RUTAS', nombres(di.mas), ['material', 'mapa', 'anidador', 'vectorizar', 'publicaciones', 'control']);
+  const di = repartirBarra(grupos('direccion'));
+  eq('dirección: los cuatro marcados `movil` se quedan abajo', ids(di.barra), ['hoy', 'calendario', 'proyectos', 'cotizador']);
+  eq('  y «Más» abre lo demás, por grupo: Control y Herramientas', ids(di.mas), ['control', 'herramientas']);
+  cierto('  el Mapa no está en «Más»: se llega con la pestaña del Calendario, que sí va abajo',
+    !di.mas.some(g => pantallas(g).includes('mapa')) && di.barra.some(g => pantallas(g).includes('mapa')));
 
-  const fa = repartirBarra(visibles('fabricacion'));
-  eq('fabricación: las mismas cuatro abajo', nombres(fa.barra), ['hoy', 'agenda', 'proyectos', 'cotizador']);
-  eq('  y en «Más» solo lo que ese rol tiene: sin Control, que no ve importes', nombres(fa.mas), ['material', 'mapa', 'anidador', 'vectorizar']);
+  const fa = repartirBarra(grupos('fabricacion'));
+  eq('fabricación: los mismos cuatro abajo', ids(fa.barra), ['hoy', 'calendario', 'proyectos', 'cotizador']);
+  eq('  y en «Más» solo Herramientas —«Herramientas» no cabe debajo de un icono de 64 px—', ids(fa.mas), ['herramientas']);
 
   for (const rol of ['direccion', 'fabricacion', 'pagos']) {
-    const v = visibles(rol), r = repartirBarra(v);
+    const v = grupos(rol), r = repartirBarra(v);
     const botones = r.barra.length + (r.mas.length ? 1 : 0);
     cierto(rol + ': la barra mide cinco botones como mucho (con «Más» incluido): son ' + botones, botones <= 5);
-    const todas = nombres(r.barra).concat(nombres(r.mas));
-    eq(rol + ': cada ruta del rol sale una vez, ni una de menos ni repetida', todas.slice().sort(), nombres(v).sort());
-    cierto(rol + ': nunca entra una ruta oculta (Qué atender, Ajustes)', !todas.some(x => RUTAS.find(y => y.ruta === x).oculto));
-    cierto(rol + ': las rutas de «Más» son las que NO llevan `movil`, salvo que sobren marcadas',
+    const todas = ids(r.barra).concat(ids(r.mas));
+    eq(rol + ': cada botón del rol sale una vez, ni uno de menos ni repetido', todas.slice().sort(), ids(v).sort());
+    cierto(rol + ': nunca entra una ruta oculta (Qué atender, Ajustes)', !v.flatMap(pantallas).some(x => RUTAS.find(y => y.ruta === x).oculto));
+    cierto(rol + ': los botones de «Más» son los que NO llevan `movil`, salvo que sobren marcados',
       r.mas.every(x => !x.movil) || r.barra.length === 4);
+    cierto(rol + ': abajo no va ningún botón cuyo nombre no cabe', r.barra.every(g => g.cabeAbajo !== false));
   }
 
-  /* La cuenta, sin depender de los renglones de hoy: con cualquier cantidad de rutas. */
+  /* La cuenta, sin depender de los renglones de hoy: con cualquier cantidad de botones. */
   for (let n = 0; n <= 12; n++) {
-    const lista = Array.from({ length: n }, (_, i) => ({ ruta: 'r' + i, movil: i % 3 === 0 }));
+    const lista = Array.from({ length: n }, (_, i) => ({ id: 'g' + i, movil: i % 3 === 0 }));
     const r = repartirBarra(lista);
     const botones = r.barra.length + (r.mas.length ? 1 : 0);
     const ok = botones <= 5 && r.barra.length + r.mas.length === n &&
       (n > 5 ? r.mas.length === n - 4 && r.barra.length === 4 : r.mas.length === 0);
-    if (!ok) { eq('con ' + n + ' rutas el reparto cuadra', { barra: r.barra.length, mas: r.mas.length }, 'cuatro y «Más» si pasan de cinco, todas si no'); }
+    if (!ok) { eq('con ' + n + ' botones el reparto cuadra', { barra: r.barra.length, mas: r.mas.length }, 'cuatro y «Más» si pasan de cinco, todos si no'); }
   }
-  bien++; console.log('  ok   con 0 a 12 rutas: nunca más de cinco botones, ninguna se pierde, y «Más» solo si pasan de cinco');
+  bien++; console.log('  ok   con 0 a 12 botones: nunca más de cinco abajo, ninguno se pierde, y «Más» solo si pasan de cinco');
 
-  cierto('las marcadas `movil` van primero aunque estén después en RUTAS',
-    nombres(repartirBarra([{ ruta: 'a' }, { ruta: 'b' }, { ruta: 'c', movil: true }, { ruta: 'd' }, { ruta: 'e' }, { ruta: 'f' }, { ruta: 'g', movil: true }]).barra).slice(0, 2).join() === 'c,g');
+  cierto('los marcados `movil` van primero aunque estén después en RUTAS',
+    ids(repartirBarra([{ id: 'a' }, { id: 'b' }, { id: 'c', movil: true }, { id: 'd' }, { id: 'e' }, { id: 'f' }, { id: 'g', movil: true }]).barra).slice(0, 2).join() === 'c,g');
+  const cinco = repartirBarra([{ id: 'a', movil: true }, { id: 'b', movil: true }, { id: 'c' }, { id: 'd' }, { id: 'e', cabeAbajo: false }]);
+  eq('con cinco botones, uno que no cabe abajo se va a «Más» y los otros cuatro se quedan', [ids(cinco.barra), ids(cinco.mas)], [['a', 'b', 'c', 'd'], ['e']]);
 }
 
 console.log('\nLA PANTALLA ENTRA POR DONDE ESTÁ EN LA BARRA');
@@ -123,11 +176,19 @@ console.log('\nLA PANTALLA ENTRA POR DONDE ESTÁ EN LA BARRA');
   eq('la misma pantalla no tiene lado', direccionDeEntrada(2, 2), '');
   eq('una oculta (Qué atender, Ajustes: lugar −1) sube, no va de lado', [direccionDeEntrada(-1, 2), direccionDeEntrada(2, -1)], ['', '']);
   eq('sin lugar conocido tampoco', [direccionDeEntrada(undefined, 1), direccionDeEntrada(1, null)], ['', '']);
-  cierto('el lugar de una ruta sale de las visibles del rol, y las ocultas dan −1',
-    /lugarEnLaBarra\(ruta\)[\s\S]{0,140}\.filter\(r => !r\.oculto\)\.findIndex\(r => r\.ruta === ruta\)/.test(app));
+  const L = r => lugar('direccion', r);
+  cierto('el lugar sale del botón y, dentro, de la pestaña: Calendario < Mapa < Proyectos',
+    L('agenda') < L('mapa') && L('mapa') < L('proyectos'));
+  eq('  y entre hermanas se entra de lado: del Calendario al Mapa, por la derecha; de vuelta, por la izquierda',
+    [direccionDeEntrada(L('agenda'), L('mapa')), direccionDeEntrada(L('mapa'), L('agenda'))], ['adelante', 'atras']);
+  eq('  de la Mesa de corte al Material, adelante; de Herramientas al Tablero, atrás',
+    [direccionDeEntrada(L('anidador'), L('material')), direccionDeEntrada(L('material'), L('hoy'))], ['adelante', 'atras']);
+  cierto('  los lugares son enteros —`direccionDeEntrada` no acepta otra cosa—',
+    ['hoy', 'agenda', 'mapa', 'control', 'publicaciones', 'material'].every(r => Number.isInteger(L(r))));
+  eq('  las ocultas no tienen lugar, y una ruta que el rol no tiene tampoco', [L('atender'), L('ajustes'), lugar('pagos', 'mapa')], [-1, -1, -1]);
   cierto('la dirección es una CLASE de <html>, no `data-va`: la pieza 22 ya escribe ese atributo al cambiar de mes',
     app.includes("h.classList.add(clase)") && !/dataset\.va\b/.test(app) && /html\.va-adelante \.pf-mod/.test(css) && !/html\[data-va[^\]]*\] \.pf-mod/.test(css));
-  cierto('con las teclas 1-9 no se pone dirección: lo que dispara el teclado no se anima',
+  cierto('con las teclas de la barra no se pone dirección: lo que dispara el teclado no se anima',
     /h\.dataset\.nav === 'teclado'\) return;/.test(app));
 }
 
