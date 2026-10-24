@@ -95,6 +95,13 @@ const COLS = {
 /* Cómo entra el lote a su tabla. `l` es el lote (temporal). Cada sentencia devuelve (llave, nuevo). */
 const ESCRIBIR = {
   proyectos: `
+    -- Una venta que en la base nació en el cotizador (fuente «cotizacion»: la dio de alta la plataforma, con la sombra) sigue siéndolo
+    -- aunque la copia, que no lleva teléfonos, la vea como de la hoja: la copia no sabe de dónde vino y la base sí. Sin esto, cada venta
+    -- que la sombra daba de alta era un conflicto la madrugada siguiente y el día no cuadraba (hallazgo del 2026-10-24). Va ANTES de la
+    -- regla de abajo, que pide la misma fuente en los dos lados.
+    update _lote l set fuente = p.fuente
+      from public.proyectos p
+     where p.empresa_id = l.empresa_id and p.id = l.id and p.fuente = 'cotizacion' and l.fuente = 'hoja' and not p.historica;
     -- Una venta que en la base ya es VIVA sigue viva aunque la hoja ahora la haría histórica (pasó de FABRICACION o REPARANDO a
     -- COBRANDO o LIQUIDADO sin folio de cotización: el ciclo normal de una venta). Decidido el 2026-10-16 (DECISIONES, «Transición»,
     -- opción a). La base no deja cambiar \`historica\` y eso NO se afloja: la fila entra como viva, con su estatus y su dinero de la

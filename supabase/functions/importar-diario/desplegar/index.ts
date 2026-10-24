@@ -20,8 +20,8 @@
 //   5d1bdca9d2c8274a  js/nucleo/ingreso.js
 //   182f2f140a2e13d6  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
-//   b4c321ca39e008c6  scripts/importador/plan.mjs
-//   8fbffa9378b353bc  scripts/importador/sql.mjs
+//   9c015d4000ba42f9  scripts/importador/plan.mjs
+//   97de8976ab229559  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   5297d40b343537c6  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
@@ -1820,6 +1820,7 @@ async function planear(entrada) {
     }
     const partes = pt && (pt.contacto || pt.negocio) ? { contacto: String(pt.contacto || ""), negocio: String(pt.negocio || "") } : partirNombre(nombreFinal);
     if (!Object.keys(procedencia.celdas).length) delete procedencia.celdas;
+    if (!historica && !ETAPA_DESDE_NOTION[etapaTxt] && obra.etapa === hoja.etapa) procedencia.etapa_vacia = true;
     if (unibles.length) procedencia.telefonos = [...new Set(unibles.map((x) => x.tel.etiqueta))];
     if (pt && ms(pt.actualizado_en)) procedencia.actualizado_ms = ms(pt.actualizado_en);
     for (const k of ["hoja_perdida", "duplicado_de", "hoja_doble", "fuera_de_hoja"]) if (pt && pt[k]) (procedencia.marcas ||= {})[k] = pt[k];
@@ -1874,7 +1875,9 @@ async function planear(entrada) {
       precio_auth: fuente === "cotizacion" && pt && Number.isFinite(Number(pt.precio_auth)) && pt.precio_auth !== null ? Number(pt.precio_auth) : neto.ok && !neto.vacia ? neto.n : null,
       origen: proyecto.origen,
       venta_local: pt && (pt.sub !== void 0 || pt.neto !== void 0) ? { sub: pt.sub ?? null, neto: pt.neto ?? null } : null,
-      procedencia: { fila_hoja: fila }
+      /* Un importe VACÍO en la hoja entra como 0 (la columna no admite null y las fórmulas lo leen igual), y se dice cuál: «sin capturar»
+         no es «cero» para el teléfono, que con un 0 pisaría el anticipo pactado. La lectura en vivo lo regresa vacío (2026-10-24). */
+      procedencia: { fila_hoja: fila, ...["G", "I", "J"].some((l) => vacia(c(l))) ? { vacias: ["G", "I", "J"].filter((l) => vacia(c(l))) } : {} }
     });
     if (!historica && fechaInst) {
       const selloTel = Math.max(0, ...unibles.map((x) => ms(objeto(x.p.sellos) && x.p.sellos.instalacion)));
@@ -3054,6 +3057,13 @@ var COLS = {
 };
 var ESCRIBIR = {
   proyectos: `
+    -- Una venta que en la base nació en el cotizador (fuente «cotizacion»: la dio de alta la plataforma, con la sombra) sigue siéndolo
+    -- aunque la copia, que no lleva teléfonos, la vea como de la hoja: la copia no sabe de dónde vino y la base sí. Sin esto, cada venta
+    -- que la sombra daba de alta era un conflicto la madrugada siguiente y el día no cuadraba (hallazgo del 2026-10-24). Va ANTES de la
+    -- regla de abajo, que pide la misma fuente en los dos lados.
+    update _lote l set fuente = p.fuente
+      from public.proyectos p
+     where p.empresa_id = l.empresa_id and p.id = l.id and p.fuente = 'cotizacion' and l.fuente = 'hoja' and not p.historica;
     -- Una venta que en la base ya es VIVA sigue viva aunque la hoja ahora la haría histórica (pasó de FABRICACION o REPARANDO a
     -- COBRANDO o LIQUIDADO sin folio de cotización: el ciclo normal de una venta). Decidido el 2026-10-16 (DECISIONES, «Transición»,
     -- opción a). La base no deja cambiar \`historica\` y eso NO se afloja: la fila entra como viva, con su estatus y su dinero de la

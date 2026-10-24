@@ -150,7 +150,9 @@ entrada la nube se quedaría como el día de la importación.
 **Lo que decidió Elías.** Una **copia automática diaria de la hoja a Supabase**, con su **cuadre diario** y la **racha de 7
 días**. El día que Elías diga: una última copia, la hoja a **solo lectura** y el equipo pasa a la plataforma. La escritura en
 sombra queda para **después del cambio** (mientras la hoja manda, la copia de cada madrugada pisa la base con la hoja: encender
-la sombra antes no estorba, pero no hace falta).
+la sombra antes no estorba, pero no hace falta). **Corrección del 2026-10-24:** sí estorbaba —una venta que la sombra daba de alta
+chocaba con la copia de la madrugada y el día no cuadraba—; desde ese día la sombra la da de alta con el id de la copia y la copia
+respeta que nació en el cotizador (`ESTADO-SUPABASE.md`, «La lectura en vivo contra la base real»).
 
 **Cómo quedó** (`supabase/README.md`, «La copia diaria»):
 

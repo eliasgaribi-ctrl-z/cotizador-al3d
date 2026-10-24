@@ -154,7 +154,13 @@ export function traducir(op, extra = {}) {
        no tiene el formato del libro o ya es de otro proyecto, la base lo rechaza con su motivo. */
     const folioHoja = t(extra && extra.folio_hoja).trim();
     if (folioHoja) p.folio_hoja = folioHoja;
-    return { llamadas: [{ rpc: 'ganar_proyecto', args: { p_op: p } }] };
+    /* Mientras la hoja manda, la venta entra con el id que le pone la copia de cada madrugada
+       (`proy-hoja-V-###`, scripts/importador/plan.mjs). Con el de este teléfono, la copia la armaba
+       otra vez con el suyo, lo anotaba como conflicto y el día no cuadraba (hallazgo del
+       2026-10-24). Lo que siga de este teléfono para esa venta la encuentra por folio (`resolver`),
+       y `idLocal` lo deja resuelto desde ya. */
+    if (/^V-\d{3,7}$/.test(folioHoja)) p.id = 'proy-hoja-' + folioHoja;
+    return { llamadas: [{ rpc: 'ganar_proyecto', args: { p_op: p }, idLocal: t(d.id) }] };
   }
 
   /* Un cambio. Sin `campos` (una operación de una versión anterior) no se sabe qué cambió: se
@@ -377,6 +383,7 @@ export function crearSombra(deps) {
         if (otro && otro !== ll.proyecto) r = leerRespuesta(ll.rpc, await c.rpc(ll.rpc, conId(ll, otro)));
       }
       if (r.caso !== 'ok') return { ...r, rpc: ll.rpc };
+      if (ll.idLocal && args.p_op && args.p_op.id && args.p_op.id !== ll.idLocal) resueltos.set(ll.idLocal, args.p_op.id);
       detalles.push(ll.rpc + (r.detalle && r.detalle !== 'ok' ? ' (' + r.detalle + ')' : ''));
     }
     return { caso: 'ok', detalle: detalles.join(', ') };

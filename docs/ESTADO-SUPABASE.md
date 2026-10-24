@@ -526,18 +526,30 @@ mismo Chrome bajó de la hoja.
 |---|---|
 | Las filas de ventas desde la base (`proyectos` + `instalaciones` + `ventas_calculadas`, paginadas de 500) | **221 de 221**, en 0.9 s; PostgREST aceptó los filtros (`not … is null`, `is`, `neq`, `range`) |
 | El almacén (materiales, listas de compra, libro) | 19 materiales y 9 requerimientos, en 0.9 s |
-| Venta por venta contra la hoja, 28 campos | iguales en todo lo del negocio salvo: (1) **un importe vacío en la hoja llega como 0** desde la base (liquidación en 45 ventas, anticipo en 2): el importador guarda `''` como 0 y la base no distingue «sin capturar» de «cero»; las sumas no cambian; (2) **3 ventas en FABRICACION sin «Etapa de obra»** en la hoja salen `ganado` (el importador le pone etapa a toda venta viva) |
+| Venta por venta contra la hoja, 28 campos | iguales en todo lo del negocio salvo dos, **arreglados el mismo día** (abajo): (1) **un importe vacío en la hoja llegaba como 0** desde la base (liquidación en 45 ventas, anticipo en 2): el importador guarda `''` como 0 y la base no distingue «sin capturar» de «cero», y para el teléfono no es lo mismo (`ventas.js`: con un 0 pisaría el anticipo pactado del proyecto); (2) **3 ventas en FABRICACION sin «Etapa de obra»** en la hoja salían `ganado` (la base no deja una viva sin etapa) |
 | Realtime | el canal `al3d-vivo` se une en ~1 s; no se probó la llegada de un aviso (haría falta escribir) |
 
-**Por qué la sombra NO se encendió (hallazgo, según el código):** con la sombra, una venta nueva ganada en ese aparato entra a la base por
-`ganar_proyecto` con el id del teléfono; la copia de la madrugada, que no lleva teléfonos, arma esa misma venta como `proy-hoja-V-###` y
-el SQL del importador lo anota como conflicto («su folio ya es de …»): el día no cuadra y la racha vuelve a 0. Lo que dicen las notas de
-la transición («encender la sombra antes no estorba») no es cierto mientras exista ese choque. Arreglo: que el importador adopte el id que
-la base ya tiene para el mismo folio.
+**Por qué la sombra NO se encendió:** con la sombra, una venta nueva ganada en ese aparato entraba a la base por `ganar_proyecto` con el id
+del teléfono y como «de cotización»; la copia de la madrugada, que no lleva teléfonos, arma esa misma venta como `proy-hoja-V-###` y «de la
+hoja», y el SQL del importador lo anotaba como conflicto: el día no cuadraba y la racha volvía a 0. Lo comprobó la prueba CS-02. Lo que decían
+las notas de la transición («encender la sombra antes no estorba») no era cierto.
+
+**Arreglado el mismo día** (este PR; `supabase/tests/sync-e-importacion/sombra-y-copia.mjs`, CS-01 a CS-03):
+
+- **La sombra da de alta la venta con el id de la copia** (`proy-hoja-V-###`, cuando la hoja ya le dio su V-###) y recuerda el del teléfono
+  para lo que siga (`js/datos/supa-sombra.js`); **la copia respeta que una venta nació en el cotizador** (`fuente = 'cotizacion'` en la base)
+  aunque ella la vea como de la hoja (`scripts/importador/sql.mjs`). Las dos piezas hacen falta: CS-01 cuadra dos días seguidos, y también
+  si la copia llegó antes que la sombra.
+- **Lo vacío se lee vacío:** la copia anota qué importes tenía vacíos la hoja (`ventas_dinero.procedencia.vacias`: G, I, J) y qué venta viva
+  no tenía etapa (`proyectos.procedencia.etapa_vacia`), y la lectura en vivo los regresa vacíos mientras sigan en 0 o en «ganado»
+  (`js/datos/supa-vivo.js`). Un importe que después se capture en la base ya no es 0 y se enseña.
+- Para que llegue: volver a pegar `importar-diario` (la copia de esa madrugada llena las marcas) y publicar la app (`sw.js` 141).
+
+Con esto la pieza 1 de abajo queda hecha.
 
 **Lo que falta para el día del cambio, en piezas:**
 
-1. El importador adopta el id de la base para el mismo folio (arriba). Chica; deja encender la sombra en el Chrome de Elías sin romper la racha.
+1. ~~Que la sombra y la copia no choquen~~ **hecho el 2026-10-24** (arriba). Deja encender la sombra en el Chrome de Elías sin romper la racha.
 2. «La base manda»: un interruptor por aparato con el que la bandeja escribe en Supabase en vez de la hoja (el traductor de la sombra ya
    existe), más lo que hoy solo va a la hoja: los gastos (falta su RPC), los precios (`tarifas_guardar` ya existe, falta el cliente) y
    «Registrar venta» del cotizador. Grande.

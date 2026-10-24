@@ -69,7 +69,9 @@ export function filaDeSupabase(p, inst, din) {
     [P.fechaInst]: inst ? fecha(inst.fecha) : fecha(p.fecha_instalacion_hist),
     [P.horaInst]: inst && inst.hora ? String(inst.hora) : '',
     [P.folio]: String(p.folio_global || ''),
-    [P.etapa]: ETAPA_A_NOTION[p.etapa] || null,
+    /* La copia de la hoja le pone «ganado» a una venta viva sin etapa (la base no deja una viva sin
+       ella) y lo dice en `procedencia.etapa_vacia`: mientras siga en «ganado», sale sin etapa, como en la hoja. */
+    [P.etapa]: (p.etapa_vacia === true && p.etapa === 'ganado') ? null : (ETAPA_A_NOTION[p.etapa] || null),
     [P.ubicacion]: pin ? Number(p.lat) + ',' + Number(p.lng) : String(p.maps_url || ''),
     [P.direccion]: String(p.dir_texto || ''),
     [P.tel]: String(p.tel || ''),
@@ -79,11 +81,16 @@ export function filaDeSupabase(p, inst, din) {
     [P.sellos]: sellos,
   };
   if (din && typeof din === 'object') {
+    /* Un importe que la hoja tenía VACÍO entra a la base como 0 y la copia dice cuál (`vacias` de
+       `ventas_dinero.procedencia`): mientras siga en 0, sale vacío, como lo manda la hoja. Para el
+       teléfono no es lo mismo: un 0 pisaría el anticipo pactado de su proyecto. */
+    const vacias = Array.isArray(din.vacias) ? din.vacias : [];
+    const importe = (v, letra) => { const x = num(v); return x === 0 && vacias.includes(letra) ? null : x; };
     out[P.cuenta] = din.d_cuenta || null;
-    out[P.subtotal] = num(din.g_subtotal);
+    out[P.subtotal] = importe(din.g_subtotal, 'G');
     out[P.neto] = num(din.h_neto);
-    out[P.anticipo] = num(din.i_anticipo);
-    out[P.liquidacion] = num(din.j_liquidacion);
+    out[P.anticipo] = importe(din.i_anticipo, 'I');
+    out[P.liquidacion] = importe(din.j_liquidacion, 'J');
     out[P.pendiente] = num(din.k_saldo);
     out[P.comisiones] = num(din.r_comision);
     out[P.abonoCom] = num(din.s_abonado);
@@ -141,7 +148,7 @@ export async function todas(armar) {
 }
 
 const COLS_PROYECTO = 'id, folio_hoja, folio_global, nombre, estatus, iva, tipo_trabajo, etapa, fecha_anticipo, ' +
-  'fecha_instalacion_hist, dir_texto, lat, lng, maps_url, tel, entrega, notas, plazo_k, sellos';
+  'fecha_instalacion_hist, dir_texto, lat, lng, maps_url, tel, entrega, notas, plazo_k, sellos, etapa_vacia:procedencia->etapa_vacia';
 const COLS_DINERO = 'proyecto_id, d_cuenta, g_subtotal, h_neto, i_anticipo, j_liquidacion, k_saldo, r_comision, ' +
   's_abonado, t_restante, pct_comision, n_fecha_liquidacion';
 
@@ -171,6 +178,12 @@ export function crearFuente(deps) {
       dinero = new Map();
       for (const d of await todas(() => c.from('ventas_calculadas').select(COLS_DINERO).eq('empresa_id', empresa).order('proyecto_id'))) {
         dinero.set(d.proyecto_id, d);
+      }
+      /* Qué importes tenía vacíos la hoja (solo esa llave de `procedencia`: nada más de la fila). */
+      for (const v of await todas(() => c.from('ventas_dinero').select('proyecto_id, vacias:procedencia->vacias').eq('empresa_id', empresa)
+        .not('procedencia->vacias', 'is', null).order('proyecto_id'))) {
+        const d = dinero.get(v.proyecto_id);
+        if (d && Array.isArray(v.vacias)) d.vacias = v.vacias;
       }
     }
     const registros = [];
