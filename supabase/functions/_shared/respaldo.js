@@ -22,7 +22,7 @@
        servicio solo ve lo que se comparta con ella: en la práctica, esa carpeta.
    ============================================================================ */
 
-/* Las 24 tablas de `public` (supabase/migrations), cada una con el orden estable de su llave primaria: la
+/* Las 27 tablas de `public` (supabase/migrations), cada una con el orden estable de su llave primaria: la
    paginación por `offset` necesita un orden total. pruebas/supabase-respaldo.mjs exige que esta lista sea
    EXACTAMENTE la de las migraciones: una tabla nueva sin respaldo es un hallazgo. */
 export const TABLAS = Object.freeze([
@@ -32,6 +32,8 @@ export const TABLAS = Object.freeze([
   ['autorizaciones', 'id'], ['cotizaciones', 'empresa_id,folio_global'], ['solicitudes', 'id'], ['cuaderno_notas', 'empresa_id,clave,autor_id'],
   ['cuadre_diario', 'id'], ['tarifas', 'empresa_id,grupo,clave'], ['gastos', 'empresa_id,id'], ['pantallas', 'id'],
   ['agente_conversaciones', 'id'], ['agente_mensajes', 'id'], ['agente_decisiones', 'id'],
+  // 0027: las cuentas disponibles, los clientes fiscales y sus ventas (al restaurar, el cliente antes que la venta que lo nombra)
+  ['ajustes_dinero', 'empresa_id'], ['clientes_fiscales', 'empresa_id,rfc'], ['ventas_fiscales', 'proyecto_id'],
 ].map(([nombre, orden]) => Object.freeze({ nombre, orden })));
 
 export const FORMATO = 'al3d-respaldo-1';

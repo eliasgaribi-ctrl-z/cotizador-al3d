@@ -643,8 +643,10 @@ console.log('\nAPAGADO NO CAMBIA NADA');
   ls.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'hoja' }));
   eq('encendido con la HOJA mandando: lo de siempre', [correr(ls, pagos), correr(ls, fab)], [SEIS.concat('asientos'), SEIS]);
   ls.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'base', area: 'pagos' }));
-  eq('con la BASE mandando la decide el modo: Pagos y Dirección la tienen, Fabricación no',
-    [correr(ls, pagos), correr(ls, dir), correr(ls, fab)], [SEIS.concat('asientos'), SEIS.concat('asientos'), SEIS]);
+  /* 0027: con la base mandando, además «Cuentas» y «Facturas» (el dinero disponible y las facturas de las ventas fiscales), las mismas áreas. */
+  const DINERO = ['asientos', 'cuentas', 'facturas'];
+  eq('con la BASE mandando la decide el modo: Pagos y Dirección la tienen (con Cuentas y Facturas), Fabricación no',
+    [correr(ls, pagos), correr(ls, dir), correr(ls, fab)], [SEIS.concat(DINERO), SEIS.concat(DINERO), SEIS]);
   ls.removeItem('al3d_pf_supa_modo');
   cierto('la pestaña se llama «Cobros y abonos» con la base mandando y «Registrar (Supabase)» con la hoja',
     /t: laBaseManda\(\) \? 'Cobros y abonos' : 'Registrar \(Supabase\)'/.test(sinC) && PS.nombreDeLaPestana(true) === 'Cobros y abonos' && PS.nombreDeLaPestana(false) === 'Registrar (Supabase)');

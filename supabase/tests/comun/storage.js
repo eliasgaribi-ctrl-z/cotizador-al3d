@@ -25,3 +25,6 @@ export const SUSTITUTO_STORAGE = `
 
 /** El texto de `supabase/opcional/storage.sql`. */
 export const TEXTO_STORAGE = readFileSync(fileURLToPath(new URL('../../opcional/storage.sql', import.meta.url)), 'utf8');
+
+/** El texto de `supabase/opcional/constancias.sql` (0027: las constancias de situación fiscal de los clientes fiscales). */
+export const TEXTO_CONSTANCIAS = readFileSync(fileURLToPath(new URL('../../opcional/constancias.sql', import.meta.url)), 'utf8');

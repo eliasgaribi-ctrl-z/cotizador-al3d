@@ -25,6 +25,9 @@
 -- El bloque 1 bis (E01–E02) es de la 0026: con la hoja mandando, la base no da de alta una venta sin cotización. Sin la 0026, E01 y E02 salen en rojo.
 -- Desde la 0026 `alta_venta` pide la base mandando: para sembrar su venta (C01), la prueba pone la empresa en 'base' DENTRO de su transacción
 -- (el error final lo deshace, como todo lo demás: la empresa sigue en el modo en que estaba) y el bloque 1 bis la regresa a 'hoja' para probarlo.
+-- El bloque 13 (F01–F08) es de la 0027 (el dinero disponible, los clientes fiscales y las dos facturas): sin ella, F01 sale en rojo y dice que falta.
+-- El bloque 14 (G01–G05) es de opcional/constancias.sql (el bucket de las constancias de situación fiscal): sin el bucket, un solo caso que dice que
+-- no aplica. Los casos: 74 sin Storage, 90 con storage.sql, 94 con storage.sql y constancias.sql.
 
 create function pg_temp.como(p_rol text, p_uid uuid, p_correo text) returns void language plpgsql as $f$
 begin
@@ -45,7 +48,7 @@ declare
   u_ext uuid := gen_random_uuid();
   u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text; n_v numeric;
+  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text; n_v numeric; t2 text; t3 text;
   con_modo boolean := exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'empresas' and column_name = 'modo');
 begin
   -- 0) Siembra, como dueño de la base: cuatro cuentas de Auth y tres membresías (la cuarta persona no es del equipo).
@@ -686,6 +689,141 @@ begin
     exception when others then t := t || ' / ' || sqlstate;
     end;
     inf := inf || jsonb_build_object('caso', 'D05 ni el dueño cambia ni borra cuadre_diario (solo_agregar y sin_borrar: P0001 / P0001)', 'ok', t = 'P0001 / P0001', 'det', t);
+  end if;
+
+  -- 13) El dinero disponible y las facturas (0027, decidido por Elías el 2026-10-25): F01–F08. humo1 cobra en Moni MPago, una cuenta FISCAL
+  --     (está cancelada desde C53: las casillas y el cliente no miran la etapa). Pagos le da su cliente fiscal y marca la factura del anticipo; un
+  --     RFC genérico no entra; Pagos no cambia las cuentas disponibles y Dirección sí; Fabricación no puede nada y no ve ni una fila (cuenta TODO:
+  --     cero haya lo que haya), la persona ajena tampoco, y anon recibe «permission denied». Sin la 0027, F01 sale en rojo y dice que falta.
+  if to_regclass('public.clientes_fiscales') is null then
+    inf := inf || jsonb_build_object('caso', 'F01 clientes_fiscales no existe: falta aplicar supabase/migrations/0027_dinero_y_facturas.sql', 'ok', false, 'det', 'falta 0027');
+  else
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      r := public.venta_cliente_fiscal(jsonb_build_object('op_id', 'humo-f1', 'proyecto_id', 'humo1', 'rfc', 'hum010101aa1', 'razon_social', 'Humo de prueba'));
+      inf := inf || jsonb_build_object('caso', 'F01 Pagos le da su cliente fiscal a humo1 (Moni MPago), con el RFC limpio', 'ok',
+                                       coalesce((r->>'ok')::boolean and r->>'rfc' = 'HUM010101AA1', false), 'det', coalesce(r->>'rfc', r->>'codigo'));
+      r := public.venta_factura_marcar(jsonb_build_object('op_id', 'humo-f2', 'proyecto_id', 'humo1', 'cual', 'anticipo', 'marcada', true));
+      k := public.venta_factura_marcar(jsonb_build_object('op_id', 'humo-f2', 'proyecto_id', 'humo1', 'cual', 'anticipo', 'marcada', true));
+      select count(*) into n from public.bitacora where op_id = 'factura:humo-f2' and nivel = 'dinero';
+      inf := inf || jsonb_build_object('caso', 'F02 Pagos marca la factura del anticipo; el reintento contesta lo mismo y queda UNA línea de dinero', 'ok',
+                                       coalesce((r->>'marcada')::boolean and k = r and n = 1, false), 'det', concat_ws(' / ', r->>'marcada', (k = r)::text, n::text));
+      r := public.venta_cliente_fiscal(jsonb_build_object('op_id', 'humo-f3', 'proyecto_id', 'humo1', 'rfc', 'XAXX010101000', 'razon_social', 'Público en general'));
+      k := public.cliente_fiscal_guardar(jsonb_build_object('op_id', 'humo-f3b', 'rfc', 'HUM0101', 'razon_social', 'Corto'));
+      inf := inf || jsonb_build_object('caso', 'F03 un RFC genérico o mal formado no entra (DATO_INVALIDO / DATO_INVALIDO)', 'ok',
+                                       coalesce(r->>'codigo' = 'DATO_INVALIDO' and k->>'codigo' = 'DATO_INVALIDO', false), 'det', concat_ws(' / ', r->>'codigo', k->>'codigo'));
+      r := public.cuentas_disponibles_guardar(jsonb_build_object('op_id', 'humo-f4p', 'cuentas', jsonb_build_array('Constru BNT')));
+      t2 := coalesce(r->>'codigo', 'pudo');
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'F01-F03 (Pagos y las facturas, 0027)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      r := public.cuentas_disponibles_guardar(jsonb_build_object('op_id', 'humo-f4', 'cuentas', jsonb_build_array('Rul HSBC', 'Elias BBVA')));
+      t := coalesce(r->>'codigo', 'ok');
+    exception when others then t := sqlstate;
+    end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      select array_to_string(a.cuentas_disponibles, ', ') into t3 from public.ajustes_dinero a where a.empresa_id = 'al3d';
+    exception when others then t3 := sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'F04 Pagos NO cambia las cuentas disponibles (ROL_SIN_PERMISO); Dirección sí y Pagos lo lee (Elias BBVA, Rul HSBC)', 'ok',
+                                     coalesce(t2 = 'ROL_SIN_PERMISO' and t = 'ok' and t3 = 'Elias BBVA, Rul HSBC', false),
+                                     'det', concat_ws(' / ', t2, t, t3));
+    perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+    begin
+      t := concat_ws(' ',
+        public.cuentas_disponibles_guardar(jsonb_build_object('op_id', 'humo-ff1', 'cuentas', jsonb_build_array('Constru BNT')))->>'codigo',
+        public.cliente_fiscal_guardar(jsonb_build_object('op_id', 'humo-ff2', 'rfc', 'HUM010101AA1', 'razon_social', 'Fab'))->>'codigo',
+        public.venta_cliente_fiscal(jsonb_build_object('op_id', 'humo-ff3', 'proyecto_id', 'humo1', 'rfc', ''))->>'codigo',
+        public.venta_factura_marcar(jsonb_build_object('op_id', 'humo-ff4', 'proyecto_id', 'humo1', 'cual', 'anticipo', 'marcada', false))->>'codigo',
+        public.constancia_registrar(jsonb_build_object('op_id', 'humo-ff5', 'rfc', 'HUM010101AA1', 'ruta', 'al3d/HUM010101AA1/csf-humo0000-0000.pdf',
+                                                       'tipo', 'application/pdf', 'bytes', 10))->>'codigo');
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    inf := inf || jsonb_build_object('caso', 'F05 Fabricación: ROL_SIN_PERMISO en las cinco funciones de 0027', 'ok',
+                                     t = 'ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO', 'det', t);
+    begin                                                                                  -- TODAS: cero haya lo que haya
+      select concat_ws(' / ', (select count(*) from public.clientes_fiscales), (select count(*) from public.ventas_fiscales),
+                       (select count(*) from public.ajustes_dinero), (select count(*) from public.bitacora where entidad = 'cliente')) into t;
+    exception when others then t := sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'F06 Fabricación NO ve ni una fila de clientes_fiscales, ventas_fiscales, ajustes_dinero ni las líneas de los clientes (0 / 0 / 0 / 0)',
+                                     'ok', t = '0 / 0 / 0 / 0', 'det', t);
+    perform pg_temp.como('authenticated', u_ext, 'ext@humo.test');
+    begin
+      select concat_ws(' / ', (select count(*) from public.clientes_fiscales), (select count(*) from public.ventas_fiscales), (select count(*) from public.ajustes_dinero)) into t;
+    exception when others then t := sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'F07 la persona ajena tampoco ve nada (0 / 0 / 0)', 'ok', t = '0 / 0 / 0', 'det', t);
+    t := '';
+    perform pg_temp.como('anon', null, null);
+    begin select count(*) into n from public.clientes_fiscales; t := n::text; exception when others then t := sqlstate; end;
+    begin select count(*) into n from public.ventas_fiscales; t := t || ' / ' || n::text; exception when others then t := t || ' / ' || sqlstate; end;
+    begin select count(*) into n from public.ajustes_dinero; t := t || ' / ' || n::text; exception when others then t := t || ' / ' || sqlstate; end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'F08 anon NO lee ninguna de las tres (permission denied ×3)', 'ok', t = '42501 / 42501 / 42501', 'det', t);
+  end if;
+
+  -- 14) Las constancias de situación fiscal en Storage (opcional/constancias.sql, 0027): G01–G05. Como el bloque 11: las personas se simulan
+  --     insertando y leyendo en storage.objects con su rol y su JWT; no se sube ningún archivo y todo se deshace. Usa el cliente fiscal de F01.
+  --     Sin el bucket (o sin la 0027), un solo caso que dice que no aplica.
+  if to_regclass('storage.objects') is null then
+    inf := inf || jsonb_build_object('caso', 'G01 Storage: no existe en esta base (PGlite sin sustituto): las constancias no aplican', 'ok', true, 'det', 'sin storage');
+  elsif to_regclass('public.clientes_fiscales') is null or not exists (select 1 from storage.buckets where id = 'constancias-fiscales') then
+    inf := inf || jsonb_build_object('caso', 'G01 Storage: el bucket constancias-fiscales no existe (falta aplicar opcional/constancias.sql): no aplica', 'ok', true,
+                                     'det', 'aplica supabase/opcional/constancias.sql y vuelve a correr esta prueba');
+  else
+    select concat_ws(' / ', public::text, file_size_limit::text, array_to_string(allowed_mime_types, ',')) into t from storage.buckets where id = 'constancias-fiscales';
+    inf := inf || jsonb_build_object('caso', 'G01 el bucket constancias-fiscales es privado, de 5 MB, y solo PDF, JPG, PNG y WebP', 'ok',
+                                     t = 'false / 5242880 / application/pdf,image/jpeg,image/png,image/webp', 'det', t);
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('constancias-fiscales', 'al3d/HUM010101AA1/csf-humo0001-0001.pdf', u_pag::text);
+      inf := inf || jsonb_build_object('caso', 'G02 Pagos sube la constancia del cliente fiscal de la prueba', 'ok', true, 'det', 'ok');
+    exception when others then
+      inf := inf || jsonb_build_object('caso', 'G02 Pagos sube la constancia del cliente fiscal de la prueba', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('constancias-fiscales', 'al3d/NOC010101AA1/csf-humo0002-0002.pdf', u_pag::text);
+      t := 'pudo';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('constancias-fiscales', 'al3d/HUM010101AA1/constancia.pdf', u_pag::text);
+      t := t || ' / pudo';
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'G03 Pagos NO sube a un RFC que no es cliente fiscal ni con una ruta que no es la forma (42501 / 42501)', 'ok', t = '42501 / 42501', 'det', t);
+    perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
+    begin
+      insert into storage.objects (bucket_id, name, owner_id) values ('constancias-fiscales', 'al3d/HUM010101AA1/csf-humo0003-0003.pdf', u_fab::text);
+      t := 'pudo subir';
+    exception when others then t := sqlstate;
+    end;
+    begin
+      select count(*) into n from storage.objects where bucket_id = 'constancias-fiscales';                -- TODAS: cero haya lo que haya
+      t := t || ' / ve ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'G04 Fabricación NO sube (42501) y NO ve ninguna constancia (0)', 'ok', t = '42501 / ve 0', 'det', t);
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin select count(*) into n from storage.objects where bucket_id = 'constancias-fiscales' and name like 'al3d/HUM010101AA1/%'; t := n::text;
+    exception when others then t := sqlstate; end;
+    execute 'reset role';
+    perform pg_temp.como('authenticated', u_ext, 'ext@humo.test');
+    begin select count(*) into n from storage.objects where bucket_id = 'constancias-fiscales'; t := t || ' / ' || n::text;
+    exception when others then t := t || ' / ' || sqlstate; end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'G05 Dirección ve la constancia de la prueba (1) y la persona ajena ninguna (0)', 'ok', t = '1 / 0', 'det', t);
   end if;
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).

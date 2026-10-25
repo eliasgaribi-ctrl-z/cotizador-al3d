@@ -14,13 +14,14 @@ import { describir, prueba, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, sql } from '../comun/semilla.js';
-import { SUSTITUTO_STORAGE, TEXTO_STORAGE } from '../comun/storage.js';
+import { SUSTITUTO_STORAGE, TEXTO_STORAGE, TEXTO_CONSTANCIAS } from '../comun/storage.js';
 
 const HUMO = readFileSync(fileURLToPath(new URL('../../opcional/prueba-de-humo.sql', import.meta.url)), 'utf8');
 /** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C74; C70–C74 son de Q-02 bis, Fabricación y las obras
- *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018) y los dos de la venta sin cotización con la hoja mandando (E01–E02, 0026) en los dos.
- *  Los documentos dicen estas cifras. */
-const SIN_STORAGE = 65, CON_STORAGE = 81;
+ *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018), los dos de la venta sin cotización con la hoja mandando (E01–E02, 0026) y los ocho del
+ *  dinero disponible y las facturas (F01–F08, 0027) en los dos; y el bloque 14, las constancias en Storage: un caso que dice «no aplica» (G01) sin
+ *  opcional/constancias.sql, cinco (G01–G05) con él. Los documentos dicen estas cifras. */
+const SIN_STORAGE = 74, CON_STORAGE = 90, CON_CONSTANCIAS = 94;
 
 /** Corre la prueba de humo y devuelve su informe (el JSON del error «HUMO_RESULTADO …»). */
 async function humo(db) {
@@ -149,6 +150,56 @@ describir('la prueba de humo pasa igual en una base vacía que en una con datos,
       await sql(db, `create policy fab_ve_retiradas on storage.objects for select to authenticated using (bucket_id = 'cotizacion-imagenes' and name like 'al3d/COT-0007@%')`);
       const inf = await humo(db);
       igual(rojos(inf).map(r => r.slice(0, 3)).sort(), ['C66', 'C69', 'C72']);
+    } finally { await db.close(); }
+  });
+});
+
+describir('los bloques 13 y 14 (0027: el dinero disponible, los clientes fiscales, las facturas y las constancias en Storage)', () => {
+  prueba('5 · con datos, STORAGE y opcional/constancias.sql (más constancias que no son de la prueba): 0 fallos, ' + CON_CONSTANCIAS + ' casos; F01–F08 y G01–G05 en verde; la base queda igual', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      await sql(db, SUSTITUTO_STORAGE);
+      await sql(db, TEXTO_STORAGE);
+      await sql(db, TEXTO_CONSTANCIAS);
+      /* Lo que ya tendría producción: un cliente fiscal con su constancia, una venta ligada con su factura del anticipo y otras cuentas disponibles. */
+      await sql(db, `insert into public.clientes_fiscales (empresa_id, rfc, razon_social, csf_ruta, csf_tipo, csf_bytes, csf_subida_en)
+                       values ('al3d', 'REA010101AB1', 'Real', 'al3d/REA010101AB1/csf-real0001-0001.pdf', 'application/pdf', 1000, now());
+                     insert into public.ventas_fiscales (proyecto_id, empresa_id, rfc, factura_anticipo, factura_anticipo_por, factura_anticipo_en)
+                       values ('p1', 'al3d', 'REA010101AB1', true, 'dir@al3d.test', now());
+                     update public.ajustes_dinero set cuentas_disponibles = array['Elias BBVA', 'Constru BNT'] where empresa_id = 'al3d';
+                     insert into storage.objects (bucket_id, name) values ('constancias-fiscales', 'al3d/REA010101AB1/csf-real0001-0001.pdf')`);
+      const antes = await foto(db);
+      const inf = await humo(db);
+      igual(rojos(inf), []);
+      igual([inf.fallos, inf.total], [0, CON_CONSTANCIAS]);
+      igual(inf.casos.filter(c => /^[FG]0\d /.test(c.caso)).map(c => c.caso.slice(0, 3)), ['F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07', 'F08', 'G01', 'G02', 'G03', 'G04', 'G05']);
+      igual(inf.casos.filter(c => /^F0[4-8] |^G0[3-5] /.test(c.caso)).map(c => c.caso.slice(0, 3) + ':' + c.det),
+        ['F04:ROL_SIN_PERMISO / ok / Elias BBVA, Rul HSBC', 'F05:ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO ROL_SIN_PERMISO',
+         'F06:0 / 0 / 0 / 0', 'F07:0 / 0 / 0', 'F08:42501 / 42501 / 42501', 'G03:42501 / 42501', 'G04:42501 / ve 0', 'G05:1 / 0'],
+        'Fabricación cuenta TODO (también lo real) y sigue en cero');
+      igual(await foto(db), antes, 'no dejó ni una fila, tampoco en storage.objects; las cuentas disponibles de verdad siguen como estaban');
+      igual((await sql(db, `select cuentas_disponibles from public.ajustes_dinero where empresa_id = 'al3d'`))[0].cuentas_disponibles, ['Elias BBVA', 'Constru BNT']);
+    } finally { await db.close(); }
+  });
+  prueba('el bloque 14 SÍ detecta una política de más: con una que deja leer las constancias a cualquiera con sesión, G04 y G05 salen en rojo', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      await sql(db, SUSTITUTO_STORAGE);
+      await sql(db, TEXTO_STORAGE);
+      await sql(db, TEXTO_CONSTANCIAS);
+      await sql(db, `create policy todos_leen_csf on storage.objects for select to authenticated using (bucket_id = 'constancias-fiscales')`);
+      igual(rojos(await humo(db)).map(r => r.slice(0, 3)).sort(), ['G04', 'G05']);
+    } finally { await db.close(); }
+  });
+  prueba('SIN la 0027 (una base de antes): F01 sale en rojo diciendo que falta, y el bloque 14 dice que no aplica', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await sql(db, `alter table public.clientes_fiscales rename to clientes_fiscales_antes`);
+      const inf = await humo(db);
+      igual(rojos(inf).map(r => r.slice(0, 3)), ['F01']);
+      cierto(inf.casos.some(c => /^F01 clientes_fiscales no existe: falta aplicar/.test(c.caso)) && inf.casos.some(c => /^G01 Storage: no existe/.test(c.caso)));
     } finally { await db.close(); }
   });
 });

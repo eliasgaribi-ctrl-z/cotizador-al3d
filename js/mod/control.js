@@ -34,6 +34,17 @@
    Con la BASE mandando (paso 5 de docs/BASE-MANDA.md) esa pestaña es «Cobros y abonos», la de
    Dirección y Pagos, con la venta sin cotización; y lo que esta pantalla decía de «la hoja» (el
    récord, los gastos, dónde se registra el abono de una comisión) lo dice de la base (`enBase`).
+   Y, también solo con la base mandando y solo para Dirección y Pagos, dos más (decididas por Elías el
+   2026-10-25, docs/DINERO-Y-FACTURAS.md):
+     · CUENTAS — lo que entró a cada cuenta (anticipos y liquidaciones) y lo DISPONIBLE: lo que entró a
+       las cuentas de AL3D (Elias BBVA, o las que Dirección marque) menos los gastos que salieron de
+       ellas. ConstruImagen, Mónica, Tanit y Rul se ven aparte: ese dinero no es de AL3D. La aritmética
+       es pura (js/datos/dinero-cuentas.js) y sale de lo que ya bajó; la lista de cuentas disponibles,
+       de la base (js/mod/cuentas.js). El Resumen arranca con el disponible del mes.
+     · FACTURAS — las ventas de las cuentas fiscales con su cliente (RFC), su constancia de situación
+       fiscal y las dos casillas, «Factura del anticipo» y «Factura de la liquidación». Vive en
+       js/mod/facturas.js, que lee la base en vivo, como «Cobros y abonos».
+   Con la hoja mandando no existen, y ninguno de esos tres archivos se descarga.
    Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes o año por año— va
    al final de la pestaña Ventas. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
 
@@ -87,8 +98,16 @@ import { masMeses, diasEntre } from '../nucleo/fechas.js';
 let cont = null;
 let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
-let TAB = 'ventas';          // ventas (el Resumen) | lista | cobrar | comisiones | gastos | bitacora (| asientos) — sobrevive a salir y volver
+let TAB = 'ventas';          // ventas (el Resumen) | lista | cobrar | comisiones | gastos | bitacora (| asientos | cuentas | facturas) — sobrevive a salir y volver
 let _PS = null;              // js/mod/pagos-supa.js, ya cargado (solo con Supabase encendido)
+/* Lo de las cuentas y las facturas (0027), solo con la base mandando: la aritmética pura del dinero por cuenta (se carga en `leer`),
+   la pestaña de facturas (al abrirla) y lo que la de cuentas le pide a la base (la lista de cuentas disponibles). `CPER` es el periodo
+   de la pestaña Cuentas: arranca en «Este mes» porque el disponible de «Todo» sumaría años de depósitos contra los gastos de unos días. */
+let _DC = null;              // js/datos/dinero-cuentas.js
+let _FX = null;              // js/mod/facturas.js
+let CPER = 'mes';            // mes | 3m | 12m | todo
+let _ajusteLeido = false;    // ya se le preguntó a la base, en esta visita, qué cuentas son disponibles
+let _guardandoAjuste = false;
 let PERIODO = '3m';          // mes | 3m | 12m | todo
 /* Lo vendido por tipo de trabajo, arriba de todo: el periodo de las tarjetas y la gráfica que
    se ve. Sobreviven a salir y volver, como la pestaña. Por defecto el año: es la pregunta del
@@ -236,10 +255,12 @@ export async function montar(contenedor, ctx) {
       ico('i-bajar') + ' Bajar CSV de ventas</button>');
     if (acc) acc.addEventListener('click', alClic);
   }
+  if (!remonte) _ajusteLeido = false;
   await recargar();
   /* Sin esperar: la pantalla ya está pintada con lo que hay, y si la hoja trae algo se
      repinta sola. Esperar la red antes de pintar sería una pantalla en blanco sin señal. */
   refrescarSiToca();
+  refrescarAjuste();
 }
 
 export function desmontar() {
@@ -279,6 +300,7 @@ export function desmontar() {
      a su módulo es exactamente lo que `desmontar` existe para apagar. */
   clearTimeout(_espera); _espera = 0;
   if (_PS) _PS.soltar();
+  if (_FX) _FX.soltar();
   cont = null; CTX = null; D = null;
 }
 
@@ -339,8 +361,31 @@ async function leer() {
   /* Si la hoja tiene la pestaña «Gastos» (puente-sheets-15): true, false o null mientras no se
      sabe. Con false la pestaña dice «falta actualizar el puente» desde que se abre. */
   const hojaGastos = Sync.sabeLlevar('gastos');
+  /* El dinero por cuenta (0027): solo con la base mandando y a quien ve el dinero. La lista de cuentas disponibles es la última
+     que este teléfono leyó de la base (o la de por omisión, Elias BBVA); `refrescarAjuste` la vuelve a pedir. Con la hoja
+     mandando ni se descarga el módulo. */
+  let ajuste = null;
+  if (enBase() && Prefs.veDinero()) {
+    try {
+      _DC = _DC || await import('../datos/dinero-cuentas.js');
+      ajuste = _DC.ajusteGuardado(typeof localStorage !== 'undefined' ? localStorage : null);
+    } catch (_) { _DC = null; ajuste = null; }
+  }
   return { hoy, proyectos, ventas, union, bajada, sinDecidir, historial, fechaInst, kpi, meses, conv,
-           cartera, finanzas, almacen, bitacora, comisiones, porTipo, gastos, bandejaGastos, resGastos, hojaGastos };
+           cartera, finanzas, almacen, bitacora, comisiones, porTipo, gastos, bandejaGastos, resGastos, hojaGastos, ajuste };
+}
+
+/* La lista de cuentas disponibles, de la base: una vez por visita a la pantalla, sin esperarla (se pinta con la que se recordaba) y
+   solo con la base mandando y a quien ve el dinero. Si cambió, se repinta. La pide js/mod/cuentas.js: Control no nombra a supa.js. */
+function refrescarAjuste() {
+  if (_ajusteLeido || !enBase() || !Prefs.veDinero() || !D || !D.ajuste) return;
+  _ajusteLeido = true;
+  import('./cuentas.js').then(m => m.leerAjuste()).then(a => {
+    if (!a || !cont || !D || !D.ajuste) return;
+    const antes = D.ajuste.cuentas.join('|');
+    D.ajuste = { cuentas: a.cuentas, por: a.por, en: a.en, leida: a.leida, deLaBase: a.deLaBase, mensaje: a.mensaje || '' };
+    if (antes !== a.cuentas.join('|') || TAB === 'cuentas') pintar();
+  }).catch(() => { /* sin red: se queda la que se recordaba */ });
 }
 
 /* F54. Las comisiones de las ventas del récord UNIFICADO —la hoja paga las de todas, también las
@@ -576,6 +621,7 @@ function pintar() {
    se recuerda fuera del DOM. */
 function despuesDePintar() {
   if (TAB === 'asientos') cablearAsientos();
+  if (TAB === 'facturas') cablearFacturas();
   rodarCuentas(cont);
   vigilarBarras();
   ubicarMesesTipo();
@@ -595,10 +641,14 @@ function htmlPantalla() {
     { v: 'bitacora', t: 'Bitácora' },
   ];
   if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: laBaseManda() ? 'Cobros y abonos' : 'Registrar (Supabase)' });
+  if (tabs().includes('cuentas')) opciones.push({ v: 'cuentas', t: 'Cuentas' });
+  if (tabs().includes('facturas')) opciones.push({ v: 'facturas', t: 'Facturas' });
   const pestanas = segmento(opciones, TAB, 'data-tab', 'Qué ver');
 
   let cuerpo;
   if (TAB === 'asientos') cuerpo = '<div id="ct-asientos" class="pg-supa">' + (_PS ? _PS.html() : '<p class="pf-nota" role="status">Abriendo…</p>') + '</div>';
+  else if (TAB === 'cuentas') cuerpo = pintarCuentas();
+  else if (TAB === 'facturas') cuerpo = '<div id="ct-facturas" class="fx">' + (_FX ? _FX.html() : '<p class="pf-nota" role="status">Abriendo…</p>') + '</div>';
   else if (TAB === 'lista') cuerpo = pintarLista();
   else if (TAB === 'cobrar') cuerpo = pintarCobrar();
   else if (TAB === 'comisiones') cuerpo = pintarComisiones();
@@ -810,9 +860,11 @@ function ubicarMesesTipo() {
    ============================================================================ */
 
 function pintarVentas() {
-  const partes = [lineaHoja(), htmlClave(), htmlFinanzas(), htmlEsteMes(), graficaMeses()];
+  const partes = [lineaHoja(), htmlDisponibleDelMes(), htmlClave(), htmlFinanzas(), htmlEsteMes(), graficaMeses()];
   if (D.almacen) partes.push(filaAlmacen());
-  partes.push(comoSeCuenta([
+  const disp = D.ajuste && _DC ? ['«Disponible» (arriba, con la base mandando) es lo que entró este mes a las cuentas de AL3D (' + D.ajuste.cuentas.join(', ') +
+    ') —anticipos y liquidaciones— menos los gastos que salieron de esas mismas cuentas. El detalle, por cuenta y por periodo, está en la pestaña Cuentas.'] : [];
+  partes.push(comoSeCuenta([...disp,
     '«Falta cobrar» suma el saldo de los proyectos en fabricación y de los que ya se entregaron y se están cobrando. ' +
     'Se reparte por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se entregó; ' +
     'LIQUIDADO ya no aparece. «Ya cobrado» es lo vendido menos lo que falta.',
@@ -1863,8 +1915,9 @@ function abrirGasto() {
         '<div class="fld"><label for="ct-gas-monto">Monto</label>' +
           '<input type="text" id="ct-gas-monto" inputmode="decimal" autocomplete="off" placeholder="$0.00" required></div>' +
         '<div class="fld"><label for="ct-gas-cuenta">Cuenta de la que salió</label><select id="ct-gas-cuenta">' +
-          '<option value="">Efectivo u otra</option>' + CUENTAS.map(c => '<option>' + esc(c) + '</option>').join('') + '</select></div>' +
+          '<option value="">Efectivo u otra</option>' + opcionesDeCuenta() + '</select></div>' +
       '</div>' +
+      notaDeCuenta() +
       '<div class="fld"><label for="ct-gas-folio">Folio del proyecto <small>(opcional)</small></label>' +
         '<input type="text" id="ct-gas-folio" maxlength="' + Gastos.FOLIO_MAX + '" autocomplete="off" list="ct-gas-folios" placeholder="V-042 o COT-0042"></div>' +
       '<datalist id="ct-gas-folios">' + folios.map(([f, n]) => '<option value="' + esc(f) + '">' + esc(n) + '</option>').join('') + '</datalist>' +
@@ -1876,6 +1929,20 @@ function abrirGasto() {
     '</div></div>';
   _gs = { guardando: false };
   abrirCapa('pf-pide', { hist: true });
+}
+
+/* La cuenta de la que salió el gasto, con los MISMOS nombres que la cuenta de cobro de una venta (`CUENTAS` de puente.js): así un
+   gasto de «Elias BBVA» se resta del dinero disponible (0027). Con la base mandando, cada opción dice si es dinero disponible y abajo se
+   dice para qué sirve elegirla; el valor es siempre el nombre de la cuenta. Con la hoja mandando, el desplegable de siempre. */
+function opcionesDeCuenta() {
+  const disp = enBase() && D && D.ajuste ? D.ajuste.cuentas : null;
+  if (!disp) return CUENTAS.map(c => '<option>' + esc(c) + '</option>').join('');
+  return CUENTAS.map(c => '<option value="' + esc(c) + '">' + esc(c) + (disp.includes(c) ? ' · disponible' : '') + '</option>').join('');
+}
+function notaDeCuenta() {
+  const disp = enBase() && D && D.ajuste ? D.ajuste.cuentas : null;
+  return disp ? '<p class="pf-nota ct-gas-nota">Si salió de ' + esc(disp.join(' o ')) + ', se resta del dinero disponible (Control → Cuentas). ' +
+    'En efectivo o de otra cuenta, no.</p>' : '';
 }
 
 function cerrarGasto() {
@@ -1988,6 +2055,125 @@ function bajarCSVGastos() {
   }
 }
 
+/* ============================================================================
+   Cuentas — el dinero por cuenta y lo disponible (0027, 2026-10-25; solo con la base mandando)
+   ============================================================================
+   La pregunta de Elías: «cuál es el dinero que tengo disponible, y que se vaya restando de los gastos que hago». Lo disponible es
+   lo que entró a las cuentas de AL3D —Elias BBVA, o las que Dirección marque abajo— menos los gastos que salieron de ellas. Lo que
+   entra a ConstruImagen, Mónica, Tanit o Rul se ve, cuenta por cuenta, pero aparte: no es dinero de AL3D. La aritmética es pura
+   (js/datos/dinero-cuentas.js) y sale de lo mismo que el resto de Control: las ventas y los gastos que bajaron de la base. */
+
+/* El Resumen arranca con el disponible del mes: una cifra, una frase, y la puerta a la pestaña. */
+function htmlDisponibleDelMes() {
+  if (!D.ajuste || !_DC || !tabs().includes('cuentas')) return '';
+  const M = _DC.dineroPorCuenta(D.ventas, D.gastos, { periodo: 'mes', hoy: D.hoy, disponibles: D.ajuste.cuentas });
+  const d = M.disponible;
+  const frase = 'Este mes entró ' + money(d.ingresos) + ' a ' + d.cuentas.join(', ') + ' y ' +
+    (d.nGastos ? 'salieron ' + money(d.gastos) + ' en ' + nGastos(d.nGastos) + ' pagados desde ahí.' : 'no se ha capturado ningún gasto pagado desde ahí.') +
+    (M.otras.ingresos > 0 ? ' Aparte, ' + money(M.otras.ingresos) + ' entraron a cuentas que no son de AL3D.' : '');
+  return '<section class="card ct-clave-card ct-cta-res" id="ct-disp-mes" aria-labelledby="ct-disp-mes-h">' +
+    '<h2 id="ct-disp-mes-h" class="solo-voz">Dinero disponible</h2>' +
+    clave('disp', 'Disponible · ' + mesLargo(D.hoy.slice(0, 7)), money(d.saldo), frase, { dest: 'tab:cuentas', que: 'abrir Cuentas' },
+      'principal' + (d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+  '</section>';
+}
+
+const NOMBRE_PER = { mes: 'este mes', '3m': 'los últimos 3 meses', '12m': 'los últimos 12 meses', todo: 'todo lo registrado' };
+
+function pintarCuentas() {
+  if (!D.ajuste || !_DC) return '<p class="pf-nota" role="status">Abriendo…</p>';
+  const M = _DC.dineroPorCuenta(D.ventas, D.gastos, { periodo: CPER, hoy: D.hoy, disponibles: D.ajuste.cuentas });
+  const d = M.disponible;
+  const per = segmento(PER_OPCIONES, CPER, 'data-cper', 'Periodo de las cuentas');
+  const frase = 'En ' + NOMBRE_PER[CPER] + ' entró ' + money(d.ingresos) + ' a ' + d.cuentas.join(', ') + ' y salieron ' + money(d.gastos) +
+    (d.nGastos ? ' en ' + nGastos(d.nGastos) : '') + ' pagados desde ahí.';
+  const disponibles = M.cuentas.filter(x => x.disponible), otras = M.cuentas.filter(x => !x.disponible);
+  const notas = [];
+  if (M.sinCuenta.ingresos > 0) notas.push(money(M.sinCuenta.ingresos) + ' de ' + nVentas(M.sinCuenta.nVentas) + ' sin cuenta de cobro: no suman a ninguna (se corrige en «Cobros y abonos» → «Datos de la venta»).');
+  if (M.efectivo.nGastos) notas.push(money(M.efectivo.gastos) + ' en ' + nGastos(M.efectivo.nGastos) + ' en efectivo o de otra cuenta: no restan del disponible.');
+  if (M.liqSinFecha.n) notas.push(M.liqSinFecha.n + (M.liqSinFecha.n === 1 ? ' liquidación' : ' liquidaciones') + ' sin fecha (' + money(M.liqSinFecha.monto) + ') solo cuentan en «Todo».');
+  if (M.porLlegar) notas.push(nVentas(M.porLlegar) + ' de este teléfono todavía no ' + (M.porLlegar === 1 ? 'llega' : 'llegan') + ' a la base: su anticipo cuenta cuando llegue.');
+  return '<section class="card ct-clave-card ct-cta" id="ct-cta" aria-labelledby="ct-cta-h">' +
+      '<h2 id="ct-cta-h" class="solo-voz">Dinero disponible</h2>' +
+      clave('cdisp', 'Disponible · ' + NOMBRE_PER[CPER], money(d.saldo), frase, null, 'principal' + (d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+      '<div class="ag-barra ct-cta-per">' + per + '</div>' +
+    '</section>' +
+    listaCuentas('ct-cta-al3d', 'De AL3D · dinero disponible', disponibles, true) +
+    listaCuentas('ct-cta-otras', 'Otras cuentas · no son de AL3D', otras, false) +
+    (notas.length ? '<div class="ct-cta-notas">' + notas.map(t => '<p class="pf-nota">' + esc(t) + '</p>').join('') + '</div>' : '') +
+    htmlAjusteCuentas() +
+    comoSeCuenta([
+      'Lo que ENTRÓ a una cuenta es lo que la base dice que se depositó en ella: el anticipo y la liquidación de cada venta que cobra ahí. Es lo ' +
+      'mismo que Control llama «ya cobrado», contado depósito por depósito: el anticipo cae en el periodo de su fecha y la liquidación en el de la suya. ' +
+      'La liquidación es una sola cifra por venta, con la fecha del último cobro: si se pagó en dos partes, cae entera en el mes de la última.',
+      'Lo que SALIÓ son los gastos no anulados de la pestaña Gastos cuya «Cuenta de la que salió» es esa. Un gasto en efectivo, o sin cuenta, no resta de ninguna.',
+      'DISPONIBLE es lo que entró a las cuentas de AL3D (' + d.cuentas.join(', ') + ') menos lo que salió de ellas en el periodo. No es el saldo del banco: ' +
+      'los gastos de antes de que se empezaran a capturar no están, y por eso la pestaña arranca en «Este mes». Una venta cancelada no cuenta.',
+    ]);
+}
+
+function listaCuentas(id, titulo, filas, disponible) {
+  const tot = filas.reduce((s, x) => s + x.ingresos, 0);
+  const cuerpo = filas.length
+    ? '<ul class="ct-cta-lista">' + filas.map(x => filaCuenta(x, disponible)).join('') + '</ul>'
+    : '<p class="pf-nota">' + (disponible ? 'Ninguna.' : 'Todas las cuentas son de AL3D.') + '</p>';
+  return '<section class="card" id="' + id + '" aria-labelledby="' + id + '-h"><div class="card-h"><h2 id="' + id + '-h">' +
+      ico(disponible ? 'i-venta' : 'i-nube') + ' ' + esc(titulo) + '</h2><span class="ct-total">' + esc(money(tot)) + '<small> entró</small></span></div>' +
+    '<div class="card-b">' + cuerpo + '</div></section>';
+}
+
+function filaCuenta(x, disponible) {
+  const quien = [x.deQuien, x.fiscal ? 'factura' : '', disponible ? 'disponible' : 'no disponible'].filter(Boolean).join(' · ');
+  const det = (x.anticipos ? 'anticipos ' + money(x.anticipos) : '') + (x.anticipos && x.liquidaciones ? ' · ' : '') +
+    (x.liquidaciones ? 'liquidaciones ' + money(x.liquidaciones) : '') + (x.nVentas ? ' · ' + nVentas(x.nVentas) : '') || 'sin depósitos en el periodo';
+  const cifra = (t, v, cls) => '<span class="ct-cta-cifra' + (cls ? ' ' + cls : '') + '"><small>' + t + '</small>' + esc(money(v)) + '</span>';
+  return '<li class="ct-cta-fila' + (disponible ? ' disp' : '') + '">' +
+    '<span class="ct-cta-tx"><span class="ct-cta-nom">' + esc(x.cuenta) + ' <small class="pf-sem ' + (disponible ? 'ok' : 'nada') + '">' + esc(quien) + '</small></span>' +
+      '<span class="ct-cta-det">' + esc(det) + '</span></span>' +
+    '<span class="ct-cta-mov">' + cifra('Entró', x.ingresos) +
+      (disponible || x.gastos ? cifra('Salió', x.gastos) : '') +
+      (disponible ? cifra('Queda', x.neto, x.neto < 0 ? 'neg' : 'queda') : '') + '</span>' +
+  '</li>';
+}
+
+/* Qué cuentas son dinero disponible: Dirección las cambia con casillas (la base lo vuelve a comprobar y lo anota en su bitácora); Pagos
+   las ve. Las casillas no cambian nada hasta «Guardar», que pregunta antes. */
+function htmlAjusteCuentas() {
+  const a = D.ajuste;
+  const quien = a.por ? ' Lo cambió por última vez ' + a.por + (a.en ? ' el ' + fmtFecha(String(a.en).slice(0, 10)) : '') + '.' : '';
+  const aviso = a.mensaje ? '<p class="hintnote nota-av" role="status">' + esc(a.mensaje) + '</p>' : '';
+  if (!Prefs.esDireccion()) {
+    return '<section class="card" id="ct-cta-ajuste"><div class="card-b"><p class="pf-nota">Cuentan como dinero disponible: <b>' + esc(a.cuentas.join(', ')) +
+      '</b>. Lo decide Dirección.' + esc(quien) + '</p>' + aviso + '</div></section>';
+  }
+  return '<section class="card" id="ct-cta-ajuste" aria-labelledby="ct-cta-ajuste-h"><div class="card-h"><h2 id="ct-cta-ajuste-h">' + ico('i-lapiz') +
+      ' Qué cuentas son dinero disponible</h2></div><div class="card-b">' +
+    '<p class="pf-nota">Las marcadas suman al disponible, y sus gastos se restan. Lo ven igual todos los teléfonos de Dirección y Pagos.' + esc(quien) + '</p>' + aviso +
+    '<fieldset class="ct-cta-casillas"><legend class="solo-voz">Cuentas disponibles</legend>' +
+      _DC.CUENTAS.map(c => '<label class="pg-check ct-cta-casilla"><input type="checkbox" data-cta-cuenta="' + esc(c) + '"' + (a.cuentas.includes(c) ? ' checked' : '') +
+        (_guardandoAjuste ? ' disabled' : '') + '> ' + esc(c) + (_DC.DE_QUIEN[c] ? ' <small>' + esc(_DC.DE_QUIEN[c]) + '</small>' : '') + '</label>').join('') +
+    '</fieldset>' +
+    '<div class="pf-acciones"><button type="button" class="btn btn-pri" data-act="cta-guardar"' + (_guardandoAjuste ? ' disabled aria-busy="true"' : '') + '>' +
+      (_guardandoAjuste ? 'Guardando…' : 'Guardar las cuentas disponibles') + '</button></div>' +
+  '</div></section>';
+}
+
+async function guardarCuentasDisponibles() {
+  if (_guardandoAjuste || !cont || !D || !D.ajuste) return;
+  const marcadas = [...cont.querySelectorAll('input[data-cta-cuenta]')].filter(x => x.checked).map(x => x.dataset.ctaCuenta);
+  _guardandoAjuste = true;
+  let r;
+  try { r = await (await import('./cuentas.js')).guardarAjuste(marcadas, D.ajuste.cuentas); }
+  catch (_) { r = { ok: false, mensaje: 'No se pudo abrir lo de las cuentas. Revisa la señal y vuelve a intentarlo.' }; }
+  _guardandoAjuste = false;
+  if (!cont || !D) return;
+  if (r.ok) {
+    D.ajuste = { ...D.ajuste, cuentas: r.cuentas, mensaje: '' };
+    toast(r.sinCambio ? 'La base ya tenía esas cuentas' : 'Dinero disponible: ' + r.cuentas.join(', '), 'ok', 3600);
+  } else if (r.mensaje) toast(r.mensaje, r.sinCambio ? '' : 'err', 5200);
+  pintar();
+}
+
 /* ----- Bitácora ----- */
 function pintarBitacora() {
   const q = plano(BUSCA_BIT);
@@ -2085,6 +2271,9 @@ function alClic(ev) {
   if (per) { PERIODO = per.dataset.periodo; pintar(); return; }
   const gper = t.closest('[data-gper]');
   if (gper) { GPER = gper.dataset.gper; pintar(); return; }
+  const cper = t.closest('[data-cper]');
+  if (cper) { CPER = cper.dataset.cper; pintar(); return; }
+  if (t.closest('[data-act="cta-guardar"]')) { guardarCuentasDisponibles(); return; }
   if (t.closest('[data-act="gasto-nuevo"]')) { abrirGasto(); return; }
   const anu = t.closest('[data-gasto-anular]');
   if (anu) { anularGasto(anu.dataset.gastoAnular); return; }
@@ -2120,8 +2309,21 @@ function supaEncendido() {
 }
 const AREAS_DE_COBRO = ['direccion', 'pagos'];
 function tabs() {
-  if (laBaseManda()) return AREAS_DE_COBRO.includes(Prefs.rol()) ? TABS.concat('asientos') : TABS;
+  if (laBaseManda()) return AREAS_DE_COBRO.includes(Prefs.rol()) ? TABS.concat('asientos', 'cuentas', 'facturas') : TABS;
   return supaEncendido() && Prefs.rol() !== 'fabricacion' ? TABS.concat('asientos') : TABS;
+}
+/* La de facturas (0027), como la de cobros: se carga la primera vez que se abre y después se pinta sin esperar. Lee la base en vivo. */
+function cablearFacturas() {
+  const el = $('ct-facturas');
+  if (!el) return;
+  if (_FX) { _FX.cablear(el); return; }
+  import('./facturas.js').then(m => {
+    _FX = m;
+    const ahora = $('ct-facturas');
+    if (!ahora || !cont || !cont.contains(ahora)) return;
+    ahora.innerHTML = m.html();
+    m.cablear(ahora);
+  }).catch(() => { const x = $('ct-facturas'); if (x) x.innerHTML = '<p class="hintnote nota-mal" role="alert">No se pudo abrir esta pestaña. Revisa la señal y vuelve a entrar.</p>'; });
 }
 /* La pestaña de Supabase se carga la primera vez que se abre y después se pinta sin esperar: sus
    borradores viven en ese módulo, así que un repintado de Control no tira lo escrito. Se le pasa la
@@ -2241,8 +2443,10 @@ function irA(dest) {
     return;
   }
   if (tipo === 'tab') {
+    if (arg === 'cuentas' && CPER !== 'mes') CPER = 'mes';          // la cifra del Resumen es la del mes: se llega a la misma
     cambiarTab(arg);
     if (arg === 'gastos') llevarA(cont && cont.querySelector('#ct-gastos-mes > .card-h'), 'Gastos por categoría');
+    else if (arg === 'cuentas') llevarA(cont && cont.querySelector('#ct-cta'), 'Cuentas: el dinero disponible');
     else llevarA(cont && cont.querySelector('#ct-cartera > .card-h'), 'Cartera');
     return;
   }
