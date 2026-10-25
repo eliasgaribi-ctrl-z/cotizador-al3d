@@ -71,7 +71,7 @@ console.log('\n4. EL SECRETO, EN EL CUERPO');
 console.log('\n5. EL SERVICE WORKER LA CONOCE');
 {
   eq('sus tres archivos en APP_FILES', ['./taller.html', './js/taller-tv.js', './css/taller.css'].filter(f => !sw.includes("'" + f + "'")), []);
-  eq('y la página en PAGINAS (con y sin .html)', /const PAGINAS = \/[^\n]*\|taller\)/.test(sw), true);
+  eq('y la página en PAGINAS (con y sin .html)', /const PAGINAS = \/[^\n]*\|taller[|)]/.test(sw), true);
 }
 
 console.log('\n' + (mal ? mal + ' FALLA(S) de ' + (bien + mal) + '.' : 'Todo pasa. ' + bien + ' comprobaciones.'));

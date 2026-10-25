@@ -1,0 +1,50 @@
+/* ============================================================================
+   COTIZA — la plática del cliente con el agente de ventas (cotiza.html). Va después de
+   sistema, publico, vidrio y estudio: usa sus variables y solo agrega la plática.
+   ============================================================================ */
+
+.cot-caja {
+  background: var(--n0);
+  border: 1px solid var(--linea);
+  border-radius: var(--rr4);
+  padding: var(--e4);
+  margin: var(--e4) 0 var(--e5);
+  box-shadow: var(--sombra);
+}
+
+/* La plática: alta lo justo para no empujar la caja de escribir fuera de la pantalla del teléfono. */
+.cot-log {
+  display: flex; flex-direction: column; gap: var(--e3);
+  max-height: min(60vh, 560px); min-height: 160px;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--e2) var(--e1);
+}
+
+.cot-msj { max-width: 85%; padding: var(--e3) var(--e4); border-radius: var(--rr3); }
+.cot-msj p { margin: 0; color: var(--tinta); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.cot-quien { display: block; font-size: var(--t1); font-weight: 600; color: var(--tinta2); margin-bottom: var(--e1); }
+.cot-agente { align-self: flex-start; background: var(--sup2); border-bottom-left-radius: var(--rr1); }
+.cot-equipo { align-self: flex-start; background: var(--ok-bg); border: 1px solid var(--ok-borde); border-bottom-left-radius: var(--rr1); }
+.cot-yo { align-self: flex-end; background: var(--a-fill); border-bottom-right-radius: var(--rr1); }
+.cot-yo p, .cot-yo .cot-quien { color: #fff; }
+
+.cot-esperando { display: flex; align-items: center; gap: var(--e2); font-size: var(--t2); color: var(--tinta2); margin: var(--e2) 0 0; }
+.cot-puntos { display: inline-flex; gap: 4px; }
+.cot-puntos i { width: 6px; height: 6px; border-radius: 50%; background: var(--tinta3); animation: cot-salto 1.2s infinite ease-in-out; }
+.cot-puntos i:nth-child(2) { animation-delay: .15s; }
+.cot-puntos i:nth-child(3) { animation-delay: .3s; }
+@keyframes cot-salto { 0%, 80%, 100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-4px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cot-puntos i { animation: none; } }
+
+.cot-form { display: flex; gap: var(--e2); align-items: flex-end; margin-top: var(--e3); }
+.cot-form textarea {
+  flex: 1; min-height: 48px; max-height: 160px; resize: vertical;
+  font: inherit; font-size: 16px;               /* 16 px: con menos, el iPhone hace zoom al escribir */
+  padding: var(--e2) var(--e3); border-radius: var(--rr3);
+  border: 1px solid var(--borde-control); background: var(--sup); color: var(--tinta);
+}
+.cot-enviar { min-height: 48px; padding: 0 var(--e4); }
+.cot-error { margin: var(--e2) 0 0; color: var(--red); font-size: var(--t2); }
+.cot-nota { font-size: var(--t2); }
+.cot-nueva { background: none; border: 0; padding: 0; font: inherit; color: var(--a-tx); text-decoration: underline; cursor: pointer; }
+.cot-oculta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
