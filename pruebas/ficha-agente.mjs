@@ -72,8 +72,10 @@ eq('medida sacada de una foto', ids(F.decisionesParaDireccion(con({}, [{ ...TACO
 eq('El Grullo está fuera de la zona', ids(F.decisionesParaDireccion(con({ municipio: 'El Grullo, Jalisco' }))), ['zona']);
 eq('Tlaquepaque con acento y apellido está dentro', F.decisionesParaDireccion(con({ municipio: 'San Pedro Tlaquepaque' })), []);
 eq('a 10 m (tótem de Weco) va a Dirección', ids(F.decisionesParaDireccion(con({ altura_m: 10 }))), ['altura']);
-eq('a 4 m justos todavía va incluida', F.decisionesParaDireccion(con({ altura_m: 4 })), []);
-eq('la altura escrita como texto también cuenta', ids(F.decisionesParaDireccion(con({ altura_m: '6' }))), ['altura']);
+eq('a 6 m justos todavía va incluida (Elías, 2026-10-25)', F.decisionesParaDireccion(con({ altura_m: 6 })), []);
+eq('la altura escrita como texto también cuenta', ids(F.decisionesParaDireccion(con({ altura_m: '6.5' }))), ['altura']);
+eq('Tonalá va incluida', F.decisionesParaDireccion(con({ municipio: 'Tonalá' })), []);
+eq('Tlajomulco y El Salto ya no: se cobra el traslado', ['Tlajomulco de Zúñiga', 'El Salto'].map(m => ids(F.decisionesParaDireccion(con({ municipio: m })))), [['zona'], ['zona']]);
 eq('paquetería: falta el envío', ids(F.decisionesParaDireccion(con({ entrega: 'paqueteria' }))), ['envio']);
 cierto('cada decisión trae su razón escrita', F.decisionesParaDireccion(con({ lleva_logo: true, entrega: 'paqueteria' })).every(d => d.razon.length > 10));
 
@@ -102,7 +104,7 @@ eq('el neón no sale como partida del cotizador', F.aPartidasDelCotizador(con({}
 
 console.log('\nNOTAS DE LA ORDEN');
 eq('con luz, instalada', F.notasDeOrden(base),
-  ['El cliente debe proporcionar salidas eléctricas.', 'Instalación incluida a no más de 4 m de altura desde el piso.']);
+  ['El cliente debe proporcionar salidas eléctricas.', 'Instalación incluida a no más de 6 m de altura desde el piso.']);
 eq('sin luz, entrega en taller', F.notasDeOrden(con({ entrega: 'recoleccion' }, [{ ...TACOS, luz: false }])),
   ['No incluye iluminación LED.', 'Entrega en taller.']);
 eq('texto chico en recorte (Tres Jotas Salón)', F.notasDeOrden(con({ entrega: 'recoleccion' }, [TACOS, { tipo: 'recorte', texto: 'Salon de Eventos ', altura_cm: 6 }]))[1],

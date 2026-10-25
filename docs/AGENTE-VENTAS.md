@@ -48,15 +48,16 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
    manda solo.
 7. **El número nuevo con API de WhatsApp** — al final.
 
-## Lo que la ficha supone y falta confirmar con Elías
+## Lo que confirmó Elías (25-oct-2026)
 
-- **Instalación incluida hasta 4 m** (`ALTURA_INSTALACION_INCLUIDA_M`). Las órdenes dicen 4, 5
-  y 6 m; se tomó la más baja para que lo dudoso le llegue a él.
-- **Zona metropolitana** (`MUNICIPIOS_ZMG`): Guadalajara, Zapopan, Tlaquepaque, Tonalá,
-  Tlajomulco y El Salto. Afuera, el traslado lo decide Dirección.
-- **Texto chico**: abajo de 10 cm va en recorte plano, sin volumen ni luz (la misma regla del
-  cotizador).
-- **La cuenta de depósito**: no hay ninguna dada de alta en el sistema.
+- **Instalación incluida hasta 6 m** (`ALTURA_INSTALACION_INCLUIDA_M`). Más alto, Dirección.
+- **Zona** (`MUNICIPIOS_ZMG`): Guadalajara, Zapopan, Tlaquepaque y Tonalá. Tlajomulco, El Salto
+  y cualquier otro municipio: el traslado lo decide Dirección.
+- **Tiempo de entrega**: de 2.5 a 3 semanas después del anticipo. El anticipo que llega después
+  de la 1:00 p. m. cuenta desde el siguiente día hábil: ese día ya no se surte material.
+- **Texto chico**: normalmente abajo de 10 cm va en recorte plano, sin volumen ni luz (la misma
+  regla del cotizador); el recorte también se hace más grande si el cliente lo pide.
+- **Las cuentas de depósito**: las dos tarjetas autorizadas, como secretos de la función.
 
 ## Para publicarlo (en este orden, con el OK de Elías)
 
@@ -88,8 +89,7 @@ Elías exportó sus chats con clientes liquidados y con el equipo. Se analizaron
   plata) y, si lleva factura, la constancia fiscal (CIF).
 - **Lo que el agente puede decir** (`HECHOS`): el taller con su liga de Maps, el Instagram, el
   WhatsApp de los comprobantes, el anticipo y la vigencia, que el diseño se aprueba antes de
-  fabricar y dos supuestos que Elías tiene que confirmar: **de 1 a 3 semanas** después del
-  anticipo y **la instalación incluida** en la zona metropolitana hasta 4 m.
+  fabricar, el tiempo de entrega y la instalación incluida (ver «Lo que confirmó Elías»).
 
 Tiempos medidos en esos chats (mediana desde el primer mensaje): cotización día 1, cuenta día 8,
 anticipo día 13, instalación y liquidación día 34. Sirven para los seguimientos.

@@ -41,16 +41,16 @@ import { FABRICA, subtotal as subtotalDe, neto, linea } from './precio.js';
    10 cm no hay canto que doblar ni cabe el LED; el taller lo corta plano. */
 export const ALTURA_MIN_LETRAS = 10;
 
-/* Las órdenes dicen 4, 5 y 6 m según el trabajo. Se toma la más baja: pasar de aquí manda
-   la instalación a Dirección, y un aviso de más cuesta un toque; uno de menos es una grúa que
-   nadie cobró. Cuando Elías diga su número, se cambia aquí y en ningún otro lado. */
-export const ALTURA_INSTALACION_INCLUIDA_M = 4;
+/* Hasta dónde la instalación va incluida (Elías, 2026-10-25: 6 m, lo de la orden del Consultorio
+   Palomar). Pasar de aquí manda la instalación a Dirección: puede pedir grúa. Se cambia aquí y en
+   ningún otro lado. */
+export const ALTURA_INSTALACION_INCLUIDA_M = 6;
 
-/* Dónde la instalación va incluida sin preguntar. Afuera (El Grullo, Aguascalientes,
-   Michoacán, todos en las órdenes) el traslado se cobra y lo decide Dirección. */
+/* Dónde la instalación va incluida sin preguntar (Elías, 2026-10-25): Guadalajara, Zapopan,
+   Tlaquepaque y Tonalá. Afuera —Tlajomulco y El Salto incluidos, y El Grullo, Aguascalientes o
+   Michoacán de las órdenes— el traslado se cobra y lo decide Dirección. */
 export const MUNICIPIOS_ZMG = Object.freeze([
   'guadalajara', 'zapopan', 'tlaquepaque', 'san pedro tlaquepaque', 'tonala',
-  'tlajomulco', 'tlajomulco de zuniga', 'el salto',
 ]);
 
 /* Las tarifas de caja viven en la partida y no en la tabla (precio.js, `caja`): son las del

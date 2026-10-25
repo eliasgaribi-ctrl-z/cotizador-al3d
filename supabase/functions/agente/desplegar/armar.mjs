@@ -62,7 +62,7 @@ export async function armar() {
     '// LA FUNCIÓN `agente` EN UN SOLO ARCHIVO, para pegarla entera en el editor del panel de Supabase.',
     '// GENERADO por supabase/functions/agente/desplegar/armar.mjs con esbuild ' + esbuild.version + '. NO SE EDITA A MANO:',
     '// se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).',
-    '// Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA y AGENTE_EMPRESA.',
+    '// Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA_SIN_FACTURA, AGENTE_CUENTA_CON_FACTURA y AGENTE_EMPRESA.',
     '// Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:',
     ...lineas,
     '// ============================================================================',

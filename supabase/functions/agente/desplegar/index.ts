@@ -3,12 +3,12 @@
 // LA FUNCIÓN `agente` EN UN SOLO ARCHIVO, para pegarla entera en el editor del panel de Supabase.
 // GENERADO por supabase/functions/agente/desplegar/armar.mjs con esbuild 0.24.2. NO SE EDITA A MANO:
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
-// Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA y AGENTE_EMPRESA.
+// Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA_SIN_FACTURA, AGENTE_CUENTA_CON_FACTURA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   27d235f15a4631c0  supabase/functions/_shared/agente.js
+//   4574bd9f1129b7b9  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
-//   ff3705b7f4debf9b  supabase/functions/_shared/ficha.js
+//   0441f7b445223b93  supabase/functions/_shared/ficha.js
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   21bde10737f49fe4  supabase/functions/_shared/ia.js
 //   caedbec3fb61b918  supabase/functions/_shared/precio.js
@@ -589,16 +589,13 @@ var neto = (sub, iva) => iva ? sub + sub * IVA : sub;
 
 // supabase/functions/_shared/ficha.js
 var ALTURA_MIN_LETRAS = 10;
-var ALTURA_INSTALACION_INCLUIDA_M = 4;
+var ALTURA_INSTALACION_INCLUIDA_M = 6;
 var MUNICIPIOS_ZMG = Object.freeze([
   "guadalajara",
   "zapopan",
   "tlaquepaque",
   "san pedro tlaquepaque",
-  "tonala",
-  "tlajomulco",
-  "tlajomulco de zuniga",
-  "el salto"
+  "tonala"
 ]);
 var TARIFA_CAJA = Object.freeze({ std: 3900, nube: 4600 });
 var TIPOS = Object.freeze({
@@ -887,8 +884,8 @@ var HECHOS = Object.freeze([
   "El IVA (16 %) solo se agrega si el cliente requiere factura; con factura se deposita a la cuenta de la empresa y sin factura a otra.",
   "El comprobante del anticipo se manda por WhatsApp al " + WHATSAPP + ".",
   "Antes de fabricar se le enseña el diseño al cliente para que lo apruebe.",
-  "Normalmente el letrero queda entre 1 y 3 semanas después del anticipo, según el trabajo; la fecha exacta se confirma al dar el anticipo.",
-  "La instalación en la zona metropolitana de Guadalajara va incluida hasta 4 m de altura; más alto o fuera de la zona se cotiza aparte.",
+  "El letrero queda de 2.5 a 3 semanas después del anticipo. Si el anticipo llega después de la 1:00 p. m., cuenta desde el siguiente día hábil (ese día ya no se surte material). La fecha exacta se confirma al dar el anticipo.",
+  "La instalación va incluida en Guadalajara, Zapopan, Tlaquepaque y Tonalá hasta " + ALTURA_INSTALACION_INCLUIDA_M + " m de altura; más alto o en otro municipio se cotiza aparte.",
   "La salida eléctrica donde va el letrero la pone el cliente."
 ]);
 var VARIABLE_CUENTA = Object.freeze({ sin: "AGENTE_CUENTA_SIN_FACTURA", con: "AGENTE_CUENTA_CON_FACTURA" });
