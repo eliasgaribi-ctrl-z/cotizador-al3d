@@ -93,3 +93,9 @@ Elías exportó sus chats con clientes liquidados y con el equipo. Se analizaron
 
 Tiempos medidos en esos chats (mediana desde el primer mensaje): cotización día 1, cuenta día 8,
 anticipo día 13, instalación y liquidación día 34. Sirven para los seguimientos.
+
+**Regla de Elías (25-oct-2026): del saludo a la cotización, el mismo día.** En sus chats la
+cotización salía al día siguiente (mediana); la meta es que salga el mismo día. Por eso el agente
+pregunta todo en la misma plática y, cuando algo va a Dirección, le dice al cliente «hoy mismo te
+mando tu cotización». En el Tablero, lo que llegó otro día y sigue esperando sale en rojo:
+«Cotización del agente que no salió el mismo día».

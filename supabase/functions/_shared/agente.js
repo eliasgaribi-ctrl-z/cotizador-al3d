@@ -195,7 +195,8 @@ export function instruccionResponder(ficha, estado, mensajes, textoCliente, deci
     'Reglas:',
     '1. NUNCA escribas precios, cantidades de dinero, porcentajes de descuento ni números de cuenta. El precio lo agrega el sistema después de tu texto.',
     '2. Si hay preguntas pendientes, haz como máximo las dos primeras, con tus palabras y en ese orden.',
-    '3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que le confirmas en cuanto lo tengas. No prometas una hora.',
+    '3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que hoy mismo le mandas su cotización. No prometas una hora.',
+    '3b. La cotización sale el MISMO DÍA en que el cliente escribe (regla de Elías): pregunta todo lo que falte en esta plática, sin dejar nada para mañana.',
     '4. Si ya hay cotización, dile que abajo va el precio y pregúntale si quiere arrancar.',
     '5. Si Dirección mandó una nota, transmítela con tus palabras.',
     '6. De AL3D solo puedes decir esto: ' + HECHOS.join(' '),
@@ -258,7 +259,7 @@ export function armarRespuesta(textoIA, estado, ficha, tarjeta) {
   let t = sinDinero(textoIA).slice(0, MAX_RESPUESTA);
   if (!t) {
     t = estado.siguiente === 'preguntar' ? estado.pendientes[0].pregunta
-      : estado.siguiente === 'direccion' ? 'Déjame revisarlo con el encargado y te confirmo en cuanto lo tenga.'
+      : estado.siguiente === 'direccion' ? 'Déjame revisarlo con el encargado: hoy mismo te mando tu cotización.'
       : estado.siguiente === 'descartada' ? 'Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!'
       : '¡Listo! Aquí va tu cotización.';
   }

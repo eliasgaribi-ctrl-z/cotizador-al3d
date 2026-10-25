@@ -5,7 +5,7 @@
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
 // Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   7c654eded21111d4  supabase/functions/_shared/agente.js
+//   27d235f15a4631c0  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
 //   ff3705b7f4debf9b  supabase/functions/_shared/ficha.js
@@ -996,7 +996,8 @@ function instruccionResponder(ficha, estado, mensajes, textoCliente, decision) {
     "Reglas:",
     "1. NUNCA escribas precios, cantidades de dinero, porcentajes de descuento ni números de cuenta. El precio lo agrega el sistema después de tu texto.",
     "2. Si hay preguntas pendientes, haz como máximo las dos primeras, con tus palabras y en ese orden.",
-    "3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que le confirmas en cuanto lo tengas. No prometas una hora.",
+    "3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que hoy mismo le mandas su cotización. No prometas una hora.",
+    "3b. La cotización sale el MISMO DÍA en que el cliente escribe (regla de Elías): pregunta todo lo que falte en esta plática, sin dejar nada para mañana.",
     "4. Si ya hay cotización, dile que abajo va el precio y pregúntale si quiere arrancar.",
     "5. Si Dirección mandó una nota, transmítela con tus palabras.",
     "6. De AL3D solo puedes decir esto: " + HECHOS.join(" "),
@@ -1042,7 +1043,7 @@ function mensajeDePrecio(c) {
 function armarRespuesta(textoIA, estado, ficha, tarjeta) {
   let t = sinDinero(textoIA).slice(0, MAX_RESPUESTA);
   if (!t) {
-    t = estado.siguiente === "preguntar" ? estado.pendientes[0].pregunta : estado.siguiente === "direccion" ? "Déjame revisarlo con el encargado y te confirmo en cuanto lo tenga." : estado.siguiente === "descartada" ? "Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!" : "¡Listo! Aquí va tu cotización.";
+    t = estado.siguiente === "preguntar" ? estado.pendientes[0].pregunta : estado.siguiente === "direccion" ? "Déjame revisarlo con el encargado: hoy mismo te mando tu cotización." : estado.siguiente === "descartada" ? "Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!" : "¡Listo! Aquí va tu cotización.";
   }
   const partes = [t];
   if (estado.cotizacion) partes.push(mensajeDePrecio(estado.cotizacion));

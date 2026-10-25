@@ -450,13 +450,22 @@ function necesita(d, rol) {
       { tipo: 'ir', ruta: 'proyectos', que: 'decidir en Proyectos' }));
   }
 
-  /* Lo que el agente de ventas no cotizó solo: un renglón que abre la más vieja; al decidirla sale la siguiente. */
+  /* Lo que el agente de ventas no cotizó solo: un renglón que abre la más vieja; al decidirla sale la siguiente.
+     La regla de Elías (2026-10-25): del saludo a la cotización, EL MISMO DÍA. El agente le promete al cliente
+     «hoy mismo»; lo que llegó otro día y sigue esperando sale en rojo y lo dice. */
   const ag = rol === 'direccion' && _agente ? _agente : [];
   if (ag.length) {
     const negocio = x => String(x.resumen || '').split(' · ')[0] || 'Sin nombre';
     const razon = x => (Array.isArray(x.razones) && x.razones[0] && x.razones[0].razon) || '';
-    filas.push(filaNecesita(ag.length, 'a', ag.length === 1 ? 'El agente de ventas te pregunta' : 'El agente de ventas te pregunta ' + ag.length + ' cosas',
-      ag.length === 1 ? negocio(ag[0]) + ' · ' + razon(ag[0]) : nombres(ag.map(negocio)),
+    const diaMx = x => new Date(x.created_at).toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+    const hace = x => {
+      const min = Math.max(0, Math.round((Date.now() - Date.parse(x.created_at)) / 60000));
+      return min < 60 ? 'hace ' + min + ' min' : min < 1440 ? 'hace ' + Math.floor(min / 60) + ' h' : 'de hace ' + Math.floor(min / 1440) + (min < 2880 ? ' día' : ' días');
+    };
+    const atrasada = ag.some(x => diaMx(x) < d.hoy);
+    filas.push(filaNecesita(ag.length, atrasada ? 'mal' : 'a',
+      (atrasada ? 'Cotización del agente que no salió el mismo día' : 'El agente de ventas te pregunta') + (ag.length > 1 ? ' · ' + ag.length : ''),
+      ag.length === 1 ? negocio(ag[0]) + ' · ' + hace(ag[0]) + ' · ' + razon(ag[0]) : nombres(ag.map(negocio)) + ' · la primera ' + hace(ag[0]),
       { tipo: 'agente', id: ag[0].id, que: 'decidir lo de ' + negocio(ag[0]) }));
   }
 
