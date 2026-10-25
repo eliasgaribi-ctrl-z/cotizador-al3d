@@ -59,10 +59,17 @@ export function encendido() {
   try { const v = JSON.parse(ls()?.getItem(CLAVE_INTERRUPTOR) || 'null'); return !!(v && v.encendido === true); }
   catch (_) { return false; }
 }
+/* Apagar deja dicho que fue a propósito (Ajustes, o el acceso retirado): la entrada única de abajo no
+   vuelve a encender ese aparato sola. Encender a mano lo borra. */
+export const CLAVE_NO_SOLO = 'al3d_pf_supa_no';
 export function encender(si) {
   const s = ls(); if (!s) return;
-  if (si) s.setItem(CLAVE_INTERRUPTOR, JSON.stringify({ encendido: true, desde: Date.now() }));
-  else s.removeItem(CLAVE_INTERRUPTOR);
+  if (si) { s.setItem(CLAVE_INTERRUPTOR, JSON.stringify({ encendido: true, desde: Date.now() })); s.removeItem(CLAVE_NO_SOLO); }
+  else { s.removeItem(CLAVE_INTERRUPTOR); s.setItem(CLAVE_NO_SOLO, '1'); }
+}
+/** ¿Alguien lo apagó a propósito en este aparato? */
+export function apagadoAProposito() {
+  try { return ls()?.getItem(CLAVE_NO_SOLO) === '1'; } catch (_) { return false; }
 }
 
 /* ============================================================================
@@ -260,6 +267,59 @@ export async function botonDeGoogle(caja, alEntrar) {
   });
   caja.innerHTML = '';
   g.renderButton(caja, { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'es' });
+}
+
+/* ----- Una sola entrada (Elías, 2026-10-25: «¿por qué un segundo acceso a Google?») -----
+   La puerta entra con un token de ACCESO de Google (el que verifica la hoja); Supabase pide un token
+   de IDENTIDAD (`signInWithIdToken`). Son dos fichas distintas que da el mismo Google con el mismo
+   Client ID, y hasta hoy la segunda solo salía del botón de Ajustes. Aquí se pide sin botón: el
+   `prompt()` de google.accounts.id con `auto_select` y la cuenta de la puerta (`login_hint`). Si esa
+   cuenta ya aceptó una vez, Google la da sin enseñar nada (FedCM); si no, enseña su tarjeta
+   «Continuar como …», de un toque. Si no la enseña (Safari, la persona la cerró, Google tardó), se
+   contesta NECESITA_TOQUE y la app pone el botón a la vista, sin mandar a nadie a Ajustes.
+   Una cuenta de Google distinta de la de la puerta no se queda dentro: se sale y se dice. */
+export const MS_ESPERA_SIN_BOTON = 20000;
+export async function entrarSinBoton(correoPuerta, opc = {}) {
+  if (!encendido()) return { ok: false, codigo: 'APAGADO' };
+  if (await haySesion()) return { ok: true, ya: true };
+  if (!await cargarGis()) return { ok: false, codigo: 'SIN_RED' };
+  const g = globalThis.google && globalThis.google.accounts && globalThis.google.accounts.id;
+  if (!g || typeof g.prompt !== 'function') return { ok: false, codigo: 'NECESITA_TOQUE' };
+  const crudo = nonceNuevo();
+  const nonce = await huella(crudo);
+  return await new Promise(resolve => {
+    let listo = false;
+    const fin = r => { if (!listo) { listo = true; resolve(r); } };
+    g.initialize({
+      client_id: CLIENT_ID, nonce, auto_select: true, login_hint: correoPuerta || undefined,
+      cancel_on_tap_outside: false, itp_support: true, use_fedcm_for_prompt: true,
+      callback: async resp => {
+        try {
+          const c = await cliente();
+          const { error } = await c.auth.signInWithIdToken({ provider: 'google', token: resp && resp.credential, nonce: crudo });
+          if (error) throw error;
+          const a = await acceso();
+          if (correoPuerta && !esLaMismaPersona(a.correo, correoPuerta)) {
+            await salir();
+            return fin({ ok: false, codigo: 'OTRA_CUENTA', mensaje: 'Esa cuenta de Google no es con la que entraste a la app (' + correoPuerta + ').' });
+          }
+          vigilar();
+          fin({ ok: true, acceso: a });
+        } catch (e) { fin({ ok: false, codigo: 'RECHAZO', mensaje: mensajeDe(e) }); }
+      },
+    });
+    /* Con FedCM Google ya no avisa de todos los momentos; los que sí avisa —no se enseñó, se saltó,
+       se cerró— significan lo mismo aquí: hace falta el toque. Y si no avisa nada, el reloj. */
+    try {
+      g.prompt(n => {
+        const no = f => !!(n && typeof n[f] === 'function' && n[f]());
+        if (no('isNotDisplayed') || no('isSkippedMoment') || (no('isDismissedMoment') && n.getDismissedReason && n.getDismissedReason() !== 'credential_returned')) {
+          fin({ ok: false, codigo: 'NECESITA_TOQUE' });
+        }
+      });
+    } catch (_) { fin({ ok: false, codigo: 'NECESITA_TOQUE' }); }
+    setTimeout(() => fin({ ok: false, codigo: 'NECESITA_TOQUE' }), opc.esperaMs || MS_ESPERA_SIN_BOTON);
+  });
 }
 
 /** Quién eres según la base. Una invitación pendiente se reclama aquí mismo. */

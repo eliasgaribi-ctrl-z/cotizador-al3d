@@ -1284,11 +1284,11 @@ async function pintarSupabase() {
   const listo = html => { if (turno === _supaTurno && $('aj-supa')) $('aj-supa').innerHTML = html; };
   const apagar = '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
   if (!Supa.encendido()) {
-    listo((Prefs.rol() === 'direccion'
-      ? '<p class="aj-p">Esto es <b>solo para probar</b> la base nueva (Supabase, con los datos reales) en <b>este</b> aparato. '
-      : '<p class="aj-p">Aquí entra <b>este</b> teléfono a la base nueva (Supabase). ') +
-      'Apagado (como está) no hace nada: la app sigue entrando y guardando como siempre, con la hoja. ' +
-      'El día que Dirección pase la empresa a la base, este teléfono la necesita encendida y con tu cuenta de Google para mandar y recibir.</p>' +
+    /* Desde la entrada única (app.js, `conectarLaNube`) un aparato que entró con Google se enciende solo:
+       apagado quiere decir que alguien lo apagó aquí, o que se entró con el token de emergencia. */
+    listo('<p class="aj-p">La nube (Supabase) está <b>apagada en este aparato</b>. Normalmente se enciende sola al entrar a la app con tu cuenta de Google; ' +
+      'si se apagó aquí, ya no se vuelve a encender sola. Apagada no cambia nada mientras la empresa trabaje con la hoja; ' +
+      'el día que Dirección pase la empresa a la base, este teléfono la necesita encendida para mandar y recibir.</p>' +
       '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-encender">Encender en este aparato</button></div>');
     return;
   }

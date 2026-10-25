@@ -250,8 +250,9 @@ La fecha la decide Elías. **Antes del día:**
    limpia; la prueba de humo, 65 casos, 81 con `storage.sql`); la app publicada (`sw.js` 149) y abierta en cada teléfono con señal, para que
    tenga la versión nueva.
 2. Si Fabricación debe ver las imágenes de las obras ganadas: volver a aplicar `supabase/opcional/storage.sql` (Q-02 bis) en las dos bases.
-3. En cada teléfono (Dirección, Pagos y las 3 de Fabricación): Ajustes → Supabase → «Encender en este aparato» y entrar con Google. Ajustes dice
-   el área que da la base. La entrada con Google en el iPhone, probada (pendiente de Elías).
+3. En cada teléfono (Dirección, Pagos y las 3 de Fabricación): abrir la app (`sw.js` 150 o más) y entrar como siempre con Google. Desde la
+   **entrada única** (abajo) el teléfono se enciende y entra a Supabase solo; si Google pide un toque, la banda de arriba trae su botón.
+   Ajustes → Supabase dice el área que da la base. La entrada en el iPhone, probada (pendiente de Elías).
 4. La copia de cada 3 horas, cuadrando: Ajustes → Supabase → «cuadró X de los últimos 7 días» en 7.
 
 **El día, en este orden:**
@@ -294,3 +295,23 @@ base ya no da de alta ventas sin cotización (`0026`) y «Datos de la venta» de
    para Dirección; hecha en el paso 6 («Datos de la venta», en «Cobros y abonos»).
 8. ~~Si `alta_venta` se cierra también del lado de la base con la empresa en `'hoja'`.~~ Decidido el 2026-10-25: **sí**; hecho en el paso 6
    (`0026_alta_venta_modo.sql`).
+
+## La entrada única (2026-10-25)
+
+Elías preguntó por qué había que entrar dos veces con Google (la puerta de la app y luego Ajustes → Supabase). La razón: la puerta pide
+a Google un token de **acceso** (el que verifica la hoja) y Supabase pide un token de **identidad** (`signInWithIdToken`); son dos fichas
+distintas del mismo Google, y la segunda solo salía del botón de Ajustes, con el interruptor encendido a mano.
+
+Ahora, al abrir la app con la cuenta de Google de la puerta (`js/app.js`, `conectarLaNube`):
+
+- el interruptor de Supabase se enciende solo en ese aparato, salvo que alguien lo haya apagado ahí a propósito (Ajustes, o la base que
+  retiró el acceso: `al3d_pf_supa_no`), y salvo que se haya entrado con el token de emergencia (sin correo de Google);
+- se le pide a Google el token de identidad **sin botón** (`entrarSinBoton` en `js/nucleo/supa.js`: `prompt()` con `auto_select`, la cuenta
+  de la puerta en `login_hint` y FedCM). Si esa cuenta ya aceptó una vez, entra sin enseñar nada; si no, Google enseña su tarjeta
+  «Continuar como …» de un toque;
+- si Google no la da sola (Safari, la tarjeta cerrada, sin respuesta en 20 s), la banda de arriba de la app trae el botón de Google, con
+  «Ahora no»;
+- una cuenta de Google distinta de la de la puerta no se queda dentro (se sale y se dice).
+
+Con la empresa en «hoja» esto no cambia lo que se guarda ni a dónde: deja a cada teléfono dentro de Supabase y sabiendo quién manda, que es
+lo que lo cambia de lado el día del cambio. Pruebas: `pruebas/supabase-entrada-unica.mjs`.

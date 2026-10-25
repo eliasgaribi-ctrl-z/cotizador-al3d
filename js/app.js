@@ -1783,6 +1783,46 @@ export function pintarBanda(msg) {
   moverBanda(caja, b, true);
 }
 
+/* ----- Una sola entrada (Elías, 2026-10-25: «¿por qué un segundo acceso a Google?») -----
+   Quien pasó la puerta con su cuenta de Google queda también dentro de Supabase, sin ir a Ajustes ni
+   tocar «Encender en este aparato»: aquí se enciende solo y se pide a Google el token de identidad sin
+   botón (js/nucleo/supa.js, `entrarSinBoton`). Si Google necesita un toque, la banda de arriba pone su
+   botón. No pasa nada de esto si se entró con el token de emergencia (sin correo de Google), ni si
+   alguien lo apagó a propósito en este aparato (Ajustes, o la base que retiró el acceso). Con la
+   empresa en «hoja» no cambia lo que se guarda ni a dónde: deja al aparato listo para el día del
+   cambio y le dice quién manda (`mi_acceso`), que es lo que lo cambia de lado ese día. */
+let _nube = null;      // la banda con el botón de Google, mientras haga falta un toque
+async function conectarLaNube() {
+  const Ingreso = await import('./nucleo/ingreso.js');
+  const correo = Ingreso.correo();
+  if (!correo) return;
+  const Supa = await import('./nucleo/supa.js');
+  if (!Supa.encendido()) {
+    if (Supa.apagadoAProposito()) return;
+    Supa.encender(true);
+    Supa.vigilar();
+  }
+  const r = await Supa.entrarSinBoton(correo);
+  if (r.ok || (r.codigo !== 'NECESITA_TOQUE' && r.codigo !== 'OTRA_CUENTA')) return;
+  if (r.codigo === 'OTRA_CUENTA') toast(r.mensaje, 'err', 6000);
+  _nube = () => {
+    const caja = $('pf-nube-google');
+    if (!caja) return;
+    Supa.botonDeGoogle(caja, async res => {
+      if (res.ok && !Supa.esLaMismaPersona(res.acceso && res.acceso.correo, correo)) {
+        await Supa.salir();
+        toast('Esa cuenta de Google no es con la que entraste a la app (' + correo + '). Escoge esa.', 'err', 6000);
+        return;
+      }
+      if (!res.ok) { toast(res.mensaje, 'err', 6000); return; }
+      _nube = null;
+      toast('Listo: este teléfono ya está en la nube', 'ok', 3000);
+      revisarDispositivo();
+    }).catch(() => {});
+  };
+  revisarDispositivo();
+}
+
 /** Lo que la plataforma tiene que decir de este dispositivo antes de que se le pregunte. */
 function revisarDispositivo() {
   const e = DB.estado();
@@ -1804,6 +1844,15 @@ function revisarDispositivo() {
      que puede decir —se entró con el token del aparato y no con una cuenta, el pase se está
      acabando, la copia está rota— cambian en qué condiciones estás trabajando ahora mismo;
      «van 11 días sin respaldo» es importante y puede esperar a la siguiente apertura. */
+  /* La nube pide un toque (`conectarLaNube`, abajo): Google no dio la cuenta sin enseñar nada. El botón lo
+     dibuja Google dentro de la banda; «Ahora no» la quita hasta la siguiente vez que se abra la app. */
+  if (_nube) {
+    pintarBanda({ html: 'Conecta tu cuenta a la nube con un toque: así lo de este teléfono se guarda y se ve en los demás. ' +
+      '<span id="pf-nube-google" class="pf-nube-google"></span>',
+      accion: { label: 'Ahora no', fn: () => { _nube = null; revisarDispositivo(); } } });
+    _nube();
+    return;
+  }
   if (_quien && _quien.nota) {
     pintarBanda({ tono: _quien.via === 'roto' ? 'mal' : '', texto: _quien.nota,
       /* Sin acción para el token de dispositivo: ahí no hay nada que apretar, es el estado
@@ -2108,6 +2157,7 @@ async function arrancar() {
   try {
     if (/"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '')) import('./nucleo/supa.js').then(S => S.vigilar()).catch(() => {});
   } catch (_) { /* sin almacenamiento: apagado */ }
+  conectarLaNube().catch(() => { /* sin red o sin Google: se intenta la siguiente vez que se abra */ });
   /* La sombra (fase 3) y la lectura en vivo (fase 4), con su propio interruptor cada una y solo en
      este aparato: js/datos/supa-enchufe.js. Sin el general Y el de la sombra encendidos, ni se carga. */
   try {
