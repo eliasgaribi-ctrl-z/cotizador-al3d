@@ -25,6 +25,9 @@
  *   · lo raro se pregunta con el botón de peligro (un cobro de más, una venta ya liquidada, un reparto), y el
  *     reparto que se confirma es el que se vio (se recalcula justo antes de preguntar);
  *   · Realtime: un cambio en la base relee los saldos de la pestaña (con la hoja mandando, no).
+ * Y el paso 6: «DATOS DE LA VENTA» (`corregir_venta`: el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación
+ * y el % pactado), solo para Dirección y solo con la base mandando; se manda solo lo que cambió, la pregunta dice cómo quedan el neto,
+ * el saldo y la comisión, y la venta se vuelve a leer justo antes de preguntar (si otro teléfono la cambió en medio, no se manda nada).
  * El mismo dinero contra la base de verdad (PGlite): supabase/tests/pagos/pantalla.mjs.
  *
  * Se corre con pruebas/correr.sh, como todas. */
@@ -32,6 +35,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setMaxListeners } from 'node:events';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -57,6 +61,7 @@ globalThis.document = { activeElement: null };
 /* La ventana como blanco de eventos: el aviso de Realtime (`al3d-base-cambio`) y el del modo (`al3d-modo`). */
 {
   const et = new EventTarget();
+  setMaxListeners(40, et);          // cada escenario carga su propia copia de la pestaña, y cada una oye a la base
   globalThis.addEventListener = et.addEventListener.bind(et);
   globalThis.removeEventListener = et.removeEventListener.bind(et);
   globalThis.dispatchEvent = et.dispatchEvent.bind(et);
@@ -336,9 +341,9 @@ const oAlta = (x = {}) => ({ opId: 'pf-0f1e2d3c-aaaa-bbbb-cccc-123456789abc', ho
 
   const act = (area, alta) => ({ estado: 'activo', area, permisos: alta === undefined ? null : { alta: { alta_venta: alta } } });
   eq('los formularios con la hoja mandando: los cuatro de siempre', PS.formulariosDe({ baseManda: false, acceso: act('pagos', true) }), ['cobro', 'abono', 'reparto', 'correccion']);
-  eq('con la base mandando: más la venta, si la base la deja (Pagos y Dirección en la matriz de 0017)',
-    [PS.formulariosDe({ baseManda: true, acceso: act('pagos', true) }), PS.formulariosDe({ baseManda: true, acceso: act('direccion', true) }).length],
-    [['cobro', 'abono', 'reparto', 'correccion', 'venta'], 5]);
+  eq('con la base mandando: más la venta, si la base la deja (Pagos y Dirección en la matriz de 0017); Dirección, además, los datos de la venta (paso 6)',
+    [PS.formulariosDe({ baseManda: true, acceso: act('pagos', true) }), PS.formulariosDe({ baseManda: true, acceso: act('direccion', true) })],
+    [['cobro', 'abono', 'reparto', 'correccion', 'venta'], ['cobro', 'abono', 'reparto', 'correccion', 'venta', 'datos']]);
   eq('si la base dice que no (alta_venta: false), no', PS.formulariosDe({ baseManda: true, acceso: act('pagos', false) }).includes('venta'), false);
   eq('sin permisos en la respuesta, la regla de la matriz', [PS.puedeDarDeAlta(act('pagos')), PS.puedeDarDeAlta(act('fabricacion')), PS.puedeDarDeAlta({ estado: 'acceso_revocado', area: 'pagos' })], [true, false, false]);
 
@@ -361,6 +366,104 @@ const oAlta = (x = {}) => ({ opId: 'pf-0f1e2d3c-aaaa-bbbb-cccc-123456789abc', ho
 }
 
 /* ============================================================================ */
+console.log('\nLOS DATOS DE LA VENTA (corregir_venta, paso 6: solo Dirección y solo con la base mandando)');
+const VD = { ...V, subtotal: 10000, cuenta: 'Constru BNT', iva: true, fechaLiquidacion: '', pct: 10 };
+const oD = (x = {}) => ({ opId: 'pf-d1', hoy: '2026-10-25', venta: VD, area: 'direccion', baseManda: true, ...x });
+const cD = x => ({ proyecto: VD.id, ...x });
+{
+  let p = PS.plan('datos', cD({ subtotal: '12,000', nombre: ' Letras Farmacia Guadalajara ' }), oD());
+  eq('va a corregir_venta con SOLO lo que cambió, en valores absolutos', [p.rpc, p.args],
+    ['corregir_venta', { p_proyecto: VD.id, p_cambios: { nombre: 'Letras Farmacia Guadalajara', subtotal: 12000 } }]);
+  eq('con lo de antes y lo de después (lo que se revisa justo antes de preguntar)', [p.antes, p.despues],
+    [{ nombre: 'Letras Farmacia', subtotal: 10000 }, { nombre: 'Letras Farmacia Guadalajara', subtotal: 12000 }]);
+  cierto('la pregunta dice de cuánto a cuánto, y cómo quedan el neto, el saldo y la comisión (la aritmética de la base)',
+    /Subtotal: \$10,000\.00 → \$12,000\.00/.test(p.texto) &&
+    /neto \$13,920\.00 \(era \$11,600\.00\), saldo \$8,120\.00 \(era \$5,800\.00\), comisión \$1,200\.00 \(era \$1,000\.00\)/.test(p.texto));
+  eq('cambia el dinero: se pregunta con el botón de peligro', [p.peligro, p.si, p.titulo], [true, 'Corregir la venta', '¿Corregir V-214?']);
+  p = PS.plan('datos', cD({ nombre: 'Otra' }), oD());
+  eq('solo el nombre: sin peligro (el dinero no cambia)', [p.args.p_cambios, p.peligro], [{ nombre: 'Otra' }, false]);
+  const sin = PS.plan('datos', cD(PS.valoresDeLaVenta(VD)), oD());
+  eq('lo que ya tiene la base no es un cambio: no sale nada', [sin.ok, sin.sinCambios, sin.errores.cambios], [false, true, 'No cambiaste nada: la base ya tiene esos datos.']);
+  eq('cada campo arranca con lo de la base, como lo escribe el formulario', PS.valoresDeLaVenta(VD),
+    { nombre: 'Letras Farmacia', subtotal: '10000.00', cuenta: 'Constru BNT', estatus: 'COBRANDO', iva: 'si', fliq: '', pct: '10' });
+  eq('sin tocar nada, tampoco', PS.plan('datos', cD({}), oD()).sinCambios, true);
+  p = PS.plan('datos', cD({ cuenta: 'Elias BBVA' }), oD());
+  eq('la cuenta que no factura: el IVA pasa a «sin IVA» porque lo pone la cuenta (no se manda: lo hace la base), y el neto lo dice',
+    [p.args.p_cambios, /IVA: con IVA → sin IVA \(lo pone la cuenta\)/.test(p.texto), /neto \$10,000\.00 \(era \$11,600\.00\)/.test(p.texto)],
+    [{ cuenta: 'Elias BBVA' }, true, true]);
+  eq('el IVA a mano en una venta que NO está liquidada: no (la base lo rechazaría)', PS.plan('datos', cD({ iva: 'no' }), oD()).errores.iva,
+    'El IVA lo pone la cuenta (Elias BBVA va sin IVA; las demás, con IVA). A mano, solo en una venta LIQUIDADA.');
+  p = PS.plan('datos', cD({ iva: 'no', estatus: 'LIQUIDADO' }), oD());
+  eq('liquidándola en la misma corrección, sí', [p.ok, p.args.p_cambios], [true, { estatus: 'LIQUIDADO', iva: false }]);
+  cierto('y avisa que queda LIQUIDADA con saldo', /queda LIQUIDADA con un saldo de \$4,200\.00/.test(p.texto));
+  p = PS.plan('datos', cD({ subtotal: '1000' }), oD());
+  cierto('bajar el subtotal por debajo de lo cobrado: OJO, cobrada de más (neto $1,160 − anticipo $5,800)', /cobrada de más por \$4,640\.00/.test(p.texto));
+  cierto('y por debajo de lo que ya se abonó de comisión: OJO, pagada de más', /ya se abonaron \$200\.00 .* quedaría pagada de más por \$100\.00/.test(p.texto));
+  p = PS.plan('datos', cD({ pct: '12.5', fliq: '2026-10-20' }), oD());
+  eq('el % pactado y la fecha de liquidación', p.args.p_cambios, { fecha_liquidacion: '2026-10-20', pct_comision: 12.5 });
+  cierto('el % se dice informativo (la comisión es el 10 % del subtotal)', /informativo/.test(p.texto) && !p.peligro);
+  eq('vaciar el % es null (sin porcentaje)', PS.plan('datos', cD({ pct: '' }), oD()).args.p_cambios, { pct_comision: null });
+  eq('una venta sin fecha de liquidación que se deja sin fecha: nada', PS.plan('datos', cD({ fliq: '' }), oD()).sinCambios, true);
+  eq('subtotal en cero sí (valor absoluto)', PS.plan('datos', cD({ subtotal: '0' }), oD()).args.p_cambios, { subtotal: 0 });
+  const errs = x => { const r = PS.plan('datos', cD(x), oD()); return r.ok ? 'ok' : Object.keys(r.errores); };
+  eq('nombre vacío; subtotal NaN, negativo, con tres decimales, «1e9» o vacío; cuenta que no existe o vacía; estatus raro; % de 101 o con letras; fecha futura',
+    [errs({ nombre: ' ' }), errs({ subtotal: 'NaN' }), errs({ subtotal: '-5' }), errs({ subtotal: '1.234' }), errs({ subtotal: '1e9' }), errs({ subtotal: '' }),
+     errs({ cuenta: 'BBVA' }), errs({ cuenta: '' }), errs({ estatus: 'PAGADO' }), errs({ pct: '101' }), errs({ pct: 'diez' }), errs({ fliq: '2026-10-26' })],
+    [['nombre'], ['subtotal'], ['subtotal'], ['subtotal'], ['subtotal'], ['subtotal'], ['cuenta'], ['cuenta'], ['estatus'], ['pct'], ['pct'], ['fliq']]);
+  eq('una venta histórica sin cuenta que se deja sin cuenta: nada que corregir', PS.plan('datos', cD({ cuenta: '' }), oD({ venta: { ...VD, cuenta: '' } })).sinCambios, true);
+  eq('el % pactado: 0 a 100 con dos decimales; vacío es sin porcentaje',
+    ['10', '12.5', ' 7 % ', '', '100', '100.01', '-1', '1.234'].map(x => { const r = PS.leerPorcentaje(x); return r.ok ? r.valor : 'no'; }),
+    [10, 12.5, 7, null, 100, 'no', 'no', 'no']);
+  eq('con la HOJA mandando, no (la copia de cada 3 horas pondría otra vez lo de allá)',
+    /^Con la hoja mandando, una venta se corrige en la hoja/.test(PS.plan('datos', cD({ nombre: 'x' }), oD({ baseManda: false })).errores.tipo), true);
+  eq('Pagos no (decidido por Elías el 2026-10-25: solo Dirección)', PS.plan('datos', cD({ nombre: 'x' }), oD({ area: 'pagos' })).errores.tipo,
+    'Corregir los datos de una venta es de Dirección.');
+  eq('sin venta elegida, no', PS.plan('datos', { nombre: 'x' }, oD({ venta: null })).errores.proyecto, 'Elige la venta.');
+
+  const actD = (area, deja, estado = 'activo') => ({ estado, area, permisos: deja === undefined ? null : { alta: { alta_venta: true }, corregir_venta: deja } });
+  eq('el formulario: con la base mandando y solo para Dirección (ni Pagos, ni con la hoja, ni con el acceso retirado)',
+    [PS.formulariosDe({ baseManda: true, acceso: actD('direccion') }).includes('datos'), PS.formulariosDe({ baseManda: true, acceso: actD('pagos') }).includes('datos'),
+     PS.formulariosDe({ baseManda: false, acceso: actD('direccion') }).includes('datos'), PS.puedeCorregirLaVenta(actD('direccion', undefined, 'acceso_revocado'))],
+    [true, false, false, false]);
+  const sql17 = leer('supabase/migrations/0017_decisiones_elias.sql');
+  const matriz = JSON.parse(/select '(\{[\s\S]*?\})'::jsonb/.exec(sql17)[1]);
+  eq('lo que corrige el formulario lo deja la matriz de la base a Dirección (0017), y la mira: sin «subtotal» en su lista, no hay formulario',
+    [Object.values(PS.CAMPOS_DE_LA_VENTA).every(k => matriz.direccion.corregir_venta.includes(k)), PS.puedeCorregirLaVenta(actD('direccion', matriz.direccion.corregir_venta)),
+     PS.puedeCorregirLaVenta(actD('direccion', ['nombre']))], [true, true, false]);
+  cierto('la base también se lo deja a Pagos: «solo Dirección» lo cumple la pantalla (decisión de Elías; dicho en docs/BASE-MANDA.md)',
+    matriz.pagos.corregir_venta.includes('subtotal') && PS.SOLO_CON_LA_BASE.includes('datos'));
+
+  const p1 = PS.plan('datos', cD({ subtotal: '12000' }), oD());
+  const otraVez = venta => PS.plan('datos', cD({ subtotal: '12000' }), oD({ venta }));
+  eq('justo antes de preguntar: la venta no cambió → seguir', PS.correccionAlDia(p1, otraVez(VD)), 'seguir');
+  eq('otro teléfono cambió OTRO campo (el nombre): seguir (ese no se manda)', PS.correccionAlDia(p1, otraVez({ ...VD, nombre: 'Otro nombre' })), 'seguir');
+  eq('otro teléfono cambió el MISMO campo en medio: no se manda', PS.correccionAlDia(p1, otraVez({ ...VD, subtotal: 11000, neto: 12760 })), 'cambio');
+  eq('la base ya tiene el subtotal nuevo (el envío anterior llegó): ya_estaba, no se manda', PS.correccionAlDia(p1, otraVez({ ...VD, subtotal: 12000 })), 'ya_estaba');
+  eq('la venta ya no está: no se manda', PS.correccionAlDia(p1, otraVez(null)), 'cambio');
+
+  const pr = PS.plan('datos', cD({ subtotal: '12000', cuenta: 'Elias BBVA' }), oD());
+  eq('el resumen dice lo que quedó en la base (y el IVA que puso la cuenta)',
+    PS.resumen(pr, { ok: true, escritos: ['subtotal', 'cuenta'], rechazadas: [], venta: { subtotal: 12000, cuenta: 'Elias BBVA', iva: false } }, VD),
+    'Venta V-214 corregida: subtotal $12,000.00, cuenta Elias BBVA, sin IVA. Queda en la bitácora de la base con lo de antes.');
+  eq('y lo que la base no aceptó, con su porqué (corregir_venta no aborta el resto)',
+    PS.resumen(pr, { ok: true, escritos: ['subtotal'], rechazadas: [{ nombre: 'iva', por: 'la cuenta dicta el IVA' }], venta: { subtotal: 12000 } }, VD),
+    'Venta V-214 corregida: subtotal $12,000.00. No se cambió: IVA (la cuenta dicta el IVA). Queda en la bitácora de la base con lo de antes.');
+  eq('el anticipo (el de siempre) conserva su resumen', PS.resumen(PS.plan('cobro', { modo: 'anticipo', proyecto: V.id, monto: '6000' }, { opId: 'x', venta: V }),
+    { ok: true, escritos: ['anticipo'], venta: { anticipo: 6000 } }, V), 'Anticipo de V-214: $6,000.00.');
+
+  llamadas.length = 0;
+  ESC = { from: () => ({ data: [
+    { proyecto_id: 'p1', a_folio: 'V-9', b_proyecto: 'Nueve', d_cuenta: 'Rul HSBC', f_iva: false, g_subtotal: '1500.5', n_fecha_liquidacion: new Date(Date.UTC(2026, 9, 20)), pct_comision: '15' },
+    { proyecto_id: 'p2', a_folio: 'V-8', b_proyecto: 'Ocho', n_fecha_liquidacion: '2026-10-01', pct_comision: null },
+  ], error: null }) };
+  const lv = await PS.leerVentas(doble);
+  cierto('las ventas piden también la cuenta, el IVA, el subtotal, la fecha de liquidación y el %',
+    /d_cuenta/.test(llamadas[0][2]) && /f_iva/.test(llamadas[0][2]) && /g_subtotal/.test(llamadas[0][2]) && /n_fecha_liquidacion/.test(llamadas[0][2]) && /pct_comision/.test(llamadas[0][2]));
+  eq('y los traen (una fecha como texto o como Date; sin %, null)', lv.ventas.map(x => [x.cuenta, x.iva, x.subtotal, x.fechaLiquidacion, x.pct]),
+    [['Rul HSBC', false, 1500.5, '2026-10-20', 15], ['', true, 0, '2026-10-01', null]]);
+}
+
+/* ============================================================================ */
 console.log('\nQUIÉN VE LOS FORMULARIOS');
 {
   const q = PS.queMostrar;
@@ -379,7 +482,7 @@ console.log('\nQUIÉN VE LOS FORMULARIOS');
 const _abiertas = [];
 /* `modo`: lo que dice la base de quién manda ('hoja' o 'base'; sin decirlo, como antes de 0024). `alta`: lo que dice la
    matriz de `alta_venta` para esa área (sin decirlo, sin permisos en la respuesta). */
-async function pestana(nombre, { rolLocal, sesion, area, modo, alta }) {
+async function pestana(nombre, { rolLocal, sesion, area, modo, alta, borrador }) {
   for (const x of _abiertas.splice(0)) x.soltar();                 // la pestaña de antes se fue (ya no oye a la base)
   globalThis.localStorage.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
   if (modo) globalThis.localStorage.setItem('al3d_pf_supa_modo', JSON.stringify({ modo, area }));
@@ -387,13 +490,16 @@ async function pestana(nombre, { rolLocal, sesion, area, modo, alta }) {
   const permisos = alta === undefined ? undefined : { alta: { alta_venta: alta } };
   Prefs.setRol(rolLocal);
   globalThis.sessionStorage.clear();
+  /* `borrador`: lo que la pestaña tenía escrito (y en qué formulario estaba), como si se volviera a ella. */
+  if (borrador) globalThis.sessionStorage.setItem(PS.CLAVE_BORRADOR, JSON.stringify(borrador));
   llamadas.length = 0;
   ESC = {
     sesion,
     rpc: n => (n === 'mi_acceso' ? { data: { ok: true, estado: 'activo', usuario: { correo: 'quien@al3d.mx' }, empresas: [{ empresa_id: 'al3d', area, estado: 'activo' }],
       ...(modo ? { modo } : {}), ...(permisos ? { permisos } : {}) }, error: null }
       : { data: { ok: true }, error: null }),
-    from: () => ({ data: [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600 }], error: null }),
+    from: () => ({ data: [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600,
+      d_cuenta: 'Constru BNT', f_iva: true, g_subtotal: 10000, pct_comision: 10 }], error: null }),
   };
   const M = await import('../js/mod/pagos-supa.js?' + nombre);
   _abiertas.push(M);
@@ -474,6 +580,21 @@ console.log('\nCON LA BASE MANDANDO: «COBROS Y ABONOS» (paso 5)');
 
   r = await pestana('basedir', { rolLocal: 'direccion', sesion: true, area: 'direccion', modo: 'base', alta: true });
   cierto('Dirección también ve la venta sin cotización', /Venta sin cotización/.test(r.html));
+  cierto('y SOLO ella, «Datos de la venta» (paso 6)', /data-pg-form="datos"/.test(r.html) && />Datos de la venta</.test(r.html));
+
+  /* «Datos de la venta» abierto, con una venta elegida y el subtotal ya tecleado (el borrador de la pestaña). */
+  const enDatos = { _form: 'datos', datos: { opId: 'pf-d9', campos: { proyecto: 'p1', subtotal: '12000' } } };
+  r = await pestana('basedirdatos', { rolLocal: 'direccion', sesion: true, area: 'direccion', modo: 'base', alta: true, borrador: enDatos });
+  cierto('Dirección: el formulario con la venta, lo que tiene la base y lo tecleado',
+    /data-pg-tipo="datos"/.test(r.html) && r.html.includes('V-214 · Letras Farmacia — subtotal $10,000.00 · Constru BNT') &&
+    r.html.includes('En la base: subtotal $10,000.00 · con IVA · neto $11,600.00 · cuenta Constru BNT') &&
+    /id="pg-datos-subtotal"[^>]*value="12000"/.test(r.html) && /id="pg-datos-nombre"[^>]*value="Letras Farmacia"/.test(r.html) &&
+    /<option value="Constru BNT" selected>/.test(r.html) && /Corregir la venta…/.test(r.html));
+  eq('abrirlo no escribe nada: quién es y las ventas', r.llamadas.map(x => x[0] + ':' + x[1]), ['rpc:mi_acceso', 'from:ventas_calculadas']);
+  r = await pestana('basepagdatos', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'base', alta: true, borrador: enDatos });
+  cierto('Pagos con ese mismo borrador: no hay «Datos de la venta» y cae en «Cobro o anticipo»', !/Datos de la venta/.test(r.html) && /data-pg-tipo="cobro"/.test(r.html));
+  r = await pestana('hojadirdatos', { rolLocal: 'direccion', sesion: true, area: 'direccion', modo: 'hoja', alta: true, borrador: enDatos });
+  cierto('con la HOJA mandando, ni Dirección lo tiene (se corrige en la hoja)', !/Datos de la venta/.test(r.html) && /data-pg-tipo="cobro"/.test(r.html));
 
   r = await pestana('basefab', { rolLocal: 'pagos', sesion: true, area: 'fabricacion', modo: 'base', alta: false });
   cierto('Fabricación según la base, con la base mandando: ni formularios ni importes', !/pg-form/.test(r.html) && !/\$\d/.test(r.html));
@@ -575,6 +696,21 @@ console.log('\nDOBLE ENVÍO Y CONFIRMACIÓN (la pantalla)');
     /if \(_enBase\) avisarPantallas\(\);/.test(sinComentarios(leer('js/datos/supa-enchufe.js'))));
   cierto('y no relee mientras alguien escribe o se manda algo: espera a que suelte el campo', /if \(_enviando \|\| _preparando \|\| _cargando \|\| escribiendo\) \{ _releer = true; return; \}/.test(m) &&
     /addEventListener\('focusout', \(\) => \{ if \(_releer\) setTimeout\(alCambiarLaBase, 0\); \}\)/.test(m));
+  /* Paso 6: «Datos de la venta». */
+  cierto('la corrección de una venta se revisa contra la base JUSTO antes de preguntar (también en el reintento), y la de ahora es la que se manda',
+    i("if (tipo === 'datos') {") > i('repartoAlDia(form, c.monto)') && i('const q = await datosAlDia(c, p);') < i('confirmarPf({ titulo: p.titulo') &&
+    /if \(!q\) return;\n\s*p = q;/.test(t));
+  const da = /async function datosAlDia[\s\S]*?\n\}/.exec(m);
+  cierto('datosAlDia relee las ventas, decide con PS.correccionAlDia y NUNCA manda: sin poder leer, no se pregunta', !!da &&
+    /await leerVentas\(Supa\)/.test(da[0]) && /PS\.correccionAlDia\(p, q\)/.test(da[0]) && !/PS\.enviar/.test(da[0]) && /if \(!leida\) \{/.test(da[0]) &&
+    /_preparando = true;/.test(da[0]) && /finally \{ _preparando = false; \}/.test(da[0]));
+  cierto('cada armado del plan usa la venta de AHORA (no la de cuando se tocó el botón)', /venta: venta\(c\.proyecto\), area: _acceso && _acceso\.area, vistaPrevia: _vp/.test(t));
+  cierto('una corrección sin respuesta que la base ya tiene, sí llegó (no se manda otra vez)', /if \(tipo === 'datos' && !p\.ok && p\.sinCambios && b\.incierto\) \{ yaEstaba\(c, true\); return; \}/.test(t));
+  cierto('confirmada: la línea de este teléfono en la bitácora, la venta sigue elegida y la app se sincroniza',
+    /if \(r\.ok && tipo === 'datos'\) \{ borradores\(\)\.datos\.campos\.proyecto = c\.proyecto; anotarCorreccion\(p, v\); \}/.test(t) &&
+    /if \(tipo === 'datos' && _sincronizar\)/.test(t) && /B\.anotar\(\{ accion: 'cambio', entidad: 'proyecto'/.test(m));
+  cierto('elegir otra venta deja los campos con lo que tiene la base de esa venta', /if \(tipo === 'datos' && k === 'proyecto'\) \{/.test(m) &&
+    /borradores\(\)\.datos\.campos = \{ proyecto: t\.value \};/.test(m));
 }
 
 /* ============================================================================ */

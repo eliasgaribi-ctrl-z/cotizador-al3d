@@ -649,3 +649,17 @@ docs/BASE-MANDA.md, «Paso 5».
 | La venta sin cotización (`alta_venta`, `0006`): el V-### de la base, idempotente por su id (sale del op_id del formulario), solo con la base mandando y solo si la matriz lo deja (Dirección y Pagos) | hecho y verificado en node y en PGlite | `pruebas/pagos-supa.mjs`; PA-04 |
 | Los textos que decían «la hoja» con la base mandando: el candado del rol, el glifo de sincronización, el récord, los gastos y las comisiones de Control | hecho y verificado en node | `pruebas/pagos-supa.mjs`, `pruebas/pf-esqueleto.mjs` |
 | Probarlo en un navegador y contra `al3d-produccion` | **no hecho**: hace falta la app publicada (`sw.js` 148) y la empresa en `'base'` | — |
+
+## «La base manda», paso 6: lo que decidió Elías del paso 5 (2026-10-25, sin publicar)
+
+Rama `claude/base-manda-6`, sobre el paso 5 (#173). Las tres decisiones de Elías de ese día: la base también se niega a dar de alta una venta sin
+cotización con la hoja mandando; Dirección corrige una venta desde una pantalla; «Repartir un depósito» se queda como está. El sello de los QR se
+queda en el Apps Script. El detalle y lo que hace falta en producción: docs/BASE-MANDA.md, «Paso 6» (y «Paso 7», la lista del día del cambio).
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `0026_alta_venta_modo.sql`: `alta_venta` con la empresa en `'hoja'` → `DATO_INVALIDO` definitivo, sin escribir nada ni gastar un V-###; con `'base'`, igual que en `0006`. El área y la validación van antes; «ya existía» también. Ninguna función nueva (las listas de la auditoría no cambian). La copia de cada 3 horas no la usa | hecho y verificado en PGlite; sin aplicar | `supabase/tests/acceso/modo.mjs` (MO-05 a MO-07); las pruebas que la usaban para sembrar, ahora con la base mandando |
+| La prueba de humo: siembra con la empresa en `'base'` dentro de su transacción y comprueba la negativa con la hoja (E01–E02): 65 casos, 81 con `storage.sql` | hecho y verificado en PGlite | `supabase/tests/humo/prueba-de-humo.mjs` |
+| «Datos de la venta» (Control → «Cobros y abonos», solo Dirección, solo con la base mandando): el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación y el % pactado por `corregir_venta` (`0007`, sin migración nueva); solo lo que cambió, la pregunta con el neto, el saldo y la comisión, la venta releída justo antes de preguntar, la línea de dinero en la bitácora de la base y otra en la del teléfono | hecho y verificado en node y en PGlite | `pruebas/pagos-supa.mjs`; `supabase/tests/pagos/pantalla.mjs` (PA-07) |
+| «Repartir un depósito»: sin cambios (decisión de Elías) | — | — |
+| Aplicar `0026` en `al3d-pruebas` y `al3d-produccion` (iguales hasta `0025`), la prueba de humo, y publicar la app (`sw.js` 149) | **no hecho** | — |

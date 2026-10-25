@@ -1665,7 +1665,7 @@ Todas `SECURITY DEFINER`, `set search_path = ''`, `REVOKE … FROM PUBLIC, anon`
 | 6 | `version_contrato` | `() returns jsonb` | sesión | lectura |
 | 7 | `ganar_proyecto` | `(p_op jsonb, p_empresa text default null)` | Dirección | `id` y `folio_global` únicos |
 | 8 | `descartar_cotizacion` | `(p_op jsonb, p_empresa text default null)` | Dirección | `folio_global` único |
-| 9 | `alta_venta` | `(p_op jsonb, p_empresa text default null)` | Dirección, Pagos | `id` único |
+| 9 | `alta_venta` | `(p_op jsonb, p_empresa text default null)` | Dirección, Pagos; **desde `0026`, solo con la empresa en modo `'base'`** | `id` único |
 | 10 | `proyecto_actualizar` | `(p_op jsonb, p_empresa text default null)` | Dirección, Fabricación, Pagos (por campo) | sello: empate escribe el mismo valor |
 | 11 | `mover_etapa` | `(p_proyecto text, p_etapa text, p_sello bigint default null, p_motivo text default '', p_empresa text default null)` | Dirección; Fabricación solo `ganado…listo` en origen **y** destino. **Desde `0017` (Q-05, Elías, 2026-10-16): los tres roles, cualquier etapa menos `cancelado`, que es solo de Dirección (en origen y en destino)** | misma etapa = sin cambio |
 | 12 | `instalacion_guardar` | `(p_op jsonb, p_empresa text default null)` | Dirección, Fabricación | `id` único + una viva por proyecto |
@@ -2491,7 +2491,7 @@ interno.limpiar_cotizacion(c jsonb) -> jsonb                              -- `li
 | `version_contrato` | ninguno |
 | `ganar_proyecto` | `DATO_INVALIDO` (id, folio, nombre, subtotal, cuenta, estatus, anticipo); `DUPLICADO` (la cotización ya es **otro** proyecto: reintento del mismo `id` = `ya_existia`) |
 | `descartar_cotizacion` | `DATO_INVALIDO`; `DUPLICADO` (ya es un proyecto con otro `id`) |
-| `alta_venta` | `DATO_INVALIDO` (nombre, cuenta, subtotal, anticipo, teléfono < 10 dígitos o entrega ausentes) |
+| `alta_venta` | `DATO_INVALIDO` (nombre, cuenta, subtotal, anticipo, teléfono < 10 dígitos o entrega ausentes; **desde `0026`**, también con la empresa en modo `'hoja'`: la venta sin cotización se registra en la hoja) |
 | `proyecto_actualizar` | `NO_ENCONTRADO`; `DATO_INVALIDO` (op mal formada o **sin sello** para un grupo sellado, `Q-A05`) |
 | `mover_etapa` | `NO_ENCONTRADO`; `DATO_INVALIDO` (etapa fuera de las 8, sin `p_sello`, lápida `Q-A23`); `ROL_SIN_PERMISO` (tabla rol × origen × destino de §5.6) |
 | `instalacion_guardar` | `NO_ENCONTRADO` (proyecto); `DATO_INVALIDO` (proyecto cancelado, fecha, hora, ventana, duración, estado o sello ausente); `ROL_SIN_PERMISO` (Pagos) |

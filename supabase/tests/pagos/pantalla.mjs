@@ -12,6 +12,9 @@
 //          confirmada (Dirección), el reintento es la MISMA venta (mismo folio, una fila) y aparece en las ventas de la pantalla con su saldo
 //   PA-05  Fabricación: la pantalla no le lee ni una venta y la base le niega cada llamada, como error SEGURO (nada se registró)
 //   PA-06  Realtime: las tablas de las que sale el saldo (proyectos, ventas_dinero, abonos) están publicadas: otro teléfono se entera
+//   PA-07  «Datos de la venta» (paso 6, solo Dirección): `corregir_venta` con solo lo que cambió; la base queda como dijo la pregunta (neto, saldo,
+//          comisión, el IVA que pone la cuenta), con UNA línea de nivel dinero con lo de antes; mandarlo otra vez no escribe otra; si otro teléfono
+//          corrige el mismo campo en medio, la revisión de antes de preguntar lo ve; el IVA a mano, solo en una venta LIQUIDADA
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sesionDe, llamar, sql, una, conCopia, crearVenta } from '../comun/semilla.js';
 import * as PS from '../../../js/datos/pagos-supa.js';
@@ -187,6 +190,7 @@ describir('PA-05 Fabricación no ve ni mueve dinero', () => {
       PS.plan('abono', { proyecto: 'v210', monto: '100' }, { opId: 'pf-f2', hoy, venta: v }),
       PS.plan('cobro', { modo: 'anticipo', proyecto: 'v210', monto: '1' }, { opId: 'pf-f3', venta: v }),
       PS.plan('venta', ALTA_FAB, { opId: 'pf-f4', hoy, baseManda: true, ahora: Date.now() }),
+      PS.plan('datos', { proyecto: 'v210', subtotal: '1' }, { opId: 'pf-f5', hoy, venta: v, baseManda: true }),
     ];
     for (const p of planes) {
       cierto(p.ok, 'la capa pura arma el plan (sin área no lo frena: la base decide)');
@@ -200,6 +204,68 @@ describir('PA-05 Fabricación no ve ni mueve dinero', () => {
     igual([d.l, d.a, (await una(db, 'select count(*)::int as n from public.abonos')).n, (await una(db, "select count(*)::int as n from public.proyectos where fuente = 'manual'")).n], [0, 5000, 0, 0]);
   }));
 });
+describir('PA-07 «Datos de la venta»: Dirección corrige una venta (paso 6)', () => {
+  const oDir = async (db, v, x = {}) => ({ opId: PS.nuevoOpId(), hoy: await HOY(db), venta: v, area: 'direccion', baseManda: true, ...x });
+  const lineas = db => sql(db, "select nivel, titulo, detalle, antes, despues from public.bitacora where entidad = 'venta' and entidad_id = 'v210' and accion = 'cambio' order by id");
+  prueba('nombre, subtotal y cuenta: la base queda como dijo la pregunta, con UNA línea de dinero con lo de antes; otra vez, lo mismo y ninguna línea más', async () => conCopia(plantilla, async db => {
+    const c = quien(db, 'dir');
+    const v = await ventaDe(c, 'V-210');
+    igual([v.nombre, v.subtotal, v.cuenta, v.iva, v.fechaLiquidacion, v.pct], ['Proyecto V-210', 10000, 'Constru BNT', true, '', null], 'la pantalla lee lo que corrige');
+    const campos = { proyecto: 'v210', nombre: 'Letras Farmacia Centro', subtotal: '12,000', cuenta: 'Elias BBVA', estatus: 'COBRANDO' };
+    const p = PS.plan('datos', campos, await oDir(db, v));
+    igual(p.args.p_cambios, { nombre: 'Letras Farmacia Centro', subtotal: 12000, cuenta: 'Elias BBVA' }, 'solo lo que cambió (el estatus es el mismo)');
+    cierto(/IVA: con IVA → sin IVA \(lo pone la cuenta\)/.test(p.texto) && /neto \$12,000\.00 \(era \$11,600\.00\), saldo \$7,000\.00 \(era \$6,600\.00\), comisión \$1,200\.00 \(era \$1,000\.00\)/.test(p.texto), p.texto);
+    const r1 = await PS.enviar(c, p);
+    igual([r1.ok, [...r1.data.escritos].sort()], [true, ['cuenta', 'nombre', 'subtotal']]);
+    const w = await ventaDe(c, 'V-210');
+    igual([w.nombre, w.subtotal, w.cuenta, w.iva, w.neto, w.saldo, w.comision], ['Letras Farmacia Centro', 12000, 'Elias BBVA', false, 12000, 7000, 1200], 'lo que dijo la pregunta');
+    const b = await lineas(db);
+    igual(b.length, 1, 'una línea');
+    igual([b[0].nivel, b[0].titulo, b[0].antes, b[0].despues], ['dinero', 'Se corrigió V-210',
+      { nombre: 'Proyecto V-210', subtotal: 10000, cuenta: 'Constru BNT', iva: true }, { nombre: 'Letras Farmacia Centro', subtotal: 12000, cuenta: 'Elias BBVA', iva: false }],
+      'nivel dinero, con lo de antes y lo de después de cada campo que cambió (el IVA también)');
+    cierto(/^Venta V-210 corregida: .*cuenta Elias BBVA.*subtotal \$12,000\.00.*sin IVA\. Queda en la bitácora de la base con lo de antes\.$/.test(PS.resumen(p, r1.data, v)), PS.resumen(p, r1.data, v));
+    const r2 = await PS.enviar(c, p);
+    igual([r2.ok, (await lineas(db)).length, (await ventaDe(c, 'V-210')).subtotal], [true, 1, 12000], 'el reintento: lo mismo, sin otra línea');
+    igual(PS.correccionAlDia(p, PS.plan('datos', campos, await oDir(db, w))), 'ya_estaba', 'y la revisión de antes de preguntar dice que ya está');
+  }));
+  prueba('si otro teléfono corrige el MISMO campo en medio, la revisión de antes de preguntar lo ve (y lo del otro se queda); otro campo, no estorba', async () => conCopia(plantilla, async db => {
+    const c = quien(db, 'dir'), otro = quien(db, 'pag');
+    const v = await ventaDe(c, 'V-210');
+    const campos = { proyecto: 'v210', subtotal: '12000' };
+    const p = PS.plan('datos', campos, await oDir(db, v));
+    igual((await PS.enviar(otro, { rpc: 'corregir_venta', args: { p_proyecto: 'v210', p_cambios: { nombre: 'Otro nombre' } } })).ok, true);
+    igual(PS.correccionAlDia(p, PS.plan('datos', campos, await oDir(db, await ventaDe(c, 'V-210')))), 'seguir', 'el nombre cambió: no estorba (no se manda)');
+    /* Pagos lo puede por la base (la matriz de 0017 se lo deja): «solo Dirección» es de la pantalla. */
+    igual((await PS.enviar(otro, { rpc: 'corregir_venta', args: { p_proyecto: 'v210', p_cambios: { subtotal: 11000 } } })).ok, true);
+    igual(PS.correccionAlDia(p, PS.plan('datos', campos, await oDir(db, await ventaDe(c, 'V-210')))), 'cambio', 'el subtotal cambió en medio: no se manda');
+    igual((await ventaDe(c, 'V-210')).subtotal, 11000, 'y lo del otro se queda');
+  }));
+  prueba('el IVA a mano: en una venta LIQUIDADA la base lo acepta (y la pregunta avisa del cobro de más); en una que no, ni sale (y la base lo rechaza: nada escrito)', async () => conCopia(plantilla, async db => {
+    const c = quien(db, 'dir');
+    const v = await ventaDe(c, 'V-205');
+    const p = PS.plan('datos', { proyecto: 'v205', iva: 'no' }, await oDir(db, v));
+    cierto(p.ok && /cobrada de más por \$320\.00/.test(p.texto), p.texto || JSON.stringify(p.errores));
+    igual((await PS.enviar(c, p)).ok, true);
+    const w = await ventaDe(c, 'V-205');
+    igual([w.iva, w.neto, w.saldo], [false, 2000, -320]);
+    igual(Object.keys(PS.plan('datos', { proyecto: 'v210', iva: 'no' }, await oDir(db, await ventaDe(c, 'V-210'))).errores), ['iva'], 'la pantalla no lo manda');
+    const r = await PS.enviar(c, { rpc: 'corregir_venta', args: { p_proyecto: 'v210', p_cambios: { iva: false } } });
+    igual([r.ok, r.incierto, r.codigo], [false, false, 'RECHAZADO'], 'y la base tampoco lo deja: seguro, nada se registró');
+    igual((await ventaDe(c, 'V-210')).iva, true);
+  }));
+  prueba('el estatus, la fecha de liquidación y el % pactado', async () => conCopia(plantilla, async db => {
+    const c = quien(db, 'dir'), hoy = await HOY(db);
+    const p = PS.plan('datos', { proyecto: 'v210', estatus: 'LIQUIDADO', fliq: hoy, pct: '12.5' }, await oDir(db, await ventaDe(c, 'V-210')));
+    igual(p.args.p_cambios, { estatus: 'LIQUIDADO', fecha_liquidacion: hoy, pct_comision: 12.5 });
+    cierto(/queda LIQUIDADA con un saldo de \$6,600\.00/.test(p.texto), 'avisa del saldo');
+    igual((await PS.enviar(c, p)).ok, true);
+    const w = await ventaDe(c, 'V-210');
+    igual([w.estatus, w.fechaLiquidacion, w.pct], ['LIQUIDADO', hoy, 12.5]);
+    igual(PS.plan('datos', { proyecto: 'v210', ...PS.valoresDeLaVenta(w) }, await oDir(db, w)).sinCambios, true, 'lo que la pantalla lee de vuelta es lo que se mandó');
+  }));
+});
+
 describir('PA-06 Realtime: otro teléfono se entera del saldo', () => {
   prueba('proyectos, ventas_dinero y abonos están en la publicación supabase_realtime (la pantalla relee al aviso)', async () => {
     const db = await plantilla();

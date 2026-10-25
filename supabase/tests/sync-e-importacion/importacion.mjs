@@ -10,7 +10,7 @@
 // IM-01, IM-03, IM-04, IM-09, IM-10 (hoja de mentiras, celdas sucias, clasificación, ruta de reportes, «Accesos») son del script y NO están verificados.
 import { createHmac } from 'node:crypto';
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, sesionDe, llamar, una, sql, conCopia, como } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, sesionDe, llamar, una, sql, conCopia, como, conLaBaseMandando } from '../comun/semilla.js';
 import { CLAVE_DEL_MAPA } from '../comun/notario.js';
 import * as Sello from '../../functions/_shared/sello.js';
 
@@ -219,6 +219,7 @@ describir('IM-08 los contadores se siembran por encima de lo que hay', () => {
     igual(Number((await S.rpc('contador_sembrar', { p_empresa: 'al3d', p_clave: 'V', p_minimo: 214 }))[0].contador_sembrar), 999, 'repetir con menos no baja');
     const alta = id => ({ p_op: { id, nombre: 'Venta ' + id, cuenta: 'Moni MPago', tipo_trabajo: ['Rotulacion de vinil'], tel: '33 2222 3333', entrega: 'paqueteria', subtotal: 100, anticipo: 10, sellos: { etapa: AHORA() } } });
     const D = sesionDe(db, db.u.dir, { confirmar: true });
+    await conLaBaseMandando(db);                                       // 0026: alta_venta, solo con la base mandando
     igual([(await llamar(D, 'alta_venta', alta('i1'))).folio_hoja, (await llamar(D, 'alta_venta', alta('i2'))).folio_hoja], ['V-1000', 'V-1001']);
   }));
   prueba('IM-08 P: sembrar con el máximo P-### de «Abonos comisión»; el siguiente reparto es P-(máximo + 1)', () => conCopia(plantilla, async db => {

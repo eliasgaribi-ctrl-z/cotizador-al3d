@@ -6,7 +6,7 @@
 //   · el contador V nunca queda por debajo del folio más alto: lo sube un trigger en `proyectos`, venga el folio de donde venga.
 // La semilla deja V-001 … V-005 y el contador V en 5.
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, llamar, una, sql, conCopia, como, ORIGEN_COMPLETO } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, llamar, una, sql, conCopia, como, conLaBaseMandando, ORIGEN_COMPLETO } from '../comun/semilla.js';
 
 const plantilla = dato(async () => {
   const db = await crearBaseDePruebas();
@@ -81,6 +81,7 @@ describir('el contador V nunca por debajo del folio más alto', () => {
     await como(db, { rol: 'service_role', confirmar: true }).query(`insert into public.proyectos (id, empresa_id, folio_hoja, folio_local, dispositivo, fuente, historica, nombre, etapa, estatus)
                                                                     values ('imp500', 'al3d', 'V-500', 'V-500', 'hoja', 'hoja', false, 'Importada', 'ganado', 'COBRANDO')`);
     igual(await contadorV(db), 500);
+    await conLaBaseMandando(db);                                       // 0026: alta_venta, solo con la base mandando
     const r = await rpc(db, 'dir', 'alta_venta', { p_op: { id: 'a1', nombre: 'Marta - Panadería', cuenta: 'Moni MPago', tipo_trabajo: ['Rotulacion de vinil'], subtotal: 4000, anticipo: 1000,
                                                           tel: '33 2222 3333', entrega: 'paqueteria', sellos: { etapa: Date.now() } } });
     igual([r.ok, r.folio_hoja], [true, 'V-501']);

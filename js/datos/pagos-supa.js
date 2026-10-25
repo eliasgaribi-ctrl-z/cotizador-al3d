@@ -28,7 +28,17 @@
    la hoja): la base le da el V-### de su contador. Solo con la base mandando —con la hoja mandando habría
    dos contadores de V-###, el de la hoja y el de la base—, solo Dirección y Pagos (la matriz de 0017,
    `alta.alta_venta`), e idempotente por su id, que nace del op_id del formulario: reintentar una alta que
-   sí llegó contesta «ya existía» con el MISMO folio.
+   sí llegó contesta «ya existía» con el MISMO folio. Desde 0026 la base también se niega con la hoja mandando.
+
+   Y en el paso 6, CORREGIR LOS DATOS DE UNA VENTA («Datos de la venta»: el nombre, el subtotal, la cuenta, el
+   estatus, la fecha de liquidación, el % pactado y el IVA), que hasta aquí solo se podía desde el Editor SQL.
+   Con la función de siempre (`corregir_venta`, 0007: valores ABSOLUTOS, una línea de nivel dinero en la
+   bitácora con lo de antes y lo de después de cada campo que cambió). Solo Dirección (decidido por Elías el
+   2026-10-25, aunque la matriz de la base también se lo deja a Pagos) y solo con la base mandando (con la hoja,
+   la copia de cada 3 horas pondría otra vez lo de allá). Se manda solo lo que cambió; la pregunta dice de
+   cuánto a cuánto y cómo quedan el neto, el saldo y la comisión. Como los valores son absolutos, mandarlo dos
+   veces deja lo mismo y no escribe otra línea; lo que lo vuelve seguro es leer la venta OTRA VEZ justo antes de
+   preguntar (`correccionAlDia`): si otro teléfono la cambió en medio, no se manda nada.
    ============================================================================ */
 
 export const TOPE_COBRO = 1e9;        // registrar_cobro, vista_previa_reparto, repartir_abono_fifo (0012)
@@ -55,6 +65,10 @@ export const CUENTA_SIN_IVA = 'Elias BBVA';
 export const TOPE_NOMBRE = 200;
 export const TOPE_DIRECCION = 400;      // la del diálogo de la hoja
 export const TOPE_LIGA = 2000;          // proyectos.maps_url (0012)
+export const TOPE_NOMBRE_VENTA = 2000;  // corregir_venta (0007): el nombre de una venta ya registrada, de 1 a 2000
+/** Lo que se corrige en «Datos de la venta», con su nombre en `corregir_venta` (0007). El anticipo y la liquidación tienen su formulario. */
+export const CAMPOS_DE_LA_VENTA = Object.freeze({ nombre: 'nombre', subtotal: 'subtotal', cuenta: 'cuenta', estatus: 'estatus', iva: 'iva',
+  fliq: 'fecha_liquidacion', pct: 'pct_comision' });
 
 /* ============================================================================
    Montos
@@ -178,18 +192,20 @@ export function nuevoOpId() {
   return 'pf-' + [...a].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-export const FORMULARIOS = ['cobro', 'abono', 'reparto', 'correccion', 'venta'];
-/** Los que solo existen con la base mandando: con la hoja, la venta sin cotización se da de alta en la hoja. */
-export const SOLO_CON_LA_BASE = ['venta'];
+export const FORMULARIOS = ['cobro', 'abono', 'reparto', 'correccion', 'venta', 'datos'];
+/** Los que solo existen con la base mandando: con la hoja, la venta sin cotización se da de alta en la hoja, y una venta
+ *  se corrige allá (la copia de cada 3 horas pisaría la corrección hecha aquí). */
+export const SOLO_CON_LA_BASE = ['venta', 'datos'];
 
 /**
  * Los formularios que se enseñan. Con la hoja mandando, los cuatro de siempre. Con la base, además la venta
  * sin cotización, si la base dice que el área la puede dar de alta (`permisos.alta.alta_venta` de `mi_acceso`;
- * sin permisos, Dirección y Pagos, como la matriz de 0017).
+ * sin permisos, Dirección y Pagos, como la matriz de 0017), y los datos de la venta, solo a Dirección.
  */
 export function formulariosDe({ baseManda, acceso } = {}) {
   const lista = FORMULARIOS.filter(t => !SOLO_CON_LA_BASE.includes(t));
   if (baseManda && puedeDarDeAlta(acceso)) lista.push('venta');
+  if (baseManda && puedeCorregirLaVenta(acceso)) lista.push('datos');
   return lista;
 }
 export function puedeDarDeAlta(acceso) {
@@ -197,6 +213,17 @@ export function puedeDarDeAlta(acceso) {
   if (a.estado !== 'activo' || !AREAS.includes(a.area)) return false;
   const alta = a.permisos && a.permisos.alta;
   return alta && typeof alta === 'object' ? alta.alta_venta === true : true;
+}
+/**
+ * Corregir los datos de una venta: SOLO Dirección (decidido por Elías el 2026-10-25). La matriz de la base (0017) también se
+ * lo deja a Pagos; Pagos sigue con lo suyo: el anticipo y la liquidación en sus formularios, la cuenta y el estatus en la ficha.
+ * Si la base dijera que Dirección ya no corrige el subtotal (`permisos.corregir_venta`), tampoco.
+ */
+export function puedeCorregirLaVenta(acceso) {
+  const a = acceso || {};
+  if (a.estado !== 'activo' || a.area !== 'direccion') return false;
+  const deja = a.permisos && a.permisos.corregir_venta;
+  return Array.isArray(deja) ? deja.includes('subtotal') : true;
 }
 
 /** Un formulario en blanco, con su op_id ya nacido. */
@@ -415,14 +442,160 @@ export function plan(tipo, c = {}, o = {}) {
       si: 'Corregir liquidación',
     };
   }
+
+  if (tipo === 'datos') return planDatos(c, o, v);
   return fallo({ tipo: 'Ese formulario no existe.' });
 }
 
 function fallo(errores) {
-  const orden = ['tipo', 'proyecto', 'que', 'modo', 'nombre', 'cuenta', 'estatus', 'tipos', 'subtotal', 'anticipo', 'monto', 'fecha', 'cita',
-    'tel', 'entrega', 'dir', 'maps', 'nota'];
+  const orden = ['tipo', 'proyecto', 'que', 'modo', 'nombre', 'subtotal', 'cuenta', 'estatus', 'iva', 'fliq', 'pct', 'tipos', 'anticipo', 'monto',
+    'fecha', 'cita', 'tel', 'entrega', 'dir', 'maps', 'nota', 'cambios'];
   const primero = orden.find(k => errores[k]) || Object.keys(errores)[0];
   return { ok: false, errores, primero };
+}
+
+/* ============================================================================
+   Los datos de una venta (paso 6): qué cambió, de cuánto a cuánto y cómo queda
+   ============================================================================ */
+
+const cent = n => { const x = Number(n); return isFinite(x) ? Math.round(x * 100) : 0; };
+/** Centavos a como se escriben en el campo («12345.60», sin comas ni signo de pesos: `leerMonto` lo lee igual). */
+const planoDeCentavos = c => (c < 0 ? '-' : '') + Math.floor(Math.abs(c) / 100) + '.' + String(Math.abs(c) % 100).padStart(2, '0');
+
+/** Un % de comisión escrito por una persona: vacío es «sin porcentaje» (null); si no, de 0 a 100 con dos decimales a lo más (corregir_venta). */
+export function leerPorcentaje(texto) {
+  const s = String(texto == null ? '' : texto).trim().replace(/\s*%$/, '');
+  if (!s) return { ok: true, valor: null };
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(s) || Number(s) > 100) {
+    return { ok: false, mensaje: 'El porcentaje va de 0 a 100, con dos decimales a lo más (por ejemplo 10 o 12.5); vacío es sin porcentaje.' };
+  }
+  return { ok: true, valor: Number(s) };
+}
+
+/** Lo que la base tiene ahora en cada campo de «Datos de la venta», como lo escribe el formulario (texto). */
+export function valoresDeLaVenta(v) {
+  if (!v) return {};
+  return { nombre: String(v.nombre || ''), subtotal: planoDeCentavos(cent(v.subtotal)), cuenta: v.cuenta || '', estatus: v.estatus || '',
+    iva: v.iva === false ? 'no' : 'si', fliq: v.fechaLiquidacion || '', pct: v.pct == null ? '' : String(v.pct) };
+}
+
+const IVA_TEXTO = b => (b ? 'con IVA' : 'sin IVA');
+const textoDeFecha = f => f || 'sin fecha';
+const textoDePct = p => (p == null ? 'sin porcentaje' : String(p) + ' %');
+
+/* Solo lo que la persona TOCÓ y es distinto de lo que tiene la base (`v`). Cada campo con su validación, como la de `corregir_venta`;
+   lo que no pasa se dice junto a su campo y no sale nada. */
+function planDatos(c, o, v) {
+  if (!o.baseManda) {
+    return fallo({ tipo: 'Con la hoja mandando, una venta se corrige en la hoja: aquí la copia de cada 3 horas pondría otra vez lo de allá.' });
+  }
+  if (o.area && o.area !== 'direccion') return fallo({ tipo: 'Corregir los datos de una venta es de Dirección.' });
+  if (!c.proyecto || !v) return fallo({ proyecto: 'Elige la venta.' });
+  const err = {}, cambios = {}, antes = {}, despues = {}, lineas = [];
+  const toca = k => c[k] !== undefined && c[k] !== null;
+  const cambia = (k, a, d, linea) => { cambios[CAMPOS_DE_LA_VENTA[k]] = d; antes[CAMPOS_DE_LA_VENTA[k]] = a; despues[CAMPOS_DE_LA_VENTA[k]] = d; lineas.push(linea); };
+
+  if (toca('nombre')) {
+    const r = leerTexto(c.nombre, TOPE_NOMBRE_VENTA, { obligatorio: true, falta: 'El nombre de la venta no se puede quedar vacío.' });
+    if (!r.ok) err.nombre = r.mensaje;
+    else if (r.valor !== String(v.nombre || '').trim()) cambia('nombre', String(v.nombre || ''), r.valor, 'Nombre: «' + v.nombre + '» → «' + r.valor + '»');
+  }
+  let subC = cent(v.subtotal);
+  if (toca('subtotal')) {
+    const m = String(c.subtotal).trim() ? leerMonto(c.subtotal, { tope: TOPE_COBRO, cero: true }) : { ok: false, mensaje: 'Falta el subtotal.' };
+    if (!m.ok) err.subtotal = m.mensaje;
+    else if (m.centavos !== subC) { cambia('subtotal', subC / 100, m.valor, 'Subtotal: ' + pesos(subC) + ' → ' + m.texto); subC = m.centavos; }
+  }
+  if (toca('cuenta') && !(c.cuenta === '' && !v.cuenta)) {          // una venta sin cuenta (histórica) que se deja sin cuenta: nada que hacer
+    if (!CUENTAS.includes(c.cuenta)) err.cuenta = 'Elige una de las cuentas de cobro: una venta no se queda sin cuenta.';
+    else if (c.cuenta !== (v.cuenta || '')) cambia('cuenta', v.cuenta || null, c.cuenta, 'Cuenta: ' + (v.cuenta || 'sin cuenta') + ' → ' + c.cuenta);
+  }
+  if (toca('estatus')) {
+    if (!ESTATUS.includes(c.estatus)) err.estatus = 'Ese estatus no existe.';
+    else if (c.estatus !== v.estatus) cambia('estatus', v.estatus || null, c.estatus, 'Estatus: ' + (v.estatus || '—') + ' → ' + c.estatus);
+  }
+  if (toca('fliq')) {
+    const r = leerFecha(c.fliq, o.hoy);
+    if (!r.ok) err.fliq = r.mensaje;
+    else if ((r.valor || null) !== (v.fechaLiquidacion || null)) {
+      cambia('fliq', v.fechaLiquidacion || null, r.valor || null, 'Fecha de liquidación: ' + textoDeFecha(v.fechaLiquidacion) + ' → ' + textoDeFecha(r.valor));
+    }
+  }
+  if (toca('pct')) {
+    const r = leerPorcentaje(c.pct);
+    if (!r.ok) err.pct = r.mensaje;
+    else if ((r.valor === null ? null : cent(r.valor)) !== (v.pct == null ? null : cent(v.pct))) {
+      cambia('pct', v.pct == null ? null : Number(v.pct), r.valor,
+        '% de comisión pactado: ' + textoDePct(v.pct) + ' → ' + textoDePct(r.valor) + ' (informativo: la comisión se calcula siempre al 10 % del subtotal)');
+    }
+  }
+  const ivaAhora = v.iva !== false;
+  if (toca('iva')) {
+    if (c.iva !== 'si' && c.iva !== 'no') err.iva = 'Elige con IVA o sin IVA.';
+    else if ((c.iva === 'si') !== ivaAhora) cambia('iva', ivaAhora, c.iva === 'si', 'IVA: ' + IVA_TEXTO(ivaAhora) + ' → ' + IVA_TEXTO(c.iva === 'si') + ' (a mano)');
+  }
+  if (Object.keys(err).length) return fallo(err);
+  if (!Object.keys(cambios).length) return { ...fallo({ cambios: 'No cambiaste nada: la base ya tiene esos datos.' }), sinCambios: true };
+
+  /* El IVA, como lo deja la base: a mano solo si la venta queda LIQUIDADA (o sin cuenta); si no, lo pone la cuenta (`normalizar_iva`). */
+  const cuentaFin = 'cuenta' in cambios ? cambios.cuenta : (v.cuenta || null);
+  const estatusFin = 'estatus' in cambios ? cambios.estatus : v.estatus;
+  const aMano = 'iva' in cambios;
+  if (aMano && cuentaFin && estatusFin !== 'LIQUIDADO') {
+    return fallo({ iva: 'El IVA lo pone la cuenta (' + CUENTA_SIN_IVA + ' va sin IVA; las demás, con IVA). A mano, solo en una venta LIQUIDADA.' });
+  }
+  const ivaFin = aMano ? cambios.iva : (cuentaFin && estatusFin !== 'LIQUIDADO' ? cuentaFin !== CUENTA_SIN_IVA : ivaAhora);
+  if (!aMano && ivaFin !== ivaAhora) lineas.push('IVA: ' + IVA_TEXTO(ivaAhora) + ' → ' + IVA_TEXTO(ivaFin) + ' (lo pone la cuenta)');
+
+  /* Cómo quedan el neto, el saldo y la comisión: la aritmética de la base (interno.neto y interno.comision), en centavos. */
+  const netoA = cent(v.neto), netoD = ivaFin ? Math.round(subC * 116 / 100) : subC;
+  const saldoA = cent(v.saldo), saldoD = netoD - cent(v.anticipo) - cent(v.liquidacion);
+  const comA = cent(v.comision), comD = Math.round(subC / 10), abonado = cent(v.abonado);
+  const dinero = netoD !== netoA || comD !== comA;
+  const ojos = [];
+  if (saldoD < 0 && saldoD < saldoA) ojos.push('OJO: con esto la venta queda cobrada de más por ' + pesos(-saldoD) + '.');
+  if (comD < abonado && comD < comA) ojos.push('OJO: de comisión ya se abonaron ' + pesos(abonado) + ' y con este subtotal la comisión es ' + pesos(comD) +
+    ': quedaría pagada de más por ' + pesos(abonado - comD) + '.');
+  if (estatusFin === 'LIQUIDADO' && saldoD > 0 && ('estatus' in cambios || dinero)) ojos.push('OJO: queda LIQUIDADA con un saldo de ' + pesos(saldoD) + '.');
+  return {
+    ok: true, tipo: 'datos', rpc: 'corregir_venta', args: { p_proyecto: c.proyecto, p_cambios: cambios }, antes, despues, lineas,
+    titulo: '¿Corregir ' + v.folio + '?',
+    texto: v.nombre + '. ' + lineas.join('. ') + '.' +
+      (dinero ? ' Queda: neto ' + pesos(netoD) + ' (era ' + pesos(netoA) + '), saldo ' + pesos(saldoD) + ' (era ' + pesos(saldoA) + '), comisión ' +
+        pesos(comD) + ' (era ' + pesos(comA) + ').' : '') +
+      (ojos.length ? ' ' + ojos.join(' ') : '') +
+      ' Queda en la bitácora de la base con lo de antes. Nada se borra: si algo quedó mal, se vuelve a corregir.',
+    si: 'Corregir la venta',
+    peligro: !!(dinero || aMano || ojos.length),
+  };
+}
+
+const mismoValor = (a, b) => (typeof a === 'number' || typeof b === 'number')
+  ? (a === null || b === null || a === undefined || b === undefined ? a == b : cent(a) === cent(b))
+  : (a ?? null) === (b ?? null);
+
+/**
+ * La corrección que se confirma es sobre lo que la base tiene AHORA: la pantalla vuelve a leer la venta justo antes de preguntar y arma el
+ * plan otra vez (`ahora`). Compara con el que armó al tocar «Corregir…» (`p`):
+ *   · 'seguir': lo mismo por corregir, desde los mismos valores (lo que cambió en otros campos no estorba: no se manda);
+ *   · 'ya_estaba': la base YA tiene lo que se quiere poner (el envío anterior sí llegó, u otro teléfono puso lo mismo): no hay que mandar nada;
+ *   · 'cambio': otro teléfono cambió alguno de esos campos en medio (o la venta ya no está): se enseña lo nuevo y no se manda nada.
+ */
+export function correccionAlDia(p, ahora) {
+  if (ahora && !ahora.ok && ahora.sinCambios) return 'ya_estaba';
+  if (!p || !p.ok || !ahora || !ahora.ok || huella(p) !== huella(ahora)) return 'cambio';
+  for (const k of Object.keys(p.antes || {})) if (!mismoValor(p.antes[k], (ahora.antes || {})[k])) return 'cambio';
+  return 'seguir';
+}
+
+const NOMBRE_DEL_CAMPO = { nombre: 'nombre', subtotal: 'subtotal', cuenta: 'cuenta', estatus: 'estatus', iva: 'IVA', fecha_liquidacion: 'fecha de liquidación',
+  pct_comision: '% pactado', anticipo: 'anticipo', liquidacion: 'liquidación' };
+function valorEscrito(k, v) {
+  if (k === 'subtotal' || k === 'anticipo' || k === 'liquidacion') return pesosDe(v);
+  if (k === 'iva') return IVA_TEXTO(v !== false);
+  if (k === 'fecha_liquidacion') return textoDeFecha(v);
+  if (k === 'pct_comision') return textoDePct(v);
+  return String(v == null ? '—' : v);
 }
 
 /** ¿Marcar LIQUIDADO por omisión? Solo si con este cobro el saldo queda en ceros. */
@@ -520,9 +693,14 @@ export async function vistaPrevia(cliente, montoTexto) {
   return { ok: true, data: { ...r.data, monto: m.valor } };
 }
 
-const COLUMNAS = 'proyecto_id,a_folio,b_proyecto,c_estatus,h_neto,i_anticipo,j_liquidacion,k_saldo,r_comision,s_abonado,t_restante';
+/* Desde el paso 6, también lo que corrige «Datos de la venta»: la cuenta, el IVA, el subtotal, la fecha de liquidación y el % pactado. */
+const COLUMNAS = 'proyecto_id,a_folio,b_proyecto,c_estatus,d_cuenta,f_iva,g_subtotal,h_neto,i_anticipo,j_liquidacion,k_saldo,n_fecha_liquidacion,' +
+  'r_comision,s_abonado,t_restante,pct_comision';
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const numFolio = f => { const m = /(\d+)$/.exec(String(f || '')); return m ? Number(m[1]) : -1; };
+/* Una fecha de la base: PostgREST la da como «AAAA-MM-DD»; un cliente que la convierta en Date, como el día UTC de ese Date. */
+const fechaDe = x => (x instanceof Date ? (isFinite(x) ? x.toISOString().slice(0, 10) : '')
+  : (/^\d{4}-\d{2}-\d{2}/.test(String(x || '')) ? String(x).slice(0, 10) : ''));
 
 /** Las ventas de la base (la vista de fórmulas: a Fabricación la RLS no le da ni una fila). */
 export async function leerVentas(cliente) {
@@ -538,6 +716,8 @@ export function normalizarVentas(filas) {
     id: String(x.proyecto_id), folio: String(x.a_folio), nombre: String(x.b_proyecto || ''), estatus: String(x.c_estatus || ''),
     neto: num(x.h_neto), anticipo: num(x.i_anticipo), liquidacion: num(x.j_liquidacion), saldo: num(x.k_saldo),
     comision: num(x.r_comision), abonado: num(x.s_abonado), restante: num(x.t_restante),
+    cuenta: x.d_cuenta == null ? '' : String(x.d_cuenta), iva: x.f_iva !== false, subtotal: num(x.g_subtotal),
+    fechaLiquidacion: fechaDe(x.n_fecha_liquidacion), pct: x.pct_comision == null || x.pct_comision === '' ? null : num(x.pct_comision),
   })).sort((a, b) => numFolio(b.folio) - numFolio(a.folio));
 }
 
@@ -567,6 +747,15 @@ export function resumen(p, data, venta) {
   if (p.rpc === 'registrar_cobro') {
     return 'Cobro registrado en ' + f + '. Liquidación ' + pesosDe(d.liquidacion) + ', saldo ' + pesosDe(d.saldo) +
       (d.en_ceros ? ' (en ceros)' : '') + '; estatus ' + (d.estatus || '—') + '.';
+  }
+  if (p.rpc === 'corregir_venta' && p.tipo === 'datos') {
+    /* Lo que la base escribió, con el valor que quedó; lo que no aceptó, con su porqué (corregir_venta no aborta el resto). */
+    const q = d.venta || {}, escritos = Array.isArray(d.escritos) ? d.escritos : [], rech = Array.isArray(d.rechazadas) ? d.rechazadas : [];
+    const quedo = escritos.map(k => NOMBRE_DEL_CAMPO[k] + ' ' + valorEscrito(k, q[k]));
+    if (escritos.includes('cuenta') && !escritos.includes('iva') && 'iva' in q) quedo.push(IVA_TEXTO(q.iva !== false));
+    return 'Venta ' + f + ' corregida: ' + quedo.join(', ') + '.' +
+      (rech.length ? ' No se cambió: ' + rech.map(x => (NOMBRE_DEL_CAMPO[x.nombre] || x.nombre) + ' (' + x.por + ')').join('; ') + '.' : '') +
+      ' Queda en la bitácora de la base con lo de antes.';
   }
   if (p.rpc === 'corregir_venta') {
     const v = d.venta || {};
