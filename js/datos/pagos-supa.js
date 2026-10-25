@@ -1,5 +1,5 @@
 /* ============================================================================
-   PAGOS EN SUPABASE: lo que se manda a la base y cómo se lee lo que contesta — APAGADO.
+   PAGOS EN SUPABASE: lo que se manda a la base y cómo se lee lo que contesta.
 
    La segunda entrega de la pieza de Pagos (docs/DECISIONES-SUPABASE.md, Q-01 y §C): la base ya
    tiene las funciones de cobro, abono, reparto FIFO y corrección (supabase/migrations/0007 y
@@ -22,6 +22,13 @@
        Solo después de un asiento confirmado nace otro;
      · qué errores son SEGUROS (la base contestó y no escribió nada) y cuáles INCIERTOS (no hubo
        respuesta: puede que sí haya llegado). Un error incierto nunca dice «no se registró».
+
+   CON LA BASE MANDANDO (paso 5 de docs/BASE-MANDA.md) esto deja de ser una prueba: es donde Pagos y
+   Dirección cobran. Y se suma la VENTA SIN COTIZACIÓN (`alta_venta`, el menú «Registrar nueva venta» de
+   la hoja): la base le da el V-### de su contador. Solo con la base mandando —con la hoja mandando habría
+   dos contadores de V-###, el de la hoja y el de la base—, solo Dirección y Pagos (la matriz de 0017,
+   `alta.alta_venta`), e idempotente por su id, que nace del op_id del formulario: reintentar una alta que
+   sí llegó contesta «ya existía» con el MISMO folio.
    ============================================================================ */
 
 export const TOPE_COBRO = 1e9;        // registrar_cobro, vista_previa_reparto, repartir_abono_fifo (0012)
@@ -32,6 +39,22 @@ export const CLAVE_BORRADOR = 'al3d_pf_pagos_borrador';
 
 /** Las áreas (de la BASE, no de este aparato) que ven estas pantallas. */
 export const AREAS = ['direccion', 'pagos'];
+
+/* Lo que pide `alta_venta` (0006), con sus listas cerradas. Son copias: esta capa es pura y no importa
+   js/datos/puente.js (que trae la base local consigo). pruebas/pagos-supa.mjs las compara con las de la
+   plataforma (`CUENTAS` y `ESTATUS` de puente.js, `TIPOS_TRABAJO` de proyectos.js, `ENTREGAS` de entrega.js)
+   y con las de la función de la base. */
+export const CUENTAS = ['Elias BBVA', 'Constru BNT', 'Moni MPago', 'Rul HSBC', 'Tatis BNT'];
+export const ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
+export const TIPOS = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion', 'Letras 3D con iluminacion',
+  'Letras 3D sin iluminacion', 'Rotulacion de vinil', 'Recorte acrilico', 'Custome / Proyecto Especial'];
+export const ENTREGAS = ['instalacion', 'paqueteria', 'recoleccion'];
+export const ENTREGA_NOMBRE = { instalacion: 'Instalación', paqueteria: 'Paquetería', recoleccion: 'Recolección en taller' };
+/** La cuenta que no factura: con ella la base pone la venta sin IVA (`interno.normalizar_iva`). */
+export const CUENTA_SIN_IVA = 'Elias BBVA';
+export const TOPE_NOMBRE = 200;
+export const TOPE_DIRECCION = 400;      // la del diálogo de la hoja
+export const TOPE_LIGA = 2000;          // proyectos.maps_url (0012)
 
 /* ============================================================================
    Montos
@@ -106,6 +129,42 @@ export function leerNota(texto, o = {}) {
   return { ok: true, valor: s };
 }
 
+/** La fecha de instalación de una venta nueva: puede ser futura (es cuándo se va a instalar). Vacía, sin cita. */
+export function leerFechaCita(texto) {
+  const s = String(texto == null ? '' : texto).trim();
+  if (!s) return { ok: true, valor: null };
+  const r = leerFecha(s, '');
+  if (!r.ok) return r;
+  if (+s.slice(0, 4) > 2100) return { ok: false, mensaje: 'Esa fecha está demasiado lejos.' };
+  return r;
+}
+
+/** El teléfono del cliente, limpio como lo limpia la base (`interno.telefono_limpio`): con 10 dígitos o más. */
+export function leerTelefono(texto) {
+  const s = String(texto == null ? '' : texto).replace(/[^\d +()-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30).trim();
+  const dig = (s.match(/\d/g) || []).length;
+  if (!dig) return { ok: false, mensaje: 'Falta el teléfono del cliente.' };
+  if (dig < 10) return { ok: false, mensaje: 'Ese teléfono no tiene los 10 dígitos.' };
+  return { ok: true, valor: s };
+}
+
+/** Un texto libre con tope. `obligatorio`: vacío no. */
+function leerTexto(texto, tope, o = {}) {
+  const s = String(texto == null ? '' : texto).trim();
+  if (o.obligatorio && !s) return { ok: false, mensaje: o.falta || 'Falta este dato.' };
+  if (s.length > tope) return { ok: false, mensaje: 'Es muy largo: ' + tope + ' letras a lo más.' };
+  return { ok: true, valor: s };
+}
+
+/** La liga de Maps (opcional): una dirección web, como la que se manda por WhatsApp. */
+export function leerLiga(texto) {
+  const s = String(texto == null ? '' : texto).trim();
+  if (!s) return { ok: true, valor: '' };
+  if (!/^https?:\/\/\S+$/i.test(s)) return { ok: false, mensaje: 'Pega la liga completa de Maps (empieza con https://).' };
+  if (s.length > TOPE_LIGA) return { ok: false, mensaje: 'Esa liga es demasiado larga.' };
+  return { ok: true, valor: s };
+}
+
 /* ============================================================================
    El op_id: uno por formulario
    ============================================================================ */
@@ -119,7 +178,26 @@ export function nuevoOpId() {
   return 'pf-' + [...a].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-export const FORMULARIOS = ['cobro', 'abono', 'reparto', 'correccion'];
+export const FORMULARIOS = ['cobro', 'abono', 'reparto', 'correccion', 'venta'];
+/** Los que solo existen con la base mandando: con la hoja, la venta sin cotización se da de alta en la hoja. */
+export const SOLO_CON_LA_BASE = ['venta'];
+
+/**
+ * Los formularios que se enseñan. Con la hoja mandando, los cuatro de siempre. Con la base, además la venta
+ * sin cotización, si la base dice que el área la puede dar de alta (`permisos.alta.alta_venta` de `mi_acceso`;
+ * sin permisos, Dirección y Pagos, como la matriz de 0017).
+ */
+export function formulariosDe({ baseManda, acceso } = {}) {
+  const lista = FORMULARIOS.filter(t => !SOLO_CON_LA_BASE.includes(t));
+  if (baseManda && puedeDarDeAlta(acceso)) lista.push('venta');
+  return lista;
+}
+export function puedeDarDeAlta(acceso) {
+  const a = acceso || {};
+  if (a.estado !== 'activo' || !AREAS.includes(a.area)) return false;
+  const alta = a.permisos && a.permisos.alta;
+  return alta && typeof alta === 'object' ? alta.alta_venta === true : true;
+}
 
 /** Un formulario en blanco, con su op_id ya nacido. */
 export function borradorNuevo(tipo) {
@@ -128,13 +206,19 @@ export function borradorNuevo(tipo) {
 
 /**
  * Lo que se manda, sin el op_id: si después de un envío INCIERTO cambia, ese op_id ya no puede
- * usarse para lo nuevo (la base devolvería lo de antes como si fuera esto).
+ * usarse para lo nuevo (la base devolvería lo de antes como si fuera esto). En una venta nueva, sin
+ * sus sellos (la hora de la captura: cambian en cada intento y no son un dato).
  */
 export function huella(plan) {
   if (!plan) return '';
   const a = { ...plan.args }; delete a.p_op_id;
-  return plan.rpc + ':' + JSON.stringify(a, Object.keys(a).sort());
+  if (a.p_op && typeof a.p_op === 'object') { a.p_op = { ...a.p_op }; delete a.p_op.sellos; }
+  return plan.rpc + ':' + JSON.stringify(a, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
 }
+
+/** El id de la venta nueva: sale del op_id del formulario, así el reintento es la MISMA venta. */
+export const idDeAlta = opId => 'alta-' + String(opId || '').replace(/^pf-/, '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 100);
 
 /**
  * ¿Con qué op_id se manda `plan` desde `b`?
@@ -162,10 +246,11 @@ export function despuesDeEnviar(b, plan, r) {
 
 /**
  * Valida lo capturado y arma la llamada. No llama a nada.
- * @param {'cobro'|'abono'|'reparto'|'correccion'} tipo
+ * @param {'cobro'|'abono'|'reparto'|'correccion'|'venta'} tipo
  * @param {Object} c  los campos del formulario (texto, como vienen de la pantalla)
- * @param {{opId:string, hoy?:string, venta?:Object, area?:string, vistaPrevia?:Object}} o
- * @returns {{ok:true, rpc:string, args:Object, titulo:string, texto:string, si:string} |
+ * @param {{opId:string, hoy?:string, venta?:Object, area?:string, vistaPrevia?:Object, baseManda?:boolean, ahora?:number}} o
+ *        `baseManda`: la venta sin cotización solo sale con la base mandando; `ahora`: el sello de lo que se captura en ella.
+ * @returns {{ok:true, rpc:string, args:Object, titulo:string, texto:string, si:string, peligro?:boolean} |
  *           {ok:false, errores:Object<string,string>, primero:string}}
  */
 export function plan(tipo, c = {}, o = {}) {
@@ -192,16 +277,24 @@ export function plan(tipo, c = {}, o = {}) {
     const f = pide('fecha', leerFecha(c.fecha, o.hoy));
     if (Object.keys(err).length) return fallo(err);
     const liquidar = c.liquidar === true || c.liquidar === 'si';
+    /* La liquidación es ACUMULATIVA: un cobro de más no se nota hasta que alguien cuadra. Se acepta (la base
+       también: «Cobrado de más»), pero la pregunta lo dice con la cifra y el botón se pinta de peligro. */
+    const saldoC = Math.round(Number(v.saldo || 0) * 100), nC = Math.round(n * 100);
+    const demas = nC - saldoC > 0 ? nC - Math.max(saldoC, 0) : 0;
+    const yaLiq = String(v.estatus || '') === 'LIQUIDADO';
     return {
       ok: true, rpc: 'registrar_cobro',
       args: { p_proyecto: c.proyecto, p_monto: n, p_fecha: f, p_liquidar: liquidar, p_op_id: o.opId },
       titulo: '¿Registrar un cobro de ' + pesosDe(n) + '?',
       texto: v.folio + ' · ' + v.nombre + '. Se suma a la liquidación (' + pesosDe(v.liquidacion) + ' → ' +
-        pesosDe((Math.round(Number(v.liquidacion || 0) * 100) + Math.round(n * 100)) / 100) + ')' +
+        pesosDe((Math.round(Number(v.liquidacion || 0) * 100) + nC) / 100) + ')' +
         (f ? ', con fecha ' + f : ', con fecha de hoy') + '. ' +
         (liquidar ? 'La venta queda LIQUIDADA.' : 'El estatus de la venta no cambia.') +
+        (demas ? ' OJO: es más que el saldo (' + pesosDe(Math.max(saldoC, 0) / 100) + '): quedaría cobrada de más por ' + pesosDe(demas / 100) + '.' : '') +
+        (yaLiq ? ' OJO: la venta ya está LIQUIDADA.' : '') +
         ' Un cobro no se borra: si te equivocas, se corrige con otro asiento.',
       si: 'Registrar cobro',
+      peligro: !!(demas || yaLiq),
     };
   }
 
@@ -239,8 +332,58 @@ export function plan(tipo, c = {}, o = {}) {
       texto: 'De la más antigua a la más nueva: ' + filas.slice(0, 4).map(x => x.folio + ' ' + pesosDe(x.abono)).join(', ') +
         (filas.length > 4 ? ' y ' + (filas.length - 4) + ' más' : '') + '.' +
         (Number(vp.sobrante) > 0.004 ? ' Sobran ' + pesosDe(vp.sobrante) + ', que NO se aplican.' : '') +
-        ' Todos los renglones llevan el mismo número de pago y no se borran.',
+        ' Todos los renglones llevan el mismo número de pago y NO se pueden deshacer: un error se corrige con otro ' +
+        'renglón, uno por venta, y eso solo lo hace Dirección.',
       si: 'Repartir',
+      peligro: true,
+    };
+  }
+
+  if (tipo === 'venta') {
+    /* Con la hoja mandando, NO: la base le daría un V-### de su contador y la hoja otro del suyo. */
+    if (!o.baseManda) return fallo({ tipo: 'Con la hoja mandando, una venta sin cotización se registra en la hoja («Registrar nueva venta»): aquí saldría con otro V-###.' });
+    if (o.area && !AREAS.includes(o.area)) return fallo({ tipo: 'Dar de alta una venta es de Dirección y Pagos.' });
+    const nombre = pide('nombre', leerTexto(c.nombre, TOPE_NOMBRE, { obligatorio: true, falta: 'Falta el nombre del proyecto.' }));
+    if (!CUENTAS.includes(c.cuenta)) err.cuenta = 'Elige la cuenta de cobro.';
+    const estatus = c.estatus || 'FABRICACION';
+    if (!ESTATUS.includes(estatus)) err.estatus = 'Ese estatus no existe.';
+    const tipos = Array.isArray(c.tipos) ? TIPOS.filter(x => c.tipos.includes(x)) : [];
+    if (Array.isArray(c.tipos) && c.tipos.some(x => !TIPOS.includes(x))) err.tipos = 'Uno de los tipos de trabajo no existe.';
+    const sub = String(c.subtotal == null ? '' : c.subtotal).trim() ? pide('subtotal', leerMonto(c.subtotal, { tope: TOPE_COBRO }))
+      : pide('subtotal', { ok: false, mensaje: 'Falta el subtotal.' });
+    const anti = String(c.anticipo == null ? '' : c.anticipo).trim() ? pide('anticipo', leerMonto(c.anticipo, { tope: TOPE_COBRO, cero: true })) : 0;
+    const fecha = pide('fecha', leerFecha(c.fecha, o.hoy));
+    const cita = pide('cita', leerFechaCita(c.cita));
+    const tel = pide('tel', leerTelefono(c.tel));
+    const entrega = ENTREGAS.includes(c.entrega) ? c.entrega : '';
+    if (!entrega) err.entrega = 'Falta decir cómo se entrega.';
+    const dir = entrega === 'recoleccion' ? '' : pide('dir', leerTexto(c.dir, TOPE_DIRECCION));
+    const liga = entrega === 'instalacion' ? pide('maps', leerLiga(c.maps)) : '';
+    if (Object.keys(err).length) return fallo(err);
+    const iva = c.cuenta !== CUENTA_SIN_IVA;
+    const subC = Math.round(sub * 100), antiC = Math.round(anti * 100);
+    const netoC = iva ? Math.round(subC * 116 / 100) : subC;      // interno.neto: round(subtotal × 1.16, 2)
+    const ahora = Number(o.ahora) || 0;
+    const op = { id: idDeAlta(o.opId), nombre, cuenta: c.cuenta, estatus, tipo_trabajo: tipos, subtotal: sub, anticipo: anti,
+      tel, entrega, dir_texto: dir || '', maps_url: liga || '' };
+    if (fecha) op.fecha_anticipo = fecha;
+    if (cita) op.fecha_instalacion = cita;
+    /* Lo de la entrega es el dato más nuevo de esa venta, como lo sella el diálogo de la hoja (`sellarFila_`). */
+    if (ahora > 0) {
+      op.sellos = { tel: ahora, entrega: ahora };
+      if (dir) op.sellos.dir_texto = ahora;
+      if (liga) op.sellos.ubicacion = ahora;
+    }
+    return {
+      ok: true, rpc: 'alta_venta', args: { p_op: op },
+      titulo: '¿Registrar la venta «' + nombre + '»?',
+      texto: 'Cuenta ' + c.cuenta + (iva ? ' (con IVA)' : ' (sin IVA)') + ' · subtotal ' + pesosDe(sub) + (iva ? ' → neto ' + pesosDe(netoC / 100) : '') +
+        ' · anticipo ' + pesosDe(anti) + (fecha ? ' del ' + fecha : ' de hoy') + ' · ' + estatus + ' · ' + ENTREGA_NOMBRE[entrega] +
+        (cita ? ', se instala el ' + cita : '') + '. La base le da el siguiente V-###.' +
+        (antiC > netoC ? ' OJO: el anticipo es más que el neto.' : '') +
+        ' Una venta no se borra: si algo quedó mal, Dirección la corrige.',
+      si: 'Registrar venta',
+      peligro: antiC > netoC,
     };
   }
 
@@ -276,7 +419,8 @@ export function plan(tipo, c = {}, o = {}) {
 }
 
 function fallo(errores) {
-  const orden = ['tipo', 'proyecto', 'que', 'modo', 'monto', 'fecha', 'nota'];
+  const orden = ['tipo', 'proyecto', 'que', 'modo', 'nombre', 'cuenta', 'estatus', 'tipos', 'subtotal', 'anticipo', 'monto', 'fecha', 'cita',
+    'tel', 'entrega', 'dir', 'maps', 'nota'];
   const primero = orden.find(k => errores[k]) || Object.keys(errores)[0];
   return { ok: false, errores, primero };
 }
@@ -343,6 +487,7 @@ export function mensajeDe(codigo, rpcNombre, mensaje) {
     case 'NO_ENCONTRADO': return 'Esa venta no está en la base de Supabase (puede que todavía no se haya importado de la hoja).' + NADA;
     case 'ROL_SIN_PERMISO':
       return (rpcNombre === 'corregir_abono' ? 'Corregir un abono de comisión solo lo puede hacer Dirección.'
+        : rpcNombre === 'alta_venta' ? 'Dar de alta una venta es de Dirección y Pagos.'
         : 'Tu área no puede registrar esto: es de Pagos y Dirección.') + NADA;
     case 'SIN_ACCESO': case 'ACCESO_REVOCADO': case 'EMPRESA_REQUERIDA':
       return (mensaje || 'La base no te reconoce en esta empresa.') + NADA;
@@ -437,5 +582,26 @@ export function resumen(p, data, venta) {
     return 'Reparto ' + (d.pago_id || '') + ': ' + pesosDe(d.repartido_total) + ' en ' + n + (n === 1 ? ' comisión' : ' comisiones') +
       (Number(d.sobrante) > 0.004 ? '; sobraron ' + pesosDe(d.sobrante) + ' sin aplicar' : '') + '.' + rep;
   }
+  if (p.rpc === 'alta_venta') {
+    const nombre = (p.args && p.args.p_op && p.args.p_op.nombre) || '';
+    return 'Venta registrada en la base — ' + (d.folio_hoja || 'sin folio') + (nombre ? ': ' + nombre : '') + '.' +
+      (d.ya_existia ? ' Ya estaba registrada: no se creó otra.' : '');
+  }
   return 'Listo.';
 }
+
+/**
+ * ¿La vista previa de ahora reparte lo MISMO que la que se vio? Mismas ventas, en el mismo orden, con el mismo
+ * abono, y el mismo sobrante. Si otro teléfono abonó en medio, no: hay que enseñar la nueva antes de repartir
+ * (el reparto no se deshace).
+ */
+export function mismoReparto(a, b) {
+  const filas = x => (x && Array.isArray(x.filas) ? x.filas : []).map(y => String(y.folio) + '=' + Math.round(Number(y.abono) * 100));
+  const cent = x => Math.round(Number((x && x.sobrante) || 0) * 100);
+  if (!a || !b) return false;
+  return Math.round(Number(a.monto) * 100) === Math.round(Number(b.monto) * 100) &&
+    filas(a).join('|') === filas(b).join('|') && cent(a) === cent(b);
+}
+
+/** El nombre de la pestaña de Control: con la base mandando es donde se cobra; con la hoja, la prueba. */
+export const nombreDeLaPestana = baseManda => (baseManda ? 'Cobros y abonos' : 'Registrar (Supabase)');

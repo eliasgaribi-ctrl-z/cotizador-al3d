@@ -304,6 +304,14 @@ export async function cuadreDiario() {
 
 /* ----- La lectura en vivo ----- */
 
+/* Con la base mandando (paso 5), las pantallas que leen la base directo —«Cobros y abonos» de Control,
+   js/mod/pagos-supa.js— releen en cuanto otro teléfono cambia algo: el saldo que se ve antes de cobrar es el
+   de ahora. Solo avisa (`al3d-base-cambio`): no trae nada, y quien no escucha no se entera. */
+export const EVENTO_CAMBIO = 'al3d-base-cambio';
+function avisarPantallas() {
+  try { globalThis.dispatchEvent(new CustomEvent(EVENTO_CAMBIO)); } catch (_) { /* sin ventana: las pruebas */ }
+}
+
 /* `enBase`: con la base mandando, solo Realtime y la ventanilla; las filas las pone el relevo de la base. */
 function encenderVivo(enBase = false) {
   if (_fuente || _enBase) return;
@@ -322,7 +330,7 @@ function encenderVivo(enBase = false) {
     if (!_fuente && !_enBase) return;
     /* Con la base mandando, también los gastos (0025): un gasto que otro teléfono captura o anula avisa como una venta. Con la hoja
        mandando no: esa bajada no los lee de la base. */
-    _canal = suscribir(c, _area, () => { _debeJalar = true; if (_sincronizar) _sincronizar(); },
+    _canal = suscribir(c, _area, () => { _debeJalar = true; if (_sincronizar) _sincronizar(); if (_enBase) avisarPantallas(); },
       { empresa: _empresa, gastos: _enBase, alEstado: e => { _estadoCanal = e; } });
   }).catch(() => {});
   if (_avisarApp) _avisarApp(lecturaEnVivo);

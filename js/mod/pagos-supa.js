@@ -1,5 +1,5 @@
 /* ============================================================================
-   REGISTRAR EN SUPABASE — las pantallas de Pagos (y Dirección), APAGADAS.
+   REGISTRAR EN SUPABASE — las pantallas de Pagos (y Dirección).
 
    La interfaz que faltaba sobre las funciones de la base (docs/DECISIONES-SUPABASE.md, Q-01 y
    §C): registrar un cobro o fijar el anticipo, registrar un abono de comisión, repartir un
@@ -7,30 +7,44 @@
    libros son solo-agregar: una corrección de abono es un renglón NUEVO; la de liquidación es un
    valor absoluto que la base anota en su bitácora con el valor de antes.
 
-   Dónde vive: una pestaña más de Control, «Registrar (Supabase)», que Control SOLO pinta con el
-   interruptor de Supabase encendido en este aparato (el de Ajustes, `al3d_pf_supa`). Apagado,
-   Control tiene sus cuatro pestañas de siempre y este archivo ni se descarga. Los formularios
-   solo salen con sesión de Supabase y con el área que diga LA BASE (Dirección o Pagos); el área
-   de este aparato no da permisos. Fabricación no tiene Control, y si llegara, aquí no se pinta
-   nada ni se pide una sola cifra.
+   Dónde vive: una pestaña más de Control, que Control SOLO pinta con el interruptor de Supabase
+   encendido en este aparato (el de Ajustes, `al3d_pf_supa`). Apagado, Control tiene sus pestañas de
+   siempre y este archivo ni se descarga. Los formularios solo salen con sesión de Supabase y con el
+   área que diga LA BASE (Dirección o Pagos); el área de este aparato no da permisos. Fabricación no
+   tiene Control, y si llegara, aquí no se pinta nada ni se pide una sola cifra.
+
+   Dos modos, y los decide la EMPRESA (`empresas.modo`, docs/BASE-MANDA.md), no un interruptor de esta
+   pestaña:
+     · con la HOJA mandando es la prueba de siempre, «Registrar (Supabase)»: escribe en la base, la hoja
+       sigue siendo la que manda y la pantalla lo dice («regístralo también allá»);
+     · con la BASE mandando (paso 5) es «Cobros y abonos», donde de verdad se cobra: Dirección y Pagos
+       la tienen sin encender nada más; ya no dice que se registre en la hoja (está en solo lectura);
+       suma la VENTA SIN COTIZACIÓN (`alta_venta`: el V-### de la base); relee los saldos cuando otro
+       teléfono registra algo (Realtime: el aviso `al3d-base-cambio` de js/datos/supa-enchufe.js) y al
+       volver a la pestaña; y no ofrece «Apagar Supabase», que dejaría a este teléfono escribiendo en
+       una hoja que ya no manda.
 
    Lo que la pantalla le garantiza a quien cobra:
-     · pregunta antes de cada asiento, con el monto y lo que va a pasar;
+     · pregunta antes de cada asiento, con el monto y lo que va a pasar; lo raro (un cobro de más, una
+       venta ya liquidada, un reparto, que no se deshace) se pregunta con el botón de peligro;
      · el doble envío es imposible: el botón se apaga mientras va, y el op_id nace UNA vez por
        formulario y se reusa en cada reintento (js/datos/pagos-supa.js). Si no hubo respuesta,
        «Reintentar» manda lo mismo con el mismo op_id; cambiar los datos de un envío incierto
        pide confirmación porque el primero pudo haber llegado;
+     · el reparto que se confirma es el que se vio: justo antes de preguntar se vuelve a calcular,
+       y si otro teléfono abonó en medio se enseña el nuevo y no se manda nada;
      · lo escrito no se tira: cada tecla se guarda en un borrador de la pestaña (memoria y
        sessionStorage) y vuelve aunque Control se repinte o se recargue la página;
      · errores claros, junto a su campo (rojo, `role="alert"`, `aria-invalid`), y los de la
        base dicen si se registró algo o no.
-
-   IMPORTANTE mientras dure la migración: esto escribe en la base de PRUEBAS, no en la hoja. La
-   hoja sigue siendo la fuente de verdad (fase 3, doble escritura) y la pantalla lo dice.
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
 import * as PS from '../datos/pagos-supa.js';
+/* Quién manda, con la regla de supa.js (interruptor encendido Y el último modo oído en 'base'). Importarlo aquí no
+   carga nada de más: esta pestaña solo existe con el interruptor encendido, y supa.js no baja supabase-js hasta
+   que se le pide el cliente. */
+import { laBaseManda } from '../nucleo/supa.js';
 import { esc, ico, toast, voz, segmento, confirmarPf, hoyISO } from '../nucleo/ui.js';
 
 let _el = null;                 // el contenedor de ahora (Control lo recrea en cada repintado)
@@ -38,16 +52,27 @@ let _vista = 'esperando';       // lo que dice PS.queMostrar
 let _acceso = null;
 let _ventas = null;             // las ventas de la base, o null si no se han leído
 let _ventasMsg = '';
+let _leidasEn = 0;              // cuándo se leyeron (para no releer en cada repintado de Control)
 let _cargando = null;
 let _form = 'cobro';
 let _b = null;                  // los borradores, uno por formulario
 let _vp = null;                 // la vista previa del reparto { monto, filas, sobrante, … }
 let _enviando = false;
+let _preparando = false;        // el reparto se está volviendo a calcular antes de preguntar
+let _releer = false;            // la base cambió mientras alguien escribía: se relee al soltar el campo
+let _oyeLaBase = false;
+let _sincronizar = null;        // la sincronización de la app (Control la pasa): una venta nueva baja en el acto
 const _aviso = {};              // por formulario: { tono: 'ok'|'mal'|'av', texto, incierto }
 let _foco = null;               // { id, ini, fin } del campo enfocado, para devolverlo tras un repintado
 
-const NOMBRE = { cobro: 'Cobro o anticipo', abono: 'Abono de comisión', reparto: 'Repartir un depósito', correccion: 'Corregir' };
+const NOMBRE = { cobro: 'Cobro o anticipo', abono: 'Abono de comisión', reparto: 'Repartir un depósito', correccion: 'Corregir',
+  venta: 'Venta sin cotización' };
 const AREA = { direccion: 'Dirección', pagos: 'Pagos', fabricacion: 'Fabricación' };
+const CAMPOS = ['proyecto', 'que', 'monto', 'fecha', 'nota', 'nombre', 'cuenta', 'estatus', 'tipos', 'subtotal', 'anticipo', 'cita',
+  'tel', 'entrega', 'dir', 'maps'];
+const MS_RELEER = 3000;
+
+const enBase = () => laBaseManda();
 
 /* ----- Los borradores ----- */
 function ss() { try { return globalThis.sessionStorage || null; } catch (_) { return null; } }
@@ -76,15 +101,21 @@ function guardar() {
 export function html() {
   borradores();
   if (_vista === 'nada') return '';
-  const cab = '<div class="card pg-supa-card"><div class="card-h"><h2>' + ico('i-nube') + ' Registrar en Supabase</h2></div><div class="card-b">' +
-    '<p class="hintnote nota-av">Esto escribe en <b>Supabase</b>, la base nueva, no en la hoja. La hoja sigue siendo la que manda: ' +
-    'lo que registres aquí regístralo también allá.</p>';
+  const base = enBase();
+  const cab = '<div class="card pg-supa-card"><div class="card-h"><h2>' + ico('i-nube') + ' ' +
+    (base ? 'Cobros y abonos' : 'Registrar en Supabase') + '</h2></div><div class="card-b">' +
+    (base
+      ? '<p class="hintnote nota-ok">Esto queda en la base y lo ven al momento los teléfonos de Dirección y Pagos. Un asiento no se ' +
+        'borra: si algo quedó mal, se corrige con otro.</p>'
+      : '<p class="hintnote nota-av">Esto escribe en <b>Supabase</b>, la base nueva, no en la hoja. La hoja sigue siendo la que manda: ' +
+        'lo que registres aquí regístralo también allá.</p>');
   let cuerpo;
   if (_vista === 'esperando') cuerpo = '<p class="pf-nota" role="status">Preguntando a la base quién eres…</p>';
   else if (_vista === 'entrar') {
     cuerpo = '<p class="aj-p">Entra con tu cuenta de Google para que la base te reconozca.</p>' +
       '<div id="pg-google" class="aj-supa-google"></div>' +
-      '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-pg-act="apagar">Apagar Supabase en este aparato</button></div>';
+      /* Con la base mandando no se ofrece apagar: este teléfono volvería a escribir en una hoja que ya no manda. */
+      (base ? '' : '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-pg-act="apagar">Apagar Supabase en este aparato</button></div>');
   } else if (_vista === 'sin_permiso') {
     const a = _acceso || {};
     const quien = a.correo ? '<b>' + esc(a.correo) + '</b>' : 'Esta cuenta';
@@ -96,9 +127,14 @@ export function html() {
   return cab + cuerpo + '</div></div>';
 }
 
-/** Cuelga los oyentes del contenedor recién pintado y, si hace falta, pregunta a la base. */
-export function cablear(el) {
+/**
+ * Cuelga los oyentes del contenedor recién pintado y, si hace falta, pregunta a la base.
+ * @param {Element} el
+ * @param {{sincronizar?:function}} [o] la sincronización de la app, para que una venta nueva baje en el acto
+ */
+export function cablear(el, o = {}) {
   if (!el) return;
+  if (o && typeof o.sincronizar === 'function') _sincronizar = o.sincronizar;
   const nuevo = el !== _el;
   _el = el;
   if (nuevo) {
@@ -107,10 +143,19 @@ export function cablear(el) {
     el.addEventListener('click', alClic);
     el.addEventListener('submit', alEnviar);
     el.addEventListener('focusin', ev => { const t = ev.target; if (t && t.id) _foco = { id: t.id, ini: selIni(t), fin: selFin(t) }; });
+    el.addEventListener('focusout', () => { if (_releer) setTimeout(alCambiarLaBase, 0); });
+  }
+  /* Con la base mandando, otro teléfono puede cobrar mientras esta pestaña está abierta: el enchufe avisa
+     (Realtime) y aquí se releen los saldos. Con la hoja mandando el aviso no llega y aquí no se relee nada. */
+  if (!_oyeLaBase) {
+    _oyeLaBase = true;
+    try { globalThis.addEventListener('al3d-base-cambio', alCambiarLaBase); } catch (_) { /* sin ventana: las pruebas */ }
   }
   devolverFoco();
   if (_vista === 'entrar') pintarGoogle();
   if (!_cargando && (_vista === 'esperando' || (_vista === 'formularios' && _ventas === null))) cargar();
+  /* Volver a la pestaña (o el remonte de Control tras una sincronización que trajo algo) relee los saldos. */
+  else if (nuevo && enBase() && _vista === 'formularios' && !_cargando && Date.now() - _leidasEn > MS_RELEER) releer();
 }
 
 /** Control se va: se olvida el contenedor (el estado y los borradores se quedan). */
@@ -136,7 +181,27 @@ function cargar() {
 
 async function leerVentas(Supa) {
   const r = await PS.leerVentas(await Supa.cliente());
+  _leidasEn = Date.now();
   if (r.ok) { _ventas = r.ventas; _ventasMsg = ''; } else { _ventas = _ventas || []; _ventasMsg = r.mensaje; }
+}
+
+/** Los saldos otra vez, sin volver a preguntar quién eres. */
+function releer() {
+  _releer = false;
+  _cargando = (async () => { const Supa = await import('../nucleo/supa.js'); await leerVentas(Supa); })()
+    .catch(() => { /* se queda lo de antes */ })
+    .finally(() => { _cargando = null; repintar(); });
+  return _cargando;
+}
+
+/* La base cambió (otro teléfono cobró, abonó o dio de alta una venta). Si alguien está escribiendo en un campo,
+   se espera a que lo suelte: repintar le movería el cursor. Mientras se manda algo, también se espera. */
+function alCambiarLaBase() {
+  if (!enBase() || !_el || !_el.isConnected || _vista !== 'formularios') return;
+  const a = typeof document !== 'undefined' ? document.activeElement : null;
+  const escribiendo = !!(a && _el.contains && _el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || ''));
+  if (_enviando || _preparando || _cargando || escribiendo) { _releer = true; return; }
+  releer();
 }
 
 function repintar() {
@@ -165,12 +230,18 @@ const venta = id => (_ventas || []).find(v => v.id === id) || null;
 const idDe = (t, k) => 'pg-' + t + '-' + k;
 const msg = (t, k) => '<p class="pf-de-err pg-err" id="' + idDe(t, k) + '-m" role="alert" hidden></p>';
 
+/** Los formularios que se ven ahora: la venta sin cotización, solo con la base mandando y si la base la deja. */
+const formularios = () => PS.formulariosDe({ baseManda: enBase(), acceso: _acceso });
+
 function htmlFormularios() {
-  const tabs = segmento(PS.FORMULARIOS.map(v => ({ v, t: NOMBRE[v] })), _form, 'data-pg-form', 'Qué registrar');
+  const lista = formularios();
+  if (!lista.includes(_form)) _form = 'cobro';
+  const tabs = segmento(lista.map(v => ({ v, t: NOMBRE[v] })), _form, 'data-pg-form', 'Qué registrar');
   const aviso = _ventasMsg ? '<p class="hintnote nota-mal" role="alert">' + esc(_ventasMsg) + '</p>' : '';
   const quien = _acceso && _acceso.correo ? '<p class="pf-nota">Como <b>' + esc(_acceso.correo) + '</b> · ' + esc(AREA[_acceso.area] || '') + '</p>' : '';
   let f;
-  if (_ventas === null) f = '<p class="pf-nota" role="status">Leyendo las ventas de la base…</p>';
+  if (_form === 'venta') f = formVenta();                         // no necesita las ventas de la base
+  else if (_ventas === null) f = '<p class="pf-nota" role="status">Leyendo las ventas de la base…</p>';
   else if (_form === 'abono') f = formAbono();
   else if (_form === 'reparto') f = formReparto();
   else if (_form === 'correccion') f = formCorreccion();
@@ -206,9 +277,18 @@ function campoTexto(t, k, etiqueta, valor, o = {}) {
   return '<div class="fld" data-pg-fld="' + k + '"><label for="' + idDe(t, k) + '">' + etiqueta + '</label>' +
     '<input type="' + (o.tipo || 'text') + '" id="' + idDe(t, k) + '" data-pg-campo="' + k + '"' +
     (o.decimal ? ' inputmode="decimal" placeholder="$0.00"' : '') + (o.max ? ' max="' + esc(o.max) + '"' : '') +
-    (o.largo ? ' maxlength="' + o.largo + '"' : '') + ' autocomplete="off" value="' + esc(valor == null ? '' : valor) + '"' +
+    (o.largo ? ' maxlength="' + o.largo + '"' : '') + (o.pista ? ' placeholder="' + esc(o.pista) + '"' : '') +
+    ' autocomplete="off" value="' + esc(valor == null ? '' : valor) + '"' +
     ' aria-describedby="' + idDe(t, k) + '-m' + (o.ayuda ? ' ' + idDe(t, k) + '-a' : '') + '">' +
     (o.ayuda ? '<p class="pf-nota pg-ayuda" id="' + idDe(t, k) + '-a">' + o.ayuda + '</p>' : '') + msg(t, k) + '</div>';
+}
+
+function campoLista(t, k, etiqueta, opciones, valor, vacio) {
+  return '<div class="fld" data-pg-fld="' + k + '"><label for="' + idDe(t, k) + '">' + etiqueta + '</label>' +
+    '<select id="' + idDe(t, k) + '" data-pg-campo="' + k + '" aria-describedby="' + idDe(t, k) + '-m">' +
+    (vacio ? '<option value="">' + esc(vacio) + '</option>' : '') +
+    opciones.map(o => '<option value="' + esc(o.v) + '"' + (o.v === valor ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('') +
+    '</select>' + msg(t, k) + '</div>';
 }
 
 function htmlAviso(t) {
@@ -222,8 +302,9 @@ function htmlAviso(t) {
 }
 
 function boton(t, texto) {
-  return '<div class="pf-acciones"><button type="submit" class="btn btn-pri" data-pg-enviar' + (_enviando ? ' disabled aria-busy="true"' : '') + '>' +
-    (_enviando ? 'Enviando…' : texto) + '</button></div>';
+  const ocupado = _enviando || _preparando;
+  return '<div class="pf-acciones"><button type="submit" class="btn btn-pri" data-pg-enviar' + (ocupado ? ' disabled aria-busy="true"' : '') + '>' +
+    (ocupado ? 'Enviando…' : texto) + '</button></div>';
 }
 const hoy = () => { try { return hoyISO(); } catch (_) { return ''; } };
 
@@ -257,7 +338,7 @@ function formReparto() {
   const t = 'reparto', c = borradores()[t].campos;
   return '<form class="pg-form" data-pg-tipo="reparto" novalidate>' +
     '<p class="pf-nota">Un depósito de comisión se reparte entre las comisiones pendientes, de la venta más antigua a la más nueva. ' +
-    'Lo que sobra no se aplica.</p>' +
+    'Lo que sobra no se aplica. Un reparto no se deshace.</p>' +
     campoTexto(t, 'monto', 'Monto del depósito', c.monto, { decimal: true }) +
     '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-pg-act="previa">Ver el reparto</button></div>' +
     '<div id="pg-reparto-previa">' + htmlPrevia() + '</div>' +
@@ -294,6 +375,49 @@ function formCorreccion() {
     boton(t, que === 'abono' ? 'Asentar corrección…' : 'Corregir liquidación…') + htmlAviso(t) + '</form>';
 }
 
+/* La venta sin cotización (paso 5): lo mismo que pide «Registrar nueva venta» de la hoja, con las reglas de
+   `alta_venta`. El IVA no se pregunta: lo decide la cuenta, como en la base. */
+const notaIva = cuenta => !cuenta ? 'El IVA lo decide la cuenta: ' + PS.CUENTA_SIN_IVA + ' no lleva; las demás, sí (16 %).'
+  : cuenta === PS.CUENTA_SIN_IVA ? 'Con esta cuenta la venta va sin IVA.' : 'Con esta cuenta la venta lleva IVA (16 %).';
+
+function formVenta() {
+  const t = 'venta', c = borradores()[t].campos;
+  const entrega = PS.ENTREGAS.includes(c.entrega) ? c.entrega : '';
+  const tipos = Array.isArray(c.tipos) ? c.tipos : [];
+  return '<form class="pg-form" data-pg-tipo="venta" novalidate>' +
+    '<p class="pf-nota">Una venta que no salió del cotizador (la de «Registrar nueva venta» de la hoja). La base le da el siguiente ' +
+    'V-### y llega sola a todos los teléfonos.</p>' +
+    campoTexto(t, 'nombre', 'Proyecto', c.nombre, { largo: PS.TOPE_NOMBRE, pista: 'Cliente - Negocio' }) +
+    '<div class="pg-dos">' +
+      campoLista(t, 'cuenta', 'Cuenta de cobro', PS.CUENTAS.map(x => ({ v: x, t: x })), c.cuenta || '', 'Elige la cuenta…') +
+      campoLista(t, 'estatus', 'Estatus', PS.ESTATUS.map(x => ({ v: x, t: x })), c.estatus || 'FABRICACION') +
+    '</div>' +
+    '<p class="pf-nota" id="pg-venta-iva">' + esc(notaIva(c.cuenta)) + '</p>' +
+    '<fieldset class="fld pg-tipos" data-pg-fld="tipos"><legend>Tipo de trabajo <small>(opcional; uno o varios)</small></legend>' +
+      PS.TIPOS.map((x, i) => '<label class="pg-tipo"><input type="checkbox" id="' + idDe(t, 'tipos') + (i ? '-' + i : '') +
+        '" data-pg-campo="tipos" value="' + esc(x) + '"' + (tipos.includes(x) ? ' checked' : '') + '> ' + esc(x) + '</label>').join('') +
+      msg(t, 'tipos') + '</fieldset>' +
+    '<div class="pg-dos">' +
+      campoTexto(t, 'subtotal', 'Subtotal (sin IVA)', c.subtotal, { decimal: true }) +
+      campoTexto(t, 'anticipo', 'Anticipo recibido', c.anticipo, { decimal: true, ayuda: 'Vacío es cero.' }) +
+    '</div>' +
+    '<div class="pg-dos">' +
+      campoTexto(t, 'fecha', 'Fecha del anticipo', c.fecha, { tipo: 'date', max: hoy(), ayuda: 'Vacía es hoy.' }) +
+      campoTexto(t, 'cita', 'Fecha de instalación', c.cita, { tipo: 'date', ayuda: 'Opcional.' }) +
+    '</div>' +
+    '<h3 class="aj-sub">Datos para la entrega</h3>' +
+    '<div class="pg-dos">' +
+      campoTexto(t, 'tel', 'Teléfono del cliente', c.tel, { tipo: 'tel', largo: 30, pista: '33 1234 5678', ayuda: '10 dígitos o más.' }) +
+      campoLista(t, 'entrega', 'Cómo se entrega', PS.ENTREGAS.map(x => ({ v: x, t: PS.ENTREGA_NOMBRE[x] })), entrega, 'Elige…') +
+    '</div>' +
+    (entrega === 'recoleccion'
+      ? '<p class="pf-nota">Lo recoge en el taller: no hace falta la dirección del cliente.</p>'
+      : campoTexto(t, 'dir', entrega === 'paqueteria' ? 'Destino del envío' : 'Dirección', c.dir,
+        { largo: PS.TOPE_DIRECCION, pista: 'Calle y número, colonia, ciudad', ayuda: 'Opcional: se puede completar después.' })) +
+    (entrega === 'instalacion' ? campoTexto(t, 'maps', 'Liga de Maps (opcional)', c.maps, { largo: PS.TOPE_LIGA, pista: 'https://maps.app.goo.gl/…', ayuda: 'La de WhatsApp sirve.' }) : '') +
+    boton(t, 'Registrar venta…') + htmlAviso(t) + '</form>';
+}
+
 /* ============================================================================
    Escribir, tocar y enviar
    ============================================================================ */
@@ -304,8 +428,15 @@ function alEscribir(ev) {
   const t = ev.target, k = t && t.dataset && t.dataset.pgCampo, tipo = formDe(t);
   if (!k || !tipo) return;
   const c = borradores()[tipo].campos;
+  const antes = c[k];
   if (k === 'liquidar') { c.liquidar = !!t.checked; c.liquidarTocado = true; }
-  else c[k] = t.value;
+  else if (k === 'tipos') {
+    const l = Array.isArray(c.tipos) ? c.tipos.slice() : [];
+    const i = l.indexOf(t.value);
+    if (t.checked && i < 0) l.push(t.value);
+    if (!t.checked && i >= 0) l.splice(i, 1);
+    c.tipos = l;
+  } else c[k] = t.value;
   limpiarError(t.closest('form'), tipo, k);
   if (tipo === 'reparto' && k === 'monto' && _vp) { _vp = null; const p = _el && _el.querySelector('#pg-reparto-previa'); if (p) p.innerHTML = ''; }
   if (k === 'proyecto') { const d = _el && _el.querySelector('#' + idDe(tipo, 'venta')); if (d) d.innerHTML = detalleVenta(tipo, venta(c.proyecto)); }
@@ -313,7 +444,10 @@ function alEscribir(ev) {
     const ck = _el && _el.querySelector('form[data-pg-tipo="cobro"] [data-pg-campo="liquidar"]');
     if (ck) ck.checked = PS.sugerirLiquidar(venta(c.proyecto), c.monto);
   }
+  if (tipo === 'venta' && k === 'cuenta') { const n = _el && _el.querySelector('#pg-venta-iva'); if (n) n.textContent = notaIva(c.cuenta); }
   guardar();
+  /* La entrega decide qué se pide (dirección, destino o nada; la liga solo si se instala), como el diálogo de la hoja. */
+  if (tipo === 'venta' && k === 'entrega' && antes !== c.entrega) repintar();
 }
 
 async function alClic(ev) {
@@ -330,7 +464,7 @@ async function alClic(ev) {
   if (act === 'recargar') { _ventas = null; _vista = 'esperando'; repintar(); cargar(); }
   else if (act === 'previa') verPrevia();
   else if (act === 'olvidar') olvidar();
-  else if (act === 'apagar') {
+  else if (act === 'apagar' && !enBase()) {
     const Supa = await import('../nucleo/supa.js');
     await Supa.salir(); Supa.encender(false);
     toast('Supabase apagado en este aparato', 'ok', 2500);
@@ -369,16 +503,40 @@ function alEnviar(ev) {
   if (tipo) enviarForm(tipo, ev.target);
 }
 
+/**
+ * El reparto que se confirma es el que se vio: se vuelve a calcular justo antes de preguntar. Si otro teléfono
+ * abonó en medio, cambia, se enseña el nuevo y no se manda nada. Devuelve true si se puede seguir.
+ */
+async function repartoAlDia(form, monto) {
+  _preparando = true;
+  let r;
+  try {
+    const Supa = await import('../nucleo/supa.js');
+    r = await PS.vistaPrevia(await Supa.cliente(), monto);
+  } catch (e) {
+    r = { ok: false, mensaje: 'La base no contestó. Vuelve a tocar «Repartir…».' };
+  } finally { _preparando = false; }
+  if (!r.ok) { marcarError(form, 'reparto', 'monto', r.mensaje, true); return false; }
+  if (PS.mismoReparto(_vp, r.data)) return true;
+  _vp = r.data;
+  _aviso.reparto = { tono: 'av', texto: 'El reparto cambió desde que lo viste (alguien registró un abono). Revisa el de ahora y vuelve a tocar «Repartir…». No se repartió nada.' };
+  repintar();
+  enfocar('#pg-reparto-aviso');
+  return false;
+}
+
 async function enviarForm(tipo, form) {
   if (_enviando) return;                                              // el doble envío: uno a la vez
+  if (_preparando) return;
   const b = borradores()[tipo];
   const c = { ...b.campos };
   const v = venta(c.proyecto);
   if (tipo === 'cobro' && !c.liquidarTocado) c.liquidar = PS.sugerirLiquidar(v, c.monto);
   if (tipo === 'correccion' && (!_acceso || _acceso.area !== 'direccion')) c.que = 'liquidacion';
-  const armar = () => PS.plan(tipo, c, { opId: b.opId, hoy: hoy(), venta: v, area: _acceso && _acceso.area, vistaPrevia: _vp });
+  const armar = () => PS.plan(tipo, c, { opId: b.opId, hoy: hoy(), venta: v, area: _acceso && _acceso.area, vistaPrevia: _vp,
+    baseManda: enBase(), ahora: Date.now() });
   let p = armar();
-  for (const k of ['proyecto', 'monto', 'fecha', 'nota', 'que']) limpiarError(form, tipo, k);
+  for (const k of CAMPOS) limpiarError(form, tipo, k);
   if (!p.ok) {
     for (const [k, frase] of Object.entries(p.errores)) marcarError(form, tipo, k, frase, false);
     const campo = form.querySelector('#' + idDe(tipo, p.primero));
@@ -393,7 +551,16 @@ async function enviarForm(tipo, form) {
     PS.renovar(b); guardar();
     p = armar();
   }
-  if (!await confirmarPf({ titulo: p.titulo, texto: p.texto, si: p.si, no: 'Cancelar' })) return;
+  /* El reintento de un envío incierto va con el MISMO op_id: si ya había llegado, la base contesta lo de la primera
+     vez y no reparte ni suma otra vez. Solo un envío nuevo se vuelve a calcular antes de preguntar. */
+  const reintento = !!b.incierto;
+  if (tipo === 'reparto' && !reintento) {
+    if (!await repartoAlDia(form, c.monto)) return;
+    p = armar();
+    if (!p.ok) return;
+  }
+  if (!await confirmarPf({ titulo: p.titulo, si: p.si, no: 'Cancelar', peligro: !!p.peligro,
+    texto: (reintento ? 'Es el REINTENTO del envío anterior, con el mismo número de operación: si ya había llegado, no se registra otra vez. ' : '') + p.texto })) return;
   if (_enviando) return;
   _enviando = true;
   const btn = form.querySelector('[data-pg-enviar]');
@@ -413,10 +580,13 @@ async function enviarForm(tipo, form) {
   guardar();
   if (r.ok) {
     toast(_aviso[tipo].texto, 'ok', 4000);
+    /* Una venta nueva baja a este teléfono en el acto (Proyectos, Control, la agenda); los demás la reciben por Realtime. */
+    if (tipo === 'venta' && _sincronizar) { try { _sincronizar(); } catch (_) { /* la siguiente vuelta la trae */ } }
     try { const Supa = await import('../nucleo/supa.js'); await leerVentas(Supa); } catch (_) { /* se queda lo de antes */ }
   }
   repintar();
   enfocar('#pg-' + tipo + '-aviso');
+  if (_releer) alCambiarLaBase();
 }
 
 /* ----- Errores junto a su campo (como «Datos para la entrega»: rojo, con marca, aria-invalid) ----- */
