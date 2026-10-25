@@ -80,6 +80,9 @@ cierto('«me late» y preguntar cómo pagar cuentan como aceptar', /me late/.tes
 console.log('\nNI UN PESO ESCRITO POR LA IA');
 eq('quita la oración con $', A.sinDinero('¡Va! Te sale en $5,000 más o menos. ¿Lleva luz?'), '¡Va! ¿Lleva luz?');
 eq('y la de «pesos»', A.sinDinero('Serían 3500 pesos. ¿Factura?'), '¿Factura?');
+eq('el punto de una liga o de «2.5» no corta (producción, 2026-10-25: «maps. app. goo. gl» y «2. 5 semanas»)',
+  A.sinDinero('El taller: https://maps.app.goo.gl/AQHck791iv5U4qRS9. Queda de 2.5 a 3 semanas.'), 'El taller: https://maps.app.goo.gl/AQHck791iv5U4qRS9. Queda de 2.5 a 3 semanas.');
+eq('los renglones se quedan, y la oración con dinero se va sin dejar hueco', A.sinDinero('¡Hola!\n\nSerían $9,000.\nVa en exterior.'), '¡Hola!\n\nVa en exterior.');
 eq('las medidas y los porcentajes de anticipo no son dinero', A.sinDinero('Las letras de 40 cm quedan bien. El anticipo es del 50 %.'), 'Las letras de 40 cm quedan bien. El anticipo es del 50 %.');
 const est = A.estadoDe(LISTA);
 const r1 = A.armarRespuesta('¡Listo! Te sale en $1,000. ¿Arrancamos?', est, LISTA, '');

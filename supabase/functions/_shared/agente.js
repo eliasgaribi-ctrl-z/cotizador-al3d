@@ -263,9 +263,17 @@ const pesos = n => new Intl.NumberFormat('es-MX', { style: 'currency', currency:
    entera: media oración sin su número dice otra cosa. */
 const DINERO = /\$\s?\d|\d[\d.,]*\s?(pesos|mxn|mil pesos)\b|\bmxn\s?\d/i;
 
+/* Se corta por oración solo donde al punto le sigue un espacio, o en un salto de renglón: el punto de
+   «2.5 semanas» o de «maps.app.goo.gl» no termina nada (antes los partía y llegaban «2. 5» y la liga rota).
+   Los separadores se guardan (van en las posiciones impares) para que los renglones sigan iguales. */
 export function sinDinero(t) {
-  const partes = String(t || '').split(/(?<=[.!?\n])\s*/);
-  return partes.filter(p => !DINERO.test(p)).join(' ').replace(/\s+\n/g, '\n').trim();
+  const partes = String(t || '').split(/((?<=[.!?])[ \t]+|\n+)/);
+  let out = '';
+  for (let i = 0; i < partes.length; i += 2) {
+    if (!DINERO.test(partes[i])) out += partes[i] + (partes[i + 1] || '');
+    else if (/\n/.test(partes[i + 1] || '')) out += partes[i + 1];
+  }
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** El precio, escrito por código. */
