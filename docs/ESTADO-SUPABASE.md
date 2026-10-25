@@ -577,3 +577,16 @@ próximas instalaciones, sin dinero; y, rotando, la orden de trabajo de cada obr
 | El permiso de `service_role` para leer `pantallas` (lo usa el respaldo semanal; entró a `0022` después de aplicarla) | aplicado aparte en las dos bases el 2026-10-24; la auditoría de producción sigue limpia (`interno.auditoria()` devuelve `[]`). Ya se puede volver a pegar `importar-diario` | `supabase/tests/rls-y-dinero/rls.mjs` (RL-14) |
 | Que la orden de trabajo salga para las obras de hoy | no sale: las obras en diseño, corte y armado vienen de la hoja (`fuente = 'hoja'`), sin `origen_obra` ni folio global, y las cotizaciones de la nube no están ligadas a la hoja. Sale para las obras que se ganen desde la app con su cotización en la nube | consulta en `al3d-produccion`, 2026-10-24 |
 | Que el plano salga en la TV | depende de que las imágenes de la obra estén en Storage (suben con la sombra, que sigue apagada en los aparatos): sin ellas, la orden sale con «todavía no tiene su plano en la nube» | — |
+
+## Undécima entrega (2026-10-24): el agente de ventas (sin publicar)
+
+Rama `claude/agente-ventas`. Pedido por Elías ese día: que AL3D siga cotizando cuando él entre a trabajar en enero. Plan y
+decisiones: `docs/AGENTE-VENTAS.md`. **Nada de esto está aplicado ni desplegado.**
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| La ficha de obra: qué se pregunta para cotizar, fabricar e instalar, qué decide Dirección y por qué, el precio con `precio.js` y las notas de la orden | hecho y verificado en node | `supabase/functions/_shared/ficha.js`, `pruebas/ficha-agente.mjs` |
+| `0023_agente.sql`: conversaciones (con la huella del secreto del link), mensajes que no se editan ni se borran, la cola «Necesita tu decisión» (una pendiente por conversación), los topes (60 conversaciones nuevas por hora y empresa, 80 mensajes del cliente al día) y `agente_decidir` para Dirección; la auditoría con las cuatro RPC en sus listas | hecho y verificado en PGlite | `supabase/tests/agente/agente.mjs` |
+| Función `agente`: dos llamadas a la IA por mensaje (sacar datos y redactar); los precios y la cuenta los escribe el código, y se quita cualquier dinero que escriba la IA; lo que Dirección ya decidió no se vuelve a preguntar | hecho y verificado en node con base e IA de mentiras | `supabase/functions/agente/handler.js`, `pruebas/agente-logica.mjs` |
+| Aplicar `0023`, armar el archivo para pegar en el panel, cargar `AGENTE_CUENTA` y probar contra la IA de verdad | pendiente (con el OK de Elías) | — |
+| El portal del cliente y «Necesita tu decisión» en el teléfono | pendiente | — |

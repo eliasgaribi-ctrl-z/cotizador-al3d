@@ -25,11 +25,15 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
    `pruebas/ficha-agente.mjs`). Qué se pregunta en cada etapa (cotizar, fabricar, instalar),
    qué decide Dirección y con qué razón, el precio con `precio.js` y las notas de la orden que
    hoy se escriben a mano. El agente no se «acuerda» de preguntar: la ficha se lo exige.
-2. **Las tablas** — conversaciones, mensajes, fichas, la cola «Necesita tu decisión» y los
-   seguimientos. Pendiente.
-3. **La función `agente`** — recibe un mensaje de cualquier canal (el portal ahora, WhatsApp
-   después), actualiza la ficha y contesta. Usa la ficha para saber qué falta; nunca inventa
-   un precio. Pendiente.
+2. **Las tablas** — `supabase/migrations/0023_agente.sql` (hecha, con
+   `supabase/tests/agente/agente.mjs`; sin aplicar): conversaciones, mensajes que no se borran,
+   la cola «Necesita tu decisión» y los topes de gasto de IA.
+3. **La función `agente`** — `supabase/functions/agente` (hecha, con `pruebas/agente-logica.mjs`;
+   sin desplegar). Por cada mensaje: la IA saca los datos, la ficha decide qué sigue, la IA
+   redacta y el código pone el precio y la cuenta (y le borra a la IA cualquier cantidad de
+   dinero). Usa las llaves de IA que ya existen (IA_KEYS): Gemini, luego Qwen, luego DeepSeek.
+   Para publicarla faltan: aplicar 0023, pegarla en el panel y cargar `AGENTE_CUENTA` (banco,
+   titular y CLABE, en texto) como secreto de la función.
 4. **El portal del cliente** — un link por proyecto: la cotización, aceptar, la cuenta de
    depósito (fija, nunca escrita por la IA), subir el comprobante y los archivos, y ver en qué
    etapa va. Pendiente.

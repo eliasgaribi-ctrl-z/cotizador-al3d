@@ -181,6 +181,11 @@ const P_PARTIDA = {
   ],
 };
 
+/* Los nombres de los campos que existen, para que el agente no le escriba a la ficha nada que no
+   esté aquí (agente.js, `aplicarCambios`). */
+export const CAMPOS_PROYECTO = Object.freeze(P_PROYECTO.map(q => q.id));
+export const camposDePartida = tipo => (P_PARTIDA[tipo] || P_PARTIDA.especial).map(q => q.id);
+
 const ETAPAS = ['cotizar', 'fabricar', 'instalar'];
 const hasta = etapa => ETAPAS.slice(0, ETAPAS.indexOf(etapa) + 1);
 
