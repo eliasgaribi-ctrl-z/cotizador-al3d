@@ -171,6 +171,15 @@ export function cablear(el, o = {}) {
 /** Control se va: se olvida el contenedor (el estado y los borradores se quedan). */
 export function soltar() { _el = null; }
 
+/** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Ingreso» abre el de cobro). El borrador de
+ *  cada formulario no se toca: solo cambia cuál está a la vista. */
+export function elegirFormulario(t) {
+  if (!PS.FORMULARIOS.includes(t)) return;
+  _form = t;
+  guardar();
+  if (_el) repintar();
+}
+
 /* ============================================================================
    Leer: sesión, área y ventas
    ============================================================================ */
