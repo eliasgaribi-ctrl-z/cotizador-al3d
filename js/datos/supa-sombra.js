@@ -86,10 +86,13 @@ const t = v => (v === null || v === undefined) ? '' : String(v);
 export const BASE = 'al3d_sombra';
 const TOPE_REGISTRO = 200;
 
-/** El almacén en IndexedDB (navegador). Cuatro almacenes: la cola, el registro, los cuadres y las imágenes ya subidas a la nube
- *  (js/datos/supa-imagenes.js; llegó en la versión 2: abrir la 1 de antes solo agrega ese almacén, no toca los otros). */
-export const VERSION_BASE = 2;
-export const ALMACENES_SOMBRA = Object.freeze(['cola', 'registro', 'cuadres', 'imagenes']);
+/** El almacén en IndexedDB (navegador). Cinco almacenes: la cola, el registro, los cuadres, las imágenes ya subidas a la nube
+ *  (js/datos/supa-imagenes.js; llegó en la versión 2: abrir la 1 de antes solo agrega ese almacén, no toca los otros) y, desde la
+ *  versión 3 (paso 4 de «la base manda»), las cotizaciones del historial que la base ya tiene (js/datos/supa-cotizaciones.js). La
+ *  base sigue siendo de la sombra aunque con la base mandando la sombra no copie nada: es «lo de Supabase en este aparato», y la
+ *  baja de acceso ya la borra entera (`BASES_LOCALES` de js/nucleo/supa.js). */
+export const VERSION_BASE = 3;
+export const ALMACENES_SOMBRA = Object.freeze(['cola', 'registro', 'cuadres', 'imagenes', 'cotizaciones']);
 export function almacenIndexedDB() {
   let _db = null;
   const abrir = () => _db || (_db = new Promise((res, rej) => {

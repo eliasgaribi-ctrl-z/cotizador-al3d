@@ -168,12 +168,127 @@ function guardarEnHistorial(extra){
        (la vigencia cuenta desde el mayor de los dos). */
     reenviada:(extra&&extra.reenviada)||(idx>=0&&arr[idx].reenviada)||0
   };
+  /* Con la base mandando (paso 4 de docs/BASE-MANDA.md) el historial es de la empresa: trae cotizaciones de otros
+     teléfonos, y se sincroniza con la base. Dos cosas cambian al guardar, y solo entonces:
+       · el aparato de una que ya estaba se conserva. Es parte de su folio global —su llave en la base y la
+         carpeta de sus imágenes—; ponerle el de este teléfono al corregirla aquí la partiría en dos;
+       · `editado` dice cuándo cambió por última vez, para que entre dos teléfonos gane la más nueva
+         (js/datos/supa-cotizaciones.js). Solo se mueve si algo cambió de verdad: volver a guardar lo mismo no
+         es una edición, y moverlo de balde haría ganar una copia que no es más nueva. */
+  if(laBaseManda()){
+    const prev=idx>=0?arr[idx]:null;
+    const dPrev=prev?_histDispDe(prev):'';
+    if(dPrev) entry.disp=dPrev;
+    if(prev&&_histFirma(prev)===_histFirma(entry)){ if(prev.editado) entry.editado=prev.editado; }
+    else entry.editado=Date.now();
+  }
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   const ok=saveHistorial(arr);
   /* El historial es de donde salen las sugerencias de cliente: al crecer, crecen. */
   pintarClientes();
   return ok;
 }
+
+/* ===================== El historial de la empresa, con la base mandando =====================
+   Paso 4 de docs/BASE-MANDA.md. Elías lo pidió: «que todo se guarde en Supabase y se sincronice en todos
+   los teléfonos y sesiones». Con la hoja mandando el historial es de ESTE teléfono, como siempre, y nada
+   de esto corre ni pregunta nada.
+
+   Con la base mandando, la plataforma sube lo que este cotizador guarda (js/datos/supa-cotizaciones.js: la
+   primera vez, todo el historial de este aparato) y aquí se baja lo que cambió en la base, por la
+   ventanilla `AL3D_NUBE` (ventanillaBase, venta.js): `cotizaciones(desde)` trae las filas y `mezclar` las
+   junta con lo de aquí —la más nueva gana, sin duplicar, y un folio corto es de una sola cotización—. La
+   escritura es de AQUÍ: la plataforma tiene prohibido escribir las claves del cotizador, y escribirlas en
+   el mismo paso síncrono en que se leen es lo que hace que no se pierda lo que se guardó mientras la red
+   contestaba. Lo que cada quien ve lo decide la base: Dirección, las de toda la empresa; Pagos, las suyas;
+   a Fabricación ni se le pone la ventanilla (llevan precios), y su historial sube pero no baja.
+
+   Cuándo se baja: al abrir (cuando la plataforma ya entró a la base), al volver a la app, y al abrir el
+   historial o los clientes. Normalmente solo lo que cambió desde la vez anterior (`al3d_hist_nube`, que no
+   viaja en los respaldos); una vez al día, todo, por si algo se quedó atrás.
+
+   Borrar una cotización del historial, con la base mandando, la borra también en la base y en los demás
+   teléfonos: aquí se deja una lápida (`al3d_hist_borradas`) y la plataforma la manda cuando pasó la
+   ventana de «Deshacer». La base no la tira: le pone fecha de borrado, y una autorización firmada sigue
+   verificando. */
+const HIST_NUBE='al3d_hist_nube', HIST_BORRADAS='al3d_hist_borradas';
+/* El aparato de una entrada: el suyo o, en las de antes, el de su sello. '' si no dice. */
+function _histDispDe(e){
+  if(!e||typeof e!=='object') return '';
+  if(typeof e.disp==='string'&&e.disp) return e.disp;
+  return (e.sello&&typeof e.sello==='object'&&String(e.sello.folio||'').split('@')[1])||'';
+}
+/* El contenido de una entrada sin lo que no cuenta como cambio: cuándo se editó, y la imagen de referencia en
+   sí (la base no la guarda). Con las llaves en orden: una que llegó de la base las trae en otro. */
+function _histFirma(e){
+  const dato=x=>typeof x==='string'&&/^data:/i.test(x);
+  const limpio=v=>{
+    if(Array.isArray(v)) return v.filter(x=>!dato(x)).map(limpio);
+    if(v&&typeof v==='object'){ const o={}; Object.keys(v).sort().forEach(k=>{ const x=v[k]; if(x===undefined||typeof x==='function'||dato(x)) return; o[k]=limpio(x); }); return o; }
+    return v;
+  };
+  let c; try{ c=JSON.parse(JSON.stringify(e||{})); }catch(_){ return ''; }
+  delete c.editado;
+  if(c.aiFile&&typeof c.aiFile==='object') delete c.aiFile.url;
+  return JSON.stringify(limpio(c));
+}
+function _histBorradas(){
+  try{ const a=JSON.parse(localStorage.getItem(HIST_BORRADAS)||'[]'); return Array.isArray(a)?a.filter(x=>x&&typeof x==='object'):[]; }
+  catch(_){ return []; }
+}
+/* La lápida de una cotización que se borró aquí (poner) o que volvió con «Deshacer» (quitar). Las de más de un
+   mes se sueltan solas: para entonces la plataforma ya las mandó. */
+function _histLapida(entry,poner){
+  if(!laBaseManda()||!entry||!entry.folio) return;
+  const clave=entry.folio+'@'+(_histDispDe(entry)||dispositivo()), ahora=Date.now();
+  const l=_histBorradas().filter(x=>x.clave!==clave&&ahora-(Number(x.ts)||0)<30*864e5);
+  if(poner) l.push({clave,ts:ahora});
+  try{ localStorage.setItem(HIST_BORRADAS,JSON.stringify(l)); }catch(_){}
+}
+let _histTrayendo=null, _histTraidoEn=0, _histChoquesDichos=false;
+/* Trae lo que cambió en la base y lo junta con el historial de aquí. Devuelve cuántas entradas cambiaron. Nunca
+   lanza. `forzar` no espera el minuto desde la última vez; `esperar`, cuántos ms se espera a la ventanilla. */
+function traerHistorialDeLaNube(o){
+  o=o||{};
+  if(!laBaseManda()) return Promise.resolve(0);
+  if(_histTrayendo) return _histTrayendo;
+  if(!o.forzar&&Date.now()-_histTraidoEn<(o.cada||60000)) return Promise.resolve(0);
+  _histTrayendo=(async()=>{
+    const nube=await esperarVentanillaBase('cotizaciones',o.esperar||0);
+    if(!nube||typeof nube.mezclar!=='function') return 0;
+    let marca={};
+    try{ marca=JSON.parse(localStorage.getItem(HIST_NUBE)||'{}')||{}; }catch(_){ marca={}; }
+    const completa=!marca.hasta||!(Date.now()-(Number(marca.completa)||0)<864e5)||!getHistorial().length;
+    let r=null;
+    try{ r=await nube.cotizaciones(completa?'':marca.hasta); }catch(_){ r=null; }
+    if(!r||!r.ok) return 0;
+    _histTraidoEn=Date.now();
+    /* Lo de aquí se lee AHORA, no antes de la red: lo que se guardó mientras tanto entra a la mezcla. */
+    let m=null;
+    try{ m=nube.mezclar({historial:getHistorial(),hitos:getHitos()},r.filas||[],dispositivo()); }catch(_){ return 0; }
+    if(!m) return 0;
+    /* No cupo: la marca no avanza y se vuelve a intentar, pero dentro de una hora: saveHistorial ya dijo que falta
+       espacio, y repetirlo en cada vuelta a la app no ayuda. */
+    if(m.cambios&&!saveHistorial(m.historial)){ _histTraidoEn=Date.now()+3600000; return 0; }
+    if(m.hitos){ try{ localStorage.setItem(HITOS_KEY,JSON.stringify(m.hitos)); }catch(_){} }
+    try{ localStorage.setItem(HIST_NUBE,JSON.stringify({hasta:String(r.hasta||marca.hasta||''),completa:completa?Date.now():(Number(marca.completa)||0)})); }catch(_){}
+    if(m.cambios||m.hitos){
+      pintarClientes();
+      if($('histmodal')&&$('histmodal').classList.contains('show')){ _histData=getHistorial(); indexarHistorial(); pintarFichasHistorial(); pintarHistorial(); }
+      if($('climodal')&&$('climodal').classList.contains('show')&&!_cuaAbierto){ _cuaData=cuadernos(); pintarCuadernos(); }
+    }
+    if(m.choques&&!_histChoquesDichos){
+      _histChoquesDichos=true;
+      toast((m.choques===1?'Una cotización de la base no entra':m.choques+' cotizaciones de la base no entran')+
+        ' a este historial: su folio ya es de otra de este teléfono. Que cada teléfono tenga su propia letra (Ajustes).','err',9000);
+    }
+    return m.cambios;
+  })().catch(()=>0).finally(()=>{ _histTrayendo=null; });
+  return _histTrayendo;
+}
+/* Al abrir (cuando la plataforma ya entró a la base: se le espera hasta 20 s) y al volver a la app. */
+window.addEventListener('load',()=>{ setTimeout(()=>{ traerHistorialDeLaNube({forzar:true,esperar:20000}); },1500); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') traerHistorialDeLaNube(); });
 
 let _histData=[];
 /* `origen` es la miniatura que se tocó (la pasa el onclick con `this`): de ella crece el plano y
@@ -408,18 +523,21 @@ function borrarDeHistorial(folio){
   _histBorrada={entry:arr[idx],idx};
   arr.splice(idx,1);
   saveHistorial(arr);
+  /* Con la base mandando, también allá (la lápida; ver «El historial de la empresa»). */
+  _histLapida(_histBorrada.entry,true);
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
   pintarFichasHistorial();   // los conteos de las fichas cambian con cada borrado
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador y la ficha activa
   vibrar([8,40,8]);
-  toast(folio+' eliminada del historial','',8000,{label:'Deshacer',fn:deshacerBorradoHistorial});
+  toast(folio+' eliminada del historial'+(laBaseManda()?', también en la base y en los demás teléfonos':''),'',8000,{label:'Deshacer',fn:deshacerBorradoHistorial});
 }
 function deshacerBorradoHistorial(){
   const b=_histBorrada; _histBorrada=null; if(!b) return;
   const arr=getHistorial();
   if(arr.some(x=>x.folio===b.entry.folio)) return;   // ya volvió por otro lado
   arr.splice(Math.min(b.idx,arr.length),0,b.entry);
+  _histLapida(b.entry,false);
   saveHistorial(arr);
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
@@ -531,6 +649,8 @@ function abrirHistorial(){
   pintarPieHistorial();
   pintarHistorial();
   $('histmodal').classList.add('show');
+  /* Con la base mandando, lo de los demás teléfonos: se repinta solo si trajo algo. */
+  traerHistorialDeLaNube({cada:15000});
 }
 /* ----- La vigencia de 10 días a la vista (función 33) -----
    «La cotización es válida por 10 días» está escrito en el PDF y en ningún otro sitio: el
@@ -1170,6 +1290,7 @@ function abrirCuadernos(){
   pintarCuadernos();
   $('cua-body').scrollTop=0;
   $('climodal').classList.add('show');
+  traerHistorialDeLaNube({cada:15000});
 }
 function cerrarCuadernos(){
   /* Si se cierra con la nota a medio escribir, el temporizador todavía no la guardó. */
@@ -1840,6 +1961,9 @@ async function ejecutarRestauracion(){
     return fallo('escribir','No cupo el respaldo en este dispositivo','('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+')','No cupo el respaldo en este dispositivo ('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+') — no se cambió nada');
   }
   try{ localStorage.removeItem(RESTAURAR_PF_KEY); }catch(_){}
+  /* Con la base mandando, la siguiente bajada vuelve a traer todo: el respaldo pudo dejar el historial más atrás
+     que la marca de la última. */
+  try{ localStorage.removeItem(HIST_NUBE); }catch(_){}
   t.paso('escribir',n>0?(n===1?'1 cotización escrita':n+' cotizaciones escritas'):'Datos del respaldo escritos','ok');
   await pausa(450);
   t.paso('recarga','Recargando…','trabaja');

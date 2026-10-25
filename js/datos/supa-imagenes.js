@@ -9,7 +9,8 @@
    carga con el interruptor general de Supabase Y el de la sombra encendidos en este aparato.
    Apagado, ni se descarga.
 
-   SUBIR (con la sombra encendida y sesión en la base). Del HISTORIAL del cotizador —las cotizaciones
+   SUBIR (con la sombra encendida o, desde el paso 4 de docs/BASE-MANDA.md, con la base mandando; y con
+   sesión en la base). Del HISTORIAL del cotizador —las cotizaciones
    autorizadas—, cada imagen que esté en este teléfono va al bucket privado `cotizacion-imagenes`
    con la ruta del diseño (supabase/DISENO.md §3.5):
        <empresa>/<folio_global>/<id>.jpg              folio_global = folio + '@' + aparato

@@ -30,15 +30,28 @@
    la lectura en vivo hacía para la bajada, y ya sin pedir la sombra: Realtime avisa cuándo bajar y la
    ventanilla de las imágenes. La FUENTE de las filas no se pone aquí: el relevo trae la suya.
    Esto lo arranca app.js al enchufar la bandeja a la base, con o sin los interruptores de la sombra.
+
+   Y EL COTIZADOR, CON LA BASE MANDANDO (paso 4 de docs/BASE-MANDA.md). Sin pedir la sombra:
+     · el HISTORIAL sube a la base (js/datos/supa-cotizaciones.js): al arrancar —la primera vez, todo: la
+       subida única automática—, cuando el cotizador guarda (el evento 'storage' de sus claves), cada
+       minuto con la app a la vista si quedó algo, y a los 15 minutos de todos modos; y la ventanilla le
+       da al cotizador lo que cambió en la base (`cotizaciones`, `mezclar`; solo Dirección y Pagos);
+     · las IMÁGENES de esas cotizaciones suben después de cada vuelta del historial (Pagos solo puede
+       subir las de sus cotizaciones que ya están en la base: por eso van detrás);
+     · los PRECIOS: la ventanilla lee y guarda la tabla de la base (`tarifas`, `guardarTarifas`; leer, las
+       tres áreas; guardar, la base solo se lo deja a Dirección).
+   El sello, la IA, Maps y Drive siguen en el Apps Script (decidido por Elías el 2026-10-25).
    ============================================================================ */
 
 import * as Sync from './sync.js';
 import * as Puente from './puente.js';
+import * as Prefs from './prefs.js';
 import * as Supa from '../nucleo/supa.js';
 import { crearSombra, almacenIndexedDB, sombraEncendida, vivoEncendido } from './supa-sombra.js';
 import { crearFuente, suscribir, todas } from './supa-vivo.js';
 import { cuadrar, diaMx, racha, resumenCopiaDiaria } from './supa-cuadre.js';
 import { crearImagenes, puedeImagenes, puedeVerObra, CLAVE_HISTORIAL } from './supa-imagenes.js';
+import { crearCotizaciones, mezclar, puedeLeer as puedeLeerCotizaciones, CLAVE_HITOS, CLAVE_BORRADAS } from './supa-cotizaciones.js';
 
 const MS_BOMBEO = 60 * 1000;
 const MS_TRAS_COPIA = 2000;
@@ -52,6 +65,10 @@ let _reloj = 0, _programado = 0, _sincronizar = null, _debeJalar = true, _ultimo
 let _avisarApp = null, _cuadreIntentadoEn = 0;
 let _enBase = false;                         // la lectura en vivo de «la base manda»: Realtime sin fuente propia
 let _imagenes = null, _imgSucias = true, _imgUltima = 0;
+/* El historial del cotizador con la base mandando (paso 4): su reloj y su programado van aparte de los de la sombra. */
+let _cotizaciones = null, _cotSucias = true, _cotUltima = 0, _relojBase = 0, _programadoBase = 0, _oyeBase = false;
+let _cotEnCurso = null, _cotOtraVez = false;
+const MS_COTIZACIONES = 15 * 60 * 1000;      // sin cambios en el historial, se revisa cada 15 min
 
 const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
@@ -89,7 +106,8 @@ function imagenes() {
  * la vuelta anterior dejó algo a medias o si pasaron 15 minutos. Nunca lanza.
  */
 export async function subirImagenes(forzar = false) {
-  if (!sombraEncendida()) return { motivo: 'apagada' };
+  /* Con la sombra, como siempre; con la base mandando, sin ella (paso 4). */
+  if (!sombraEncendida() && !Supa.laBaseManda()) return { motivo: 'apagada' };
   if (!forzar && !_imgSucias && Date.now() - _imgUltima < MS_IMAGENES) return { motivo: 'al_dia' };
   if (!await Supa.haySesion()) return { motivo: 'sin_sesion' };
   if (!_area) await acceso();
@@ -104,19 +122,109 @@ export async function subirImagenes(forzar = false) {
 
 /** Para Ajustes. */
 export async function estadoImagenes() {
-  if (!sombraEncendida()) return null;
+  if (!sombraEncendida() && !Supa.laBaseManda()) return null;
   return imagenes().estado();
 }
+
+/* ----- El historial del cotizador, con la base mandando (paso 4) ----- */
+
+function cotizaciones() {
+  return _cotizaciones || (_cotizaciones = crearCotizaciones({ cliente: Supa.cliente, almacen: almacen(), area: () => _area,
+    empresa: () => _empresa, disp: () => Prefs.dispositivo(), anotar: ev => sombra().anotar(ev) }));
+}
+
+/**
+ * Sube a la base lo que cambió en el historial del cotizador y, detrás, sus imágenes. Solo con la base mandando. Sin `forzar`,
+ * solo si el historial cambió, si la vuelta anterior dejó algo a medias o si pasaron 15 minutos. Nunca lanza.
+ */
+export function subirCotizaciones(forzar = false) {
+  if (!Supa.laBaseManda()) return Promise.resolve({ motivo: 'hoja' });
+  /* Una vuelta a la vez. Lo que el cotizador guarde mientras corre no se pierde: al terminar, otra vuelta. */
+  if (_cotEnCurso) { _cotOtraVez = true; return _cotEnCurso; }
+  if (!forzar && !_cotSucias && Date.now() - _cotUltima < MS_COTIZACIONES) return Promise.resolve({ motivo: 'al_dia' });
+  _cotOtraVez = false;
+  _cotEnCurso = (async () => {
+    if (!await Supa.haySesion()) return { motivo: 'sin_sesion' };
+    if (!_area) await acceso();
+    /* Se entró a la base después de arrancar (Ajustes → Google): la ventanilla del cotizador y Realtime se ponen ahora, sin
+       esperar a reabrir la app. */
+    if (!_enBase && !_fuente && ['direccion', 'fabricacion', 'pagos'].includes(_area)) encenderVivo(true);
+    _cotUltima = Date.now();
+    _cotSucias = false;
+    const r = await cotizaciones().subir();
+    /* Lo que quedó a medias por red o sesión espera la vuelta del minuto; lo que no cupo en esta vuelta sigue enseguida; una
+       lápida que todavía se puede deshacer, en cuanto se le acabe la ventana. */
+    if (r.motivo === 'parada' || r.motivo === 'error') _cotSucias = true;
+    if (r.hay_mas) _cotOtraVez = true;
+    if (r.borrar_en > 0) programarBase(r.borrar_en + 1000);
+    await subirImagenes(_imgSucias || r.subidas > 0 || r.actualizadas > 0).catch(() => {});
+    return r;
+  })().catch(e => ({ motivo: 'error', mensaje: String((e && e.message) || e) }))
+    .finally(() => { _cotEnCurso = null; if (_cotOtraVez) { _cotSucias = true; programarBase(MS_TRAS_COPIA); } });
+  return _cotEnCurso;
+}
+
+/** Para Ajustes: lo del historial en la base. Null con la hoja mandando. */
+export async function estadoCotizaciones() {
+  if (!Supa.laBaseManda()) return null;
+  return cotizaciones().estado();
+}
+
+function programarBase(ms) {
+  clearTimeout(_programadoBase);
+  _programadoBase = setTimeout(() => { subirCotizaciones().catch(() => {}); }, ms);
+}
+
+/* El cotizador guardó (en su marco o en otra pestaña): su historial, sus hitos o una lápida. */
+function alCambiarElCotizador(ev) {
+  if (!Supa.laBaseManda()) return;
+  if (!ev || !ev.key || [CLAVE_HISTORIAL, CLAVE_HITOS, CLAVE_BORRADAS].includes(ev.key)) {
+    _cotSucias = true; _imgSucias = true;
+    programarBase(MS_TRAS_COPIA);
+  }
+}
+
+function arrancarCotizaciones() {
+  if (!_relojBase) _relojBase = setInterval(() => { if (visible()) subirCotizaciones().catch(() => {}); }, MS_BOMBEO);
+  if (!_oyeBase) {
+    _oyeBase = true;
+    try { globalThis.addEventListener('storage', alCambiarElCotizador); } catch (_) {}
+    try { globalThis.addEventListener('online', () => { if (Supa.laBaseManda()) programarBase(MS_TRAS_COPIA); }); } catch (_) {}
+  }
+  _cotSucias = true;
+  programarBase(MS_TRAS_COPIA);
+}
+
+function pararCotizaciones() {
+  clearInterval(_relojBase); _relojBase = 0;
+  clearTimeout(_programadoBase); _programadoBase = 0;
+}
+
+/* Lo que la ventanilla le contesta al cotizador: nunca lanza, siempre {ok, …}. */
+const comoVentanilla = fn => Promise.resolve().then(fn).then(v => ({ ...(v || {}), ok: true }),
+  e => ({ ok: false, codigo: (e && e.codigo) || 'SIN_RED', mensaje: Supa.mensajeDe(e) }));
 
 /* La ventanilla (js/cotizador/imagenes.js, `_imgNube`, y la ficha de js/mod/proyectos.js): el marco del
    cotizador es del mismo origen y la busca en esta ventana. Existe SOLO con la lectura en vivo
    encendida, y lleva lo que el área puede: `imagenes` (el cotizador) para Dirección o Pagos, y `obra`
    (las de una obra ganada, Q-02 bis) para Dirección o Fabricación. Apagado, no existe y nadie pide nada. */
 function ponerVentanilla() {
-  if (!puedeImagenes(_area) && !puedeVerObra(_area)) { quitarVentanilla(); return; }
   const v = {};
   if (puedeImagenes(_area)) v.imagenes = ids => imagenes().bajar(ids);
   if (puedeVerObra(_area)) v.obra = folioGlobal => imagenes().deObra(folioGlobal);
+  /* Con la base mandando (paso 4), lo del cotizador: los precios para las tres áreas, y el historial de la empresa solo para quien
+     ve cotizaciones (Dirección todas, Pagos las suyas: la RLS). A Fabricación no se le pone `cotizaciones`: llevan precios. */
+  if (_enBase && Supa.laBaseManda()) {
+    if (['direccion', 'fabricacion', 'pagos'].includes(_area)) {
+      v.tarifas = () => comoVentanilla(() => Supa.tarifasLeer());
+      v.guardarTarifas = filas => comoVentanilla(() => Supa.tarifasGuardar(filas));
+    }
+    if (puedeLeerCotizaciones(_area)) {
+      v.cotizaciones = desde => cotizaciones().bajar(desde);
+      v.mezclar = mezclar;
+    }
+  }
+  if (!Object.keys(v).length) { quitarVentanilla(); return; }
   globalThis.AL3D_NUBE = Object.freeze(v);
 }
 function quitarVentanilla() {
@@ -251,6 +359,7 @@ export async function arrancar(o = {}) {
   if (o.sincronizar) _sincronizar = o.sincronizar;
   if (o.avisarApp) _avisarApp = o.avisarApp;
   if (Supa.laBaseManda()) return arrancarBase();
+  pararCotizaciones();                          // con la hoja mandando, el historial no sube (paso 4)
   if (_enBase) apagarVivo();                    // la empresa volvió a la hoja: fuera lo de la base
   if (!sombraEncendida()) { apagar(); return { sombra: false, vivo: false }; }
 
@@ -287,6 +396,8 @@ async function arrancarBase() {
   if (haySesion) await acceso();
   if (haySesion && ['direccion', 'fabricacion', 'pagos'].includes(_area)) encenderVivo(true);
   else apagarVivo();
+  /* El historial del cotizador y sus imágenes (paso 4): la vuelta espera sola a que haya sesión. */
+  arrancarCotizaciones();
   return { sombra: false, vivo: _enBase, base: true };
 }
 
@@ -294,6 +405,7 @@ async function arrancarBase() {
 export function apagar() {
   Sync.alSubir(null);
   apagarVivo();
+  pararCotizaciones();
   clearInterval(_reloj); _reloj = 0;
   clearTimeout(_programado);
 }
@@ -307,8 +419,9 @@ export async function estado() {
 export async function registro(n) { return sombraEncendida() ? sombra().registro(n) : []; }
 export async function reintentarRechazadas() {
   const k = await sombra().reintentarRechazadas();
-  const i = sombraEncendida() ? await imagenes().reintentarApartadas().catch(() => 0) : 0;
+  const i = sombraEncendida() || Supa.laBaseManda() ? await imagenes().reintentarApartadas().catch(() => 0) : 0;
+  const c = Supa.laBaseManda() ? await cotizaciones().reintentarApartadas().catch(() => 0) : 0;
   _imgSucias = true;
-  programar(100);
-  return k + i;
+  if (Supa.laBaseManda()) { _cotSucias = true; programarBase(100); } else programar(100);
+  return k + i + c;
 }

@@ -237,6 +237,11 @@ pierde al borrar los datos del navegador, al cambiar de teléfono o cuando iOS l
 que llevan semanas sin abrirse. La app lo pide sola: apunta la fecha del último respaldo y lo
 nombra al autorizar si lleva más de treinta días o diez cotizaciones sin respaldarse.
 
+El día que la empresa pase a la base (Supabase, [`docs/BASE-MANDA.md`](docs/BASE-MANDA.md)) eso
+cambia para el cotizador: el historial de cotizaciones, sus imágenes y los precios se guardan en
+la base y se ven en todos los teléfonos (Dirección, las de toda la empresa; Pagos, las suyas).
+Mientras la hoja mande, todo es como dice arriba.
+
 En el pie del historial hay cuatro botones: **⬇ Respaldar** descarga un archivo con todo lo de
 ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de lo que estaba),
 **📄 CSV** exporta el historial para pegarlo en una hoja y **📓 Clientes** lo cruza por cliente.
@@ -392,7 +397,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento cincuenta y dos archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento cincuenta y tres archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -403,7 +408,7 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               85 archivos, solo node, unos segundos
+    pruebas/correr.sh               86 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   49 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero

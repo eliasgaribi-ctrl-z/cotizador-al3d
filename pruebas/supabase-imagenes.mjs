@@ -544,12 +544,15 @@ try {
       todos.filter(f => /^\s*import[^;(]*supa-imagenes\.js/m.test(leer(f))), ['js/datos/supa-enchufe.js']);
     const en = sinComentarios(leer('js/datos/supa-enchufe.js'));
     cierto('la ventanilla se pone al encender la lectura en vivo', /Puente\.fuenteDeLectura\(_fuente\);\s*ponerVentanilla\(\);/.test(en));
+    /* Desde el paso 4 de «la base manda» la ventanilla lleva también lo del cotizador con la base mandando (los precios y el
+       historial: pruebas/supabase-cotizador.mjs); lo de las imágenes no cambia, y sin nada que poner no se pone. */
     cierto('solo a quien puede: `imagenes` a Dirección o Pagos, `obra` a Dirección o Fabricación (Q-02 bis); a nadie más',
-      /function ponerVentanilla\(\) \{\s*if \(!puedeImagenes\(_area\) && !puedeVerObra\(_area\)\) \{ quitarVentanilla\(\); return; \}\s*const v = \{\};\s*if \(puedeImagenes\(_area\)\) v\.imagenes = ids => imagenes\(\)\.bajar\(ids\);\s*if \(puedeVerObra\(_area\)\) v\.obra = folioGlobal => imagenes\(\)\.deObra\(folioGlobal\);\s*globalThis\.AL3D_NUBE = Object\.freeze\(v\);/.test(en));
+      /function ponerVentanilla\(\) \{\s*const v = \{\};\s*if \(puedeImagenes\(_area\)\) v\.imagenes = ids => imagenes\(\)\.bajar\(ids\);\s*if \(puedeVerObra\(_area\)\) v\.obra = folioGlobal => imagenes\(\)\.deObra\(folioGlobal\);/.test(en) &&
+      /if \(!Object\.keys\(v\)\.length\) \{ quitarVentanilla\(\); return; \}\s*globalThis\.AL3D_NUBE = Object\.freeze\(v\);/.test(en));
     cierto('y se quita al apagarla (y apagar() apaga la lectura en vivo)', /function apagarVivo\(\) \{\s*Puente\.fuenteDeLectura\(null\);\s*quitarVentanilla\(\);/.test(en) &&
       /export function apagar\(\) \{[\s\S]*?apagarVivo\(\);/.test(en));
     eq('nadie más la pone', todos.filter(f => /AL3D_NUBE\s*=/.test(sinComentarios(leer(f)))), ['js/datos/supa-enchufe.js']);
-    cierto('las subidas solo con la sombra encendida', /export async function subirImagenes\(forzar = false\) \{\s*if \(!sombraEncendida\(\)\) return \{ motivo: 'apagada' \};/.test(en));
+    cierto('las subidas solo con la sombra encendida o con la base mandando (paso 4)', /export async function subirImagenes\(forzar = false\) \{\s*if \(!sombraEncendida\(\) && !Supa\.laBaseManda\(\)\) return \{ motivo: 'apagada' \};/.test(en));
     const cot = sinComentarios(leer('js/cotizador/imagenes.js'));
     cierto('el cotizador solo habla con la ventanilla (no con la red)', !/fetch\(|supabase/i.test(cot));
     cierto('y sin ella imgDeLaNube no hace nada', /async function imgDeLaNube\(ids\)\{\s*const nube=_imgNube\(\); if\(!nube\) return 0;/.test(cot));

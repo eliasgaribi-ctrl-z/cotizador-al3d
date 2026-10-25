@@ -158,7 +158,10 @@ export const SE_CONSERVAN = ['al3d_pf_disp', 'al3d_folio'];
 export const SE_BORRAN = ['al3d_pf_rol', 'al3d_pf_nombre', 'al3d_pf_ganadas', 'al3d_pf_gcal', 'al3d_pf_puente', 'al3d_pf_ingreso',
   'al3d_pf_empresa', 'al3d_pf_restaurar', 'al3d_pf_pase', 'al3d_pf_entrada', 'al3d_pf_gtok', 'al3d_pf_carpetas', 'al3d_historial',
   'al3d_queue', 'al3d_q', 'al3d_aifile', 'al3d_hitos', 'al3d_canva', 'al3d_cuadernos', 'al3d_logo', 'al3d_autorizador', 'al3d_rv_pct',
-  'al3d_rv_cuenta', 'al3d_anidador_retazos', 'al3d_anidador_material', CLAVE_SESION, 'al3d_pf_supa_modo'];
+  'al3d_rv_cuenta', 'al3d_anidador_retazos', 'al3d_anidador_material', CLAVE_SESION, 'al3d_pf_supa_modo',
+  /* Las del paso 4 de «la base manda»: la marca de la bajada del historial, sus lápidas, la de la subida única y el espejo pendiente
+     de los precios en la hoja. */
+  'al3d_hist_nube', 'al3d_hist_borradas', 'al3d_pf_supa_subida', 'al3d_tarifas_espejo'];
 /* `al3d_sombra` es la cola de la sombra de Supabase (js/datos/supa-sombra.js): solo existe en un aparato
    que la encendió, y lleva copias de operaciones de la bandeja. */
 export const BASES_LOCALES = ['al3d_pf', 'al3d_cot_imgs', 'al3d_sombra'];
@@ -294,6 +297,16 @@ export async function personas() {
   if (error) throw error;
   return data || [];
 }
+/* ============================================================================
+   Los precios del cotizador con la base mandando (paso 4 de docs/BASE-MANDA.md, 0019_tarifas.sql)
+   Leerlos, cualquier área (quien cotiza los necesita); guardarlos, solo Dirección (la base lo vuelve a comprobar). Contestan la
+   misma forma que `/tarifas` y `/guardar_tarifas` de la hoja ({tabla:{filas, actualizado, por}}), así que el cotizador las
+   aplica igual. Las pide el cotizador por la ventanilla del enchufe (js/datos/supa-enchufe.js).
+   ============================================================================ */
+
+export const tarifasLeer = () => rpc('tarifas_leer', {});
+export const tarifasGuardar = filas => rpc('tarifas_guardar', { p_filas: filas });
+
 export const darDeAlta = (correo, area, nota = '') => rpc('miembro_alta', { p_correo: correo, p_area: area, p_nota: nota });
 export const cambiarArea = (correo, area) => rpc('miembro_cambiar_area', { p_correo: correo, p_area: area });
 export const darDeBaja = correo => rpc('miembro_baja', { p_correo: correo });

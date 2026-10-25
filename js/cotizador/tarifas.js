@@ -22,6 +22,14 @@
    La tabla se aplica MUTANDO las listas de catalogo.js en su lugar —son `const` y todo el
    cotizador las lee en cada pintado—, así que nadie más tiene que saber de dónde salió un precio.
 
+   CON LA BASE MANDANDO (paso 4 de docs/BASE-MANDA.md) la tabla de hoy sale de la base
+   (`tarifas_leer`, 0019_tarifas.sql) y Dirección la guarda ahí (`tarifas_guardar`), por la
+   ventanilla de la plataforma (`ventanillaBase`, venta.js); la caché de este aparato es la misma
+   (`al3d_tarifas`) y las dos funciones contestan la misma forma que la hoja. Lo que NO cambia es
+   quién sella: la hoja (decidido por Elías el 2026-10-25), y la hoja recalcula con su pestaña. Por
+   eso cada guardado se le copia también a la pestaña («El espejo de la hoja», abajo). Con la hoja
+   mandando, todo es como antes y no se pide nada a la base.
+
    Es un script CLÁSICO, no un módulo ES, como el resto de js/cotizador/: el orden de carga lo
    fija cotizador.html, y este va después de nucleo.js (usa $, esc, toast y ACC) y antes de que
    arranque.js pinte nada.
@@ -79,13 +87,13 @@ function _tarListas(tabla){
   return L;
 }
 function _tarPoner(lista,nueva){ lista.splice(0,lista.length,...nueva); }
-/* Aplica una tabla de la hoja. Devuelve true si se aplicó. */
-function aplicarTarifas(tabla){
+/* Aplica una tabla de la hoja (o de la base: `desde`). Devuelve true si se aplicó. */
+function aplicarTarifas(tabla,desde){
   const L=_tarListas(tabla); if(!L) return false;
   _tarPoner(MATERIALES,L.material); _tarPoner(COMPLEJIDAD,L.complejidad); _tarPoner(RECORTES,L.recorte);
   _tarPoner(BASTIDORES,L.bastidor); _tarPoner(CAJAS,L.caja);
   RECORTE_COMP_EXTRA=L.extra;
-  TARIFAS_INFO=Object.assign({},TARIFAS_INFO,{desde:'hoja',actualizado:String(tabla.actualizado||''),por:String(tabla.por||''),filas:tabla.filas});
+  TARIFAS_INFO=Object.assign({},TARIFAS_INFO,{desde:desde||'hoja',actualizado:String(tabla.actualizado||''),por:String(tabla.por||''),filas:tabla.filas});
   return true;
 }
 /* ----- Una tabla nueva no reescribe lo que ya se autorizó -----
@@ -96,10 +104,10 @@ function aplicarTarifas(tabla){
    una del historial: cada partida cuyo importe se movió queda en Q.itemsAuth con el que tenía, y con
    eso el total, los renglones del papel y el sello siguen siendo los que se autorizaron. Para
    cobrarla al precio nuevo, se vuelve a autorizar. */
-function _tarAplicarCuidando(tabla){
+function _tarAplicarCuidando(tabla,desde){
   const aut=typeof Q!=='undefined'&&Q&&Q.estado==='autorizada'&&Array.isArray(Q.items);
   const antes=aut?Q.items.map(it=>({id:it.id,lt:+lineTotal(it).toFixed(2)})):null;
-  if(!aplicarTarifas(tabla)) return false;
+  if(!aplicarTarifas(tabla,desde)) return false;
   /* En un borrador lo que manda es el catálogo de hoy, y la caja guarda su precio en la partida: la
      que tiene su tipo elegido (it.caja) pasa al precio nuevo de ese tipo, en ella y en sus opciones.
      Solo en borrador: en una pendiente o autorizada cambiar la tarifa soltaría la autorización. */
@@ -130,26 +138,76 @@ try{ const t=JSON.parse(localStorage.getItem(TARIFAS_LS)||'null'); if(t) aplicar
 
 /* 2 · La de hoy, de la hoja. Callada: sin señal, sin puente o con una hoja que todavía no tiene la
    ruta, se queda la que había y no se dice nada (no hay nada que el vendedor pueda hacer). Con
-   `avisar`, si cambió algo, lo dice: es el caso del subtotal que no cuadró. */
+   `avisar`, si cambió algo, lo dice: es el caso del subtotal que no cuadró.
+   Con la base mandando, la de hoy sale de la BASE (la hoja ni se pregunta): se espera a que la
+   plataforma ponga la ventanilla —al abrir tarda unos segundos en entrar a la base— y, si no
+   llega, se queda la de este aparato. Y si el subtotal no cuadró pero la base no cambió nada, la
+   que está atrasada es la pestaña de la hoja: ver «El espejo de la hoja». */
 let _tarPidiendo=null;
 function refrescarTarifas(avisar){
   if(_tarPidiendo) return _tarPidiendo;
   _tarPidiendo=(async()=>{
+    const enBase=laBaseManda();
     let r=null;
-    try{ r=await hablarHoja('tarifas',{},12000); }catch(_){ return false; }
-    if(!r||!r.ok||!r.tabla){ if(r&&r.codigo==='NO_ENCONTRADO') TARIFAS_INFO.sinRuta=true; return false; }
-    TARIFAS_INFO.sinRuta=false;
+    if(enBase){
+      const nube=await esperarVentanillaBase('tarifas',avisar?4000:20000);
+      if(!nube) return false;
+      try{ r=await nube.tarifas(); }catch(_){ return false; }
+      if(!r||!r.ok||!r.tabla) return false;
+    } else {
+      try{ r=await hablarHoja('tarifas',{},12000); }catch(_){ return false; }
+      if(!r||!r.ok||!r.tabla){ if(r&&r.codigo==='NO_ENCONTRADO') TARIFAS_INFO.sinRuta=true; return false; }
+      TARIFAS_INFO.sinRuta=false;
+    }
     const antes=_tarFirma();
-    if(!_tarAplicarCuidando(r.tabla)) return false;
+    if(!_tarAplicarCuidando(r.tabla,enBase?'base':'hoja')) return false;
     try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(r.tabla)); }catch(_){}
     const cambio=_tarFirma()!==antes;
     if(cambio){
       try{ renderItems(); renderSummary(); }catch(_){}
-      if(avisar) toast('Los precios de la hoja cambiaron y ya se trajeron: revisa la cotización y vuelve a mandarla.','',7000);
+      if(avisar) toast('Los precios de la '+(enBase?'base':'hoja')+' cambiaron y ya se trajeron: revisa la cotización y vuelve a mandarla.','',7000);
     }
+    if(enBase) await _tarEspejoSiHaceFalta(r.tabla,avisar&&!cambio);
     return cambio;
   })().finally(()=>{ _tarPidiendo=null; });
   return _tarPidiendo;
+}
+
+/* ----- El espejo de la hoja, con la base mandando -----
+   El sello sigue en la hoja (decidido por Elías el 2026-10-25): antes de sellar, la hoja recalcula el
+   subtotal con SU pestaña «Tarifas» y, si no cuadra con el del teléfono, no sella
+   (CATALOGO_DESINCRONIZADO). Con la base mandando los precios se guardan en la base, así que la
+   pestaña pasa a ser la copia que lee el notario: cada guardado de Dirección se le manda también, con
+   las mismas filas (las dos validan igual: `tarifas_guardar` de 0019 copia las reglas de
+   /guardar_tarifas). Si la hoja no contesta, queda pendiente en este aparato (`al3d_tarifas_espejo`) y
+   se reintenta la siguiente vez que este teléfono de Dirección lee los precios, siempre con lo que diga
+   la base en ese momento. Y si al autorizar la hoja dice que no cuadra y la base no cambió nada, el
+   teléfono de Dirección le pone a la hoja los de la base y lo dice. Editar la pestaña a mano con la base
+   mandando no sirve de nada: el teléfono cotiza con los de la base y el espejo la vuelve a dejar igual. */
+const TARIFAS_ESPEJO='al3d_tarifas_espejo';
+function _tarEspejoPendiente(){ try{ return !!localStorage.getItem(TARIFAS_ESPEJO); }catch(_){ return false; } }
+async function _tarEspejoHoja(tabla){
+  const filas=(tabla&&Array.isArray(tabla.filas)?tabla.filas:[]).map(f=>({grupo:f.grupo,clave:f.clave,
+    nombre:String(f.nombre||'').trim(),precio:Number(f.precio),como:f.como||'',visible:f.visible!==false}));
+  if(!filas.length) return false;
+  let r=null;
+  try{ r=await hablarHoja('guardar_tarifas',{filas},25000); }catch(_){ r=null; }
+  const ok=!!(r&&r.ok);
+  try{ if(ok) localStorage.removeItem(TARIFAS_ESPEJO); else localStorage.setItem(TARIFAS_ESPEJO,String(Date.now())); }catch(_){}
+  return ok;
+}
+async function _tarEspejoSiHaceFalta(tabla,noCuadro){
+  if(!puedeAutorizar()){
+    if(noCuadro) toast('La hoja, que sella las autorizaciones, tiene otros precios que la base: que Dirección abra el cotizador para ponerla al día.','err',8000);
+    return;
+  }
+  if(noCuadro){
+    const ok=await _tarEspejoHoja(tabla);
+    toast(ok?'La hoja tenía otros precios que la base: ya se le pusieron los de la base. Vuelve a autorizar.'
+      :'La hoja tiene otros precios que la base y no se le pudieron poner: vuelve a intentarlo con señal.',ok?'ok':'err',8000);
+    return;
+  }
+  if(_tarEspejoPendiente()) await _tarEspejoHoja(tabla);
 }
 window.addEventListener('load',()=>{ setTimeout(()=>{ refrescarTarifas(false); },1200); });
 
@@ -204,7 +262,7 @@ function pintarTarifas(){
   const ay=$('tar-ayuda');
   if(ay) ay.innerHTML=(I.sinRuta
       ? '<b>La hoja todavía no tiene esta función.</b> Hay que publicar la versión nueva del Apps Script para poder guardar. '
-      : I.desde==='hoja'&&I.actualizado
+      : I.desde!=='fabrica'&&I.actualizado
         ? 'Última vez que se cambió: <b>'+esc(_tarFecha(I.actualizado))+'</b>'+(I.por?' por '+esc(I.por):'')+'. '
         : 'Son los precios de fábrica: todavía no se ha guardado ninguna lista. ')
     +'Un precio nuevo vale para lo que se cotice desde ahora. Una cotización ya autorizada conserva su precio; si se vuelve a mandar, pide autorizar con el nuevo.';
@@ -269,12 +327,24 @@ async function guardarTarifas(){
   if(!_tarEdit||_tarGuardando) return;
   const mal=_tarRevisar();
   if(mal){ toast(mal.msg,'err',5200); const el=$('tar-'+mal.campo+'-'+mal.i); if(el){ try{ el.focus(); }catch(_){} } return; }
+  /* La cuenta de Google es la llave de la hoja. Con la base mandando lo que se guarda va a la base (su sesión es
+     otra) y la hoja solo recibe la copia: sin Google se guarda igual y la copia queda pendiente. */
+  const enBase=laBaseManda();
   const s=await asegurarSesion();
-  if(!s.ok){ toast(s.mensaje||'No se pudo confirmar tu cuenta de Google.','err',6000); return; }
+  if(!s.ok&&!enBase){ toast(s.mensaje||'No se pudo confirmar tu cuenta de Google.','err',6000); return; }
   const filas=_tarEdit.map(f=>({grupo:f.grupo,clave:f.clave,nombre:String(f.nombre).trim(),precio:Number(f.precio),como:f.como||'',visible:f.visible!==false}));
   _tarGuardando=true;
   const P=window.Piezas;
   const mandar=async()=>{
+    if(enBase){
+      const nube=await esperarVentanillaBase('guardarTarifas',4000);
+      if(!nube) throw new Error('Este aparato todavía no entra a la base: entra a Supabase en Ajustes y vuelve a guardar.');
+      const rb=await nube.guardarTarifas(filas);
+      if(!rb||!rb.ok) throw new Error((rb&&rb.mensaje)||'La base no guardó los precios.');
+      if(!_tarAplicarCuidando(rb.tabla,'base')) throw new Error('La base guardó, pero lo que devolvió no se entiende. Vuelve a abrir el cotizador.');
+      try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(rb.tabla)); }catch(_){}
+      return Object.assign({},rb,{espejo:await _tarEspejoHoja(rb.tabla)});
+    }
     let r;
     try{ r=await hablarHoja('guardar_tarifas',{filas},25000); }
     catch(e){ throw new Error(e&&e.message||'La hoja no contestó.'); }
@@ -295,7 +365,10 @@ async function guardarTarifas(){
   cerrarTarifas();
   try{ renderItems(); renderSummary(); }catch(_){}
   const n=res.valor&&res.valor.cambios;
-  toast('Precios guardados'+(n?' · '+n+(n===1?' cambio':' cambios'):'')+'. Los demás teléfonos los toman al abrir el cotizador.','ok',6000);
+  toast('Precios guardados'+(enBase?' en la base':'')+(n?' · '+n+(n===1?' cambio':' cambios'):'')+'. Los demás teléfonos los toman al abrir el cotizador.','ok',6000);
+  if(enBase&&res.valor&&!res.valor.espejo){
+    toast('La hoja, que sella las autorizaciones, no recibió los precios nuevos: se le vuelven a mandar solos. Hasta entonces, autorizar puede decir que el precio no cuadra.','err',9000);
+  }
 }
 
 /* ----- Lo que el marcado puede pedirle a este archivo -----
