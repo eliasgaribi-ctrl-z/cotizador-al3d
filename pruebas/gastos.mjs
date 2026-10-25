@@ -85,6 +85,19 @@ eq('sin anular, «Anuló» y «Anulado el» no cuentan', [fh.anulado, fh.anulo, 
 const fa = G.gastoDeHoja({ id: 'x', fecha: '2026-10-01', concepto: 'c', categoria: 'Otros', monto: 1, anulado: 'Sí', anulo: 'Pagos', anulado_en: 1790000000000 });
 eq('anulado en la hoja, anulado aquí, con quién y cuándo', [fa.anulado, fa.anulo, fa.anulado_en], [true, 'Pagos', 1790000000000]);
 
+/* Con la base mandando (paso 3, 0025) lo que baja es un renglón de la tabla `gastos`, como lo da PostgREST: la fecha ISO, el monto como
+   número y los instantes como texto ISO. Sale con la misma forma que una fila de la hoja. */
+console.log('\nUN RENGLÓN DE LA BASE, EN LA FORMA DE ESTE TELÉFONO (la base manda)');
+const deBase = { id: 'gas-k7', fecha: '2026-10-24', concepto: 'Fuente de 12 V', categoria: 'Material', monto: 389.5, cuenta: 'Constru BNT', folio: 'V-042',
+  registro_por: 'Ana · Pagos (K7QM)', registrado_en: '2026-10-24T17:05:00+00:00', anulado: true, anulo: 'Caro', anulado_en: '2026-10-25T15:00:00.123+00:00' };
+eq('los instantes, en milisegundos; lo demás, tal cual', G.gastoDeBase(deBase),
+  { id: 'gas-k7', fecha: '2026-10-24', concepto: 'Fuente de 12 V', categoria: 'Material', monto: 389.5, cuenta: 'Constru BNT', folio: 'V-042',
+    registro_por: 'Ana · Pagos (K7QM)', registrado_en: Date.parse('2026-10-24T17:05:00Z'), anulado: true, anulo: 'Caro', anulado_en: Date.parse('2026-10-25T15:00:00.123Z') });
+eq('sin anular, ni quién ni cuándo; un instante nulo, nulo', ((x => [x.anulado, x.anulo, x.anulado_en, x.registrado_en]))(G.gastoDeBase({ ...deBase, anulado: false, registrado_en: null })),
+  [false, '', null, null]);
+eq('el monto como texto (numeric) también; sin id o sin renglón, nada', [G.gastoDeBase({ ...deBase, monto: '1500.00' }).monto, G.gastoDeBase({ ...deBase, id: '' }), G.gastoDeBase(null)],
+  [1500, null, null]);
+
 console.log('\nVALIDAR — lo que no puede entrar, dicho junto al campo');
 const bueno = { fecha: HOY, concepto: 'Lámina de acrílico', categoria: 'Material', monto: 1850, cuenta: '', folio: '' };
 eq('lo bueno pasa', G.validar(bueno), null);
@@ -197,6 +210,13 @@ console.log('\nLA COPIA DIARIA LEE LOS GASTOS COMO EL TELÉFONO');
   const enCheck = /categoria in \(([^)]*)\)/.exec(sql)[1].match(/'([^']*)'/g).map(s => s.slice(1, -1));
   eq('las categorías del CHECK de 0020', enCheck, G.CATEGORIAS);
   eq('el tope del monto del CHECK de 0020', Number(/monto <= (\d+)\)/.exec(sql)[1]), G.MONTO_MAX);
+  /* Y las funciones que los escriben con la base mandando (0025): los mismos topes que `validar` y las mismas cinco cuentas. La categoría
+     no tiene copia ahí: la cuida el CHECK de 0020. */
+  const sql25 = readFileSync(join(aqui, '..', 'supabase', 'migrations', '0025_gastos.sql'), 'utf8');
+  eq('0025: el monto, hasta diez millones', Number(/v_monto > (\d+) then/.exec(sql25)[1]), G.MONTO_MAX);
+  eq('0025: el concepto y el folio', [Number(/length\(v_concepto\) > (\d+)/.exec(sql25)[1]), Number(/length\(v_folio\) > (\d+)/.exec(sql25)[1])], [G.CONCEPTO_MAX, G.FOLIO_MAX]);
+  const P = await import('../js/datos/puente.js');
+  eq('0025: las cuentas, las cinco de la hoja', /v_cuenta <> all \(array\[([^\]]*)\]\)/.exec(sql25)[1].match(/'([^']*)'/g).map(s => s.slice(1, -1)), P.CUENTAS);
   const cats = ['Material', 'material', 'MATERIAL', 'Transporte y Gasolina', 'transporte y gasolina ', 'Comisiones y nomina', 'Gasolina', '', null, 42];
   eq('la categoría', cats.map(I.categoriaDeGasto), cats.map(G.categoriaDe));
   const montos = [1500, 1500.555, 0, -3, NaN, '1500', '$1,234.50', '1.234.5', ' 99 ', '-12', '−12', 'mil', '', null, '0.004', 10000000.5];

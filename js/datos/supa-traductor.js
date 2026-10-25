@@ -10,8 +10,9 @@
    traductor divergen en semanas. Por eso está aquí, una sola vez, y la sombra lo vuelve a exportar
    tal cual (sus pruebas y supabase/tests lo siguen importando de allá).
 
-   Tres piezas:
+   Tres piezas (y una cuarta solo del relevo):
      · `traducir(op)`: qué funciones de la base llamar por una operación, con qué argumentos. PURA.
+       Los gastos van aparte, en `traducirGasto(op)` (paso 3, 0025_gastos.sql): los manda el relevo y no la sombra.
      · `leerRespuesta(rpc, r)`: lo que contestó la base, en tres casos (ok, rechazada para siempre,
        reintentar). PURA.
      · `crearEscritor()`: manda UNA operación —sus llamadas en orden— y, si la base no conoce el
@@ -160,6 +161,44 @@ export function traducir(op, extra = {}) {
 }
 
 /* ============================================================================
+   LOS GASTOS (paso 3 de «la base manda»: 0025_gastos.sql)
+   ============================================================================ */
+
+/* Lo que viaja de un gasto: los campos de la pestaña «Gastos» y nada de este teléfono (`en_hoja`, `subido_en`, `sync`, el sello de la
+   bajada). Los mismos que mandaba /empujar_gastos. */
+const CAMPOS_GASTO = ['id', 'fecha', 'concepto', 'categoria', 'monto', 'cuenta', 'folio', 'registro_por', 'registrado_en', 'anulado', 'anulo', 'anulado_en'];
+function gastoQueViaja(d, idOp) {
+  const g = {};
+  for (const k of CAMPOS_GASTO) if (k in d) g[k] = d[k];
+  g.id = t(d.id || idOp);
+  g.anulado = d.anulado === true;
+  if (!g.anulado) { g.anulo = ''; g.anulado_en = null; }
+  return g;
+}
+
+/**
+ * Qué llamar en la base por una operación de gastos (js/datos/gastos.js). PURA.
+ *   · el alta ('crear'): `gasto_registrar` con el gasto como quedó en la bandeja. Si trae la anulación (un gasto que se volvió a encolar
+ *     ya anulado), la base sigue la regla de la hoja: lo da de alta anulado, o anula el que ya tenía;
+ *   · la anulación ('actualizar' con `anulado`): `gasto_anular`, con el gasto ENTERO en `gasto`, por si la base no lo tiene —el alta se
+ *     perdió o nunca salió de otro teléfono—: entonces lo da de alta ya anulado, como la hoja;
+ *   · cualquier otro cambio a un gasto es un alta otra vez: la base contesta «ya estaba». Un gasto no se corrige.
+ * Va APARTE de `traducir` a propósito: la sombra (que copia lo que la hoja ya aceptó) no copia gastos —la copia de cada 3 horas ya los
+ * trae de la hoja—, así que con la hoja mandando nada de esto sale. Solo el relevo de la base (js/datos/supa-relevo.js) lo usa.
+ * @returns {{llamadas:Array<{rpc:string, args:Object}>}|{omitir:string}}
+ */
+export function traducirGasto(op) {
+  if (!op || typeof op !== 'object' || op.almacen !== 'gastos') return { omitir: 'Esa operación no es de un gasto.' };
+  const d = op.datos && typeof op.datos === 'object' ? op.datos : {};
+  const g = gastoQueViaja(d, op.registro_id);
+  if (!g.id) return { omitir: 'La operación no dice de qué gasto es.' };
+  if (op.tipo !== 'crear' && g.anulado) {
+    return { llamadas: [{ rpc: 'gasto_anular', args: { p_op: { op_id: t(op.id), id: g.id, anulo: t(g.anulo), anulado_en: n(g.anulado_en), gasto: g } } }] };
+  }
+  return { llamadas: [{ rpc: 'gasto_registrar', args: { p_op: { op_id: t(op.id), ...g } } }] };
+}
+
+/* ============================================================================
    LO QUE CONTESTA LA BASE
    ============================================================================ */
 
@@ -190,7 +229,8 @@ export function leerRespuesta(rpc, r) {
     if (data.ya_existia && data.folio_hoja_pedido) {
       return { caso: 'ok', detalle: 'ya_existia como ' + String(data.folio_hoja || '') + ', la hoja dice ' + String(data.folio_hoja_pedido) };
     }
-    return { caso: 'ok', detalle: data.ya_existia ? 'ya_existia' : data.sin_cambio ? 'sin_cambio'
+    /* `ya_estaba`: un gasto que la base ya tenía (0025), el reintento de uno que sí llegó. */
+    return { caso: 'ok', detalle: data.ya_existia ? 'ya_existia' : data.ya_estaba ? 'ya_estaba' : data.sin_cambio ? 'sin_cambio'
       : (Array.isArray(data.viejos) && data.viejos.length) ? 'gana_otro' : 'ok' };
   }
   const codigo = String(data.codigo || 'DESCONOCIDO');

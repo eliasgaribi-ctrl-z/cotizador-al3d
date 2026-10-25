@@ -35,6 +35,12 @@
    vuelve a encolar solo (`sueltos`). La hoja contesta «ya estaba» a un id repetido, así que
    mandarlo dos veces no lo duplica.
 
+   ── Con la base mandando ────────────────────────────────────────────────────
+   (Paso 3 de «la base manda», docs/BASE-MANDA.md.) La captura es la misma y la bandeja también; lo que
+   cambia es a dónde va: el relevo de la base (js/datos/supa-relevo.js) los sube con `gasto_registrar` y
+   `gasto_anular` (0025_gastos.sql), que siguen la regla de la hoja, y los baja de la tabla `gastos`
+   (`gastoDeBase`). `en_hoja` sigue siendo la marca de «ya está en la fuente», sea la hoja o la base.
+
    ── Quién ───────────────────────────────────────────────────────────────────
    Los ven y los capturan los roles que ven el dinero —dirección y pagos—; fabricación no tiene
    Control y la hoja tampoco le baja los gastos ni le deja escribirlos (`GASTOS_ROLES` en el .gs).
@@ -166,6 +172,22 @@ export function gastoDeHoja(fila) {
     anulo: anulado ? texto(fila.anulo).trim() : '',
     anulado_en: anulado ? ms(fila.anulado_en) : null,
   };
+}
+
+/**
+ * Un renglón de la tabla `gastos` de la base (0020) en la forma de este teléfono, o null. Es lo que baja en lugar de la pestaña con la
+ * base mandando (paso 3 de «la base manda», js/datos/supa-relevo.js). La base guarda lo mismo que la hoja —la copia la llenó con estas
+ * mismas reglas, y `gasto_registrar` (0025) valida como `gastoValidar_`—, así que pasa por `gastoDeHoja`; lo único distinto es que los
+ * instantes llegan como texto ISO (timestamptz) y no en milisegundos. PURA.
+ */
+export function gastoDeBase(fila) {
+  if (!fila || typeof fila !== 'object') return null;
+  const ms = v => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'number' ? v : Date.parse(String(v));
+    return isFinite(n) && n > 0 ? n : null;
+  };
+  return gastoDeHoja({ ...fila, registrado_en: ms(fila.registrado_en), anulado_en: ms(fila.anulado_en) });
 }
 
 /**

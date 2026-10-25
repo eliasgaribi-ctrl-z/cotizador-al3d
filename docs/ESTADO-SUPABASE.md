@@ -610,3 +610,14 @@ mandando, nada cambia. El detalle, lo que no entra y lo que hace falta en produc
 | La elección por el modo de la empresa (lo último que dijo `mi_acceso`, guardado para trabajar sin señal; sin saberlo, la hoja), la tarjeta de Supabase para los tres roles, el rol desde la base, la lectura en vivo sin la sombra y la sombra quieta | hecho | `pruebas/supabase-relevo.mjs`, `pruebas/supabase-entrada.mjs` |
 | «Registrar venta» con la base mandando: por la plataforma (`ganar_proyecto`), sin escribir en la hoja | hecho; enseñar el V-### en el recibo del cotizador queda para el paso 4 | `pruebas/supabase-relevo.mjs` |
 | Probarlo contra `al3d-produccion` | **no hecho**: hace falta `0024` aplicada, la app publicada y la empresa en `'base'` (el día del cambio). Nada de esto se probó en un navegador | — |
+
+## «La base manda», paso 3: los gastos (2026-10-25, sin publicar)
+
+Rama `claude/base-manda-3`, sobre el paso 2 (#169). Con la base mandando, los gastos de Control van a la base en vez de quedarse esperando
+en el teléfono; con la hoja mandando, nada cambia. El detalle y lo que hace falta en producción: docs/BASE-MANDA.md, «Paso 3».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `0025_gastos.sql`: `gasto_registrar` y `gasto_anular` (Dirección y Pagos, idempotentes por `op_id` y por el id del gasto, con la regla de `/empujar_gastos`, bitácora de nivel dinero con la entidad nueva `gasto`), `gastos` a Realtime (lista cerrada de 14), las dos funciones en las listas cerradas de todas las auditorías y las de antes admitiendo `gastos` publicada | hecho y verificado en PGlite; sin aplicar | `supabase/tests/gastos/rpc.mjs` (GA-06 a GA-11), `supabase/tests/gastos/gastos.mjs`, `supabase/tests/auditoria/` |
+| El relevo: sube los gastos (los apartados del paso 2 salen solos, una vez), los baja de la tabla con las reglas de barrido de siempre, Fabricación ni los manda ni los pide; Realtime de `gastos` solo con la base mandando | hecho y verificado en node y en PGlite | `pruebas/supabase-relevo.mjs`, `pruebas/gastos.mjs`, `supabase/tests/sync-e-importacion/relevo.mjs` (RE-05) |
+| Aplicar `0025` en `al3d-pruebas` y `al3d-produccion` y publicar la app (`sw.js` 146) | **no hecho** | — |

@@ -212,8 +212,10 @@ function encenderVivo(enBase = false) {
   _debeJalar = true;
   Supa.cliente().then(c => {
     if (!_fuente && !_enBase) return;
+    /* Con la base mandando, también los gastos (0025): un gasto que otro teléfono captura o anula avisa como una venta. Con la hoja
+       mandando no: esa bajada no los lee de la base. */
     _canal = suscribir(c, _area, () => { _debeJalar = true; if (_sincronizar) _sincronizar(); },
-      { empresa: _empresa, alEstado: e => { _estadoCanal = e; } });
+      { empresa: _empresa, gastos: _enBase, alEstado: e => { _estadoCanal = e; } });
   }).catch(() => {});
   if (_avisarApp) _avisarApp(lecturaEnVivo);
 }

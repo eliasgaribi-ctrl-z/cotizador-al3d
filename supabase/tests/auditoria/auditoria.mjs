@@ -23,11 +23,12 @@ const plantilla = dato(async () => {
 }, { limpiar: db => db.close() });
 
 const PUBLICAS_CLIENTE = ['agente_decidir', 'almacen_aplicar', 'alta_venta', 'cancelar_solicitud', 'comisiones_cobradas', 'constante_guardar', 'corregir_abono', 'corregir_venta', 'cotizacion_guardar', 'cuaderno_guardar',
-  'descartar_cotizacion', 'emitir_salidas_derivadas', 'estado_solicitudes', 'ganar_proyecto', 'instalacion_guardar', 'mi_acceso', 'miembro_alta', 'miembro_baja', 'miembro_cambiar_area', 'modo_cambiar', 'mover_etapa',
+  'descartar_cotizacion', 'emitir_salidas_derivadas', 'estado_solicitudes', 'ganar_proyecto', 'gasto_anular', 'gasto_registrar', 'instalacion_guardar', 'mi_acceso', 'miembro_alta', 'miembro_baja', 'miembro_cambiar_area', 'modo_cambiar', 'mover_etapa',
   'pantalla_aprobar', 'pantalla_revocar', 'proyecto_actualizar', 'rechazar_solicitud', 'reclamar_acceso', 'registrar_abono_comision', 'registrar_cobro', 'repartir_abono_fifo', 'revocar_autorizacion', 'solicitar', 'subida_unica', 'tarifas_guardar', 'tarifas_leer', 'version_contrato',
   'vista_previa_reparto'];
 const PUBLICAS_SERVICIO = ['agente_abrir', 'agente_guardar', 'agente_leer', 'autorizacion_para_verificar', 'contador_sembrar', 'cuadre_hoja', 'ia_cuota', 'ia_turno', 'pantalla_solicitar', 'pantalla_tablero', 'registrar_autorizacion', 'tarifas_de', 'verificar_cupo'];
-const TRECE = ['abonos', 'almacen_costos', 'almacen_movimientos', 'bitacora', 'constantes', 'cotizaciones', 'instalaciones', 'materiales', 'miembros', 'proyectos', 'requerimientos', 'solicitudes', 'ventas_dinero'];
+/* 0025: `gastos` entra a Realtime con sus dos RPC (eran 13). */
+const CATORCE = ['abonos', 'almacen_costos', 'almacen_movimientos', 'bitacora', 'constantes', 'cotizaciones', 'gastos', 'instalaciones', 'materiales', 'miembros', 'proyectos', 'requerimientos', 'solicitudes', 'ventas_dinero'];
 
 /** Las funciones de un esquema con lo que cada rol puede hacer (consulta directa al catálogo). */
 const funciones = (db, esquema) => sql(db, `select p.proname as nombre, pg_get_function_identity_arguments(p.oid) as args, p.prosecdef as definer, p.proconfig as config,
@@ -49,12 +50,12 @@ describir('GR-01 a GR-04 funciones, RLS y vistas', () => {
       igual([esq, f.filter(x => x.anon).map(x => x.nombre + '(' + x.args + ')')], [esq, []]);
     }
   });
-  prueba('GR-02 las 13 funciones de servicio: authenticated NO las ejecuta y service_role SÍ; las 36 de cliente: authenticated sí; y no hay ninguna otra función en public', async () => {
+  prueba('GR-02 las 13 funciones de servicio: authenticated NO las ejecuta y service_role SÍ; las 38 de cliente: authenticated sí; y no hay ninguna otra función en public', async () => {
     const db = await plantilla(), f = await funciones(db, 'public');
-    igual(f.map(x => x.nombre).sort(), [...PUBLICAS_CLIENTE, ...PUBLICAS_SERVICIO].sort(), 'las 49 y solo esas');
+    igual(f.map(x => x.nombre).sort(), [...PUBLICAS_CLIENTE, ...PUBLICAS_SERVICIO].sort(), 'las 51 y solo esas');
     for (const x of f.filter(x => PUBLICAS_SERVICIO.includes(x.nombre))) igual([x.nombre, x.auth, x.svc, x.anon], [x.nombre, false, true, false]);
     for (const x of f.filter(x => PUBLICAS_CLIENTE.includes(x.nombre))) igual([x.nombre, x.auth, x.anon], [x.nombre, true, false]);
-    igual([PUBLICAS_CLIENTE.length, PUBLICAS_SERVICIO.length], [36, 13]);
+    igual([PUBLICAS_CLIENTE.length, PUBLICAS_SERVICIO.length], [38, 13]);
     // y de verdad: el rol authenticated recibe «permission denied» al llamar a una de servicio
     for (const [fn, args] of [['registrar_autorizacion', aut(db)], ['cuadre_hoja', { p_empresa: 'al3d' }], ['ia_cuota', { p_usuario: '00000000-0000-4000-8000-0000000000d1' }], ['autorizacion_para_verificar', { p_folio: 'COT-1', p_codigo: 'ABCDEF012345' }]]) {
       await esperarError(sesionDe(db, db.u.dir).rpc(fn, args), '42501', fn);
@@ -83,12 +84,12 @@ describir('GR-01 a GR-04 funciones, RLS y vistas', () => {
 });
 
 describir('GR-05 a GR-09 Realtime, privilegios, search_path, interno y borrados', () => {
-  prueba('GR-05 las 13 tablas publicadas tienen replica identity DEFAULT (d) y supabase_realtime contiene EXACTAMENTE esas 13 (ni empresas, ni autorizaciones, ni cuaderno_notas, ni contadores)', async () => {
+  prueba('GR-05 las 14 tablas publicadas tienen replica identity DEFAULT (d) y supabase_realtime contiene EXACTAMENTE esas 14 (ni empresas, ni autorizaciones, ni cuaderno_notas, ni contadores; gastos desde 0025)', async () => {
     const db = await plantilla();
     const pub = (await sql(db, `select tablename from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' order by 1`)).map(r => r.tablename);
-    igual(pub, TRECE);
+    igual(pub, CATORCE);
     const rep = await sql(db, `select c.relname, c.relreplident as r from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`);
-    igual(rep.filter(x => TRECE.includes(x.relname)).map(x => x.r), Array(13).fill('d'));
+    igual(rep.filter(x => CATORCE.includes(x.relname)).map(x => x.r), Array(14).fill('d'));
     igual(rep.filter(x => x.r !== 'd').map(x => x.relname), [], 'ninguna tabla, publicada o no, con identidad de réplica FULL o por índice');
     igual((await una(db, `select pubinsert and pubupdate and pubdelete as todo from pg_publication where pubname = 'supabase_realtime'`)).todo, true);
   });

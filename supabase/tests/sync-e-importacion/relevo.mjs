@@ -8,9 +8,14 @@
 //   RE-02  Fabricación: lo que el relevo le quita (el dinero) es justo lo que la base le negaría; lo que deja, la base lo acepta
 //   RE-03  el almacén en un solo viaje, y el reintento del libro es «ya estaba»
 //   RE-04  una venta de antes del cambio (la base la conoce como proy-hoja-V-###): el relevo la encuentra por su folio, con la RLS de la cuenta
+//   RE-05  los gastos (paso 3, 0025): el alta y la anulación que arma el relevo las acepta la base, el reintento es «ya estaba», Fabricación ni
+//          los manda; y la lectura de la fuente (sus columnas, contra la tabla de verdad) le da a Dirección y Pagos lo de la RLS, a
+//          Fabricación nada, y lo que el teléfono lee es lo que se capturó
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sesionDe, llamar, sql, una, conCopia, crearVenta } from '../comun/semilla.js';
 import { crearRelevo } from '../../../js/datos/supa-relevo.js';
+import { crearFuente } from '../../../js/datos/supa-vivo.js';
+import { gastoDeBase } from '../../../js/datos/gastos.js';
 
 const plantilla = dato(async () => {
   const db = await crearBaseDePruebas();
@@ -30,13 +35,24 @@ function clienteDe(sesion) {
       catch (e) { return { data: null, error: { code: String(e.codigo || e.code || 'XX000'), message: String(e.message || e) } }; }
     },
     from(tabla) {
-      let cols = '*', ors = [];
+      let cols = '*', ors = [], orden = '';
+      const donde = [], params = [];
       const q = {
         select(c) { cols = c; return q; },
         or(f) { ors = f.split(',').map(x => { const [k] = x.split('.'); return [k, x.slice(k.length + 4)]; }); return q; },
         async limit(n) {
           const filas = await sesion.query(`select ${cols} from public.${tabla} where ${ors.map((o, i) => o[0] + ' = $' + (i + 1)).join(' or ')} limit ${n}`, ors.map(o => o[1]));
           return { data: filas.map(r => ({ ...r })), error: null };
+        },
+        /* Lo que pide la lectura de los gastos (`crearFuente().gastos`). Las filas salen como las da PostgREST: en JSON de Postgres (la
+           fecha como «YYYY-MM-DD», los instantes como texto ISO, el monto como número). */
+        eq(col, v) { params.push(v); donde.push(`${col} = $${params.length}`); return q; },
+        is(col, v) { if (v === null) donde.push(`${col} is null`); return q; },
+        order(col) { orden = ` order by ${col}`; return q; },
+        async range(a, b) {
+          const filas = await sesion.query(`select to_jsonb(x) as j from (select ${cols} from public.${tabla}${donde.length ? ' where ' + donde.join(' and ') : ''}${orden}
+                                             offset ${a} limit ${b - a + 1}) x`, params);
+          return { data: filas.map(r => r.j), error: null };
         },
       };
       return q;
@@ -127,6 +143,54 @@ describir('RE-04 una venta de antes del cambio', () => {
     igual(c.llamadas, ['mover_etapa', 'mover_etapa'], 'la primera no la encuentra; la segunda, con el id de la base');
     igual((await una(db, "select etapa from public.proyectos where id = 'proy-hoja-V-120'")).etapa, 'cortado');
     cierto((await sql(db, "select 1 from public.proyectos where id = 'proy-de-este-telefono'")).length === 0, 'no se creó otra');
+  }));
+});
+
+/* Un gasto como lo deja js/datos/gastos.js en la bandeja (con las marcas de este teléfono, que no viajan). */
+const gastoDelTelefono = (id, o = {}) => ({ id, fecha: '2026-10-24', concepto: 'Lámina de acrílico 3 mm', categoria: 'Material', monto: 1500, cuenta: 'Elias BBVA',
+  folio: 'V-042', registro_por: 'Ana · Pagos (K7QM)', registrado_en: Date.parse('2026-10-24T17:05:00Z'), anulado: false, anulo: '', anulado_en: null, sync: 0, ...o });
+
+describir('RE-05 los gastos, contra la base de verdad', () => {
+  prueba('el alta y la anulación que arma el relevo entran; el reintento es «ya estaba»; Fabricación ni los manda', async () => conCopia(plantilla, async db => {
+    const { r, c } = await relevoDe(db, 'pag');
+    const alta = { id: 'op-gas-1', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-k7-1', ts: 1792860400000, datos: gastoDelTelefono('gas-k7-1') };
+    const [x] = await r.subir([alta]);
+    igual([x.ok, x.ya_estaba], [true, false], JSON.stringify(x));
+    const g = await una(db, "select concepto, monto::float8 as monto, folio, subio, procedencia ->> 'op_id' as op from public.gastos where id = 'gas-k7-1'");
+    igual(g, { concepto: 'Lámina de acrílico 3 mm', monto: 1500, folio: 'V-042', subio: 'pag@al3d.test', op: 'gasto:op-gas-1' });
+    const [y] = await r.subir([alta]);
+    igual([y.ok, (await una(db, "select count(*)::int as n from public.gastos where id = 'gas-k7-1'")).n], [true, 1], 'el reintento no lo duplica');
+    const anulo = { id: 'op-gas-2', tipo: 'actualizar', almacen: 'gastos', registro_id: 'gas-k7-1', ts: 1792860500000, campos: ['anulado', 'anulo', 'anulado_en'],
+      datos: gastoDelTelefono('gas-k7-1', { anulado: true, anulo: 'Ana · Pagos (K7QM)', anulado_en: Date.parse('2026-10-25T15:00:00Z') }) };
+    const [z] = await r.subir([anulo]);
+    igual(z.ok, true, JSON.stringify(z));
+    igual(await una(db, "select anulado, anulo from public.gastos where id = 'gas-k7-1'"), { anulado: true, anulo: 'Ana · Pagos (K7QM)' });
+    igual(c.llamadas, ['gasto_registrar', 'gasto_registrar', 'gasto_anular']);
+    /* La anulación de un gasto que la base no conoce (el alta se perdió en otro teléfono): entra ya anulado. */
+    const [w] = await r.subir([{ ...anulo, id: 'op-gas-3', registro_id: 'gas-k7-2', datos: { ...anulo.datos, id: 'gas-k7-2' } }]);
+    igual([w.ok, (await una(db, "select anulado from public.gastos where id = 'gas-k7-2'")).anulado], [true, true]);
+    const f = await relevoDe(db, 'fab');
+    const [v] = await f.r.subir([{ ...alta, id: 'op-gas-fab', registro_id: 'gas-fab', datos: gastoDelTelefono('gas-fab') }]);
+    igual([v.ok, v.codigo, v.definitivo, f.c.llamadas.length], [false, 'ROL_SIN_PERMISO', true, 0], 'Fabricación: ni se intenta');
+    igual((await llamar(sesionDe(db, db.u.fab), 'gasto_registrar', { p_op: { id: 'gas-fab' } })).codigo, 'ROL_SIN_PERMISO', 'y la base se lo negaría igual');
+  }));
+  prueba('la lectura de la fuente, con sus columnas contra la tabla de verdad: Dirección y Pagos ven lo de la RLS (sin lápidas), Fabricación nada', async () => conCopia(plantilla, async db => {
+    const { r } = await relevoDe(db, 'dir');
+    await r.subir([{ id: 'op-gas-l1', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-l1', ts: 1, datos: gastoDelTelefono('gas-l1', { monto: 389.5, cuenta: '' }) }]);
+    await r.subir([{ id: 'op-gas-l2', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-l2', ts: 2, datos: gastoDelTelefono('gas-l2') }]);
+    await sql(db, "update public.gastos set deleted_at = now() where id = 'gas-l2'");
+    await sql(db, "insert into public.gastos (empresa_id, id, fecha, concepto, categoria, monto) values ('otra', 'gas-otra', '2026-10-24', 'De otra', 'Otros', 5)");
+    const AREA = { dir: 'direccion', pag: 'pagos', fab: 'fabricacion' };
+    const fuenteDe = quien => crearFuente({ cliente: async () => clienteDe(sesionDe(db, db.u[quien])), area: AREA[quien], empresa: 'al3d' });
+    const d = await fuenteDe('dir').gastos();
+    igual([d.ok, d.completa, d.gastos.map(x => x.id)], [true, true, ['gas-l1']], 'sin la lápida y sin los de otra empresa');
+    const l1 = gastoDeBase(d.gastos[0]);
+    igual(l1, { id: 'gas-l1', fecha: '2026-10-24', concepto: 'Lámina de acrílico 3 mm', categoria: 'Material', monto: 389.5, cuenta: '', folio: 'V-042',
+      registro_por: 'Ana · Pagos (K7QM)', registrado_en: Date.parse('2026-10-24T17:05:00Z'), anulado: false, anulo: '', anulado_en: null }, 'lo que el teléfono lee es lo que se capturó');
+    igual((await fuenteDe('pag').gastos()).gastos.map(x => x.id), ['gas-l1']);
+    const fab = await fuenteDe('fab').gastos();
+    igual([fab.ok, fab.completa, fab.gastos], [true, false, []], 'Fabricación: ni se pregunta (y no es una lectura completa: no barre nada)');
+    igual((await sesionDe(db, db.u.fab).query('select count(*)::int as n from public.gastos'))[0].n, 0, 'y la RLS le daría cero filas igual');
   }));
 });
 
