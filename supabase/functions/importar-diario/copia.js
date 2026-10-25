@@ -205,16 +205,22 @@ export async function copiar({ base, plan, volcado, ahora, inicio }) {
         const c = await tx.consultar('select pg_try_advisory_xact_lock($1::bigint) as ok', [LLAVE_CANDADO]);
         if (!c || !c[0] || c[0].ok !== true) throw new CopiaOcupada();
         await tx.ejecutar(`set local statement_timeout = '${TIEMPO_SENTENCIA}'`);
+        /* ¿Quién manda? (0024) En modo 'base' la hoja ya no es la fuente: aplicarla revertiría lo que se capturó en la base
+           (un cobro, una etapa). Solo se cuadra, para ver si alguien siguió escribiendo en la hoja. */
+        const m = await tx.consultar('select modo from public.empresas where id = $1', [empresa]);
+        const mandaLaBase = !!(m && m[0] && m[0].modo === 'base');
         let cambios = { cambios: [], conflictos_base: [], n_conflictos: 0 };
-        if (sqlCopia) {
+        if (sqlCopia && !mandaLaBase) {
           await tx.ejecutar(sqlCopia);
           cambios = resumenDeCambios(await tx.consultar('select tabla, llave, accion from _imp_cambios'));
           await tx.ejecutar('drop table if exists _lote; drop table if exists _imp_cambios;');   // la conexión puede volver a un pool: no se queda nada
         }
         const dif = resumenDeDiferencias(await tx.consultar(sqlDif));
-        const r = { ...resumen, motivo: bloqueada ? 'el plan trae conflictos o filas que no entran: no se aplicó nada' : null,
+        const r = { ...resumen,
+          motivo: mandaLaBase ? 'la base manda (modo base): la copia de la hoja ya no aplica nada, solo cuadra'
+            : bloqueada ? 'el plan trae conflictos o filas que no entran: no se aplicó nada' : null,
           cambios: cambios.cambios, conflictos_base: cambios.conflictos_base, diferencias: { columnas: dif.columnas, folios: dif.folios } };
-        const d = { empresa, aplicado: !!sqlCopia, diferencias: dif.n, conflictos: conflictosPlan + cambios.n_conflictos, rechazos,
+        const d = { empresa, aplicado: !!sqlCopia && !mandaLaBase, diferencias: dif.n, conflictos: conflictosPlan + cambios.n_conflictos, rechazos,
           resumen: r, duracion_ms: duracion() };
         const g = await anotar(tx, d);
         return { ...d, ...g };

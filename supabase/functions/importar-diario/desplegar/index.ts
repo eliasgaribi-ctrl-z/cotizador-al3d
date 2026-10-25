@@ -26,7 +26,7 @@
 //   581b34af03d7352c  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
-//   9612b48459ec19ff  supabase/functions/importar-diario/copia.js
+//   a71a48031bacb916  supabase/functions/importar-diario/copia.js
 //   3effd9bd054b80dd  supabase/functions/importar-diario/handler.js
 //   f258da7bfe7dfd34  supabase/functions/importar-diario/index.ts
 //   944d38c278361c01  supabase/functions/importar-diario/respaldo.js
@@ -3655,8 +3655,10 @@ async function copiar({ base, plan, volcado, ahora, inicio }) {
         const c = await tx.consultar("select pg_try_advisory_xact_lock($1::bigint) as ok", [LLAVE_CANDADO]);
         if (!c || !c[0] || c[0].ok !== true) throw new CopiaOcupada();
         await tx.ejecutar(`set local statement_timeout = '${TIEMPO_SENTENCIA}'`);
+        const m = await tx.consultar("select modo from public.empresas where id = $1", [empresa2]);
+        const mandaLaBase = !!(m && m[0] && m[0].modo === "base");
         let cambios = { cambios: [], conflictos_base: [], n_conflictos: 0 };
-        if (sqlCopia) {
+        if (sqlCopia && !mandaLaBase) {
           await tx.ejecutar(sqlCopia);
           cambios = resumenDeCambios(await tx.consultar("select tabla, llave, accion from _imp_cambios"));
           await tx.ejecutar("drop table if exists _lote; drop table if exists _imp_cambios;");
@@ -3664,14 +3666,14 @@ async function copiar({ base, plan, volcado, ahora, inicio }) {
         const dif = resumenDeDiferencias(await tx.consultar(sqlDif));
         const r = {
           ...resumen,
-          motivo: bloqueada ? "el plan trae conflictos o filas que no entran: no se aplicó nada" : null,
+          motivo: mandaLaBase ? "la base manda (modo base): la copia de la hoja ya no aplica nada, solo cuadra" : bloqueada ? "el plan trae conflictos o filas que no entran: no se aplicó nada" : null,
           cambios: cambios.cambios,
           conflictos_base: cambios.conflictos_base,
           diferencias: { columnas: dif.columnas, folios: dif.folios }
         };
         const d = {
           empresa: empresa2,
-          aplicado: !!sqlCopia,
+          aplicado: !!sqlCopia && !mandaLaBase,
           diferencias: dif.n,
           conflictos: conflictosPlan + cambios.n_conflictos,
           rechazos,
