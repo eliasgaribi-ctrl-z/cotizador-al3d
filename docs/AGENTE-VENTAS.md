@@ -59,6 +59,16 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
   regla del cotizador); el recorte también se hace más grande si el cliente lo pide.
 - **Las cuentas de depósito**: las dos tarjetas autorizadas, como secretos de la función.
 
+## La primera plática en producción (25-oct-2026)
+
+Con los secretos ya cargados, una plática de prueba («Cafetería Prueba», letras CAFE PRUEBA de 30 cm)
+llegó a la cotización ($13,920 con IVA) y a la tarjeta «Con factura». Pero desde el segundo mensaje el
+cliente solo recibía la pregunta fija de la ficha: la plática iba a la IA como turnos de «assistant» en
+texto suelto, el modelo contestaba igual (sin JSON) y su respuesta se tiraba. Ahora la plática va dentro
+de la pregunta, con los montos tapados y lo más nuevo primero para que quepa en el tope de `ia.js`; y si
+aun así contesta en texto suelto, ese texto se usa. «Va, me late» o preguntar cómo pagar ya cuenta como
+aceptar.
+
 ## Para publicarlo (en este orden, con el OK de Elías)
 
 1. Aplicar `0023_agente.sql` en `al3d-pruebas` y luego en `al3d-produccion` (la auditoría del final

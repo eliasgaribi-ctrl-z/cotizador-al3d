@@ -68,8 +68,10 @@ async function rpc(deps, nombre, args) {
   } catch (_) { return null; }
 }
 
-/* Una pregunta a la IA, proveedor por proveedor, hasta que uno conteste un JSON que se lea. null si nadie. */
-async function preguntarIA(deps, llaves, instr, signal) {
+/* Una pregunta a la IA, proveedor por proveedor, hasta que uno conteste un JSON que se lea. null si nadie.
+   Con `libre` (la respuesta al cliente), un texto suelto sin llaves también sirve: es lo que le iba a
+   decir, y tirarlo dejaba al cliente con la pregunta fija. Un JSON roto ({ sin cerrar) no: se ve feo. */
+async function preguntarIA(deps, llaves, instr, signal, libre = false) {
   for (const { prov, model } of IA_AGENTE) {
     if (signal.aborted) return null;
     const v = validarPeticion({ prov, model, modo: 'chat', sistema: instr.sistema, pregunta: instr.pregunta, mensajes: instr.mensajes });
@@ -79,6 +81,7 @@ async function preguntarIA(deps, llaves, instr, signal) {
     const r = await consultarIA({ peticion: v.peticion, llaves: e.llaves, fetch: deps.fetch, signal });
     const o = r.ok ? leerJson(r.texto) : null;
     if (o) return o;
+    if (libre && r.ok && !/[{}]/.test(r.texto)) return { respuesta: r.texto };
   }
   return null;
 }
@@ -144,7 +147,7 @@ async function mensaje(cuerpo, deps) {
       const v = ficha.factura === true ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin;
       razones = [...razones, { id: 'cuenta', razon: 'El cliente aceptó la cotización y falta configurar la cuenta ' + (ficha.factura === true ? 'con' : 'sin') + ' factura (' + v + ').' }];
     }
-    const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto, d || c.decision), ctrl.signal);
+    const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto, d || c.decision), ctrl.signal, true);
     const respuesta = armarRespuesta(r && typeof r.respuesta === 'string' ? r.respuesta : '', estado, ficha, daCuenta ? tarjeta : null);
     const g = await rpc(deps, 'agente_guardar', {
       p_token_hash: h, p_texto_cliente: texto, p_texto_agente: respuesta, p_ficha: ficha,

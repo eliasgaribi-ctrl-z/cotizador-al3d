@@ -164,8 +164,33 @@ export function estadoDe(ficha) {
    1 y 4 · Lo que se le pide a la IA
    ============================================================================ */
 
-const ultimos = (mensajes, n) => (Array.isArray(mensajes) ? mensajes.slice(-n) : [])
-  .map(m => ({ role: m.de === 'cliente' ? 'user' : 'assistant', content: String(m.texto || '').slice(0, 1500) }));
+/* El tope de la pregunta en _shared/ia.js (MAX_PREGUNTA): lo que pase de ahí se corta por el final. */
+export const PREGUNTA_MAX = 4000;
+
+/* La plática va DENTRO de la pregunta, como texto, y no como turnos de «assistant»: con los turnos,
+   el modelo seguía el formato de las respuestas anteriores (texto suelto, sin JSON) y su respuesta
+   se tiraba. Así le pasó en producción el 2026-10-25: desde el segundo mensaje, el cliente recibía
+   solo la pregunta fija de la ficha. Va de la más nueva hacia atrás hasta llenar `cabe`, y se lee
+   de la más vieja a la más nueva. Los montos van tapados: el precio lo escribe el código. */
+export function platica(mensajes, cabe) {
+  const lineas = [];
+  let usado = 0;
+  for (const m of (Array.isArray(mensajes) ? mensajes : []).slice().reverse()) {
+    const l = (m.de === 'cliente' ? 'Cliente: ' : 'AL3D: ')
+      + String(m.texto || '').replace(/\$\s?[\d.,]+/g, '[precio]').replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (usado + l.length + 1 > cabe) break;
+    lineas.unshift(l);
+    usado += l.length + 1;
+  }
+  return lineas.join('\n');
+}
+
+/* La pregunta: primero lo de este turno (que nunca se corta) y al final la plática con lo que sobre. */
+function conPlatica(cabeza, mensajes) {
+  const titulo = '\n\nLa plática antes de ese mensaje (de la más vieja a la más nueva):\n';
+  const p = platica(mensajes, PREGUNTA_MAX - cabeza.length - titulo.length);
+  return p ? cabeza + titulo + p : cabeza;
+}
 
 /** La instrucción para sacar datos del último mensaje del cliente. */
 export function instruccionExtraer(ficha, mensajes, textoCliente) {
@@ -177,14 +202,15 @@ export function instruccionExtraer(ficha, mensajes, textoCliente) {
     'Pon SOLO lo que el cliente dijo o confirmó en su último mensaje. No adivines, no completes, no supongas. Si no dijo nada nuevo: {"proyecto":{},"partidas":[]}.',
     'Campos del proyecto: ' + [...CAMPOS_PROYECTO, 'acepta'].join(', ') + '.',
     'entrega es "instalacion", "paqueteria" o "recoleccion" (pasa al taller). lugar es "interior" o "exterior". altura_m en metros.',
-    'lleva_logo, factura, archivo_editable y luz son true/false. acepta = true solo si dice que quiere hacer el trabajo con la cotización que ya tiene.',
+    'lleva_logo, factura, archivo_editable y luz son true/false. acepta = true si acepta la cotización que ya tiene («va», «me late», «sí, adelante») o pregunta cómo pagar o dónde depositar el anticipo.',
     'Tipos de partida: ' + tipos + '. Campos por tipo:\n' + campos,
     'Medidas en centímetros. texto = lo que dice el letrero, tal cual lo escribió. tono "fria" o "calida". forma de caja "std" (rectangular o circular) o "nube" (silueta). acabado de recorte "sencillo", "vinil" o "sandwich".',
     'material de letras: "aluminio pintado", "aluminio cepillado", "acrilico con aluminio", "acrilico con vinil" o "acero inoxidable". comp: "recta", "cursiva" o "compleja".',
     'Si una medida la calcula por una foto o dice "más o menos" o "como de", pon "medida_confirmada": false.',
   ].join('\n');
-  const pregunta = 'Ficha actual:\n' + JSON.stringify(ficha || {}) + '\n\nÚltimo mensaje del cliente:\n' + String(textoCliente || '').slice(0, 2000);
-  return { sistema, pregunta, mensajes: ultimos(mensajes, 6) };
+  const pregunta = conPlatica('Último mensaje del cliente:\n' + String(textoCliente || '').slice(0, 2000)
+    + '\n\nFicha actual:\n' + JSON.stringify(ficha || {}), mensajes);
+  return { sistema, pregunta, mensajes: [] };
 }
 
 /** La instrucción para redactar la respuesta, con lo que decidió el código. */
@@ -197,7 +223,8 @@ export function instruccionResponder(ficha, estado, mensajes, textoCliente, deci
     '2. Si hay preguntas pendientes, haz como máximo las dos primeras, con tus palabras y en ese orden.',
     '3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que hoy mismo le mandas su cotización. No prometas una hora.',
     '3b. La cotización sale el MISMO DÍA en que el cliente escribe (regla de Elías): pregunta todo lo que falte en esta plática, sin dejar nada para mañana.',
-    '4. Si ya hay cotización, dile que abajo va el precio y pregúntale si quiere arrancar.',
+    '4. Si ya hay cotización, el sistema pone abajo el precio y el anticipo: no los repitas. Si no ha aceptado, pregúntale si quiere arrancar. Si ya aceptó (acepto), dale las gracias: abajo el sistema pone los datos para el anticipo y el WhatsApp del comprobante.',
+    '4b. Si el cliente pregunta algo (el taller, los tiempos, cómo pagar), contéstalo primero con lo de la regla 6.',
     '5. Si Dirección mandó una nota, transmítela con tus palabras.',
     '6. De AL3D solo puedes decir esto: ' + HECHOS.join(' '),
     '7. Si te preguntan algo que no está aquí, di que lo consultas y le confirmas.',
@@ -208,11 +235,14 @@ export function instruccionResponder(ficha, estado, mensajes, textoCliente, deci
     preguntas_pendientes: estado.pendientes.slice(0, 2).map(p => p.pregunta),
     para_direccion: estado.decisiones.map(d => d.razon),
     hay_cotizacion: !!estado.cotizacion,
+    acepto: !!(ficha && ficha.acepta === true),
     nota_de_direccion: decision && decision.nota ? decision.nota : '',
     negocio: (ficha && ficha.negocio) || '',
   };
-  const pregunta = 'Lo que decidió el sistema:\n' + JSON.stringify(contexto) + '\n\nÚltimo mensaje del cliente:\n' + String(textoCliente || '').slice(0, 2000);
-  return { sistema, pregunta, mensajes: ultimos(mensajes, 10) };
+  const pregunta = conPlatica('Último mensaje del cliente:\n' + String(textoCliente || '').slice(0, 2000)
+    + '\n\nLo que decidió el sistema:\n' + JSON.stringify(contexto)
+    + '\n\nContesta SOLO {"respuesta": "..."}.', mensajes);
+  return { sistema, pregunta, mensajes: [] };
 }
 
 /** El JSON de la IA, aunque venga entre ``` o con una frase antes. null si no hay objeto. */

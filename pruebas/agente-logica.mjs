@@ -57,6 +57,26 @@ eq('con una frase antes', A.leerJson('Claro, aquí va: {"a":1}'), { a: 1 });
 eq('sin objeto', A.leerJson('no sé'), null);
 eq('una lista no es la respuesta', A.leerJson('[1,2]'), null);
 
+console.log('\nLA PLÁTICA VA EN LA PREGUNTA, NO COMO TURNOS');
+/* En producción (2026-10-25) los turnos de «assistant» hacían que el modelo contestara en texto suelto y su
+   respuesta se tiraba: desde el segundo mensaje el cliente solo recibía la pregunta fija de la ficha. */
+const estL = A.estadoDe(LISTA);
+const HILO = [{ de: 'agente', texto: A.SALUDO }, { de: 'cliente', texto: 'Letras CAFE de 30 cm' },
+  { de: 'agente', texto: '¡Listo!\n\nTu cotización: $13,920.00 con IVA incluido.' }, { de: 'cliente', texto: 'va' }];
+const iR = A.instruccionResponder(LISTA, estL, HILO, '¿y dónde está su taller?', null);
+const iE = A.instruccionExtraer(LISTA, HILO, '¿y dónde está su taller?');
+eq('ningún turno aparte: ni para responder ni para sacar datos', [iR.mensajes, iE.mensajes], [[], []]);
+cierto('lo de este turno va primero (si algo se corta, es lo viejo)', iR.pregunta.startsWith('Último mensaje del cliente:\n¿y dónde está su taller?') && iE.pregunta.startsWith('Último mensaje del cliente:'));
+cierto('la plática va en orden y con quién dijo qué', /Cliente: Letras CAFE de 30 cm\nAL3D: ¡Listo! Tu cotización: \[precio\] con IVA incluido\.\nCliente: va$/.test(iR.pregunta));
+cierto('el monto va tapado: el precio lo escribe el código', !iR.pregunta.includes('13,920'));
+const largo = Array.from({ length: 40 }, (_, i) => ({ de: i % 2 ? 'cliente' : 'agente', texto: 'mensaje ' + i + ' ' + 'x'.repeat(400) }));
+const iL = A.instruccionResponder(LISTA, estL, largo, 'y'.repeat(2000), null);
+cierto('con una plática larga cabe en el tope de ia.js y se queda lo más nuevo',
+  iL.pregunta.length <= A.PREGUNTA_MAX && iL.pregunta.includes('mensaje 39 ') && !iL.pregunta.includes('mensaje 0 '));
+const acepto = fi => JSON.parse(A.instruccionResponder(fi, estL, HILO, 'va', null).pregunta.match(/Lo que decidió el sistema:\n(.*)\n/)[1]).acepto;
+eq('le dice si el cliente ya aceptó', [acepto(LISTA), acepto({ ...LISTA, acepta: true })], [false, true]);
+cierto('«me late» y preguntar cómo pagar cuentan como aceptar', /me late/.test(iE.sistema) && /cómo pagar/.test(iE.sistema));
+
 console.log('\nNI UN PESO ESCRITO POR LA IA');
 eq('quita la oración con $', A.sinDinero('¡Va! Te sale en $5,000 más o menos. ¿Lleva luz?'), '¡Va! ¿Lleva luz?');
 eq('y la de «pesos»', A.sinDinero('Serían 3500 pesos. ¿Factura?'), '¿Factura?');
@@ -156,10 +176,24 @@ console.log('\nLA FUNCIÓN — abrir, platicar, cotizar');
   cierto('el «$5,000» de la IA no llegó al cliente', !m.respuesta.includes('5,000'));
   cierto('el precio sí, escrito por código', m.respuesta.includes('$9,280.00'));
   eq('dos llamadas a la IA en la vuelta', ia.pedidas.length, 2);
+  eq('a la IA solo le llega system + una pregunta: la plática va adentro', ia.pedidas.map(p => p.messages.map(x => x.role).join()), ['system,user', 'system,user']);
   cierto('la IA nunca recibe el secreto', !JSON.stringify(ia.pedidas).includes(a.token));
   const [, g] = await leerResp(await manejar(post({ accion: 'leer', token: a.token }), deps(base, ia)));
   eq('el portal lee la plática', g.mensajes.map(x => x.de), ['agente', 'cliente', 'agente']);
   eq('por GET no: el secreto nunca va en la dirección', (await manejar(new Request('https://al3d.supabase.co/functions/v1/agente?t=' + a.token), deps(base, ia))).status, 405);
+}
+
+console.log('\nLA FUNCIÓN — la IA contesta en texto suelto');
+{
+  const base = baseDeMentiras();
+  const { token } = await (await manejar(post({ accion: 'abrir' }), deps(base, iaDeMentiras([])))).json();
+  base.convs.get(await huella(token)).ficha = { ...LISTA };
+  const iaT = iaDeMentiras(['{"proyecto":{},"partidas":[]}', 'Claro: el taller está en Naranjos 648, Linda Vista, en Zapopan.']);
+  const [, m] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: '¿dónde está su taller?' }), deps(base, iaT)));
+  cierto('lo que contestó se usa, y el precio va abajo', m.respuesta.startsWith('Claro: el taller está en Naranjos 648') && m.respuesta.includes('$9,280.00'));
+  const iaR = iaDeMentiras(['{"proyecto":{},"partidas":[]}', '{"respuesta": "Claro, el taller']);
+  const [, m2] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: '¿dónde está su taller?' }), deps(base, iaR)));
+  cierto('un JSON roto no llega al cliente: queda el texto fijo', m2.respuesta.startsWith('¡Listo! Aquí va tu cotización.') && !m2.respuesta.includes('{'));
 }
 
 console.log('\nLA FUNCIÓN — Dirección, topes y sin IA');
