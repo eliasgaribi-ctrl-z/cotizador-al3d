@@ -45,6 +45,10 @@ archivos estáticos que se sirven tal cual, desde GitHub Pages
 
 ### Lo más reciente (octubre de 2026)
 
+- **El dinero disponible y las facturas, en Control.** Con la base mandando, el Resumen arranca con lo disponible del mes —lo que entró
+  a Elias BBVA menos los gastos que salieron de ahí—, la pestaña **Cuentas** dice cuánto entró a cada cuenta, la de AL3D aparte de
+  ConstruImagen, Mónica, Tanit y Rul, y **Facturas** lleva, por venta fiscal, su cliente con la constancia de situación fiscal y dos
+  casillas: la factura del anticipo y la de la liquidación. Lo ven Dirección y Pagos (`docs/DINERO-Y-FACTURAS.md`).
 - **Un toque en la puerta.** La puerta enseña el botón de Google mismo y con él entra a Supabase
   ahí mismo. Con la empresa en la base, ese toque basta: el área sale de la base y la hoja no se
   toca. Con la empresa en la hoja, la hoja sigue decidiendo como siempre. Si el botón de Google no
@@ -401,7 +405,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
    abrirla y confirmar la versión nueva también ahí.
 
-Son ciento cincuenta y cuatro archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ciento cincuenta y ocho archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -412,7 +416,7 @@ al día `node herramientas/recontar.mjs`.
 
 ## Pruebas
 
-    pruebas/correr.sh               87 archivos, solo node, unos segundos
+    pruebas/correr.sh               89 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   49 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -430,6 +434,7 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 | [`docs/ESTRUCTURA-COTIZACION-CANVA.md`](docs/ESTRUCTURA-COTIZACION-CANVA.md) | El papel que se manda de verdad, hoja por hoja |
 | [`docs/REVISAR-PAQUETE-UI.md`](docs/REVISAR-PAQUETE-UI.md) | Lo que quedó por revisar del paquete de UI, y las decisiones abiertas |
 | [`puente/README.md`](puente/README.md) | El puente a la hoja: caminos, roles y cómo está cerrado |
+| [`docs/DINERO-Y-FACTURAS.md`](docs/DINERO-Y-FACTURAS.md) | El dinero disponible por cuenta y las facturas de las ventas fiscales: qué se ve en Control, cómo se cuenta y la base (`0027`) |
 | [`docs/ESTADO-SUPABASE.md`](docs/ESTADO-SUPABASE.md) | La migración a Supabase (en construcción, apagada): qué está hecho, qué se verificó y qué falta |
 | [`docs/PLAN-SUPABASE.md`](docs/PLAN-SUPABASE.md) · [`docs/DECISIONES-SUPABASE.md`](docs/DECISIONES-SUPABASE.md) | El plan aprobado y las decisiones por defecto que lo completan |
 | [`supabase/DISENO.md`](supabase/DISENO.md) | El esquema de la base: tablas, reglas de acceso, funciones y plan de pruebas |

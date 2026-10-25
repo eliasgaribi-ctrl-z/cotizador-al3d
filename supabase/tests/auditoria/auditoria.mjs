@@ -22,9 +22,9 @@ const plantilla = dato(async () => {
   return db;
 }, { limpiar: db => db.close() });
 
-const PUBLICAS_CLIENTE = ['agente_decidir', 'almacen_aplicar', 'alta_venta', 'cancelar_solicitud', 'comisiones_cobradas', 'constante_guardar', 'corregir_abono', 'corregir_venta', 'cotizacion_guardar', 'cuaderno_guardar',
+const PUBLICAS_CLIENTE = ['agente_decidir', 'almacen_aplicar', 'alta_venta', 'cancelar_solicitud', 'cliente_fiscal_guardar', 'comisiones_cobradas', 'constancia_registrar', 'constante_guardar', 'corregir_abono', 'corregir_venta', 'cotizacion_guardar', 'cuaderno_guardar', 'cuentas_disponibles_guardar',
   'descartar_cotizacion', 'emitir_salidas_derivadas', 'estado_solicitudes', 'ganar_proyecto', 'gasto_anular', 'gasto_registrar', 'instalacion_guardar', 'mi_acceso', 'miembro_alta', 'miembro_baja', 'miembro_cambiar_area', 'modo_cambiar', 'mover_etapa',
-  'pantalla_aprobar', 'pantalla_revocar', 'proyecto_actualizar', 'rechazar_solicitud', 'reclamar_acceso', 'registrar_abono_comision', 'registrar_cobro', 'repartir_abono_fifo', 'revocar_autorizacion', 'solicitar', 'subida_unica', 'tarifas_guardar', 'tarifas_leer', 'version_contrato',
+  'pantalla_aprobar', 'pantalla_revocar', 'proyecto_actualizar', 'rechazar_solicitud', 'reclamar_acceso', 'registrar_abono_comision', 'registrar_cobro', 'repartir_abono_fifo', 'revocar_autorizacion', 'solicitar', 'subida_unica', 'tarifas_guardar', 'tarifas_leer', 'venta_cliente_fiscal', 'venta_factura_marcar', 'version_contrato',
   'vista_previa_reparto'];
 const PUBLICAS_SERVICIO = ['agente_abrir', 'agente_guardar', 'agente_leer', 'autorizacion_para_verificar', 'contador_sembrar', 'cuadre_hoja', 'ia_cuota', 'ia_turno', 'pantalla_solicitar', 'pantalla_tablero', 'registrar_autorizacion', 'tarifas_de', 'verificar_cupo'];
 /* 0025: `gastos` entra a Realtime con sus dos RPC (eran 13). */
@@ -50,12 +50,12 @@ describir('GR-01 a GR-04 funciones, RLS y vistas', () => {
       igual([esq, f.filter(x => x.anon).map(x => x.nombre + '(' + x.args + ')')], [esq, []]);
     }
   });
-  prueba('GR-02 las 13 funciones de servicio: authenticated NO las ejecuta y service_role SÍ; las 38 de cliente: authenticated sí; y no hay ninguna otra función en public', async () => {
+  prueba('GR-02 las 13 funciones de servicio: authenticated NO las ejecuta y service_role SÍ; las 43 de cliente (0027: cinco más): authenticated sí; y no hay ninguna otra función en public', async () => {
     const db = await plantilla(), f = await funciones(db, 'public');
-    igual(f.map(x => x.nombre).sort(), [...PUBLICAS_CLIENTE, ...PUBLICAS_SERVICIO].sort(), 'las 51 y solo esas');
+    igual(f.map(x => x.nombre).sort(), [...PUBLICAS_CLIENTE, ...PUBLICAS_SERVICIO].sort(), 'las 56 y solo esas');
     for (const x of f.filter(x => PUBLICAS_SERVICIO.includes(x.nombre))) igual([x.nombre, x.auth, x.svc, x.anon], [x.nombre, false, true, false]);
     for (const x of f.filter(x => PUBLICAS_CLIENTE.includes(x.nombre))) igual([x.nombre, x.auth, x.anon], [x.nombre, true, false]);
-    igual([PUBLICAS_CLIENTE.length, PUBLICAS_SERVICIO.length], [38, 13]);
+    igual([PUBLICAS_CLIENTE.length, PUBLICAS_SERVICIO.length], [43, 13]);
     // y de verdad: el rol authenticated recibe «permission denied» al llamar a una de servicio
     for (const [fn, args] of [['registrar_autorizacion', aut(db)], ['cuadre_hoja', { p_empresa: 'al3d' }], ['ia_cuota', { p_usuario: '00000000-0000-4000-8000-0000000000d1' }], ['autorizacion_para_verificar', { p_folio: 'COT-1', p_codigo: 'ABCDEF012345' }]]) {
       await esperarError(sesionDe(db, db.u.dir).rpc(fn, args), '42501', fn);
@@ -65,7 +65,7 @@ describir('GR-01 a GR-04 funciones, RLS y vistas', () => {
     const db = await plantilla();
     const t = await sql(db, `select c.relname, c.relrowsecurity as rls, c.relforcerowsecurity as forzada, (select count(*)::int from pg_policy p where p.polrelid = c.oid) as politicas
                                from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`);
-    igual(t.length, 24, 'las 24 tablas de public (0023: las tres del agente)');
+    igual(t.length, 27, 'las 27 tablas de public (0023: las tres del agente; 0027: ajustes_dinero, clientes_fiscales y ventas_fiscales)');
     igual(t.filter(x => !x.rls).map(x => x.relname), []);
     igual(t.find(x => x.relname === 'contadores').politicas, 0);
     igual(t.filter(x => x.relname !== 'contadores' && x.politicas === 0).map(x => x.relname), [], 'toda tabla legible tiene su política (la RLS no la deja «abierta» por omisión)');
@@ -169,7 +169,7 @@ describir('GR-10 la clave del sello no existe en la base', () => {
     // la búsqueda: un trozo distintivo de la clave (y la clave entera) en todas las columnas de todas las tablas de public
     const trozos = [CLAVE_DEL_MAPA, CLAVE_DEL_MAPA.slice(0, 20), 'FALSO-0000aaaa', 'FALSO-0000bbbb', 'FALSO-0000cccc'];
     const tablas = (await sql(db, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`)).map(x => x.relname);
-    igual(tablas.length, 24, 'se recorrieron las 24 tablas');
+    igual(tablas.length, 27, 'se recorrieron las 27 tablas');
     for (const t of tablas) {
       for (const trozo of trozos) igual([t, (await una(db, `select count(*)::int as n from public."${t}" x where x::text like '%' || $1 || '%'`, [trozo])).n], [t, 0]);
     }

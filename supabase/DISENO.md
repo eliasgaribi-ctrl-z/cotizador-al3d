@@ -338,7 +338,7 @@ create table public.bitacora (
   accion        text not null check (btrim(accion) <> ''),
   entidad       text not null check (entidad in ('proyecto','instalacion','material','constante','almacen',
                                                  'cotizacion','autorizacion','abono','venta','miembro','plataforma','sistema',
-                                                 'gasto')),                     -- 'gasto': desde 0025 (gasto_registrar, gasto_anular)
+                                                 'gasto','cliente')),           -- 'gasto': desde 0025 (gasto_registrar, gasto_anular); 'cliente': desde 0027 (el RFC)
   entidad_id    text not null default '',
   titulo        text not null check (btrim(titulo) <> '' and length(titulo) <= 200),
   detalle       text not null default '' check (length(detalle) <= 600),
@@ -973,6 +973,22 @@ Paridad con hoy: la API actual ya entrega a Pagos el almacén completo con costo
 | `bitacora` | ~5 000 | 0.3–1 KB | |
 
 Conclusión: la base cabe con holgura en los 500 MB del plan gratuito [PLAN §4.6]; el riesgo de tamaño son las imágenes (Storage) y los respaldos, no estas tablas.
+
+### 2.21 El dinero disponible y las facturas (0027, 2026-10-25)
+
+Tres tablas que pidió Elías, todas de Dirección y Pagos (Fabricación, cero filas), con `sin_borrar`, sin DELETE para `service_role` y fuera de
+Realtime; se escriben solo por sus RPC (idempotentes por `op_id`, con su línea de nivel `dinero` en la bitácora). El detalle, las decisiones y
+por qué no van en `constantes` ni en `ventas_dinero`: [`docs/DINERO-Y-FACTURAS.md`](../docs/DINERO-Y-FACTURAS.md) y la cabecera de
+`migrations/0027_dinero_y_facturas.sql`.
+
+| Tabla | Llave | Qué | Quién escribe |
+|---|---|---|---|
+| `ajustes_dinero` | `empresa_id` | Las cuentas que son dinero DISPONIBLE (de AL3D); nace con `['Elias BBVA']` | `cuentas_disponibles_guardar` (solo Dirección) |
+| `clientes_fiscales` | `(empresa_id, rfc)` | El RFC (forma del SAT, limpio), la razón social y la constancia de situación fiscal (ruta en el bucket privado `constancias-fiscales`, tipo, peso, quién y cuándo) | `cliente_fiscal_guardar`, `venta_cliente_fiscal` (alta en el mismo viaje), `constancia_registrar` |
+| `ventas_fiscales` | `proyecto_id` (llave `(empresa_id, proyecto_id)` a `proyectos` y `(empresa_id, rfc)` a `clientes_fiscales`) | A qué RFC se factura cada venta de una cuenta fiscal (Constru BNT, Moni MPago, Tatis BNT) y las dos casillas con quién y cuándo | `venta_cliente_fiscal`, `venta_factura_marcar` |
+
+Lo disponible NO se guarda: lo calcula el teléfono (js/datos/dinero-cuentas.js) con el anticipo y la liquidación de `ventas_dinero` (por la
+cuenta de cada venta) y los gastos de `gastos` (por la cuenta de la que salieron).
 
 ---
 

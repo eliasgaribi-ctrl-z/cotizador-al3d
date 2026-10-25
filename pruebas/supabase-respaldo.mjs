@@ -138,7 +138,7 @@ seccion('1. QUÉ SE RESPALDA — las tablas de las migraciones, todas y completa
   const r = await llamar();
   eq('una corrida completa: 200, el archivo en Drive con su id y su nombre con la fecha', [r.status, r.cuerpo.ok, r.cuerpo.archivo], [200, true, { id: 'archivo-falso-1', nombre: 'al3d-respaldo-2026-10-18T102300Z.json' }]);
   const archivo = JSON.parse(r.m.subido);
-  eq('lo que llegó a Drive es el formato al3d-respaldo-1, con la hora, el proyecto (solo el host) y las 24 tablas (0022 sumó pantallas; 0023, las tres del agente)', [archivo.formato, archivo.creado, archivo.origen, Object.keys(archivo.tablas).length], ['al3d-respaldo-1', '2026-10-18T10:23:00.000Z', 'falso.supabase.co', 24]);
+  eq('lo que llegó a Drive es el formato al3d-respaldo-1, con la hora, el proyecto (solo el host) y las 27 tablas (0022 sumó pantallas; 0023, las tres del agente; 0027, las tres del dinero y las facturas)', [archivo.formato, archivo.creado, archivo.origen, Object.keys(archivo.tablas).length], ['al3d-respaldo-1', '2026-10-18T10:23:00.000Z', 'falso.supabase.co', 27]);
   const datos = datosFalsos();
   eq('cada tabla COMPLETA y tal cual (la bitácora, 2 500 filas en tres páginas de 1 000; acentos y emoji intactos)', archivo.tablas, datos);
   eq('las filas que dice la respuesta y las que dice el archivo', [r.cuerpo.filas.bitacora, r.cuerpo.filas.contadores, archivo.filas.bitacora], [2500, 0, 2500]);
@@ -160,8 +160,8 @@ seccion('1. QUÉ SE RESPALDA — las tablas de las migraciones, todas y completa
   eq('los metadatos: el nombre, la carpeta como padre y JSON', [r.m.metadatos.name, r.m.metadatos.parents, r.m.metadatos.mimeType], ['al3d-respaldo-2026-10-18T102300Z.json', [CARPETA], 'application/json']);
   eq('con supportsAllDrives (unidades compartidas) y subida reanudable', [r.m.paramsSubida.uploadType, r.m.paramsSubida.supportsAllDrives], ['resumable', 'true']);
   eq('el contenido va como application/json', r.m.tipoSubido, 'application/json');
-  eq('las llamadas, en orden: 24 tablas (bitácora en 3 páginas), el token, iniciar, subir y listar la carpeta (vacía: nada a la papelera)', r.m.llamadas.map(x => new URL(x.url).host + ' ' + x.metodo).reduce((a, x) => ((a[x] = (a[x] || 0) + 1), a), {}),
-    { 'falso.supabase.co GET': 26, 'oauth2.googleapis.com POST': 1, 'www.googleapis.com POST': 1, 'www.googleapis.com PUT': 1, 'www.googleapis.com GET': 1 });
+  eq('las llamadas, en orden: 27 tablas (bitácora en 3 páginas), el token, iniciar, subir y listar la carpeta (vacía: nada a la papelera)', r.m.llamadas.map(x => new URL(x.url).host + ' ' + x.metodo).reduce((a, x) => ((a[x] = (a[x] || 0) + 1), a), {}),
+    { 'falso.supabase.co GET': 29, 'oauth2.googleapis.com POST': 1, 'www.googleapis.com POST': 1, 'www.googleapis.com PUT': 1, 'www.googleapis.com GET': 1 });
   eq('el archivo sube con la marca appProperties.al3d = respaldo (la rotación solo toca lo que la lleva)', r.m.metadatos.appProperties, { al3d: 'respaldo' });
   const seco = await llamar({ cuerpo: '{"subir":false}', entorno: { [VARIABLES.credenciales]: undefined, [VARIABLES.carpeta]: undefined } });
   eq('prueba en seco ({subir:false}): exporta y cuenta, no pide credenciales ni toca Google', [seco.status, seco.cuerpo.subido, seco.cuerpo.filas.bitacora, seco.m.llamadas.some(x => !x.url.startsWith(URL_BASE))], [200, false, 2500, false]);

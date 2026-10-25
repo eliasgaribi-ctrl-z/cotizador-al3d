@@ -124,7 +124,20 @@ export function ventaDesdeHoja(v) {
     dir_texto: String(v.direccion || ''),
     dispositivo: 'hoja',
     notas: '',
+    deposito: depositoDeLaFila(v),
   };
+}
+
+/**
+ * Lo que la fila del libro dice que SE DEPOSITÓ —el anticipo y la liquidación, cada uno con su fecha— y en qué cuenta. Es lo que
+ * cuenta la pestaña «Cuentas» de Control (js/datos/dinero-cuentas.js, 0027): solo una venta que ya está en el libro (la hoja o, con
+ * la base mandando, la base) trae depósitos; una que solo está en este teléfono trae su anticipo PACTADO y no esto. Se guarda aparte
+ * de `anti_pactado` a propósito: en una venta atada a su proyecto, `anti_pactado` se queda con el de aquí si la fila no lo trae. PURA.
+ */
+export function depositoDeLaFila(v) {
+  if (!v || typeof v !== 'object') return null;
+  return { anticipo: num(v.anticipo), liquidacion: num(v.liquidacion), cuenta: v.cuenta || null,
+           fecha_anticipo: esISO(v.fecha_anticipo) ? String(v.fecha_anticipo) : '', fecha_liquidacion: esISO(v.fecha_liquidacion) ? String(v.fecha_liquidacion) : '' };
 }
 
 /**
@@ -272,6 +285,7 @@ export function unificar(proyectos, ventasHoja) {
     if (hayNum(v.comisiones))        u.comisiones = num(v.comisiones);
     if (hayNum(v.comision_restante)) u.comision_restante = num(v.comision_restante);
     if (hayNum(v.pct_comision))      u.pct_comision = num(v.pct_comision);
+    u.deposito = depositoDeLaFila(v);
     ventas.push(u);
   }
 

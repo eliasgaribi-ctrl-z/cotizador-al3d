@@ -4923,3 +4923,58 @@ button.tb-nec:focus-visible{outline:2.5px solid var(--a);outline-offset:-4px}
 .pj-dep-meta{grid-column:1/-1;font-size:var(--t2);color:var(--tinta2)}
 .pj-resta-mini{color:var(--av)}
 small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align:right}
+
+/* ── Control · Cuentas y facturas (0027, 2026-10-25; solo con la base mandando) ──
+   Las dos pestañas que pidió Elías: «Cuentas» (lo que entró a cada cuenta y lo disponible: lo de AL3D menos sus gastos) y
+   «Facturas» (las ventas de las cuentas fiscales con su cliente, su constancia y las dos casillas). Pensadas primero para el
+   iPhone: cada cuenta y cada venta es un renglón que se apila, las cifras debajo del nombre; en la computadora, a la derecha.
+   Las casillas de factura son del tamaño de un dedo (48 px) y dicen con palabras, no solo con color, si están hechas. */
+.ct-clave.neg > b{color:var(--mal)}
+.ct-cta .ct-cta-per{margin-top:var(--e4)}
+.ct-cta-lista{list-style:none;margin:0;padding:0}
+.ct-cta-fila{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--e2);padding:var(--e3) 0;border-top:1px solid var(--linea)}
+.ct-cta-fila:first-child{border-top:0}
+.ct-cta-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ct-cta-nom{font-weight:700;color:var(--tinta)}
+.ct-cta-nom small{margin-left:6px;font-weight:600;font-size:var(--t1);vertical-align:middle}
+.ct-cta-det{font-size:var(--t2);color:var(--tinta2)}
+.ct-cta-mov{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e4)}
+.ct-cta-cifra{display:flex;flex-direction:column;font-family:var(--f-cifra);font-weight:800;font-variant-numeric:tabular-nums;color:var(--tinta)}
+.ct-cta-cifra small{font-family:inherit;font-weight:600;font-size:var(--t1);color:var(--tinta2);text-transform:uppercase;letter-spacing:.05em}
+.ct-cta-cifra.queda{color:var(--ok)}
+.ct-cta-cifra.neg{color:var(--mal)}
+@media(min-width:600px){
+  .ct-cta-fila{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .ct-cta-mov{justify-content:flex-end;text-align:right}
+}
+.ct-cta-notas{margin:var(--e3) 0}
+.ct-cta-casillas{border:0;margin:0 0 var(--e3);padding:0;display:grid;gap:2px}
+.ct-cta-casilla small{color:var(--tinta2);font-weight:500}
+.ct-gas-nota{margin-top:0}
+
+.fx-barra{flex-wrap:wrap}
+.fx-lista{list-style:none;margin:0;padding:0}
+.fx-venta{padding:var(--e3) 0;border-top:1px solid var(--linea)}
+.fx-venta:first-child{border-top:0}
+.fx-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px var(--e2)}
+.fx-nom{font-weight:700;color:var(--tinta);overflow-wrap:anywhere}
+.fx-rfc{font-family:var(--f-cifra);font-weight:700;letter-spacing:.03em}
+.fx-meta,.fx-cliente{margin:4px 0 0;font-size:var(--t2);color:var(--tinta2);overflow-wrap:anywhere}
+.fx-sem{margin-right:4px}
+.fx-link{appearance:none;-webkit-appearance:none;border:0;background:none;padding:6px 4px;min-height:36px;color:var(--a-tx);font:inherit;font-weight:700;
+  cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.fx-casillas{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--e2);margin-top:var(--e2)}
+@media(min-width:600px){ .fx-casillas{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+.fx-casilla{display:flex;align-items:center;gap:var(--e2);min-height:48px;padding:6px var(--e3);border:1px solid var(--linea);border-radius:var(--rr2);
+  background:var(--sup);cursor:pointer}
+.fx-casilla input{width:22px;height:22px;flex:0 0 auto;accent-color:var(--ok-fill)}
+.fx-casilla-t{display:flex;flex-direction:column;font-weight:600;color:var(--tinta);min-width:0}
+.fx-casilla-t small{font-weight:500;font-size:var(--t1);color:var(--tinta2);overflow-wrap:anywhere}
+.fx-casilla.hecha{border-color:var(--ok);background:var(--ok-bg)}
+.fx-casilla.falta{border-color:var(--av)}
+.fx-csf{margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--linea)}
+.fx-csf-t{margin:0 0 var(--e2)}
+.fx-subir{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:44px;cursor:pointer;overflow:hidden}
+.fx-subir input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.fx-subir.apagado{opacity:.55;pointer-events:none}
+.fx-quitar{margin-right:auto}

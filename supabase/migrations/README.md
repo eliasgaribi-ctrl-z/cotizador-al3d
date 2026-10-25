@@ -33,6 +33,7 @@ de uno posterior. Son idempotentes (`create … if not exists`, `create or repla
 | `0024_modo.sql` | **La base manda, paso 1** (2026-10-25): `empresas.modo` (`'hoja'` o `'base'`, nace en `'hoja'`), `modo_cambiar` (solo Dirección, con bitácora) y `mi_acceso` con el modo. Ver `docs/BASE-MANDA.md`. Idempotente; termina corriendo la auditoría |
 | `0025_gastos.sql` | **La base manda, paso 3** (2026-10-25): `gasto_registrar` y `gasto_anular` (Dirección y Pagos, idempotentes por `op_id`, con la regla de `/empujar_gastos` de la hoja y bitácora de nivel dinero con la entidad nueva `gasto`) y `gastos` a Realtime: la lista cerrada pasa a 14. Las dos funciones entran a las listas de TODAS las auditorías de antes, que además admiten `gastos` publicada sin exigirla (volver a correr `0011` después no aborta). Idempotente; termina corriendo la auditoría |
 | `0026_alta_venta_modo.sql` | **La base manda, paso 6** (2026-10-25, decidido por Elías): `alta_venta` (la venta sin cotización) se niega con la empresa en `'hoja'` —`DATO_INVALIDO` definitivo, sin escribir nada ni gastar un V-### del contador de la base—; con `'base'`, igual que en `0006`. El área va primero (Fabricación sigue recibiendo `ROL_SIN_PERMISO`), después la validación de siempre y «ya existía»; el modo se lee con `FOR SHARE` frente al `FOR UPDATE` de `modo_cambiar`. La copia de cada 3 horas no la usa (escribe directo con `service_role`). Copia íntegra de la función de `0006` con el cambio marcado «0026:»; ninguna función nueva: las listas cerradas no cambian. Idempotente; termina corriendo la auditoría |
+| `0027_dinero_y_facturas.sql` | **El dinero disponible y las facturas** (2026-10-25, decidido por Elías; docs/DINERO-Y-FACTURAS.md): `ajustes_dinero` (las cuentas que son dinero de AL3D; nace con Elias BBVA), `clientes_fiscales` (RFC, razón social y la ruta de su constancia de situación fiscal) y `ventas_fiscales` (a qué RFC se factura cada venta de una cuenta fiscal y las dos casillas, «Factura del anticipo» y «Factura de la liquidación», con quién y cuándo). Cinco RPC de cliente idempotentes por `op_id` con su línea de dinero en la bitácora (entidad nueva `cliente`): `cuentas_disponibles_guardar` (solo Dirección), `cliente_fiscal_guardar`, `venta_cliente_fiscal`, `venta_factura_marcar` y `constancia_registrar` (Dirección y Pagos). RLS de Dirección y Pagos en las tres (Fabricación, cero filas), `sin_borrar`, sin Realtime. Las cinco entran a la lista cerrada de todas las auditorías de antes; la copia de cada 3 horas no las nombra. Idempotente; termina corriendo la auditoría |
 
 ## Antes de aplicar: la configuración del proyecto
 
@@ -85,7 +86,7 @@ programado.
 ## Lo que no es una migración
 
 `supabase/opcional/` (aparte, no se aplica con las migraciones): `storage.sql` (bucket privado de imágenes y sus políticas; necesita el esquema `storage` del proyecto),
-`semilla_materiales.mjs` (siembra el catálogo y las constantes) y `keepalive.md` (cómo no dejar que el plan gratuito pause el proyecto).
+`constancias.sql` (0027: el bucket privado de las constancias de situación fiscal y sus políticas), `semilla_materiales.mjs` (siembra el catálogo y las constantes) y `keepalive.md` (cómo no dejar que el plan gratuito pause el proyecto).
 
 ## Cómo se prueba
 

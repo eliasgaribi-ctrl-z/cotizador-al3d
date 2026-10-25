@@ -663,3 +663,21 @@ queda en el Apps Script. El detalle y lo que hace falta en producción: docs/BAS
 | «Datos de la venta» (Control → «Cobros y abonos», solo Dirección, solo con la base mandando): el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación y el % pactado por `corregir_venta` (`0007`, sin migración nueva); solo lo que cambió, la pregunta con el neto, el saldo y la comisión, la venta releída justo antes de preguntar, la línea de dinero en la bitácora de la base y otra en la del teléfono | hecho y verificado en node y en PGlite | `pruebas/pagos-supa.mjs`; `supabase/tests/pagos/pantalla.mjs` (PA-07) |
 | «Repartir un depósito»: sin cambios (decisión de Elías) | — | — |
 | Aplicar `0026` en `al3d-pruebas` y `al3d-produccion` (iguales hasta `0025`), la prueba de humo, y publicar la app (`sw.js` 149) | **no hecho** | — |
+
+## El dinero disponible y las facturas de las ventas fiscales (2026-10-25, sin publicar)
+
+Rama `claude/dinero-cuentas`, sobre `main` con la empresa ya en `'base'` (producción y pruebas iguales hasta `0026`). Lo que pidió Elías: ver en
+Control el dinero disponible (solo Elias BBVA, menos los gastos que salieron de ahí), lo que entra a cada cuenta, y para las cuentas fiscales
+(ConstruImagen, Mónica, Tanit) la constancia de situación fiscal del cliente y las dos casillas de factura. El detalle, las decisiones y los pasos
+de producción: [`DINERO-Y-FACTURAS.md`](DINERO-Y-FACTURAS.md).
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `0027_dinero_y_facturas.sql`: `ajustes_dinero`, `clientes_fiscales` y `ventas_fiscales` (RLS de Dirección y Pagos, `sin_borrar`, sin DELETE para service_role, sin Realtime) y cinco RPC de cliente idempotentes por `op_id` con su línea de dinero en la bitácora (entidad nueva `cliente`); las cinco en la lista cerrada de TODAS las auditorías (0011, 0019, 0022–0027) y `cliente` también en el CHECK que vuelve a poner 0025 | hecho y verificado en PGlite; sin aplicar | `supabase/tests/dinero/` (DC-01–DC-05, FI-01–FI-10), `supabase/tests/auditoria/` (43 de cliente, 27 tablas) |
+| `opcional/constancias.sql`: el bucket privado `constancias-fiscales` (5 MB; PDF, JPG, PNG, WebP) y sus políticas (Dirección y Pagos leen y suben en la carpeta de un cliente fiscal; cambiar y borrar, Dirección; Fabricación nada) | hecho y verificado sobre el sustituto de `storage`; sin aplicar | `supabase/tests/dinero/constancias-storage.mjs` (CS-01–CS-04) |
+| La prueba de humo: F01–F08 (0027) y G01–G05 (constancias): 74 casos, 90 con `storage.sql`, 94 con `storage.sql` y `constancias.sql` | hecho y verificado en PGlite | `supabase/tests/humo/prueba-de-humo.mjs` |
+| El respaldo semanal con las tres tablas nuevas (`_shared/respaldo.js`) y `importar-diario/desplegar/index.ts` vuelto a armar | hecho; **hay que volver a pegar la función** | `pruebas/supabase-respaldo.mjs`, `pruebas/supabase-importar-diario.mjs` |
+| La copia de cada 3 horas no toca nada de esto (ni en su SQL, ni al correr con la hoja mandando) | verificado en PGlite | FI-09 |
+| Control: «Disponible» en el Resumen, las pestañas «Cuentas» y «Facturas» (solo con la base mandando, Dirección y Pagos), la cuenta del gasto marcada como disponible | hecho y verificado en node | `pruebas/dinero-cuentas.mjs`, `pruebas/facturas.mjs`, `pruebas/pagos-supa.mjs` |
+| Aplicar `0027` y `constancias.sql` en `al3d-pruebas` y `al3d-produccion`, la prueba de humo, pegar `importar-diario` y publicar la app (`sw.js` 152) | **no hecho** | — |
+| Probarlo en un navegador (el iPhone: «Ver» la constancia, subir una foto) | **no hecho** | — |

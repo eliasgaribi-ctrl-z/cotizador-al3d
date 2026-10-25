@@ -23,7 +23,7 @@
 //   9c015d4000ba42f9  scripts/importador/plan.mjs
 //   97de8976ab229559  scripts/importador/sql.mjs
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
-//   581b34af03d7352c  supabase/functions/_shared/respaldo.js
+//   2b5e0ad232337eb4  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
 //   a71a48031bacb916  supabase/functions/importar-diario/copia.js
@@ -768,7 +768,11 @@ var TABLAS = Object.freeze([
   ["pantallas", "id"],
   ["agente_conversaciones", "id"],
   ["agente_mensajes", "id"],
-  ["agente_decisiones", "id"]
+  ["agente_decisiones", "id"],
+  // 0027: las cuentas disponibles, los clientes fiscales y sus ventas (al restaurar, el cliente antes que la venta que lo nombra)
+  ["ajustes_dinero", "empresa_id"],
+  ["clientes_fiscales", "empresa_id,rfc"],
+  ["ventas_fiscales", "proyecto_id"]
 ].map(([nombre, orden]) => Object.freeze({ nombre, orden })));
 var FORMATO = "al3d-respaldo-1";
 var SECRETO_MINIMO = 32;
