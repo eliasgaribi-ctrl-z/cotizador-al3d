@@ -208,6 +208,15 @@ export async function crearVenta(db, o) {
   return id;
 }
 
+/**
+ * La empresa con la BASE mandando (`empresas.modo = 'base'`, 0024), como superusuario y confirmado, sin línea en la bitácora (eso lo prueba
+ * `modo_cambiar` en acceso/modo.mjs). Desde 0026 `alta_venta` solo da de alta con la base mandando: las pruebas que la usan para sembrar o
+ * para probar otra cosa (el contador, los topes, la vista) la llaman antes. La semilla sigue naciendo en 'hoja', como la empresa de verdad.
+ */
+export async function conLaBaseMandando(db, empresa = 'al3d') {
+  await sql(db, `update public.empresas set modo = 'base', modo_desde = now() where id = $1`, [empresa]);
+}
+
 /** Lo mismo, dentro de una `transaccion()` (`t.rpc`): devuelve el valor jsonb de la RPC. */
 export async function rpcT(t, funcion, args = {}) {
   const filas = await t.rpc(funcion, args);

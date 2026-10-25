@@ -7,7 +7,7 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 | Carpeta o archivo | Qué es |
 |---|---|
 | [`DISENO.md`](DISENO.md) | El diseño del esquema: tablas, reglas de acceso, funciones, vista de fórmulas, plan de pruebas |
-| `migrations/` | Las 25 migraciones SQL, en orden (`0001` a `0025`); ver [`migrations/README.md`](migrations/README.md) |
+| `migrations/` | Las 26 migraciones SQL, en orden (`0001` a `0026`); ver [`migrations/README.md`](migrations/README.md) |
 | `tests/` | Pruebas de la base con PGlite (PostgreSQL en WASM, sin Docker): `sh supabase/tests/correr.sh`; ver [`tests/README.md`](tests/README.md) |
 | `functions/` | Funciones del servidor (Deno): `salud`, `verificar`, `maps`, `ia`, `espejo`, `autorizar`, `respaldo` e `importar-diario` (la copia diaria hoja → nube; abajo), con su código compartido en `_shared/` (`autorizar` y `respaldo`, de la segunda entrega y apagadas: [`docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md`](../docs/supabase/NOTAS-SEGUNDA-ENTREGA-SERVIDOR.md)) |
 | `opcional/` | Lo que no corre en PGlite: `prueba-de-humo.sql` (para un proyecto real), `storage.sql` (el bucket de las imágenes y sus políticas; abajo), `semilla_materiales.mjs`, `keepalive.md` |
@@ -26,8 +26,8 @@ Qué está hecho y qué falta, con la evidencia: [`docs/ESTADO-SUPABASE.md`](../
 3. **Correr `opcional/storage.sql`** completo (el bucket privado de las imágenes de las cotizaciones y sus políticas; ver
    «Las imágenes de las cotizaciones (Storage)», abajo).
 4. **Correr `opcional/prueba-de-humo.sql`** completo. Simula a las tres áreas y siempre se deshace; el «error» final
-   `HUMO_RESULTADO {"fallos":0,…}` es el resultado esperado (verde = `fallos` en 0): **79** casos con `storage.sql` aplicado,
-   **63** sin él (el caso C58 dice entonces que Storage no aplica); D01–D05 son de `0018`. Pasa igual en una base vacía que en una con datos reales:
+   `HUMO_RESULTADO {"fallos":0,…}` es el resultado esperado (verde = `fallos` en 0): **81** casos con `storage.sql` aplicado,
+   **65** sin él (el caso C58 dice entonces que Storage no aplica); D01–D05 son de `0018` y E01–E02 de `0026` (sin ella, salen en rojo). Pasa igual en una base vacía que en una con datos reales:
    cada caso cuenta solo las filas de la prueba.
 5. **Auth → Sign In / Providers → Google**: habilitar con el Client ID público de la app (`js/nucleo/ingreso.js`); el flujo de
    «ID token» no pide secreto. **Auth → URL Configuration**: Site URL y las redirecciones de GitHub Pages y pages.dev.
@@ -57,7 +57,7 @@ suben a la nube. Las sube el teléfono con la **sombra** encendida (`js/datos/su
    se puede volver a correr, y cada vez deja el bucket y las políticas exactamente como dice el archivo. No crea ninguna función
    (la auditoría de `0011` sigue limpia). Si termina con `AUDITORIA: …`, hay una política de `storage.objects` que abre el bucket
    (hecha a mano en el panel, o de otro uso): el mensaje dice cuál; quitarla y volver a correrlo.
-2. Correr **`supabase/opcional/prueba-de-humo.sql`**: verde con **79** casos (C58–C74 son de Storage; C70–C74, de Q-02 bis; D01–D05, de `0018`).
+2. Correr **`supabase/opcional/prueba-de-humo.sql`**: verde con **81** casos (C58–C74 son de Storage; C70–C74, de Q-02 bis; D01–D05, de `0018`; E01–E02, de `0026`).
 3. En *Storage* del panel debe aparecer el bucket `cotizacion-imagenes`, **privado**, con tope de 2 MB y solo `image/jpeg`,
    `image/png` e `image/webp`.
 
@@ -146,7 +146,7 @@ crea «3 · Preparar la hoja» o el primer gasto que se registra) no se manda ni
 
 1. **La tabla.** En el Editor SQL de `al3d-produccion`, pegar `supabase/migrations/0018_cuadre_diario.sql` completo y
    ejecutarlo (después de `0017`). Termina corriendo la auditoría: si sale «AUDITORIA DE SEGURIDAD…», no se aplicó nada y el
-   mensaje dice por qué. Después la prueba de humo: verde con **63** casos (**79** con `storage.sql`).
+   mensaje dice por qué. Después la prueba de humo: verde con **63** casos (**79** con `storage.sql`; desde `0026`, 65 y 81).
 2. **El secreto.** Es una contraseña larga que solo conocen la función y la hoja. Generarlo en la computadora, **sin pasarlo
    por ningún chat**, y guardarlo en el gestor de contraseñas. Por ejemplo, en PowerShell:
    `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')` (da 64 letras y números; sirve cualquiera de 32 o más).

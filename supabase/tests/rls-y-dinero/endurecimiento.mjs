@@ -9,7 +9,7 @@
 //                 de `registrar_cobro`, `proyecto_actualizar` o `mover_etapa`, una Dirección ajena cobraría o editaría proyectos que no son suyos.
 // La prueba de p_hoy (M-1) está en obra-y-etapas/etapas.mjs, junto a las demás de `emitir_salidas_derivadas`.
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sesionDe, rpcT, crearVenta, sql } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sesionDe, rpcT, crearVenta, sql, conLaBaseMandando } from '../comun/semilla.js';
 
 const plantilla = dato(async () => {
   const db = await crearBaseDePruebas();
@@ -53,6 +53,7 @@ describir('A-1 importes que no son un importe: NaN, Infinity y enormes', () => {
   prueba('M-5: alta_venta con un subtotal de 9e131071 ya NO rompe la vista de fórmulas de todos: la alta se rechaza y la vista sigue funcionando', async () => {
     const db = await plantilla();
     await sql(db, `select public.contador_sembrar('al3d', 'V', 100)`);   // como la importación real: el contador va por encima del máximo de la hoja
+    await conLaBaseMandando(db);                                         // 0026: con la hoja mandando, alta_venta ni llega a escribir
     await esperarError(sesionDe(db, db.u.pag).rpc('alta_venta', { p_op: { id: 'pv', nombre: 'x', cuenta: 'Moni MPago', subtotal: '9e131071', tel: '3312345678', entrega: 'instalacion', sellos: { etapa: Date.now() } } }), /23514|22003|check|overflow/i);
     const filas = await sesionDe(db, db.u.pag).query(`select count(*)::int as n from public.ventas_calculadas`);
     igual(filas[0].n, 2);

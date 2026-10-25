@@ -18,8 +18,9 @@ import { SUSTITUTO_STORAGE, TEXTO_STORAGE } from '../comun/storage.js';
 
 const HUMO = readFileSync(fileURLToPath(new URL('../../opcional/prueba-de-humo.sql', import.meta.url)), 'utf8');
 /** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C74; C70–C74 son de Q-02 bis, Fabricación y las obras
- *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018) en los dos. Los documentos dicen estas cifras. */
-const SIN_STORAGE = 63, CON_STORAGE = 79;
+ *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018) y los dos de la venta sin cotización con la hoja mandando (E01–E02, 0026) en los dos.
+ *  Los documentos dicen estas cifras. */
+const SIN_STORAGE = 65, CON_STORAGE = 81;
 
 /** Corre la prueba de humo y devuelve su informe (el JSON del error «HUMO_RESULTADO …»). */
 async function humo(db) {
@@ -165,6 +166,36 @@ describir('el bloque 12 (cuadre_diario, 0018): cuenta solo su renglón y no deja
       igual(inf.casos.filter(c => /^D0[1-5] /.test(c.caso)).map(c => c.caso.slice(0, 3) + ':' + c.det),
         ['D01:1', 'D02:42501', 'D03:0 / 0 / 0', 'D04:42501', 'D05:P0001 / P0001']);
       igual(await foto(db), antes, 'los dos renglones de verdad siguen y el de la prueba no quedó');
+    } finally { await db.close(); }
+  });
+});
+
+describir('el bloque 1 bis (la venta sin cotización con la hoja mandando, 0026): la base se niega y la empresa se queda en su modo', () => {
+  prueba('con la empresa en «hoja» (como producción hoy): E01 y E02 en verde, y la empresa sigue en «hoja» (la prueba la puso en «base» y la regresó solo dentro de su transacción)', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      const inf = await humo(db);
+      igual(inf.casos.filter(c => /^E0[12] /.test(c.caso)).map(c => c.caso.slice(0, 3) + ':' + c.det), ['E01:DATO_INVALIDO definitivo', 'E02:0']);
+      igual((await sql(db, "select modo from public.empresas where id = 'al3d'"))[0].modo, 'hoja');
+    } finally { await db.close(); }
+  });
+  prueba('con la empresa ya en «base» (después del día del cambio): verde igual, y se queda en «base»', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await sql(db, "update public.empresas set modo = 'base' where id = 'al3d'");
+      const inf = await humo(db);
+      igual([rojos(inf), inf.total], [[], SIN_STORAGE]);
+      igual((await sql(db, "select modo from public.empresas where id = 'al3d'"))[0].modo, 'base');
+    } finally { await db.close(); }
+  });
+  prueba('SIN la 0026 (la alta_venta de 0006, que no mira el modo): E01 y E02 salen en rojo, y nada más', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      const t = readFileSync(fileURLToPath(new URL('../../migrations/0006_rpc_obra.sql', import.meta.url)), 'utf8');
+      const ini = t.indexOf('create or replace function public.alta_venta'), fin = t.indexOf('end $$;', ini) + 'end $$;'.length;
+      await sql(db, t.slice(ini, fin));
+      igual(rojos(await humo(db)).map(r => r.slice(0, 3)), ['E01', 'E02']);
     } finally { await db.close(); }
   });
 });

@@ -10,7 +10,7 @@
 // Las llamadas de un mismo caso van en UNA petición (`transaccion`): cada petición se deshace al terminar, así que 50 llamadas
 // por separado no se verían unas a otras.
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, rpcT, una, sql, conCopia, como } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, rpcT, una, sql, conCopia, como, conLaBaseMandando } from '../comun/semilla.js';
 
 const plantilla = dato(async () => {
   const db = await crearBaseDePruebas();
@@ -238,6 +238,7 @@ describir('CU-12 contador_sembrar solo sube', () => {
     await conCopia(plantilla, async copia => {
       const sr = como(copia, { rol: 'service_role', confirmar: true });
       igual((await sr.rpc('contador_sembrar', { p_empresa: 'al3d', p_clave: 'V', p_minimo: 214 }))[0].contador_sembrar, 214);
+      await conLaBaseMandando(copia);                                  // 0026: alta_venta, solo con la base mandando
       const alta = id => ({ p_op: { id, nombre: 'Venta ' + id, cuenta: 'Moni MPago', tipo_trabajo: ['Rotulacion de vinil'], tel: '33 2222 3333', entrega: 'paqueteria', subtotal: 100, anticipo: 10, sellos: { etapa: Date.now() } } });
       const D = sesionDe(copia, copia.u.dir, { confirmar: true });
       const a = (await D.rpc('alta_venta', alta('c1')))[0].alta_venta, b = (await D.rpc('alta_venta', alta('c2')))[0].alta_venta;
@@ -251,6 +252,7 @@ describir('CU-12 contador_sembrar solo sube', () => {
     await conCopia(plantilla, async copia => {
       const sr = como(copia, { rol: 'service_role', confirmar: true });
       await sr.rpc('contador_sembrar', { p_empresa: 'al3d', p_clave: 'V', p_minimo: 999 });
+      await conLaBaseMandando(copia);
       const D = sesionDe(copia, copia.u.dir, { confirmar: true });
       const alta = id => ({ p_op: { id, nombre: 'Venta ' + id, cuenta: 'Moni MPago', tipo_trabajo: ['Rotulacion de vinil'], tel: '33 2222 3333', entrega: 'paqueteria', subtotal: 100, anticipo: 10, sellos: { etapa: Date.now() } } });
       const a = (await D.rpc('alta_venta', alta('m1')))[0].alta_venta, b = (await D.rpc('alta_venta', alta('m2')))[0].alta_venta;

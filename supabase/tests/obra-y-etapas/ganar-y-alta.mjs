@@ -5,12 +5,14 @@
 //   · `alta_venta`: Dirección y Pagos (el menú «Registrar nueva venta» de la hoja);
 //   · el folio `V-###` sale de un contador que NUNCA reparte un número dos veces y que la lápida no consume.
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, rpcT, una, sql, conCopia, ORIGEN_COMPLETO } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, rpcT, una, sql, conCopia, conLaBaseMandando, ORIGEN_COMPLETO } from '../comun/semilla.js';
 
 const plantilla = dato(async () => {
   const db = await crearBaseDePruebas();
   db.u = await sembrarUsuarios(db);
   await sembrarProyectos(db);
+  /* 0026: `alta_venta` solo da de alta con la base mandando (con la hoja, se niega: acceso/modo.mjs, MO-05). `ganar_proyecto` no mira el modo. */
+  await conLaBaseMandando(db);
   return db;
 }, { limpiar: db => db.close() });
 

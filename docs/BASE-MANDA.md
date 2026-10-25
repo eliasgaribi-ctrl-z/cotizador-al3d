@@ -24,8 +24,11 @@ Cada teléfono lee el modo de `mi_acceso`. Solo Dirección lo cambia (`modo_camb
 | 3 | Gastos: `gasto_registrar` y `gasto_anular` (con `op_id`), la tabla a Realtime | hecho, sin publicar (abajo) |
 | 4 | Cotizador: los precios de la base (y su copia en la hoja, que sigue sellando), el historial y sus imágenes a la base y de vuelta a todos los teléfonos, el V-### de la base en el recibo de «Registrar venta». Las solicitudes y el sello se quedan en la hoja (Elías, 2026-10-25) | hecho, sin publicar (abajo) |
 | 5 | Pagos: las pantallas de cobros y abonos encendidas en modo base; venta sin cotización (`alta_venta`); los textos que decían «la hoja» | hecho, sin publicar (abajo) |
-| 6 | El sello de los QR | decidido por Elías el 2026-10-25: se queda en el Apps Script (con `/solicitar`, `/autorizar`, `/verificar` y compañía, la IA, Maps y Drive) |
-| 7 | El día del cambio: vaciar colas, última copia con 0 diferencias, `modo_cambiar('base')`, la hoja en solo lectura | |
+| 6 | Lo que Elías decidió del paso 5: la base se niega a dar de alta una venta sin cotización con la hoja mandando (`0026_alta_venta_modo.sql`); «Datos de la venta», para que Dirección corrija una venta; «Repartir un depósito» se queda como está | hecho, sin publicar (abajo) |
+| 7 | El día del cambio: vaciar colas, última copia con 0 diferencias, `modo_cambiar('base')`, la hoja en solo lectura | la lista, abajo |
+
+El sello de los QR ya no es un paso: se queda en el Apps Script (decidido por Elías el 2026-10-25), con `/solicitar`, `/autorizar`, `/verificar` y
+compañía, la IA, Maps y Drive.
 
 ## Paso 2: el relevo (hecho, sin publicar)
 
@@ -173,21 +176,20 @@ que faltaba era que, con la base mandando, fueran el lugar donde se cobra.
 - **El sello de los QR**: se queda en el Apps Script (decidido por Elías el 2026-10-25).
 - **Corregir subtotal, nombre, cuenta, estatus o porcentaje de una venta** desde el teléfono (D-5 de la segunda entrega, confirmado por Elías el
   2026-10-16: las correcciones son abonos y liquidación). Una venta sin cotización que quedó mal la corrige Dirección con `corregir_venta`
-  (hoy, solo desde el Editor SQL): falta decidir desde qué pantalla.
+  (hoy, solo desde el Editor SQL): falta decidir desde qué pantalla. **Resuelto en el paso 6**: «Datos de la venta», en «Cobros y abonos», solo
+  Dirección.
 - **La venta sin cotización desde otra pantalla** (Proyectos, el Tablero): por ahora vive en Control → «Cobros y abonos».
 - Otros textos de Control que dicen «la hoja» y no son de gastos ni comisiones (las explicaciones del Resumen, «Por cobrar» —«según la hoja»—, el
   globo de una venta «de la hoja»): con la base mandando siguen diciendo «la hoja», aunque los números ya son de la base.
 
 **Riesgos que conviene saber:**
 
-- **La base no sabe del modo en `alta_venta`.** La regla «solo con la base mandando» la cumple el teléfono; la base, con la empresa en `'hoja'`,
-  aceptaría una alta (y gastaría un V-### que la hoja no conoce). Ningún teléfono la manda con la hoja mandando, pero alguien con la consola sí
-  podría. Si se quiere cerrar del lado de la base, es una migración pequeña (que `alta_venta` pida el modo `'base'`) con las listas cerradas de la
-  auditoría; no se hizo para no tocar la base en este paso.
+- ~~**La base no sabe del modo en `alta_venta`.**~~ La regla «solo con la base mandando» la cumplía solo el teléfono; la base, con la empresa en
+  `'hoja'`, aceptaba una alta (y gastaba un V-### que la hoja no conoce). **Cerrado en el paso 6** (`0026`, decidido por Elías el 2026-10-25).
 - **«Repartir un depósito» paga TODA comisión pendiente**, de la venta más antigua a la más nueva, esté o no LIQUIDADA la venta (`comisiones_pendientes`
   es `t_restante > 0`); la pestaña Comisiones de Control, en cambio, solo deja pagar las de ventas liquidadas, de la más chica a la más grande. Era
-  así desde `0007`; ahora es dinero de verdad. La vista previa dice a qué ventas va antes de preguntar. Decisión de Elías: si el reparto debe
-  saltarse las no liquidadas.
+  así desde `0007`; ahora es dinero de verdad. La vista previa dice a qué ventas va antes de preguntar. **Decidido por Elías el 2026-10-25: se
+  queda así, a propósito** (no se salta las no liquidadas).
 - **Un cobro de más se acepta** (la base lo marca «Cobrado de más»), como en la hoja. La pantalla lo pregunta en rojo, con la cifra.
 - **«Cobros y abonos» lee la base en vivo**, no la copia del teléfono: sin señal no hay saldos que enseñar ni asientos que hacer (lo dice). Un
   asiento nunca se queda «en la bandeja»: o la base lo confirmó, o la pantalla dice que no sabe y ofrece reintentar con el mismo op_id.
@@ -197,10 +199,85 @@ que faltaba era que, con la base mandando, fueran el lugar donde se cobra.
 vaya en sus paquetes cambió (`prefs.js` no se tocó a propósito; `pruebas/supabase-pantalla.mjs` y `supabase-importar-diario.mjs` lo comprueban).
 Mientras la empresa siga en `'hoja'`, la pestaña sigue siendo la prueba de siempre y nada de lo nuevo se ve.
 
+## Paso 6: lo que decidió Elías del paso 5 (hecho, sin publicar)
+
+Va después del paso 5 (PR #173). Las tres preguntas que dejó abiertas el paso 5, contestadas por Elías el 2026-10-25: la base también se niega a
+dar de alta una venta sin cotización con la hoja mandando; Dirección corrige una venta desde una pantalla; el reparto se queda como está.
+
+| Pieza | Dónde | Prueba |
+|---|---|---|
+| **Con la hoja mandando, la base NO da de alta una venta sin cotización.** Antes solo el teléfono lo cumplía (el formulario no sale); ahora `alta_venta` también se niega con la empresa en `'hoja'`: `DATO_INVALIDO` definitivo («La empresa todavía trabaja con la hoja…»), sin escribir nada ni gastar un V-### del contador de la base. Es `DATO_INVALIDO` porque así se niega la base por el estado de las cosas («No se agenda un proyecto cancelado», `0013`/`0017`) y es definitivo: la bandeja no insiste y la pantalla enseña la frase. No `ROL_SIN_PERMISO` (el área sí puede, y la pantalla diría «es de Dirección y Pagos») ni uno de los de la puerta (pararían el bombeo de la bandeja). El orden: el área primero (Fabricación sigue recibiendo `ROL_SIN_PERMISO`), la validación de siempre, «ya existía» (el reintento de un alta que sí entró con la base mandando dice la verdad aunque ya se haya vuelto a la hoja) y entonces el modo, leído con `FOR SHARE` frente al `FOR UPDATE` de `modo_cambiar`. Ninguna función nueva: las listas cerradas de la auditoría no cambian | `supabase/migrations/0026_alta_venta_modo.sql` | `supabase/tests/acceso/modo.mjs` (MO-05 a MO-07) |
+| **La copia de cada 3 horas sigue igual**: no usa `alta_venta` (escribe directo con `service_role`, que ni siquiera puede ejecutarla). Nadie más la llama con la hoja mandando: la sombra y el relevo nunca la traducen. La prueba de humo sí la usaba para sembrar su venta: ahora pone la empresa en `'base'` dentro de su transacción (se deshace sola) y sus casos E01–E02 comprueban la negativa con la hoja mandando | `0026`, `supabase/opcional/prueba-de-humo.sql` | MO-07; `supabase/tests/humo/prueba-de-humo.mjs` (65 y 81 casos; sin `0026`, E01 y E02 en rojo) |
+| **«Repartir un depósito» se queda como está**, a propósito: paga TODA comisión pendiente, de la venta más antigua a la más nueva, esté o no LIQUIDADA. No se cambió nada | — | PA-03, sin cambios |
+| **«Datos de la venta»**: Dirección corrige el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación o el % pactado de una venta (hasta aquí, solo desde el Editor SQL), en Control → «Cobros y abonos». Sin migración: es `corregir_venta` (`0007`), la que ya usaban el anticipo y la liquidación y, por el relevo, los botones de cuenta y estatus de la ficha. Lo que faltaba era la pantalla | `js/datos/pagos-supa.js` (`plan('datos')`, `correccionAlDia`), `js/mod/pagos-supa.js` (`formDatos`, `datosAlDia`) | `pruebas/pagos-supa.mjs` («Los datos de la venta»); `supabase/tests/pagos/pantalla.mjs` (PA-07) |
+| **Solo Dirección y solo con la base mandando.** La base también se lo deja a Pagos (la matriz de `0017`): «solo Dirección» lo cumple la pantalla, como pidió Elías, y Pagos sigue con el anticipo, la liquidación y los botones de cuenta y estatus de siempre. Con la hoja mandando no existe (la copia de cada 3 horas pondría otra vez lo de la hoja). Fabricación no tiene la pestaña ni ve una cifra | `pagos-supa.js` (`puedeCorregirLaVenta`, `formulariosDe`) | «Los datos de la venta»; PA-05 |
+| **El dinero**: se manda solo lo que cambió, en valores absolutos (mandarlo dos veces deja lo mismo y no escribe otra línea); la pregunta dice de cuánto a cuánto y cómo quedan el neto, el saldo y la comisión (la aritmética de la base), con el botón de peligro si cambia el dinero, y avisa de un cobro de más, de una comisión pagada de más o de una venta LIQUIDADA con saldo. El IVA lo pone la cuenta; a mano, solo en una venta LIQUIDADA (la regla de la base). Un envío a la vez, el op_id del formulario y su «Reintentar», como en los demás | `pagos-supa.js` | «Los datos de la venta»; PA-07 |
+| **Lo que se corrige es lo que la base tiene AHORA**: justo antes de preguntar se vuelve a leer la venta. Si otro teléfono cambió en medio alguno de esos campos, se enseña lo nuevo y no se manda nada; si la base ya tiene lo que se quiere poner (el envío sin respuesta sí llegó, u otro teléfono puso lo mismo), tampoco; sin poder leer, no se pregunta. Lo que cambió en otros campos no estorba (no se manda) | `pagos-supa.js` (`correccionAlDia`), `js/mod/pagos-supa.js` (`datosAlDia`) | «Los datos de la venta»; PA-07 |
+| **La bitácora**: la línea de la base la escribe `corregir_venta` (nivel dinero, «Se corrigió V-###», con lo de antes y lo de después de cada campo que cambió, el IVA también); además, una en la de este teléfono (Control → Bitácora) | `0007`; `js/mod/pagos-supa.js` (`anotarCorreccion`) | PA-07 |
+| **Realtime**: los demás teléfonos releen la pestaña con el aviso de la base (como en el paso 5) y su copia de la venta se pone al día con la bajada de siempre; este teléfono sincroniza en el acto | `js/mod/pagos-supa.js` | «Con la base mandando» |
+| Con la hoja mandando, **lo de siempre**: ni el formulario, ni una petición nueva | — | «Los datos de la venta», «Quién ve los formularios» |
+
+**Lo que no entra en el paso 6** (dicho, para que nadie lo dé por hecho):
+
+- **Corregir desde la ficha del proyecto.** La corrección vive en «Cobros y abonos»; la ficha sigue con sus botones de cuenta y estatus, que van por
+  la bandeja y sin pregunta, como siempre. Un botón en la ficha que lleve a «Datos de la venta» con esa venta elegida sería lo siguiente.
+- **La fecha del anticipo** (la que decide el mes de la venta en Control) y los datos de la obra no están en «Datos de la venta»: los de la obra se
+  cambian en la ficha; la fecha del anticipo sigue solo desde el Editor SQL (`proyecto_actualizar`, Dirección).
+- El anticipo, la liquidación y los abonos siguen en sus formularios. Una venta no se borra.
+- Nada de esto se probó en un navegador ni contra `al3d-produccion` (hace falta la app publicada y la empresa en `'base'`).
+
+**Riesgos que conviene saber:**
+
+- **El dinero no se sella: la última corrección gana.** La revisión de antes de preguntar cierra casi toda la ventana, pero dos teléfonos de Dirección
+  corrigiendo el mismo campo en el mismo segundo pueden pisarse (`corregir_venta` no recibe el valor esperado). Y un botón de cuenta o de estatus
+  tocado en la ficha sin señal sale cuando vuelve la señal y gana, aunque llegue después de la corrección.
+- **Pagos puede corregir por la base** (la matriz de `0017`): la regla de solo Dirección es de la pantalla. Cerrarla del lado de la base es cambiar la
+  matriz, y dejaría a Pagos sin fijar el anticipo ni corregir la liquidación (usan la misma función).
+- **La prueba de humo pone la empresa en `'base'`** dentro de su transacción: mientras corre (segundos), un alta o un cambio de modo de verdad
+  esperan a que termine. Nada queda cambiado.
+
+**Para que surta efecto en producción:** (1) fusionar #173 y después este PR; (2) aplicar `0026` en `al3d-pruebas` y después en `al3d-produccion`
+(Editor SQL, el archivo entero; termina con la auditoría: si sale «AUDITORIA DE SEGURIDAD (0026)…», no se aplicó nada y el mensaje dice por qué) y
+correr la prueba de humo: verde con 65 casos (81 con `storage.sql`); (3) publicar la app (`sw.js` 149). No hay que volver a pegar ninguna función
+(ningún archivo que vaya en sus paquetes cambió) ni tocar el Apps Script. `0026` y la app no dependen una de la otra: con la hoja mandando ningún
+teléfono llama a `alta_venta`, y «Datos de la venta» solo sale con la base mandando.
+
+## Paso 7: el día del cambio (la lista)
+
+La fecha la decide Elías. **Antes del día:**
+
+1. Todo publicado: #168, #169, #171, #172, #173 y el del paso 6 fusionados; `0024`, `0025` y `0026` aplicadas en las dos bases (la auditoría
+   limpia; la prueba de humo, 65 casos, 81 con `storage.sql`); la app publicada (`sw.js` 149) y abierta en cada teléfono con señal, para que
+   tenga la versión nueva.
+2. Si Fabricación debe ver las imágenes de las obras ganadas: volver a aplicar `supabase/opcional/storage.sql` (Q-02 bis) en las dos bases.
+3. En cada teléfono (Dirección, Pagos y las 3 de Fabricación): Ajustes → Supabase → «Encender en este aparato» y entrar con Google. Ajustes dice
+   el área que da la base. La entrada con Google en el iPhone, probada (pendiente de Elías).
+4. La copia de cada 3 horas, cuadrando: Ajustes → Supabase → «cuadró X de los últimos 7 días» en 7.
+
+**El día, en este orden:**
+
+1. Avisar al equipo: desde ahora no se captura en la hoja.
+2. Vaciar las colas: en cada teléfono, nada pendiente ni apartado en la bandeja (el glifo de sincronización y Control lo dicen).
+3. La última copia, a mano: Apps Script → `copiarHojaASupabase` → «aplicada · CUADRA · … · 0 diferencias · 0 conflictos». Si no cuadra, se
+   arregla en la hoja y se repite; no se sigue con diferencias.
+4. `quitarCopiaDiaria` (el respaldo semanal se queda: lee la base, no la hoja).
+5. La base manda: `modo_cambiar('base')` con la sesión de Dirección. Todavía no tiene botón: desde la consola del navegador de la app de Dirección
+   (con la sesión de Supabase), o, como dueño en el Editor SQL, `update public.empresas set modo = 'base', modo_desde = now() where id = 'al3d';`
+   (este último no deja la línea en la bitácora).
+6. La hoja en solo lectura (proteger las pestañas o quitarle al equipo el permiso de edición): un teléfono que todavía no se entera del modo deja
+   lo suyo en la bandeja, y sale a la base después.
+7. Cada teléfono se entera al abrir la app o Ajustes, o a los 10 minutos como mucho: la pestaña de Control pasa a «Cobros y abonos», el candado del
+   rol dice «lo manda la base» y el historial del cotizador empieza a subir solo (Ajustes → Supabase dice cuándo terminó).
+8. Comprobar en el teléfono de Dirección: «Cobros y abonos» lee las ventas con su saldo y ofrece «Datos de la venta»; el récord de Control dice
+   «de la base»; el candado del rol, «lo manda la base». En el de Fabricación: ni «Cobros y abonos» ni una cifra.
+
+**Cómo se regresa:** `modo_cambiar('hoja')`, volver a instalar la copia (`instalarCopiaDiaria`) y quitarle a la hoja el solo lectura (abajo).
+
 Cómo se regresa en cualquier paso: `modo_cambiar('hoja')`. La hoja sigue completa mientras no se apague la copia. Ojo: el espejo a
 la hoja solo lleva Ventas y Abonos; lo que se capture de almacén, gastos o autorizaciones en modo base no vuelve solo a la hoja. Con los gastos,
 además: de vuelta en la hoja, la copia de cada 3 horas le pone lápida (`deleted_at`) a los que se capturaron en la base y no están en la
-pestaña; no se pierden (siguen en la base), pero dejan de verse hasta que alguien los pase a la hoja.
+pestaña; no se pierden (siguen en la base), pero dejan de verse hasta que alguien los pase a la hoja. Y desde el paso 6, de vuelta en la hoja la
+base ya no da de alta ventas sin cotización (`0026`) y «Datos de la venta» desaparece: las dos cosas vuelven a hacerse en la hoja.
 
 ## Lo que decide Elías
 
@@ -211,6 +288,9 @@ pestaña; no se pierden (siguen en la base), pero dejan de verse hasta que algui
    ya se sincronizan desde el paso 4; los borradores y la imagen de referencia, no: ver «Paso 4»).
 4. La prueba de la entrada con Google en el iPhone.
 5. La fecha del cambio.
-6. Si «Repartir un depósito» debe saltarse las comisiones de ventas que todavía no están LIQUIDADAS (hoy no se las salta: ver «Paso 5»).
-7. Desde qué pantalla se corrige el subtotal, el nombre o la cuenta de una venta con la base mandando (hoy, solo desde el Editor SQL).
-8. Si `alta_venta` se cierra también del lado de la base con la empresa en `'hoja'` (una migración pequeña; ver «Paso 5», riesgos).
+6. ~~Si «Repartir un depósito» debe saltarse las comisiones de ventas que todavía no están LIQUIDADAS.~~ Decidido el 2026-10-25: **no**, se queda
+   como está (paga toda comisión pendiente, de la más antigua a la más nueva).
+7. ~~Desde qué pantalla se corrige el subtotal, el nombre o la cuenta de una venta con la base mandando.~~ Decidido el 2026-10-25: una pantalla
+   para Dirección; hecha en el paso 6 («Datos de la venta», en «Cobros y abonos»).
+8. ~~Si `alta_venta` se cierra también del lado de la base con la empresa en `'hoja'`.~~ Decidido el 2026-10-25: **sí**; hecho en el paso 6
+   (`0026_alta_venta_modo.sql`).

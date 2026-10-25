@@ -22,6 +22,9 @@
 --
 -- Uso: pegar TODO este archivo en el Editor SQL (no por partes) y ejecutar.
 -- El bloque 12 (casos D01–D05) es de la 0018 (la copia diaria y su bitácora cuadre_diario): sin ella, D01 sale en rojo y dice que falta.
+-- El bloque 1 bis (E01–E02) es de la 0026: con la hoja mandando, la base no da de alta una venta sin cotización. Sin la 0026, E01 y E02 salen en rojo.
+-- Desde la 0026 `alta_venta` pide la base mandando: para sembrar su venta (C01), la prueba pone la empresa en 'base' DENTRO de su transacción
+-- (el error final lo deshace, como todo lo demás: la empresa sigue en el modo en que estaba) y el bloque 1 bis la regresa a 'hoja' para probarlo.
 
 create function pg_temp.como(p_rol text, p_uid uuid, p_correo text) returns void language plpgsql as $f$
 begin
@@ -42,7 +45,8 @@ declare
   u_ext uuid := gen_random_uuid();
   u_ema uuid := gen_random_uuid();
   ahora bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text;
+  r jsonb; k jsonb; n numeric; t text; b boolean; ts_humo timestamptz; q_borrar text; n_v numeric;
+  con_modo boolean := exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'empresas' and column_name = 'modo');
 begin
   -- 0) Siembra, como dueño de la base: cuatro cuentas de Auth y tres membresías (la cuarta persona no es del equipo).
   insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -54,6 +58,8 @@ begin
     ('al3d', 'dir@humo.test', 'direccion',  'activo', u_dir),
     ('al3d', 'fab@humo.test', 'fabricacion', 'activo', u_fab),
     ('al3d', 'pag@humo.test', 'pagos',       'activo', u_pag);
+  -- La base mandando, solo dentro de esta transacción (0026: `alta_venta` solo da de alta así; el bloque 1 bis prueba la hoja).
+  if con_modo then execute 'update public.empresas set modo = ''base'' where id = ''al3d'''; end if;
 
   -- 1) Dirección da de alta una venta y la vista de fórmulas la calcula como la hoja:
   --    subtotal 4000 con IVA (cuenta que factura) -> neto 4640.00; menos anticipo 1000 -> saldo 3640.00; comisión 10 % = 400.00.
@@ -71,6 +77,30 @@ begin
     inf := inf || jsonb_build_object('caso', 'C01-C02 (Dirección)', 'ok', false, 'det', sqlstate || ' ' || sqlerrm);
   end;
   execute 'reset role';
+
+  -- 1 bis) La venta sin cotización, solo con la base mandando (0026, decidida por Elías el 2026-10-25): los casos E01–E02. Van aquí, antes de que
+  --     el bloque 8 suba el contador V a V-9999999 (con él lleno, un alta ya no cabría y el caso no diría nada). Como dueño, la empresa vuelve a
+  --     'hoja' (dentro de esta transacción: el error final lo deshace) y Dirección intenta un alta válida: la base se niega, no escribe nada ni gasta
+  --     un V-###. Después la empresa sigue en 'hoja': nada de lo que sigue da de alta ventas sin cotización.
+  if not con_modo then
+    inf := inf || jsonb_build_object('caso', 'E01 empresas.modo no existe: falta aplicar supabase/migrations/0024_modo.sql (y la 0026)', 'ok', false, 'det', 'falta 0024');
+  else
+    execute 'update public.empresas set modo = ''hoja'' where id = ''al3d''';
+    select coalesce(max(c.n), 0) into n_v from public.contadores c where c.empresa_id = 'al3d' and c.clave = 'V';
+    perform pg_temp.como('authenticated', u_dir, 'dir@humo.test');
+    begin
+      r := public.alta_venta(jsonb_build_object('id', 'humo-e1', 'nombre', 'Prueba - Humo con la hoja', 'cuenta', 'Moni MPago', 'subtotal', 100, 'anticipo', 0,
+             'tel', '33 2222 3333', 'entrega', 'recoleccion', 'sellos', jsonb_build_object('tel', ahora)));
+      t := coalesce(r->>'codigo', 'ok') || case when (r->>'definitivo')::boolean then ' definitivo' else '' end;
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'E01 con la hoja mandando, Dirección NO da de alta una venta sin cotización (DATO_INVALIDO definitivo; «ok» = falta la 0026)',
+                                     'ok', t = 'DATO_INVALIDO definitivo', 'det', t);
+    select coalesce(max(c.n), 0) into n from public.contadores c where c.empresa_id = 'al3d' and c.clave = 'V';
+    n := n - n_v + (select count(*) from public.proyectos x where x.id = 'humo-e1');          -- folios gastados + proyectos escritos
+    inf := inf || jsonb_build_object('caso', 'E02 y no escribió nada: ni el proyecto ni un V-### del contador (0)', 'ok', n = 0, 'det', n::text);
+  end if;
 
   -- 2) Fabricación ve la obra pero NADA de dinero, y no puede cobrar ni cancelar (0017: fuera de eso mueve cualquier etapa; ver el bloque 10).
   perform pg_temp.como('authenticated', u_fab, 'fab@humo.test');
