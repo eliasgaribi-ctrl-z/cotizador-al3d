@@ -114,7 +114,7 @@ describir('AG-04 quién ve qué', () => {
       }
     }
     const srv = como(db, { rol: 'service_role' });
-    await esperarError(srv.query(`update public.agente_mensajes set texto = 'otra cosa'`), '42501', 'nadie edita un mensaje');
+    await esperarError(srv.query(`update public.agente_mensajes set texto = 'otra cosa'`), 'P0001', 'nadie edita un mensaje: es un libro');
     await esperarError(srv.query(`delete from public.agente_mensajes`), '42501', 'nadie lo borra');
     await esperarError(sql(db, `delete from public.agente_conversaciones`), 'P0001', 'ni el dueño borra una conversación');
   }));

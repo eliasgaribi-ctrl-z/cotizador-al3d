@@ -105,7 +105,7 @@ grant select on public.agente_mensajes   to authenticated;
 grant select on public.agente_decisiones to authenticated;
 -- La función escribe por las RPC (SECURITY DEFINER); el respaldo semanal lee. Sin DELETE, como todas.
 grant select, insert, update on public.agente_conversaciones to service_role;
-grant select, insert         on public.agente_mensajes       to service_role;
+grant select, insert, update on public.agente_mensajes       to service_role;   -- UPDATE como en todos los libros: lo frena solo_agregar
 grant select, insert, update on public.agente_decisiones     to service_role;
 drop policy if exists agente_conversaciones_sel_direccion on public.agente_conversaciones;
 create policy agente_conversaciones_sel_direccion on public.agente_conversaciones for select to authenticated
