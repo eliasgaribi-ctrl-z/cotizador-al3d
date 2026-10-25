@@ -2063,6 +2063,24 @@ function bajarCSVGastos() {
    entra a ConstruImagen, Mónica, Tanit o Rul se ve, cuenta por cuenta, pero aparte: no es dinero de AL3D. La aritmética es pura
    (js/datos/dinero-cuentas.js) y sale de lo mismo que el resto de Control: las ventas y los gastos que bajaron de la base. */
 
+/* ----- Los botones rápidos del dinero (Elías, 2026-10-25: «botones de fácil acceso para gastos e ingresos») -----
+   Debajo del disponible, en el Resumen y en Cuentas: registrar lo que entra y lo que sale sin buscar la pestaña. «+ Ingreso» abre
+   «Cobros y abonos» con el formulario de cobro a la vista (el dinero de AL3D entra cobrando una venta); «+ Gasto» abre el mismo
+   formulario de siempre; «Ver gastos» lleva a la lista, que es donde se anula uno. Solo con la base mandando, como las pestañas. */
+let _formAlAbrir = '';
+function botonesDinero() {
+  return '<div class="ct-gas-acc ct-dinero-acc">' +
+    '<button type="button" class="btn btn-pri pf-btn-corto" data-act="ingreso-nuevo">' + ico('i-mas') + ' Ingreso</button>' +
+    '<button type="button" class="btn btn-pri pf-btn-corto" data-act="gasto-nuevo">' + ico('i-mas') + ' Gasto</button>' +
+    '<button type="button" class="btn btn-gho pf-btn-corto" data-va="tab:gastos">Ver gastos</button>' +
+  '</div>';
+}
+function abrirIngreso() {
+  _formAlAbrir = 'cobro';
+  if (TAB === 'asientos' && _PS) { _PS.elegirFormulario('cobro'); _formAlAbrir = ''; llevarA(cont && cont.querySelector('#ct-asientos'), 'Cobros y abonos'); return; }
+  cambiarTab('asientos');
+}
+
 /* El Resumen arranca con el disponible del mes: una cifra, una frase, y la puerta a la pestaña. */
 function htmlDisponibleDelMes() {
   if (!D.ajuste || !_DC || !tabs().includes('cuentas')) return '';
@@ -2075,6 +2093,7 @@ function htmlDisponibleDelMes() {
     '<h2 id="ct-disp-mes-h" class="solo-voz">Dinero disponible</h2>' +
     clave('disp', 'Disponible · ' + mesLargo(D.hoy.slice(0, 7)), money(d.saldo), frase, { dest: 'tab:cuentas', que: 'abrir Cuentas' },
       'principal' + (d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+    botonesDinero() +
   '</section>';
 }
 
@@ -2096,6 +2115,7 @@ function pintarCuentas() {
   return '<section class="card ct-clave-card ct-cta" id="ct-cta" aria-labelledby="ct-cta-h">' +
       '<h2 id="ct-cta-h" class="solo-voz">Dinero disponible</h2>' +
       clave('cdisp', 'Disponible · ' + NOMBRE_PER[CPER], money(d.saldo), frase, null, 'principal' + (d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+      botonesDinero() +
       '<div class="ag-barra ct-cta-per">' + per + '</div>' +
     '</section>' +
     listaCuentas('ct-cta-al3d', 'De AL3D · dinero disponible', disponibles, true) +
@@ -2275,6 +2295,7 @@ function alClic(ev) {
   if (cper) { CPER = cper.dataset.cper; pintar(); return; }
   if (t.closest('[data-act="cta-guardar"]')) { guardarCuentasDisponibles(); return; }
   if (t.closest('[data-act="gasto-nuevo"]')) { abrirGasto(); return; }
+  if (t.closest('[data-act="ingreso-nuevo"]')) { abrirIngreso(); return; }
   const anu = t.closest('[data-gasto-anular]');
   if (anu) { anularGasto(anu.dataset.gastoAnular); return; }
   if (t.closest('[data-csv-gastos]')) { bajarCSVGastos(); return; }
@@ -2332,9 +2353,10 @@ function cablearAsientos() {
   const el = $('ct-asientos');
   if (!el) return;
   const o = { sincronizar: CTX && typeof CTX.sincronizar === 'function' ? CTX.sincronizar : null };
-  if (_PS) { _PS.cablear(el, o); return; }
+  if (_PS) { if (_formAlAbrir) { _PS.elegirFormulario(_formAlAbrir); _formAlAbrir = ''; } _PS.cablear(el, o); return; }
   import('./pagos-supa.js').then(m => {
     _PS = m;
+    if (_formAlAbrir) { m.elegirFormulario(_formAlAbrir); _formAlAbrir = ''; }
     const ahora = $('ct-asientos');
     if (!ahora || !cont || !cont.contains(ahora)) return;
     ahora.innerHTML = m.html();
