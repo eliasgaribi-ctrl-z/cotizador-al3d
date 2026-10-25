@@ -25,7 +25,7 @@ const eq = (que, dio, esp) => {
 };
 const cierto = (que, c) => eq(que, !!c, true);
 
-const LISTA = { negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior',
+const LISTA = { contacto: 'Daniel', negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior',
   altura_m: 3, factura: true, fecha_deseada: '2026-11-20',
   partidas: [{ tipo: 'letras', texto: 'TACOS', altura_cm: 40, material: 'acr-vol', luz: true, tono: 'fria', comp: 'recta' }] };
 
@@ -65,8 +65,22 @@ const est = A.estadoDe(LISTA);
 const r1 = A.armarRespuesta('¡Listo! Te sale en $1,000. ¿Arrancamos?', est, LISTA, '');
 cierto('el precio de la IA no llega', !r1.includes('1,000'));
 cierto('el de verdad sí, escrito por código', r1.includes('$9,280.00') && r1.includes('$4,640.00'));
-cierto('sin aceptar no va la cuenta', !A.armarRespuesta('Va', est, { ...LISTA, acepta: true }, '').includes('cuenta para el anticipo'));
-cierto('aceptó y hay cuenta: va la cuenta', A.armarRespuesta('Va', est, { ...LISTA, acepta: true }, 'BBVA · CLABE 000').includes('BBVA · CLABE 000'));
+/* Las tarjetas de depósito: los datos de mentiras, con las llaves de las tarjetas autorizadas de Elías. */
+const SIN = JSON.stringify({ banco: 'BBVA', beneficiario: 'Persona de Prueba', tarjeta: '0000-1111-2222-3333' });
+const CON = JSON.stringify({ banco: 'BANREGIO', beneficiario: 'EMPRESA DE PRUEBA SA DE CV', cta: '000-000-000-000', clabe: '000-000-000-000-000-000', rfc: 'XAXX010101000' });
+const ent = o => n => o[n];
+eq('sin factura: la tarjeta «Sin factura» con banco, beneficiario y tarjeta',
+  A.tarjetaDeDeposito({ factura: false }, ent({ AGENTE_CUENTA_SIN_FACTURA: SIN, AGENTE_CUENTA_CON_FACTURA: CON })),
+  { titulo: 'Sin factura', filas: [['Banco', 'BBVA'], ['Beneficiario', 'Persona de Prueba'], ['Tarjeta', '0000-1111-2222-3333']], nota: '', whatsapp: '33 2813 0092', taller: ['Naranjos 648, Linda Vista', '45169 Zapopan, Jal.'] });
+eq('con factura: la de la empresa, con cuenta, CLABE, RFC y la nota del precio neto',
+  (t => [t.titulo, t.filas.map(f => f[0]), t.nota])(A.tarjetaDeDeposito({ factura: true }, ent({ AGENTE_CUENTA_SIN_FACTURA: SIN, AGENTE_CUENTA_CON_FACTURA: CON }))),
+  ['Con factura', ['Banco', 'Beneficiario', 'Cta', 'Clabe', 'RFC'], 'Precio neto establecido en la cotización']);
+eq('sin la variable, o con algo que no es JSON, no hay tarjeta', [A.tarjetaDeDeposito({}, ent({})), A.tarjetaDeDeposito({}, ent({ AGENTE_CUENTA_SIN_FACTURA: 'BBVA 0000' }))], [null, null]);
+eq('una tarjeta sin banco no es tarjeta', A.tarjetaDeDeposito({}, ent({ AGENTE_CUENTA_SIN_FACTURA: JSON.stringify({ tarjeta: '1', beneficiario: 'x' }) })), null);
+const TJ = A.tarjetaDeDeposito({}, ent({ AGENTE_CUENTA_SIN_FACTURA: SIN }));
+cierto('sin aceptar no va la frase de la cuenta', !A.armarRespuesta('Va', est, LISTA, TJ).includes('datos para tu anticipo'));
+cierto('aceptó y hay tarjeta: la frase, y el número NO va en el texto (lo pinta la tarjeta)',
+  (t => t.includes('datos para tu anticipo (sin factura)') && t.includes('33 2813 0092') && !t.includes('0000-1111'))(A.armarRespuesta('Va', est, { ...LISTA, acepta: true }, TJ)));
 eq('sin texto de la IA, la siguiente pregunta', A.armarRespuesta('', A.estadoDe({ ...LISTA, factura: null }), LISTA, ''), '¿Vas a requerir factura?');
 eq('el resumen para el teléfono de Elías', A.resumenParaDireccion(LISTA), 'Tacos Juan · Letras 3D «TACOS» 40 cm · en Zapopan');
 
@@ -128,7 +142,7 @@ console.log('\nLA FUNCIÓN — abrir, platicar, cotizar');
 {
   const base = baseDeMentiras();
   const ia = iaDeMentiras([
-    JSON.stringify({ proyecto: { negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior', altura_m: 3, factura: true, fecha_deseada: '2026-11-20' },
+    JSON.stringify({ proyecto: { contacto: 'Daniel', negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior', altura_m: 3, factura: true, fecha_deseada: '2026-11-20' },
                      partidas: [{ tipo: 'letras', texto: 'TACOS', altura_cm: 40, material: 'acrilico con aluminio', luz: true, tono: 'fria', comp: 'recta' }] }),
     JSON.stringify({ respuesta: '¡Perfecto! Te quedaría en $5,000 aprox. Abajo te dejo el precio. ¿Arrancamos?' }),
   ]);
@@ -157,7 +171,7 @@ console.log('\nLA FUNCIÓN — Dirección, topes y sin IA');
   const c = base.convs.get(h);
   /* Sin IA (no hay respuestas en la cola: la red «falla»): la ficha no cambia y el cliente recibe la siguiente pregunta. */
   const [, m] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: 'hola' }), deps(base, ia)));
-  eq('sin IA, la siguiente pregunta de la ficha', [m.ok, m.respuesta.startsWith('¿Qué tienes en mente')], [true, true]);
+  eq('sin IA, la siguiente pregunta de la ficha (la primera de Elías: el nombre)', [m.ok, m.respuesta.startsWith('¿Cuál es tu nombre?')], [true, true]);
   /* Logo: va a Dirección. */
   c.ficha = { ...LISTA, lleva_logo: true };
   const ia2 = iaDeMentiras(['{"proyecto":{},"partidas":[]}', '{"respuesta":"Déjame revisarlo con el encargado."}']);
@@ -172,10 +186,12 @@ console.log('\nLA FUNCIÓN — Dirección, topes y sin IA');
   /* Aceptó sin cuenta configurada: tarjeta para Dirección; con cuenta, la cuenta. */
   const ia4 = iaDeMentiras(['{"proyecto":{"acepta":true},"partidas":[]}', '{"respuesta":"¡Excelente!"}']);
   await manejar(post({ accion: 'mensaje', token, texto: 'va, hagámoslo' }), deps(base, ia4));
-  eq('aceptó y no hay cuenta: avisa a Dirección', c.razones.map(r => r.id), ['cuenta']);
+  eq('aceptó y no hay cuenta: avisa a Dirección, con la variable que falta', [c.razones.map(r => r.id), /AGENTE_CUENTA_CON_FACTURA/.test(c.razones[0].razon)], [['cuenta'], true]);
   const ia5 = iaDeMentiras(['{"proyecto":{},"partidas":[]}', '{"respuesta":"¡Excelente!"}']);
-  const [, m5] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: '¿a dónde deposito?' }), deps(base, ia5, { AGENTE_CUENTA: 'BBVA · AL3D · CLABE 012 000 000000000000' })));
-  cierto('con cuenta, la cuenta va escrita por código', m5.respuesta.includes('CLABE 012 000 000000000000'));
+  const [, m5] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: '¿a dónde deposito?' }), deps(base, ia5, { AGENTE_CUENTA_CON_FACTURA: CON })));
+  eq('con factura y su cuenta: la tarjeta «Con factura» va en la respuesta para que el portal la pinte', [m5.cuenta && m5.cuenta.titulo, m5.respuesta.includes('datos para tu anticipo (con factura)')], ['Con factura', true]);
+  const [, l5] = await leerResp(await manejar(post({ accion: 'leer', token }), deps(base, ia5, { AGENTE_CUENTA_CON_FACTURA: CON })));
+  eq('y al volver a abrir el link sigue ahí (se arma al leer, no se guarda)', l5.cuenta && l5.cuenta.titulo, 'Con factura');
   eq('con la tarjeta de la cuenta abierta, el logo sigue decidido: no se reabre', [m5.cotizacion, c.decisiones.map(d => d.razones.map(r => r.id).join())], [{ total: 15000, iva: true }, ['logo', 'cuenta']]);
   /* Dirección dijo que no se hace: el agente no vuelve a decir «lo reviso». */
   const t2 = (await (await manejar(post({ accion: 'abrir' }), { ...deps(base, ia), aleatorio: x => x.fill(9) })).json());   // otro secreto

@@ -5,15 +5,15 @@
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
 // Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   b934ae4fa7d357f2  supabase/functions/_shared/agente.js
+//   27d235f15a4631c0  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
-//   7a2814286ef3b65e  supabase/functions/_shared/ficha.js
+//   ff3705b7f4debf9b  supabase/functions/_shared/ficha.js
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   21bde10737f49fe4  supabase/functions/_shared/ia.js
 //   caedbec3fb61b918  supabase/functions/_shared/precio.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
-//   54a3eb4274d49483  supabase/functions/agente/handler.js
+//   e716a2495e8b9ebb  supabase/functions/agente/handler.js
 //   739ae7fbe1c67739  supabase/functions/agente/index.ts
 // ============================================================================
 // supabase/functions/agente/index.ts
@@ -622,8 +622,33 @@ function contarLetras(texto2) {
   const m = String(texto2 || "").normalize("NFC").match(/[\p{L}\p{N}&#+@]/gu);
   return m ? m.length : 0;
 }
+var ORDEN = {
+  contacto: 10,
+  negocio: 11,
+  partidas: 12,
+  texto: 20,
+  descripcion: 20,
+  que_cambia: 20,
+  altura_cm: 21,
+  ancho_cm: 21,
+  alto_cm: 22,
+  medidas: 21,
+  piezas: 21,
+  fotos: 23,
+  fecha_deseada: 30,
+  lleva_logo: 31,
+  factura: 32,
+  entrega: 40,
+  municipio: 41,
+  lugar: 42,
+  altura_m: 43,
+  luz: 60,
+  tono: 61
+};
+var ordenDe = (id) => ORDEN[id] ?? 50;
 var P_PROYECTO = [
-  { id: "negocio", etapa: "cotizar", pregunta: "¿Cómo se llama tu negocio?" },
+  { id: "contacto", etapa: "cotizar", pregunta: "¿Cuál es tu nombre?" },
+  { id: "negocio", etapa: "cotizar", pregunta: "¿De qué empresa o negocio nos contactas?" },
   { id: "lleva_logo", etapa: "cotizar", pregunta: "¿El letrero lleva logotipo o algún símbolo, o solo texto?" },
   { id: "entrega", etapa: "cotizar", pregunta: "¿Lo instalamos nosotros, pasas por él al taller o te lo enviamos por paquetería?" },
   { id: "municipio", etapa: "cotizar", aplica: (f) => f.entrega === "instalacion", pregunta: "¿En qué municipio o colonia se instala?" },
@@ -642,6 +667,13 @@ var P_PROYECTO = [
     etapa: "fabricar",
     aplica: (f) => (f.partidas || []).some(lleva_luz),
     pregunta: "¿Hay una salida eléctrica (110 V) detrás o cerca de donde va el letrero? La salida la proporciona el cliente."
+  },
+  /* La factura se hace al liquidar, y el equipo pregunta «¿a qué razón social?» cada vez. */
+  {
+    id: "datos_factura",
+    etapa: "fabricar",
+    aplica: (f) => f.factura === true,
+    pregunta: "¿Me compartes tu constancia de situación fiscal (CIF) para la factura?"
   },
   { id: "direccion", etapa: "instalar", aplica: (f) => f.entrega === "instalacion" || f.entrega === "paqueteria", pregunta: "¿Me compartes la dirección completa (o tu ubicación de Maps)?" },
   {
@@ -665,7 +697,7 @@ var P_PARTIDA = {
     { id: "luz", etapa: "cotizar", pregunta: "¿Lleva luz?" },
     { id: "tono", etapa: "cotizar", aplica: (p) => p.luz === true, pregunta: "¿Luz blanca fría o cálida (amarillenta)?" },
     { id: "comp", etapa: "cotizar", pregunta: "¿La tipografía es recta, cursiva o con detalles finos?" },
-    { id: "colores", etapa: "fabricar", pregunta: "¿De qué color van las caras y los cantos?" }
+    { id: "colores", etapa: "fabricar", pregunta: "¿De qué color exacto van las caras y los cantos? Si es metálico, ¿dorado o plata? ¿Mate o brillante?" }
   ],
   recorte: [
     { id: "texto", etapa: "cotizar", pregunta: "¿Qué dice exactamente? Tal cual, con mayúsculas y acentos." },
@@ -681,7 +713,7 @@ var P_PARTIDA = {
     { id: "vistas", etapa: "cotizar", pregunta: "¿Se ve de un solo lado o de los dos (tipo bandera)?" },
     { id: "luz", etapa: "cotizar", pregunta: "¿Lleva luz?" },
     { id: "tono", etapa: "cotizar", aplica: (p) => p.luz !== false, pregunta: "¿Luz blanca fría o cálida?" },
-    { id: "colores", etapa: "fabricar", pregunta: "¿De qué color los cantos? La cara va en acrílico con tu diseño en vinil." }
+    { id: "colores", etapa: "fabricar", pregunta: "¿De qué color exacto los cantos (mate o brillante)? La cara va en acrílico con tu diseño en vinil." }
   ],
   bastidor: [
     { id: "ancho_cm", etapa: "cotizar", medida: true, pregunta: "¿Qué medidas del bastidor: ancho y alto (en cm)?" },
@@ -712,7 +744,7 @@ var P_PARTIDA = {
     { id: "colores", etapa: "cotizar", pregunta: "¿Acrílico transparente o espejo, y de qué colores el vinil?" }
   ],
   vinil: [
-    { id: "superficie", etapa: "cotizar", pregunta: "¿Dónde va el vinil: vidrio, pared o vehículo (qué modelo)?" },
+    { id: "superficie", etapa: "cotizar", orden: 20, pregunta: "¿Dónde va el vinil: vidrio, pared o vehículo (qué modelo)?" },
     { id: "medidas", etapa: "cotizar", medida: true, pregunta: "¿Qué medidas cubre (o qué partes del vehículo)?" },
     { id: "impreso", etapa: "cotizar", pregunta: "¿Vinil impreso a color o de corte en un solo color?" }
   ],
@@ -737,7 +769,7 @@ function preguntasPendientes(ficha, etapa = "cotizar") {
   for (const q of P_PROYECTO) {
     if (!etapas.includes(q.etapa)) continue;
     if (q.aplica && !q.aplica(f)) continue;
-    if (vacio(f[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: "proyecto" });
+    if (vacio(f[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: "proyecto", orden: q.orden ?? ordenDe(q.id) });
   }
   const partidas = Array.isArray(f.partidas) ? f.partidas : [];
   if (!partidas.length) {
@@ -745,6 +777,7 @@ function preguntasPendientes(ficha, etapa = "cotizar") {
       id: "partidas",
       etapa: "cotizar",
       donde: "proyecto",
+      orden: ordenDe("partidas"),
       pregunta: "¿Qué tienes en mente: letras 3D, caja de luz, recorte, neón u otra cosa? Si tienes foto de la fachada, mándamela."
     });
   }
@@ -754,7 +787,7 @@ function preguntasPendientes(ficha, etapa = "cotizar") {
     for (const q of lista) {
       if (!etapas.includes(q.etapa)) continue;
       if (q.aplica && !q.aplica(p)) continue;
-      if (vacio(p[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: "partida", i });
+      if (vacio(p[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: "partida", i, orden: q.orden ?? ordenDe(q.id) });
     }
     if (p.tipo === "letras" && esChica(p) && vacio(p.acabado)) {
       out.push({
@@ -762,11 +795,12 @@ function preguntasPendientes(ficha, etapa = "cotizar") {
         etapa: "cotizar",
         donde: "partida",
         i,
+        orden: ordenDe("altura_cm"),
         pregunta: "A " + Number(p.altura_cm) + " cm la letra va en recorte plano (sin volumen ni luz): ¿sencillo o con rotulación de vinil?"
       });
     }
   });
-  return out.sort((a, b) => ETAPAS.indexOf(a.etapa) - ETAPAS.indexOf(b.etapa));
+  return out.sort((a, b) => ETAPAS.indexOf(a.etapa) - ETAPAS.indexOf(b.etapa) || a.orden - b.orden);
 }
 function decisionesParaDireccion(ficha) {
   const f = ficha || {};
@@ -842,13 +876,36 @@ var MAX_PARTIDAS = 10;
 var MAX_RESPUESTA = 1200;
 var ANTICIPO_PCT = 50;
 var VIGENCIA_DIAS = 10;
+var WHATSAPP = "33 2813 0092";
+var TALLER = Object.freeze(["Naranjos 648, Linda Vista", "45169 Zapopan, Jal."]);
+var SALUDO = "¡Holaa! Soy el asistente de Elías, de Anuncios Luminosos 3D 🚀\n\n¿Cuál es tu nombre y de qué empresa nos contactas?\n\nCuéntame con confianza lo que necesitas o tienes en mente para poderte cotizar.\n\n¿Quieres ver más de nuestros trabajos?\n⬇️⬇️⬇️\nhttps://www.instagram.com/construimagen.gg";
 var HECHOS = Object.freeze([
-  "AL3D fabrica anuncios luminosos en su propio taller (Naranjos #648, Col. Lindavista, C.P. 45169).",
+  "AL3D (Anuncios Luminosos 3D) fabrica en su propio taller: " + TALLER.join(", ") + " (Google Maps: https://maps.app.goo.gl/AQHck791iv5U4qRS9). El cliente puede visitarlo para conocer procesos y materiales.",
+  "Trabajos anteriores: https://www.instagram.com/construimagen.gg",
   "Para arrancar se deja un anticipo de al menos el " + ANTICIPO_PCT + " %; el resto se liquida al instalar.",
   "La cotización vale " + VIGENCIA_DIAS + " días. El anticipo no es reembolsable.",
-  "Con factura se agrega el IVA (16 %).",
+  "El IVA (16 %) solo se agrega si el cliente requiere factura; con factura se deposita a la cuenta de la empresa y sin factura a otra.",
+  "El comprobante del anticipo se manda por WhatsApp al " + WHATSAPP + ".",
+  "Antes de fabricar se le enseña el diseño al cliente para que lo apruebe.",
+  "Normalmente el letrero queda entre 1 y 3 semanas después del anticipo, según el trabajo; la fecha exacta se confirma al dar el anticipo.",
+  "La instalación en la zona metropolitana de Guadalajara va incluida hasta 4 m de altura; más alto o fuera de la zona se cotiza aparte.",
   "La salida eléctrica donde va el letrero la pone el cliente."
 ]);
+var VARIABLE_CUENTA = Object.freeze({ sin: "AGENTE_CUENTA_SIN_FACTURA", con: "AGENTE_CUENTA_CON_FACTURA" });
+var ROTULOS = [["banco", "Banco"], ["beneficiario", "Beneficiario"], ["tarjeta", "Tarjeta"], ["cta", "Cta"], ["clabe", "Clabe"], ["rfc", "RFC"]];
+function tarjetaDeDeposito(ficha, entorno2) {
+  const con = !!ficha && ficha.factura === true;
+  let d = null;
+  try {
+    d = JSON.parse(entorno2(con ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin) || "null");
+  } catch (_) {
+    return null;
+  }
+  if (!d || typeof d !== "object" || Array.isArray(d)) return null;
+  const filas = ROTULOS.filter(([k]) => typeof d[k] === "string" && d[k].trim()).map(([k, r]) => [r, d[k].trim().slice(0, 80)]);
+  if (!filas.length || filas[0][0] !== "Banco" || filas.length < 3) return null;
+  return { titulo: con ? "Con factura" : "Sin factura", filas, nota: con ? "Precio neto establecido en la cotización" : "", whatsapp: WHATSAPP, taller: [...TALLER] };
+}
 var texto = (v, max) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : void 0;
 var numero = (v, min, max) => {
   const n = typeof v === "string" ? Number(v.replace(",", ".")) : v;
@@ -857,6 +914,7 @@ var numero = (v, min, max) => {
 var booleano = (v) => v === true || v === false ? v : void 0;
 var uno = (v, lista) => lista.includes(v) ? v : void 0;
 var LIMPIA_PROYECTO = {
+  contacto: (v) => texto(v, 80),
   negocio: (v) => texto(v, 80),
   lleva_logo: booleano,
   entrega: (v) => uno(v, ["instalacion", "paqueteria", "recoleccion"]),
@@ -938,7 +996,8 @@ function instruccionResponder(ficha, estado, mensajes, textoCliente, decision) {
     "Reglas:",
     "1. NUNCA escribas precios, cantidades de dinero, porcentajes de descuento ni números de cuenta. El precio lo agrega el sistema después de tu texto.",
     "2. Si hay preguntas pendientes, haz como máximo las dos primeras, con tus palabras y en ese orden.",
-    "3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que le confirmas en cuanto lo tengas. No prometas una hora.",
+    "3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que hoy mismo le mandas su cotización. No prometas una hora.",
+    "3b. La cotización sale el MISMO DÍA en que el cliente escribe (regla de Elías): pregunta todo lo que falte en esta plática, sin dejar nada para mañana.",
     "4. Si ya hay cotización, dile que abajo va el precio y pregúntale si quiere arrancar.",
     "5. Si Dirección mandó una nota, transmítela con tus palabras.",
     "6. De AL3D solo puedes decir esto: " + HECHOS.join(" "),
@@ -981,14 +1040,16 @@ function mensajeDePrecio(c) {
     "Para arrancar: anticipo de " + pesos(anticipo) + " (" + ANTICIPO_PCT + " %) y el resto al instalar. Vale " + VIGENCIA_DIAS + " días."
   ].join("\n");
 }
-function armarRespuesta(textoIA, estado, ficha, cuenta) {
+function armarRespuesta(textoIA, estado, ficha, tarjeta) {
   let t = sinDinero(textoIA).slice(0, MAX_RESPUESTA);
   if (!t) {
-    t = estado.siguiente === "preguntar" ? estado.pendientes[0].pregunta : estado.siguiente === "direccion" ? "Déjame revisarlo con el encargado y te confirmo en cuanto lo tenga." : estado.siguiente === "descartada" ? "Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!" : "¡Listo! Aquí va tu cotización.";
+    t = estado.siguiente === "preguntar" ? estado.pendientes[0].pregunta : estado.siguiente === "direccion" ? "Déjame revisarlo con el encargado: hoy mismo te mando tu cotización." : estado.siguiente === "descartada" ? "Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!" : "¡Listo! Aquí va tu cotización.";
   }
   const partes = [t];
   if (estado.cotizacion) partes.push(mensajeDePrecio(estado.cotizacion));
-  if (estado.cotizacion && ficha && ficha.acepta === true && cuenta) partes.push("Te dejo la cuenta para el anticipo:\n" + cuenta);
+  if (estado.cotizacion && ficha && ficha.acepta === true && tarjeta) {
+    partes.push("Te dejo los datos para tu anticipo (" + tarjeta.titulo.toLowerCase() + "). Cuando deposites, mándanos tu comprobante por WhatsApp al " + WHATSAPP + ".");
+  }
   return partes.join("\n\n");
 }
 function resumenParaDireccion(ficha) {
@@ -1175,7 +1236,6 @@ var IA_AGENTE = Object.freeze([
   Object.freeze({ prov: "qwen", model: "qwen3.7-flash" }),
   Object.freeze({ prov: "deepseek", model: "deepseek-flash" })
 ]);
-var SALUDO = "¡Hola! Soy el asistente de AL3D. Cuéntame qué tienes en mente —letras 3D, caja de luz, recorte, neón u otra cosa— y para qué negocio es.";
 var TOKEN = /^[0-9a-f]{64}$/;
 var hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function huella(token) {
@@ -1252,12 +1312,14 @@ async function mensaje(cuerpo, deps) {
         estado = { ...estado, decisiones: [], siguiente: "cerrar", cotizacion: { total: Number(d.precio), iva: ficha.factura === true, de: "direccion" } };
       }
     }
-    const cuenta = deps.entorno("AGENTE_CUENTA") || "";
-    if (ficha.acepta === true && estado.cotizacion && !cuenta) {
-      razones = [...razones, { id: "cuenta", razon: "El cliente aceptó la cotización y no hay cuenta de depósito configurada (AGENTE_CUENTA)." }];
+    const tarjeta = tarjetaDeDeposito(ficha, deps.entorno);
+    const daCuenta = ficha.acepta === true && !!estado.cotizacion;
+    if (daCuenta && !tarjeta) {
+      const v = ficha.factura === true ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin;
+      razones = [...razones, { id: "cuenta", razon: "El cliente aceptó la cotización y falta configurar la cuenta " + (ficha.factura === true ? "con" : "sin") + " factura (" + v + ")." }];
     }
     const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto2, d || c.decision), ctrl.signal);
-    const respuesta = armarRespuesta(r && typeof r.respuesta === "string" ? r.respuesta : "", estado, ficha, cuenta);
+    const respuesta = armarRespuesta(r && typeof r.respuesta === "string" ? r.respuesta : "", estado, ficha, daCuenta ? tarjeta : null);
     const g = await rpc(deps, "agente_guardar", {
       p_token_hash: h,
       p_texto_cliente: texto2,
@@ -1269,7 +1331,13 @@ async function mensaje(cuerpo, deps) {
     });
     if (!g) return sinRed();
     if (!g.ok) return g;
-    return { ok: true, respuesta, estado: g.estado, cotizacion: estado.cotizacion ? { total: estado.cotizacion.total, iva: estado.cotizacion.iva } : null };
+    return {
+      ok: true,
+      respuesta,
+      estado: g.estado,
+      cotizacion: estado.cotizacion ? { total: estado.cotizacion.total, iva: estado.cotizacion.iva } : null,
+      cuenta: daCuenta ? tarjeta : null
+    };
   } finally {
     clearTimeout(reloj);
   }
@@ -1280,7 +1348,9 @@ async function leer2(cuerpo, deps) {
   const c = await rpc(deps, "agente_leer", { p_token_hash: await huella(token) });
   if (!c) return sinRed();
   if (!c.ok) return c;
-  return { ok: true, estado: c.estado, mensajes: c.mensajes, cotizacion: c.cotizacion };
+  const f = c.ficha || {};
+  const cuenta = f.acepta === true && c.cotizacion ? tarjetaDeDeposito(f, deps.entorno) : null;
+  return { ok: true, estado: c.estado, mensajes: c.mensajes, cotizacion: c.cotizacion, cuenta };
 }
 function crearManejador(depsFijas) {
   const limitador = crearLimitador({ ahora: depsFijas.ahora, maximo: LIMITES.abrirPorMinuto, ventanaMs: 6e4 });

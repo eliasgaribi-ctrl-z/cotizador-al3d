@@ -26,7 +26,7 @@
          lo fijan para que el secreto sea uno conocido.
    ============================================================================ */
 
-import { aplicarCambios, armarRespuesta, estadoDe, instruccionExtraer, instruccionResponder, leerJson, resumenParaDireccion } from '../_shared/agente.js';
+import { SALUDO, VARIABLE_CUENTA, aplicarCambios, armarRespuesta, estadoDe, instruccionExtraer, instruccionResponder, leerJson, resumenParaDireccion, tarjetaDeDeposito } from '../_shared/agente.js';
 import { IA_ESPERA_CHAT_MS, consultarIA, elegirProveedor, validarPeticion } from '../_shared/ia.js';
 import { crearLimitador, errorInterno, ipDeLaPeticion, json, leerTexto, previa, registrar, sobreDeError, textoDeError } from '../_shared/http.js';
 import { esErrorDeEntorno, leerLlavesIA, secretosDelEntorno } from '../_shared/entorno.js';
@@ -48,7 +48,8 @@ export const IA_AGENTE = Object.freeze([
   Object.freeze({ prov: 'deepseek', model: 'deepseek-flash' }),
 ]);
 
-export const SALUDO = '¡Hola! Soy el asistente de AL3D. Cuéntame qué tienes en mente —letras 3D, caja de luz, recorte, neón u otra cosa— y para qué negocio es.';
+/* El saludo vive en _shared/agente.js (es el de Elías); se exporta también desde aquí para el portal y sus pruebas. */
+export { SALUDO };
 const TOKEN = /^[0-9a-f]{64}$/;
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 export async function huella(token) {
@@ -135,19 +136,24 @@ async function mensaje(cuerpo, deps) {
         estado = { ...estado, decisiones: [], siguiente: 'cerrar', cotizacion: { total: Number(d.precio), iva: ficha.factura === true, de: 'direccion' } };
       }
     }
-    const cuenta = deps.entorno('AGENTE_CUENTA') || '';
-    if (ficha.acepta === true && estado.cotizacion && !cuenta) {
-      razones = [...razones, { id: 'cuenta', razon: 'El cliente aceptó la cotización y no hay cuenta de depósito configurada (AGENTE_CUENTA).' }];
+    /* La tarjeta de depósito que le toca (con o sin factura). Si el cliente aceptó y esa cuenta no está
+       configurada, Dirección se entera: el cliente no se queda sin cómo pagar. */
+    const tarjeta = tarjetaDeDeposito(ficha, deps.entorno);
+    const daCuenta = ficha.acepta === true && !!estado.cotizacion;
+    if (daCuenta && !tarjeta) {
+      const v = ficha.factura === true ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin;
+      razones = [...razones, { id: 'cuenta', razon: 'El cliente aceptó la cotización y falta configurar la cuenta ' + (ficha.factura === true ? 'con' : 'sin') + ' factura (' + v + ').' }];
     }
     const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto, d || c.decision), ctrl.signal);
-    const respuesta = armarRespuesta(r && typeof r.respuesta === 'string' ? r.respuesta : '', estado, ficha, cuenta);
+    const respuesta = armarRespuesta(r && typeof r.respuesta === 'string' ? r.respuesta : '', estado, ficha, daCuenta ? tarjeta : null);
     const g = await rpc(deps, 'agente_guardar', {
       p_token_hash: h, p_texto_cliente: texto, p_texto_agente: respuesta, p_ficha: ficha,
       p_cotizacion: estado.cotizacion, p_razones: razones, p_resumen: resumenParaDireccion(ficha),
     });
     if (!g) return sinRed();
     if (!g.ok) return g;
-    return { ok: true, respuesta, estado: g.estado, cotizacion: estado.cotizacion ? { total: estado.cotizacion.total, iva: estado.cotizacion.iva } : null };
+    return { ok: true, respuesta, estado: g.estado, cotizacion: estado.cotizacion ? { total: estado.cotizacion.total, iva: estado.cotizacion.iva } : null,
+             cuenta: daCuenta ? tarjeta : null };
   } finally {
     clearTimeout(reloj);
   }
@@ -159,7 +165,11 @@ async function leer(cuerpo, deps) {
   const c = await rpc(deps, 'agente_leer', { p_token_hash: await huella(token) });
   if (!c) return sinRed();
   if (!c.ok) return c;
-  return { ok: true, estado: c.estado, mensajes: c.mensajes, cotizacion: c.cotizacion };
+  /* La tarjeta se vuelve a armar al leer (no se guarda en la base): así el portal la enseña aunque se recargue, y
+     si Elías cambia la cuenta, se ve la nueva. */
+  const f = c.ficha || {};
+  const cuenta = f.acepta === true && c.cotizacion ? tarjetaDeDeposito(f, deps.entorno) : null;
+  return { ok: true, estado: c.estado, mensajes: c.mensajes, cotizacion: c.cotizacion, cuenta };
 }
 
 /** La función entera. Una por instancia: el tope por IP vive en `limitador`. */

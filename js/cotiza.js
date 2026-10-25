@@ -26,8 +26,8 @@
   var CLAVE = 'al3d_cotiza';
   var CADA_MIN = 60 * 1000;
   var ESPERA_MS = 60 * 1000;
-  /* El mismo saludo que guarda la función al abrir (handler.js, SALUDO): aquí se enseña antes de abrir. */
-  var SALUDO = '¡Hola! Soy el asistente de AL3D. Cuéntame qué tienes en mente —letras 3D, caja de luz, recorte, neón u otra cosa— y para qué negocio es.';
+  /* El mismo saludo que guarda la función al abrir (_shared/agente.js, SALUDO; el de Elías): aquí se enseña antes de abrir. */
+  var SALUDO = '¡Holaa! Soy el asistente de Elías, de Anuncios Luminosos 3D 🚀\n\n¿Cuál es tu nombre y de qué empresa nos contactas?\n\nCuéntame con confianza lo que necesitas o tienes en mente para poderte cotizar.\n\n¿Quieres ver más de nuestros trabajos?\n⬇️⬇️⬇️\nhttps://www.instagram.com/construimagen.gg';
   var DE = { agente: 'AL3D', direccion: 'Equipo AL3D', cliente: 'Tú' };
   var TOKEN = /^[0-9a-f]{64}$/;
 
@@ -44,6 +44,15 @@
   function guardar(t) { token = t; try { if (t) localStorage.setItem(CLAVE, t); else localStorage.removeItem(CLAVE); } catch (e) { /* sin almacenamiento: dura lo que dure la pestaña */ } }
   function guardado() { try { return localStorage.getItem(CLAVE); } catch (e) { return null; } }
 
+  /* El texto con sus ligas https:// como ligas, armado con nodos: nada de HTML que venga de fuera. */
+  function conLigas(p, texto) {
+    var partes = String(texto).split(/(https:\/\/[^\s]+)/);
+    partes.forEach(function (x, i) {
+      if (i % 2) { var a = document.createElement('a'); a.href = x; a.textContent = x; a.target = '_blank'; a.rel = 'noopener noreferrer'; p.appendChild(a); }
+      else if (x) p.appendChild(document.createTextNode(x));
+    });
+  }
+
   function burbuja(de, cuerpo) {
     var b = document.createElement('div');
     b.className = 'cot-msj cot-' + (de === 'cliente' ? 'yo' : de === 'direccion' ? 'equipo' : 'agente');
@@ -51,11 +60,42 @@
     q.className = 'cot-quien';
     q.textContent = DE[de] || 'AL3D';
     var t = document.createElement('p');
-    t.textContent = cuerpo;
+    conLigas(t, cuerpo);
     b.appendChild(q);
     b.appendChild(t);
     log.appendChild(b);
     b.scrollIntoView({ block: 'end' });
+  }
+
+  /* La tarjeta de depósito, con el diseño de las autorizadas por Elías (css/cotiza.css, .dep): franja,
+     «Depósitos», el título en dos renglones, el logo, los renglones y el pie oscuro con el WhatsApp del
+     comprobante. Los datos llegan de la función (con o sin factura) y se escriben con textContent. */
+  function el(tag, clase, texto) { var e = document.createElement(tag); if (clase) e.className = clase; if (texto) e.textContent = texto; return e; }
+  function tarjeta(c) {
+    var vieja = log.querySelector('.dep');
+    if (vieja) vieja.parentNode.removeChild(vieja);
+    if (!c || !c.filas) return;
+    var t = el('section', 'dep');
+    t.setAttribute('aria-label', 'Datos para depositar, ' + c.titulo);
+    var cab = el('div', 'dep-cab'), txt = el('div');
+    txt.appendChild(el('span', 'dep-eti', 'Depósitos'));
+    var tit = el('h2', 'dep-tit');
+    String(c.titulo).split(' ').forEach(function (w) { tit.appendChild(el('span', '', w)); });
+    txt.appendChild(tit);
+    var logo = el('img', 'dep-logo'); logo.src = 'logo-al3d.svg'; logo.alt = 'AL3D';
+    cab.appendChild(txt); cab.appendChild(logo); t.appendChild(cab);
+    var dl = el('dl', 'dep-filas');
+    c.filas.forEach(function (f) { var r = el('div'); r.appendChild(el('dt', '', f[0])); r.appendChild(el('dd', '', f[1])); dl.appendChild(r); });
+    t.appendChild(dl);
+    if (c.nota) t.appendChild(el('p', 'dep-nota', c.nota));
+    var pie = el('div', 'dep-pie'), wa = el('div');
+    wa.appendChild(el('span', '', 'Envía tu comprobante por WhatsApp'));
+    wa.appendChild(el('b', '', c.whatsapp));
+    var dir = el('p');
+    (c.taller || []).forEach(function (l, i) { if (i) dir.appendChild(document.createElement('br')); dir.appendChild(document.createTextNode(l)); });
+    pie.appendChild(wa); pie.appendChild(dir); t.appendChild(pie);
+    log.appendChild(t);
+    t.scrollIntoView({ block: 'end' });
   }
 
   function pintar(mensajes) {
@@ -98,6 +138,7 @@
       }
       estado = r.estado || '';
       if ((r.mensajes || []).length !== pintados) pintar(r.mensajes);
+      if (r.cuenta) tarjeta(r.cuenta);
       seguirPreguntando();
     });
   }
@@ -130,6 +171,7 @@
       texto.value = '';
       pintados += 2;
       burbuja('agente', r.respuesta);
+      if (r.cuenta) tarjeta(r.cuenta);
       estado = r.estado || '';
       seguirPreguntando();
     });

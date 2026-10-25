@@ -87,11 +87,27 @@ export function contarLetras(texto) {
 
 /* ============================================================================
    Las preguntas. Cada una: en qué etapa se necesita, a quién aplica, y cómo la diría Elías.
-   El orden de la lista es el orden en que se pregunta.
+
+   EL ORDEN ES EL DE ELÍAS, sacado de sus 61 chats ganadores (octubre de 2026): primero el nombre
+   y la empresa; luego qué quiere, las medidas y para cuándo; el logo y si lleva factura (casi
+   siempre se pregunta antes de cotizar: cambia el IVA y la cuenta); dónde va; y al final el
+   material, el color y la luz. `ORDEN` lo fija por campo, de proyecto o de partida, porque en
+   sus chats se mezclan: las medidas de la partida van antes de la factura del proyecto.
    ============================================================================ */
 
+const ORDEN = {
+  contacto: 10, negocio: 11, partidas: 12,
+  texto: 20, descripcion: 20, que_cambia: 20,
+  altura_cm: 21, ancho_cm: 21, alto_cm: 22, medidas: 21, piezas: 21, fotos: 23,
+  fecha_deseada: 30, lleva_logo: 31, factura: 32,
+  entrega: 40, municipio: 41, lugar: 42, altura_m: 43,
+  luz: 60, tono: 61,
+};
+const ordenDe = id => ORDEN[id] ?? 50;
+
 const P_PROYECTO = [
-  { id: 'negocio', etapa: 'cotizar', pregunta: '¿Cómo se llama tu negocio?' },
+  { id: 'contacto', etapa: 'cotizar', pregunta: '¿Cuál es tu nombre?' },
+  { id: 'negocio', etapa: 'cotizar', pregunta: '¿De qué empresa o negocio nos contactas?' },
   { id: 'lleva_logo', etapa: 'cotizar', pregunta: '¿El letrero lleva logotipo o algún símbolo, o solo texto?' },
   { id: 'entrega', etapa: 'cotizar', pregunta: '¿Lo instalamos nosotros, pasas por él al taller o te lo enviamos por paquetería?' },
   { id: 'municipio', etapa: 'cotizar', aplica: f => f.entrega === 'instalacion', pregunta: '¿En qué municipio o colonia se instala?' },
@@ -103,6 +119,9 @@ const P_PROYECTO = [
     pregunta: '¿Tienes tu logotipo en archivo editable (AI, PDF, SVG o CDR)? Si no, lo redibujamos y puede haber cambios mínimos.' },
   { id: 'salidas_electricas', etapa: 'fabricar', aplica: f => (f.partidas || []).some(lleva_luz),
     pregunta: '¿Hay una salida eléctrica (110 V) detrás o cerca de donde va el letrero? La salida la proporciona el cliente.' },
+  /* La factura se hace al liquidar, y el equipo pregunta «¿a qué razón social?» cada vez. */
+  { id: 'datos_factura', etapa: 'fabricar', aplica: f => f.factura === true,
+    pregunta: '¿Me compartes tu constancia de situación fiscal (CIF) para la factura?' },
   { id: 'direccion', etapa: 'instalar', aplica: f => f.entrega === 'instalacion' || f.entrega === 'paqueteria', pregunta: '¿Me compartes la dirección completa (o tu ubicación de Maps)?' },
   { id: 'superficie', etapa: 'instalar', aplica: f => f.entrega === 'instalacion',
     pregunta: '¿Sobre qué se instala: muro de concreto o ladrillo, tablaroca, vidrio, lámina o una estructura?' },
@@ -119,7 +138,7 @@ const P_PARTIDA = {
     { id: 'luz', etapa: 'cotizar', pregunta: '¿Lleva luz?' },
     { id: 'tono', etapa: 'cotizar', aplica: p => p.luz === true, pregunta: '¿Luz blanca fría o cálida (amarillenta)?' },
     { id: 'comp', etapa: 'cotizar', pregunta: '¿La tipografía es recta, cursiva o con detalles finos?' },
-    { id: 'colores', etapa: 'fabricar', pregunta: '¿De qué color van las caras y los cantos?' },
+    { id: 'colores', etapa: 'fabricar', pregunta: '¿De qué color exacto van las caras y los cantos? Si es metálico, ¿dorado o plata? ¿Mate o brillante?' },
   ],
   recorte: [
     { id: 'texto', etapa: 'cotizar', pregunta: '¿Qué dice exactamente? Tal cual, con mayúsculas y acentos.' },
@@ -135,7 +154,7 @@ const P_PARTIDA = {
     { id: 'vistas', etapa: 'cotizar', pregunta: '¿Se ve de un solo lado o de los dos (tipo bandera)?' },
     { id: 'luz', etapa: 'cotizar', pregunta: '¿Lleva luz?' },
     { id: 'tono', etapa: 'cotizar', aplica: p => p.luz !== false, pregunta: '¿Luz blanca fría o cálida?' },
-    { id: 'colores', etapa: 'fabricar', pregunta: '¿De qué color los cantos? La cara va en acrílico con tu diseño en vinil.' },
+    { id: 'colores', etapa: 'fabricar', pregunta: '¿De qué color exacto los cantos (mate o brillante)? La cara va en acrílico con tu diseño en vinil.' },
   ],
   bastidor: [
     { id: 'ancho_cm', etapa: 'cotizar', medida: true, pregunta: '¿Qué medidas del bastidor: ancho y alto (en cm)?' },
@@ -166,7 +185,7 @@ const P_PARTIDA = {
     { id: 'colores', etapa: 'cotizar', pregunta: '¿Acrílico transparente o espejo, y de qué colores el vinil?' },
   ],
   vinil: [
-    { id: 'superficie', etapa: 'cotizar', pregunta: '¿Dónde va el vinil: vidrio, pared o vehículo (qué modelo)?' },
+    { id: 'superficie', etapa: 'cotizar', orden: 20, pregunta: '¿Dónde va el vinil: vidrio, pared o vehículo (qué modelo)?' },
     { id: 'medidas', etapa: 'cotizar', medida: true, pregunta: '¿Qué medidas cubre (o qué partes del vehículo)?' },
     { id: 'impreso', etapa: 'cotizar', pregunta: '¿Vinil impreso a color o de corte en un solo color?' },
   ],
@@ -199,11 +218,11 @@ export function preguntasPendientes(ficha, etapa = 'cotizar') {
   for (const q of P_PROYECTO) {
     if (!etapas.includes(q.etapa)) continue;
     if (q.aplica && !q.aplica(f)) continue;
-    if (vacio(f[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: 'proyecto' });
+    if (vacio(f[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: 'proyecto', orden: q.orden ?? ordenDe(q.id) });
   }
   const partidas = Array.isArray(f.partidas) ? f.partidas : [];
   if (!partidas.length) {
-    out.unshift({ id: 'partidas', etapa: 'cotizar', donde: 'proyecto',
+    out.unshift({ id: 'partidas', etapa: 'cotizar', donde: 'proyecto', orden: ordenDe('partidas'),
       pregunta: '¿Qué tienes en mente: letras 3D, caja de luz, recorte, neón u otra cosa? Si tienes foto de la fachada, mándamela.' });
   }
   partidas.forEach((p, i) => {
@@ -212,18 +231,19 @@ export function preguntasPendientes(ficha, etapa = 'cotizar') {
     for (const q of lista) {
       if (!etapas.includes(q.etapa)) continue;
       if (q.aplica && !q.aplica(p)) continue;
-      if (vacio(p[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: 'partida', i });
+      if (vacio(p[q.id])) out.push({ id: q.id, etapa: q.etapa, pregunta: q.pregunta, donde: 'partida', i, orden: q.orden ?? ordenDe(q.id) });
     }
     /* Una letra de menos de 10 cm ya no es letra 3D: es recorte, y el acabado del recorte es
        dinero ($20, $25 o $55 el cm). Como en el cotizador, eso no se elige de oficio. */
     if (p.tipo === 'letras' && esChica(p) && vacio(p.acabado)) {
-      out.push({ id: 'acabado', etapa: 'cotizar', donde: 'partida', i,
+      out.push({ id: 'acabado', etapa: 'cotizar', donde: 'partida', i, orden: ordenDe('altura_cm'),
         pregunta: 'A ' + Number(p.altura_cm) + ' cm la letra va en recorte plano (sin volumen ni luz): ¿sencillo o con rotulación de vinil?' });
     }
   });
   /* Lo de la etapa más temprana primero, aunque sea de una partida: nadie pregunta por la
-     salida eléctrica antes de saber si el letrero lleva luz. El sort es estable. */
-  return out.sort((a, b) => ETAPAS.indexOf(a.etapa) - ETAPAS.indexOf(b.etapa));
+     salida eléctrica antes de saber si el letrero lleva luz. Dentro de la etapa, el orden de
+     Elías (ORDEN). El sort es estable: a igual orden, el de las listas. */
+  return out.sort((a, b) => (ETAPAS.indexOf(a.etapa) - ETAPAS.indexOf(b.etapa)) || (a.orden - b.orden));
 }
 
 /** Lo que el agente NO puede decidir solo, cada cosa con la razón que Elías lee en el teléfono. */

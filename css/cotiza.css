@@ -48,3 +48,38 @@
 .cot-nota { font-size: var(--t2); }
 .cot-nueva { background: none; border: 0; padding: 0; font: inherit; color: var(--a-tx); text-decoration: underline; cursor: pointer; }
 .cot-oculta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cot-msj a { color: inherit; text-decoration: underline; overflow-wrap: anywhere; }
+
+/* ============================================================================
+   LA TARJETA DE DEPÓSITO — el diseño de las autorizadas por Elías («AL3D - Deposito con/sin factura»,
+   1089 × 983): franja azul arriba, «DEPÓSITOS», el título grande en dos renglones, el logo a la derecha,
+   los renglones (rótulo gris, dato en negritas) y el pie oscuro con el WhatsApp del comprobante y la
+   dirección del taller. Sus colores NO siguen al tema: es la misma tarjeta de día y de noche.
+   Las medidas van en `cqw` (el ancho de la tarjeta), así guarda las proporciones del original en el
+   teléfono y en la computadora; los textos chicos tienen un piso para que se lean.
+   ============================================================================ */
+.dep {
+  container-type: inline-size;
+  align-self: stretch; max-width: 560px; width: 100%;
+  background: #fff; color: #111827;
+  border-radius: var(--rr3); overflow: hidden;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, .08), 0 8px 24px rgba(17, 24, 39, .10);
+  font-family: 'Outfit', var(--f-cifra);
+  display: flex; flex-direction: column; aspect-ratio: 1089 / 983;   /* la proporción del original; crece si el contenido no cabe */
+}
+.dep::before { content: ''; display: block; height: 1.3cqw; background: linear-gradient(90deg, #2c3ef0, #4f78fb 55%, #6ea3ff); }
+.dep-cab { display: flex; justify-content: space-between; align-items: flex-start; padding: 5.4cqw 6.2cqw 0; }
+.dep-eti { display: block; font-size: max(9px, 1.75cqw); font-weight: 700; letter-spacing: .28em; text-transform: uppercase; color: #4a63f2; }
+.dep-tit { margin: 1.6cqw 0 0; font-family: inherit; font-size: 8.1cqw; font-weight: 700; line-height: .98; letter-spacing: -.025em; color: #111827; }
+.dep-tit span { display: block; }
+.dep-logo { width: 16cqw; height: auto; margin-top: .4cqw; }
+.dep-filas { margin: auto 0 0; padding: 0 6.2cqw; }   /* el aire de sobra se reparte arriba de los renglones y arriba del pie, como en el original */
+.dep-filas > div { display: flex; justify-content: space-between; align-items: baseline; gap: 3cqw; padding: 1.4cqw 0; line-height: 1.2; border-bottom: 1px solid #e3e6ec; }
+.dep-filas > div:last-child { border-bottom: 0; }
+.dep-filas dt { font-size: max(11px, 3.2cqw); font-weight: 300; text-transform: uppercase; color: #8a92a6; letter-spacing: .01em; }
+.dep-filas dd { margin: 0; font-size: max(11px, 3.2cqw); font-weight: 700; color: #111827; text-align: right; user-select: all; overflow-wrap: anywhere; }
+.dep-nota { margin: 1.4cqw 0 0; padding: 0 6.2cqw; font-size: max(8px, 1.75cqw); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8a92a6; }
+.dep-pie { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 3cqw; padding: 3.6cqw 6.2cqw; background: #111522; }
+.dep-pie span { display: block; font-size: max(8px, 1.85cqw); font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: #6d8ff8; }
+.dep-pie b { display: block; margin-top: .8cqw; font-size: max(14px, 4.1cqw); line-height: 1.1; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+.dep-pie p { margin: 0; font-size: max(9px, 1.85cqw); line-height: 1.55; color: #c3c8d3; text-align: right; }
