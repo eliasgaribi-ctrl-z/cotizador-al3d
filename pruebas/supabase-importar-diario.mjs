@@ -129,6 +129,7 @@ const sentencias = log => log.map(x => (typeof x === 'string' ? x : x.e !== unde
 function clase(t) {
   if (/pg_try_advisory_xact_lock/.test(t)) return 'candado';
   if (/statement_timeout/.test(t)) return 'tiempo';
+  if (/select modo from public\.empresas/.test(t)) return 'modo';
   if (/create temp table if not exists _imp_cambios/.test(t)) return 'importador';
   if (/from _imp_cambios/.test(t)) return 'cambios';
   if (/drop table if exists _lote/.test(t)) return 'limpiar';
@@ -183,8 +184,8 @@ seccion('3. UN DÍA NORMAL — todo en UNA transacción, el cuadre después y un
   const r = await llamar({ base: b });
   eq('200 con lo que pasó: aplicada, cuadra, 220 ventas', [r.status, r.c.ok, r.c.aplicado, r.c.cuadra, r.c.ventas, r.c.diferencias, r.c.conflictos, r.c.rechazos, r.c.motivo],
     [200, true, true, true, 220, 0, 0, 0, null]);
-  eq('UNA transacción: begin, candado, tiempo, el importador, lo que hizo, limpiar las temporales, el cuadre, anotar, commit', b.tx.map(sentencias),
-    [['begin', 'Q:candado', 'E:tiempo', 'E:importador', 'Q:cambios', 'E:limpiar', 'Q:cuadre', 'Q:anotar', 'commit']]);
+  eq('UNA transacción: begin, candado, tiempo, quién manda, el importador, lo que hizo, limpiar las temporales, el cuadre, anotar, commit', b.tx.map(sentencias),
+    [['begin', 'Q:candado', 'E:tiempo', 'Q:modo', 'E:importador', 'Q:cambios', 'E:limpiar', 'Q:cuadre', 'Q:anotar', 'commit']]);
   const sqlCopia = b.tx[0].find(x => x.e && clase(x.e) === 'importador').e;
   cierto('el SQL del importador NO abre ni cierra transacciones por su cuenta (ni ensayo, ni consulta final)',
     !/^\s*(begin|commit|rollback)\s*;/im.test(sqlCopia) && !/ENSAYO/.test(sqlCopia) && !/group by tabla, accion/.test(sqlCopia));
@@ -213,7 +214,7 @@ seccion('4. CON CONFLICTOS O FILAS QUE NO ENTRAN — no se aplica NADA, pero se 
   const b = baseFalsa({ dif: [{ folio: 'V-005', col: 'fila', en_hoja: 'sí', en_base: 'no está' }, { folio: 'V-007', col: 'K', en_hoja: '1234.50', en_base: '1000.25' }] });
   const r = await llamar({ base: b, cuerpo: JSON.stringify(dup) });
   eq('200 sin aplicar: aplicado false, motivo conflictos, no cuadra', [r.status, r.c.ok, r.c.aplicado, r.c.cuadra, r.c.motivo, r.c.conflictos, r.c.diferencias], [200, true, false, false, 'conflictos', 1, 2]);
-  eq('la transacción: candado, tiempo, el cuadre y anotar; el importador NO corrió', b.tx.map(sentencias), [['begin', 'Q:candado', 'E:tiempo', 'Q:cuadre', 'Q:anotar', 'commit']]);
+  eq('la transacción: candado, tiempo, quién manda, el cuadre y anotar; el importador NO corrió', b.tx.map(sentencias), [['begin', 'Q:candado', 'E:tiempo', 'Q:modo', 'Q:cuadre', 'Q:anotar', 'commit']]);
   const res = JSON.parse(b.insertados[0][6]);
   eq('el renglón dice el tema y el folio del conflicto, y dónde no cuadra (folio y columna, sin los importes)',
     [res.conflictos_plan, res.diferencias], [[{ tema: 'folio repetido en Ventas', n: 1, folios: ['V-005'] }], { columnas: { fila: 1, K: 1 }, folios: ['V-005', 'V-007'] }]);
@@ -237,7 +238,7 @@ seccion('5. SI ALGO TRUENA — la copia se deshace entera y el fallo se anota en
   eq('502 BASE_RECHAZO con el código, la tabla y la restricción', [r.status, r.c.ok, r.c.codigo, r.c.aplicado, r.c.error], [502, false, 'BASE_RECHAZO', false,
     { codigo: '23514', tabla: 'proyectos', restriccion: 'proyectos_inventada' }]);
   eq('la primera transacción se deshizo; la segunda anota (con el cuadre en su punto de guardado)', b.tx.map(sentencias),
-    [['begin', 'Q:candado', 'E:tiempo', 'E:importador', 'rollback'], ['begin', 'E:savepoint', 'Q:cuadre', 'E:release', 'Q:anotar', 'commit']]);
+    [['begin', 'Q:candado', 'E:tiempo', 'Q:modo', 'E:importador', 'rollback'], ['begin', 'E:savepoint', 'Q:cuadre', 'E:release', 'Q:anotar', 'commit']]);
   eq('el renglón: no aplicado, no cuadra, 1 diferencia', b.insertados[0].slice(1, 4), [false, false, 1]);
   eq('ni el mensaje ni el detalle de la base salen a ningún lado', fugas(b.insertados[0][6] + r.texto + r.reg.join('\n')).concat(/Failing/.test(b.insertados[0][6] + r.texto + r.reg.join('')) ? ['el mensaje'] : []), []);
   const b2 = baseFalsa({ fallaEn: t => clase(t) === 'importador', error: err, difFalla: true });
@@ -385,7 +386,7 @@ seccion('8. EL ARCHIVO PARA EL PANEL (desplegar/index.ts) — al día con sus fu
     const pg = globalThis.__al3dUltimoPg;
     eq('con el secreto y un volcado de hoy: 200, aplicada, por el driver con prepare:false y cerrando la conexión', [si.status, cuerpo.aplicado, cuerpo.ventas, pg.opciones.prepare, pg.terminado, pg.url === URL_BD],
       [200, true, 220, false, true, true]);
-    eq('y por el driver pasaron: candado, tiempo, importador, cambios, limpiar, cuadre, anotar', pg.sentencias.map(clase), ['candado', 'tiempo', 'importador', 'cambios', 'limpiar', 'cuadre', 'anotar']);
+    eq('y por el driver pasaron: candado, tiempo, quién manda, importador, cambios, limpiar, cuadre, anotar', pg.sentencias.map(clase), ['candado', 'tiempo', 'modo', 'importador', 'cambios', 'limpiar', 'cuadre', 'anotar']);
     const pr = await pedir(SECRETO, JSON.stringify({ formato: 'al3d-pedir-respaldo', version: 1 }));
     const prTexto = await pr.text();
     const pg2 = globalThis.__al3dUltimoPg;

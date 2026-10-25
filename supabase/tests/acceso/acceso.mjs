@@ -395,11 +395,11 @@ describir('permisos que mi_acceso entrega al cliente (reemplazan a `escribibles`
     igual((await p('multi', { p_empresa: 'otra' })).ve_dinero, false, 'Fabricación en otra');
     igual((await p('multi', { p_empresa: 'al3d' })).ve_dinero, true, 'Dirección en al3d');
   });
-  prueba('mi_acceso de Dirección: usuario con id y correo; empresas con área y estado', async () => {
+  prueba('mi_acceso de Dirección: usuario con id y correo; empresas con área, estado y modo (0024)', async () => {
     const db = await plantilla();
     const a = await llamar(sesionDe(db, db.u.dir), 'mi_acceso');
     igual(a.usuario, { id: db.u.dir.uid, correo: 'dir@al3d.test' });
-    igual(a.empresas, [{ empresa_id: 'al3d', area: 'direccion', estado: 'activo' }]);
+    igual(a.empresas, [{ empresa_id: 'al3d', area: 'direccion', estado: 'activo', modo: 'hoja' }]);
   });
 });
 
