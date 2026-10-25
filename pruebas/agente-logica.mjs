@@ -11,6 +11,8 @@
      · que la cuenta de depósito salga solo cuando el cliente aceptó y hay cuenta configurada.
    Node puro: sin red, sin base y sin Deno. */
 
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as A from '../supabase/functions/_shared/agente.js';
 import { manejar, huella, SALUDO } from '../supabase/functions/agente/handler.js';
 
@@ -204,6 +206,19 @@ console.log('\nLA FUNCIÓN — lo que se rechaza');
     const r = await manejar(post({ accion: 'mensaje', token, texto: 'hola' }), { ...deps(b, ia), entorno: n => (n === 'AGENTE_EMPRESA' ? 'al3d' : undefined) });
     return [r.status, (await r.json()).codigo];
   })(), [503, 'CONFIGURACION']);
+}
+
+console.log('\nEL ARCHIVO PARA EL PANEL (agente/desplegar/index.ts) — al día con sus fuentes');
+{
+  const raiz = new URL('../', import.meta.url);
+  const leer = r => readFileSync(new URL(r, raiz), 'utf8');
+  const txt = leer('supabase/functions/agente/desplegar/index.ts');
+  const fuentes = [...txt.matchAll(/^\/\/ {3}([0-9a-f]{16}) {2}(\S+)$/gm)].map(m => ({ h: m[1], f: m[2] }));
+  const huellaDe = t => createHash('sha256').update(t.replace(/\r\n/g, '\n'), 'utf8').digest('hex').slice(0, 16);
+  eq('cada fuente de su cabecera tiene la huella de hoy (si falla: node supabase/functions/agente/desplegar/armar.mjs)',
+    fuentes.filter(x => huellaDe(leer(x.f)) !== x.h).map(x => x.f), []);
+  cierto('y lleva la ficha, el agente y el precio adentro', ['_shared/ficha.js', '_shared/agente.js', '_shared/precio.js', 'agente/handler.js'].every(f => fuentes.some(x => x.f.endsWith(f))));
+  eq('lo único de fuera: supabase-js 2', [...txt.matchAll(/^import .* from "([^"]+)";$/gm)].map(m => m[1]), ['npm:@supabase/supabase-js@2']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
