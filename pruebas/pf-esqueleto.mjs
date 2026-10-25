@@ -199,6 +199,13 @@ console.log('\nLA FRASE DEL INDICADOR DE SINCRONIZACIÓN');
   eq('en reposo, con la hoja bajada hace cinco minutos', fraseDeSync('quieto', '', T - 5 * 60000, T), 'Sincronización: al día');
   cierto('con la hoja bajada hace cinco días ya no dice «al día»: dice cuándo llegó lo último',
     /^Sincronización: lo último de la hoja llegó el /.test(fraseDeSync('quieto', '', T - 5 * 86400000, T)));
+  cierto('con la hoja mandando (se dice o no) sigue siendo «de la hoja»',
+    /^Sincronización: lo último de la hoja llegó el /.test(fraseDeSync('quieto', '', T - 5 * 86400000, T, 'hoja')));
+  cierto('con la base mandando (paso 5 de «la base manda») dice «de la base»',
+    /^Sincronización: lo último de la base llegó el /.test(fraseDeSync('quieto', '', T - 5 * 86400000, T, 'base')));
+  eq('y «al día» es «al día» venga de donde venga', fraseDeSync('quieto', '', T - 5 * 60000, T, 'base'), 'Sincronización: al día');
+  cierto('el glifo le pasa de dónde baja con la misma regla que la bandeja',
+    /fraseDeSync\(estado, motivo, _ultimaBajada, Date\.now\(\), laBaseManda\(\) \? 'base' : 'hoja'\)/.test(app));
   eq('mientras trabaja', fraseDeSync('trabaja'), 'Sincronización: buscando lo que cambió');
   eq('cuando bajó algo', fraseDeSync('ok'), 'Sincronización: llegó lo nuevo');
   cierto('sin señal dice qué pasa con lo que se hace: se guarda aquí', /Sin señal:.*se guarda aquí/.test(fraseDeSync('sin-senal')));

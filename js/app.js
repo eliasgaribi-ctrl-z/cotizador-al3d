@@ -13,6 +13,7 @@
 
 import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
+import * as Manda from './datos/quien-manda.js';      // quién manda el rol: la hoja o la base (paso 5)
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
 import * as Carpetas from './datos/carpetas.js';
@@ -1456,7 +1457,7 @@ function pintarRolSeg() {
     '<button class="' + (r === actual ? 'on' : '') + '" aria-pressed="' + (r === actual) + '"' +
     (deLaHoja && r !== actual ? ' disabled aria-disabled="true"' : '') +
     ' data-rol="' + r + '" title="' +
-    esc(deLaHoja && r !== actual ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_DESC[r]) + '">' +
+    esc(deLaHoja && r !== actual ? Manda.notaDelRol() : Prefs.ROL_DESC[r]) + '">' +
     esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('');
   /* El renglón compacto del pie de la barra (index.html, `#pf-rol`): plegado dice el rol de
      ahora, y los tres botones de arriba solo salen al abrirlo. Cambiar de rol es cosa de una vez
@@ -1474,7 +1475,7 @@ function cambiarRol(r) {
      `aplicarRol()` de Ajustes llega hasta aquí simulando un clic: si la regla viviera solo
      en el HTML, el camino de Ajustes se la saltaría entero. */
   if (Prefs.rolDeLaHoja()) {
-    toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000);
+    toast(Manda.notaDelRol(), '', 6000);
     return;
   }
   if (!Prefs.setRol(r)) { toast('No se pudo guardar el rol en este dispositivo', 'err'); return; }
@@ -2352,8 +2353,9 @@ let _ultimaBajada = (() => { try { return Number(localStorage.getItem(K_ULTIMA_B
 let _driveOk = null;        // la última vez, ¿contestó Drive? (ver la vuelta de carpetas)
 
 /** La frase de cada estado. Pura: de aquí salen el `title`, el `aria-label` y la voz. `ultima` es
- *  cuándo bajó la hoja por última vez (ms) y `ahora`, el reloj; sin `ultima` no se juzga. */
-export function fraseDeSync(estado, motivo, ultima, ahora) {
+ *  cuándo bajó la hoja por última vez (ms) y `ahora`, el reloj; sin `ultima` no se juzga. `fuente` es de
+ *  dónde baja: 'base' con la base mandando (docs/BASE-MANDA.md), la hoja si no se dice. */
+export function fraseDeSync(estado, motivo, ultima, ahora, fuente) {
   switch (estado) {
     case 'trabaja': return 'Sincronización: buscando lo que cambió';
     case 'ok': return 'Sincronización: llegó lo nuevo';
@@ -2367,7 +2369,7 @@ export function fraseDeSync(estado, motivo, ultima, ahora) {
     default: {
       const u = Number(ultima) || 0, t = Number(ahora) || 0;
       if (u && t && t - u > 10 * 60 * 1000) {
-        return 'Sincronización: lo último de la hoja llegó el ' + new Date(u).toLocaleString('es-MX',
+        return 'Sincronización: lo último de ' + (fuente === 'base' ? 'la base' : 'la hoja') + ' llegó el ' + new Date(u).toLocaleString('es-MX',
           { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       }
       return 'Sincronización: al día';
@@ -2384,7 +2386,7 @@ function pintarSync(estado, motivo) {
   const antes = _syncEstado;
   _syncEstado = estado;
   el.dataset.sync = estado;
-  const frase = fraseDeSync(estado, motivo, _ultimaBajada, Date.now());
+  const frase = fraseDeSync(estado, motivo, _ultimaBajada, Date.now(), laBaseManda() ? 'base' : 'hoja');
   el.title = frase;
   el.setAttribute('aria-label', frase);
   /* La marca solo existe cuando hay algo que decir con ella; en reposo y sin señal se ve la nube
@@ -2455,13 +2457,13 @@ async function sincronizarDeVerdad() {
         /* `SIN_RED` es el código con que `jalar()` dice «no llegué a la hoja», con señal del
            teléfono o sin ella: es el mismo caso que apagar los datos, y se pinta igual. Los
            demás códigos —el puente contestó que no, el pase venció— sí son una cruz. */
-        if (r.codigo === 'SIN_RED') sinRed = true; else falla = r.mensaje || 'la hoja no contestó';
+        if (r.codigo === 'SIN_RED') sinRed = true; else falla = r.mensaje || (laBaseManda() ? 'la base no contestó' : 'la hoja no contestó');
         break;
       }
       movio += (Number(r.valor.nuevos) || 0) + (Number(r.valor.actualizados) || 0);
       if (!r.valor.hay_mas) break;
     }
-  } catch (e) { falla = (e && e.message) || 'la hoja no contestó'; }
+  } catch (e) { falla = (e && e.message) || (laBaseManda() ? 'la base no contestó' : 'la hoja no contestó'); }
   if (!falla && !sinRed) {
     _ultimaBajada = Date.now();
     try { localStorage.setItem(K_ULTIMA_BAJADA, String(_ultimaBajada)); } catch (_) {}

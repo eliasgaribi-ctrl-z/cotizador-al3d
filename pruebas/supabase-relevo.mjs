@@ -8,8 +8,8 @@
  *     apagados: toda la red es la URL del puente, ni un <script>, ni una base local nueva; y nadie carga
  *     los módulos nuevos de forma estática;
  *   · LA ELECCIÓN: la base manda en este aparato solo con el interruptor encendido Y el último modo que
- *     dijo la base en 'base'. Sin saberlo, la hoja. Sin señal, lo último que se oyó. Las cuatro copias de
- *     la regla (supa.js, app.js, puerta.js y venta.js) contestan lo mismo;
+ *     dijo la base en 'base'. Sin saberlo, la hoja. Sin señal, lo último que se oyó. Las cinco copias de
+ *     la regla (supa.js, app.js, puerta.js, venta.js y control.js, paso 5) contestan lo mismo;
  *   · LA MISMA INTERFAZ que el relevo de la hoja, miembro por miembro;
  *   · CADA OPERACIÓN A SU FUNCIÓN de la base, con sus argumentos, por la bandeja de verdad (sync.js);
  *   · EL V-### de una venta nueva sale de la base y vuelve al teléfono como volvía el de la hoja;
@@ -302,8 +302,9 @@ try {
 
   console.log('\nLA ELECCIÓN: LA BASE MANDA SOLO CON EL INTERRUPTOR Y EL ÚLTIMO MODO OÍDO EN «base»');
   {
-    const copias = { 'js/app.js': reglaDe('js/app.js'), 'js/nucleo/puerta.js': reglaDe('js/nucleo/puerta.js'), 'js/cotizador/venta.js': reglaDe('js/cotizador/venta.js') };
-    eq('las tres copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function']);
+    const copias = { 'js/app.js': reglaDe('js/app.js'), 'js/nucleo/puerta.js': reglaDe('js/nucleo/puerta.js'), 'js/cotizador/venta.js': reglaDe('js/cotizador/venta.js'),
+      'js/mod/control.js': reglaDe('js/mod/control.js') };
+    eq('las cuatro copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function', 'function']);
     const ON = JSON.stringify({ encendido: true, desde: 1 });
     const casos = [
       ['apagado, sin modo', {}, false],
@@ -322,10 +323,10 @@ try {
       const dice = [Supa.laBaseManda(), ...Object.values(copias).map(f => f(m))];
       for (const k of Object.keys(ls)) delete ls[k];
       Object.assign(ls, guardado);
-      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js y venta.js)', dice, [esperado, esperado, esperado, esperado]);
+      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js, venta.js y control.js)', dice, [esperado, esperado, esperado, esperado, esperado]);
     }
     const sinAlmacen = { getItem: () => { throw new Error('bloqueado'); } };
-    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false]);
+    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false, false]);
 
     /* Lo que dice la base se guarda, y solo si lo dice de verdad. */
     crearClienteFalso();

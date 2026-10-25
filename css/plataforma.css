@@ -4755,6 +4755,14 @@ button.ct-tt-anio:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px
 .pg-tabla th,.pg-tabla td{padding:var(--e1) var(--e2);border-bottom:1px solid var(--n2);text-align:right;font-variant-numeric:tabular-nums}
 .pg-tabla th[scope="row"],.pg-tabla thead th:first-child{text-align:left;font-weight:600}
 .pg-tabla small{display:block;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
+/* La venta sin cotización (con la base mandando): dos campos por renglón cuando caben, uno en el teléfono; los tipos
+   de trabajo como casillas de 44 px. */
+.pg-dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:0 var(--e3)}
+.pg-tipos{border:0;padding:0;margin:var(--e3) 0 0;min-width:0}
+.pg-tipos legend{font-weight:600;color:var(--n8);margin-bottom:var(--e1);padding:0}
+.pg-tipos legend small{font-weight:400;color:var(--muted)}
+.pg-tipo{display:flex;gap:var(--e2);align-items:center;min-height:44px;overflow-wrap:anywhere}
+.pg-tipo input{width:20px;height:20px;flex:0 0 auto}
 
 /* ============================================================================
    El Tablero despejado (octubre de 2026, js/mod/tablero.js)

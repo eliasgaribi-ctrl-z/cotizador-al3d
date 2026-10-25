@@ -33,6 +33,7 @@
 
 import * as DB from '../datos/db.js';
 import * as Prefs from '../datos/prefs.js';
+import * as Manda from '../datos/quien-manda.js';     // quién manda el rol: la hoja o la base (paso 5)
 import * as Sync from '../datos/sync.js';
 import * as Geo from '../datos/geo.js';
 import * as Gcal from '../nucleo/gcal.js';
@@ -229,11 +230,11 @@ function pintarGate() {
     'placeholder="Como te dicen: Beto, Moni, Tatis…"></div>' +
 
     '<div class="fld"><div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas' +
-      (Prefs.rolDeLaHoja() ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda la hoja</span>' : '') +
+      (Prefs.rolDeLaHoja() ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda ' + Manda.rolLoManda() + '</span>' : '') +
     '</div>' +
     '<div id="aj-rol-gate" role="group" aria-labelledby="aj-rol-lab">' + rolesGate() + '</div></div>' +
 
-    nota(esc(Prefs.rolDeLaHoja() ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_NO_ES_SEGURIDAD)) +
+    nota(esc(Prefs.rolDeLaHoja() ? Manda.notaDelRol() : Prefs.ROL_NO_ES_SEGURIDAD)) +
 
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="gate">Empezar</button></div>');
@@ -261,7 +262,7 @@ function rolesGate() {
     const off = deLaHoja && r !== ROL_GATE;
     return '<button type="button" class="aj-rol' + (r === ROL_GATE ? ' on' : '') +
       '" data-rol-gate="' + r + '" aria-pressed="' + (r === ROL_GATE ? 'true' : 'false') + '"' +
-      (off ? ' disabled aria-disabled="true" title="' + esc(Prefs.ROL_LO_MANDA_LA_HOJA) + '"' : '') + '>' +
+      (off ? ' disabled aria-disabled="true" title="' + esc(Manda.notaDelRol()) + '"' : '') + '>' +
       ico(r === ROL_GATE ? 'i-check' : 'i-ojo') +
       '<span><b>' + esc(Prefs.ROL_NOMBRE[r]) + '</b>' + esc(Prefs.ROL_DESC[r]) + '</span>' +
       '</button>';
@@ -274,7 +275,7 @@ function clicGate(ev) {
   const r = t.closest('[data-rol-gate]');
   if (r) {
     /* La guarda de verdad, no la del atributo (la misma idea que `cambiarRol` en app.js). */
-    if (Prefs.rolDeLaHoja()) { ROL_GATE = Prefs.rol(); toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000); return; }
+    if (Prefs.rolDeLaHoja()) { ROL_GATE = Prefs.rol(); toast(Manda.notaDelRol(), '', 6000); return; }
     /* Se guarda en una variable y no en la preferencia: aplicar el rol al instante
        remonta la pantalla —app.js saca los módulos que el rol nuevo no tiene— y el nombre
        a medio escribir se iba en blanco sin que nadie entendiera por qué. */
@@ -498,14 +499,14 @@ function cardQuienEres() {
 
     '<div class="fld aj-bloque">' +
     '<div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas' +
-      (deLaHoja ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda la hoja</span>' : '') +
+      (deLaHoja ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda ' + Manda.rolLoManda() + '</span>' : '') +
     '</div>' +
     seg(Prefs.ROLES.map(x => ({ v: x, t: Prefs.ROL_NOMBRE[x], off: deLaHoja && x !== r })),
         r, 'data-rol', 'aj-rol-lab') +
     '</div>' +
     '<p class="pf-nota">' + esc(Prefs.ROL_DESC[r]) + '</p>' +
 
-    nota(esc(deLaHoja ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_NO_ES_SEGURIDAD)) +
+    nota(esc(deLaHoja ? Manda.notaDelRol() : Prefs.ROL_NO_ES_SEGURIDAD)) +
 
     '<dl class="pf-dato aj-bloque"><dt>Así se firman tus movimientos</dt>' +
     '<dd>' + esc(Prefs.sello()) + '</dd></dl>' +
@@ -1095,7 +1096,7 @@ function aplicarRol(r) {
   if (r === Prefs.rol()) { if (CTX.refrescar) CTX.refrescar(); return; }
   /* Con el rol de la hoja, el botón de la barra está apagado y un clic sobre él no hace nada:
      sin esto, pedir otro rol desde aquí se quedaba en silencio. Se dice por qué. */
-  if (Prefs.rolDeLaHoja()) { toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000); return; }
+  if (Prefs.rolDeLaHoja()) { toast(Manda.notaDelRol(), '', 6000); return; }
   const b = document.querySelector('#pf-rolseg [data-rol="' + r + '"]');
   if (b) { b.click(); return; }
   if (!Prefs.setRol(r)) { toast('No se pudo guardar el rol en este dispositivo', 'err', 4200); return; }
@@ -1626,11 +1627,15 @@ function bloqueIngreso() {
        con Google y SIN pase —la hoja no contestó todavía, o este aparato lleva días sin
        señal— y ahí el interruptor sigue vivo. Decirlo al revés sería mandar a alguien a
        buscar un candado que no está. */
-    '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
+    /* Con la base mandando (docs/BASE-MANDA.md), el pase lo dio la base: el rol es tu área allá. */
+    (Manda.rolDeLaBase()
+      ? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base</b> (Supabase), y por eso el ' +
+        'interruptor de arriba está apagado. Para cambiarlo, Dirección cambia tu área en Ajustes → Supabase → Personas.</p>'
+      : '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
     'pestaña <b>Accesos</b> de la hoja' +
     (Prefs.rolDeLaHoja()
       ? ', y por eso el interruptor de arriba está apagado. Para cambiarlo, Dirección cambia tu renglón allá.'
-      : '. En cuanto la hoja conteste, el interruptor de arriba se apaga y manda ella.') + '</p>' +
+      : '. En cuanto la hoja conteste, el interruptor de arriba se apaga y manda ella.') + '</p>') +
     '<p class="pf-nota">Al salir se cierra la plataforma y vuelve la pantalla de entrar. Lo ' +
     'guardado en este aparato no se borra.</p>' +
     '<div class="pf-acciones">' +

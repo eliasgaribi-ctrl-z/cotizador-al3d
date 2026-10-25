@@ -16,6 +16,17 @@
  *     desde octubre de 2026) y nadie carga
  *     estos módulos.
  *
+ * Y el paso 5 de «la base manda» (docs/BASE-MANDA.md), con la base mandando:
+ *   · la pestaña es «Cobros y abonos» para Dirección y Pagos (la decide el modo de la empresa), no dice
+ *     «regístralo también en la hoja» ni ofrece apagar Supabase;
+ *   · la VENTA SIN COTIZACIÓN: `alta_venta` con sus argumentos exactos, su id nacido del op_id (el reintento es
+ *     la misma venta), sus validaciones (las de la base), sus listas iguales a las de la plataforma y a las de la
+ *     base, y NUNCA con la hoja mandando (dos contadores de V-###);
+ *   · lo raro se pregunta con el botón de peligro (un cobro de más, una venta ya liquidada, un reparto), y el
+ *     reparto que se confirma es el que se vio (se recalcula justo antes de preguntar);
+ *   · Realtime: un cambio en la base relee los saldos de la pestaña (con la hoja mandando, no).
+ * El mismo dinero contra la base de verdad (PGlite): supabase/tests/pagos/pantalla.mjs.
+ *
  * Se corre con pruebas/correr.sh, como todas. */
 
 import { readFileSync } from 'node:fs';
@@ -43,6 +54,13 @@ const mapa = () => {
 globalThis.localStorage = mapa();
 globalThis.sessionStorage = mapa();
 globalThis.document = { activeElement: null };
+/* La ventana como blanco de eventos: el aviso de Realtime (`al3d-base-cambio`) y el del modo (`al3d-modo`). */
+{
+  const et = new EventTarget();
+  globalThis.addEventListener = et.addEventListener.bind(et);
+  globalThis.removeEventListener = et.removeEventListener.bind(et);
+  globalThis.dispatchEvent = et.dispatchEvent.bind(et);
+}
 
 const llamadas = [];
 let ESC = {};                                 // el escenario de ahora: el doble le pregunta qué contestar
@@ -56,6 +74,7 @@ globalThis.supabase = { createClient: (url, llave, o) => { opcionesDelCliente = 
 
 const PS = await import('../js/datos/pagos-supa.js');
 const Prefs = await import('../js/datos/prefs.js');
+const Manda = await import('../js/datos/quien-manda.js');
 
 /* ============================================================================ */
 console.log('\nMONTOS: PESOS CON DOS DECIMALES Y LOS TOPES DE LA BASE');
@@ -232,6 +251,116 @@ console.log('\nERRORES DE LA BASE EN PALABRAS');
 }
 
 /* ============================================================================ */
+console.log('\nLO RARO SE PREGUNTA CON EL BOTÓN DE PELIGRO (paso 5)');
+{
+  const o = { opId: 'pf-op-9', hoy: '2026-10-25', venta: V, area: 'pagos' };
+  let p = PS.plan('cobro', { proyecto: V.id, monto: '5800' }, o);
+  eq('un cobro que deja el saldo en ceros: botón normal y sin «OJO»', [!!p.peligro, /OJO/.test(p.texto)], [false, false]);
+  p = PS.plan('cobro', { proyecto: V.id, monto: '6000' }, o);
+  eq('un cobro de más (la liquidación es ACUMULATIVA): peligro, y dice por cuánto', [p.peligro, /más que el saldo \(\$5,800\.00\): quedaría cobrada de más por \$200\.00/.test(p.texto)], [true, true]);
+  eq('pero se manda igual (la base lo acepta: «Cobrado de más»)', [p.rpc, p.args.p_monto], ['registrar_cobro', 6000]);
+  p = PS.plan('cobro', { proyecto: V.id, monto: '10' }, { ...o, venta: { ...V, saldo: -50, estatus: 'LIQUIDADO' } });
+  eq('sobre una venta ya cobrada de más: todo el cobro es de más, y dice que ya está LIQUIDADA', [p.peligro, /de más por \$10\.00/.test(p.texto), /ya está LIQUIDADA/.test(p.texto)], [true, true, true]);
+  const vp = { monto: 100, filas: [{ folio: 'V-1', abono: 100 }], sobrante: 0 };
+  p = PS.plan('reparto', { monto: '100' }, { ...o, vistaPrevia: vp });
+  eq('un reparto siempre: peligro, y dice que no se deshace', [p.peligro, /NO se pueden deshacer/.test(p.texto)], [true, true]);
+}
+
+console.log('\nEL REPARTO QUE SE CONFIRMA ES EL QUE SE VIO');
+{
+  const a = { monto: 1500, filas: [{ folio: 'V-100', abono: 1000 }, { folio: 'V-120', abono: 500 }], sobrante: 0 };
+  cierto('la misma vista previa es el mismo reparto', PS.mismoReparto(a, JSON.parse(JSON.stringify(a))));
+  cierto('importes como texto o número dan igual', PS.mismoReparto(a, { monto: '1500.00', filas: [{ folio: 'V-100', abono: '1000' }, { folio: 'V-120', abono: 500.0 }], sobrante: '0' }));
+  cierto('otro teléfono abonó a V-100: ya no es el mismo', !PS.mismoReparto(a, { monto: 1500, filas: [{ folio: 'V-120', abono: 900 }], sobrante: 600 }));
+  cierto('el mismo abono a otras ventas tampoco', !PS.mismoReparto(a, { monto: 1500, filas: [{ folio: 'V-100', abono: 500 }, { folio: 'V-120', abono: 1000 }], sobrante: 0 }));
+  cierto('otro sobrante tampoco', !PS.mismoReparto(a, { ...a, sobrante: 1 }));
+  cierto('sin una de las dos, no', !PS.mismoReparto(null, a) && !PS.mismoReparto(a, null));
+}
+
+/* ============================================================================ */
+console.log('\nLA VENTA SIN COTIZACIÓN (alta_venta, paso 5)');
+const ALTA = { nombre: ' Ana - Tacos El Güero ', cuenta: 'Moni MPago', estatus: 'FABRICACION', tipos: ['Rotulacion de vinil', 'Letras 3D con iluminacion'],
+  subtotal: '4,000', anticipo: '1000.50', fecha: '2026-10-24', cita: '2026-11-03', tel: ' 33 1234-5678 ', entrega: 'instalacion',
+  dir: ' Av. Vallarta 100, Guadalajara ', maps: 'https://maps.app.goo.gl/abc' };
+const oAlta = (x = {}) => ({ opId: 'pf-0f1e2d3c-aaaa-bbbb-cccc-123456789abc', hoy: '2026-10-25', area: 'pagos', baseManda: true, ahora: 1792900000000, ...x });
+{
+  let p = PS.plan('venta', ALTA, oAlta());
+  eq('va a alta_venta con la operación exacta', [p.rpc, p.args], ['alta_venta', { p_op: {
+    id: 'alta-0f1e2d3c-aaaa-bbbb-cccc-123456789abc', nombre: 'Ana - Tacos El Güero', cuenta: 'Moni MPago', estatus: 'FABRICACION',
+    tipo_trabajo: ['Letras 3D con iluminacion', 'Rotulacion de vinil'], subtotal: 4000, anticipo: 1000.5, tel: '33 1234-5678', entrega: 'instalacion',
+    dir_texto: 'Av. Vallarta 100, Guadalajara', maps_url: 'https://maps.app.goo.gl/abc', fecha_anticipo: '2026-10-24', fecha_instalacion: '2026-11-03',
+    sellos: { tel: 1792900000000, entrega: 1792900000000, dir_texto: 1792900000000, ubicacion: 1792900000000 } } }]);
+  cierto('el id cabe en la regla de la base (^[A-Za-z0-9][A-Za-z0-9:._@-]{0,119}$)', /^[A-Za-z0-9][A-Za-z0-9:._@-]{0,119}$/.test(p.args.p_op.id));
+  cierto('y el de un op_id sin randomUUID (hexadecimal) también', /^[A-Za-z0-9][A-Za-z0-9:._@-]{0,119}$/.test(PS.idDeAlta('pf-' + 'ab'.repeat(16))));
+  cierto('el id es del FORMULARIO: el reintento (mismo op_id) es la MISMA venta', PS.plan('venta', ALTA, oAlta({ ahora: 1792900099999 })).args.p_op.id === p.args.p_op.id);
+  eq('los sellos (la hora de la captura) no cuentan como «cambiaste los datos»', PS.huella(PS.plan('venta', ALTA, oAlta({ ahora: 1 }))), PS.huella(p));
+  cierto('pero cambiar el subtotal sí', PS.huella(PS.plan('venta', { ...ALTA, subtotal: '4001' }, oAlta())) !== PS.huella(p));
+  cierto('la pregunta dice cuenta, IVA, neto (subtotal × 1.16), anticipo y que la base da el V-###',
+    /Moni MPago \(con IVA\) · subtotal \$4,000\.00 → neto \$4,640\.00 · anticipo \$1,000\.50 del 2026-10-24/.test(p.texto) && /siguiente V-###/.test(p.texto));
+  eq('con Elias BBVA, sin IVA y sin neto aparte', /Elias BBVA \(sin IVA\) · subtotal \$4,000\.00 · anticipo/.test(PS.plan('venta', { ...ALTA, cuenta: 'Elias BBVA' }, oAlta()).texto), true);
+  eq('el neto se redondea como la base (round(x × 1.16, 2)): 0.03 → 0.03, 1234.56 → 1432.09',
+    [/neto \$0\.03 /.test(PS.plan('venta', { ...ALTA, subtotal: '0.03', anticipo: '' }, oAlta()).texto), /neto \$1,432\.09 /.test(PS.plan('venta', { ...ALTA, subtotal: '1234.56' }, oAlta()).texto)], [true, true]);
+  p = PS.plan('venta', { ...ALTA, anticipo: '9000' }, oAlta());
+  eq('un anticipo mayor que el neto: se pregunta con peligro', [p.peligro, /el anticipo es más que el neto/.test(p.texto)], [true, true]);
+  p = PS.plan('venta', { ...ALTA, anticipo: '', fecha: '', cita: '', tipos: [], estatus: '' }, oAlta());
+  eq('lo opcional vacío: anticipo 0, sin fecha (la pone la base: hoy), sin cita, sin tipos, estatus FABRICACION',
+    [p.args.p_op.anticipo, 'fecha_anticipo' in p.args.p_op, 'fecha_instalacion' in p.args.p_op, p.args.p_op.tipo_trabajo, p.args.p_op.estatus], [0, false, false, [], 'FABRICACION']);
+  p = PS.plan('venta', { ...ALTA, entrega: 'recoleccion' }, oAlta());
+  eq('recolección: sin dirección ni liga (lo recoge en el taller)', [p.args.p_op.dir_texto, p.args.p_op.maps_url, p.args.p_op.sellos.dir_texto, p.args.p_op.sellos.ubicacion], ['', '', undefined, undefined]);
+  p = PS.plan('venta', { ...ALTA, entrega: 'paqueteria' }, oAlta());
+  eq('paquetería: el destino sí, la liga no', [p.args.p_op.dir_texto, p.args.p_op.maps_url], ['Av. Vallarta 100, Guadalajara', '']);
+  eq('sin `ahora`, sin sellos (la base no inventa uno)', 'sellos' in PS.plan('venta', ALTA, oAlta({ ahora: 0 })).args.p_op, false);
+
+  const errs = c => { const r = PS.plan('venta', { ...ALTA, ...c }, oAlta()); return r.ok ? 'ok' : r.errores; };
+  eq('sin nombre', errs({ nombre: '  ' }), { nombre: 'Falta el nombre del proyecto.' });
+  eq('sin cuenta, u otra cuenta', [errs({ cuenta: '' }), errs({ cuenta: 'BBVA' })], [{ cuenta: 'Elige la cuenta de cobro.' }, { cuenta: 'Elige la cuenta de cobro.' }]);
+  eq('un estatus que no existe', errs({ estatus: 'PAGADO' }), { estatus: 'Ese estatus no existe.' });
+  eq('un tipo de trabajo que no existe', errs({ tipos: ['Rotulación de vinil'] }), { tipos: 'Uno de los tipos de trabajo no existe.' });
+  eq('subtotal vacío', errs({ subtotal: '' }), { subtotal: 'Falta el subtotal.' });
+  eq('subtotal NaN, Infinity, 1e9, cero, negativo o con tres decimales: no', ['NaN', 'Infinity', '1e9', '0', '-5', '12.345', '1000000000'].map(s => errs({ subtotal: s }) === 'ok'), [false, false, false, false, false, false, false]);
+  eq('anticipo negativo o NaN: no; cero sí', [errs({ anticipo: '-1' }) === 'ok', errs({ anticipo: 'NaN' }) === 'ok', errs({ anticipo: '0' }) === 'ok'], [false, false, true]);
+  eq('fecha del anticipo futura: no', Object.keys(errs({ fecha: '2026-10-26' })), ['fecha']);
+  eq('fecha de instalación que no existe: no; futura sí', [Object.keys(errs({ cita: '2026-02-30' })), errs({ cita: '2027-01-15' })], [['cita'], 'ok']);
+  eq('teléfono vacío o de menos de 10 dígitos', [errs({ tel: '' }), errs({ tel: '33 1234' })], [{ tel: 'Falta el teléfono del cliente.' }, { tel: 'Ese teléfono no tiene los 10 dígitos.' }]);
+  eq('sin forma de entrega, u otra', [errs({ entrega: '' }), errs({ entrega: 'dron' })], [{ entrega: 'Falta decir cómo se entrega.' }, { entrega: 'Falta decir cómo se entrega.' }]);
+  eq('una liga que no es liga', errs({ maps: 'calle 5' }), { maps: 'Pega la liga completa de Maps (empieza con https://).' });
+  eq('una dirección de más de 400', Object.keys(errs({ dir: 'x'.repeat(401) })), ['dir']);
+  const vacio = PS.plan('venta', {}, oAlta());
+  eq('todo vacío: los cinco obligatorios, y el primero es el nombre', [Object.keys(vacio.errores).sort(), vacio.primero], [['cuenta', 'entrega', 'nombre', 'subtotal', 'tel'], 'nombre']);
+
+  eq('con la HOJA mandando, NO (habría dos contadores de V-###)', PS.plan('venta', ALTA, oAlta({ baseManda: false })).errores.tipo,
+    'Con la hoja mandando, una venta sin cotización se registra en la hoja («Registrar nueva venta»): aquí saldría con otro V-###.');
+  eq('sin decir quién manda, tampoco', PS.plan('venta', ALTA, { opId: 'pf-x', hoy: '2026-10-25', area: 'pagos' }).ok, false);
+  eq('Fabricación: no', PS.plan('venta', ALTA, oAlta({ area: 'fabricacion' })).errores.tipo, 'Dar de alta una venta es de Dirección y Pagos.');
+  eq('Dirección: sí', PS.plan('venta', ALTA, oAlta({ area: 'direccion' })).ok, true);
+
+  const act = (area, alta) => ({ estado: 'activo', area, permisos: alta === undefined ? null : { alta: { alta_venta: alta } } });
+  eq('los formularios con la hoja mandando: los cuatro de siempre', PS.formulariosDe({ baseManda: false, acceso: act('pagos', true) }), ['cobro', 'abono', 'reparto', 'correccion']);
+  eq('con la base mandando: más la venta, si la base la deja (Pagos y Dirección en la matriz de 0017)',
+    [PS.formulariosDe({ baseManda: true, acceso: act('pagos', true) }), PS.formulariosDe({ baseManda: true, acceso: act('direccion', true) }).length],
+    [['cobro', 'abono', 'reparto', 'correccion', 'venta'], 5]);
+  eq('si la base dice que no (alta_venta: false), no', PS.formulariosDe({ baseManda: true, acceso: act('pagos', false) }).includes('venta'), false);
+  eq('sin permisos en la respuesta, la regla de la matriz', [PS.puedeDarDeAlta(act('pagos')), PS.puedeDarDeAlta(act('fabricacion')), PS.puedeDarDeAlta({ estado: 'acceso_revocado', area: 'pagos' })], [true, false, false]);
+
+  const pv = PS.plan('venta', ALTA, oAlta());
+  eq('el resumen dice el V-### de la base', PS.resumen(pv, { ok: true, proyecto_id: pv.args.p_op.id, folio_hoja: 'V-231' }), 'Venta registrada en la base — V-231: Ana - Tacos El Güero.');
+  eq('y el reintento que ya había llegado lo dice', PS.resumen(pv, { ok: true, ya_existia: true, folio_hoja: 'V-231' }), 'Venta registrada en la base — V-231: Ana - Tacos El Güero. Ya estaba registrada: no se creó otra.');
+  eq('ROL_SIN_PERMISO de alta_venta dice de quién es', PS.clasificar('alta_venta', { data: { ok: false, codigo: 'ROL_SIN_PERMISO' } }).mensaje, 'Dar de alta una venta es de Dirección y Pagos. No se registró nada.');
+  eq('DATO_INVALIDO trae la frase de la base', PS.clasificar('alta_venta', { data: { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'La forma de entrega no existe.' } }).mensaje, 'La forma de entrega no existe. No se registró nada.');
+
+  /* Las listas: las de esta capa (pura) contra las de la plataforma y las de la función de la base. */
+  const lista = (archivo, re) => { const m = re.exec(leer(archivo)); return m ? JSON.parse(m[1].replace(/'/g, '"').replace(/,\s*\]/, ']')) : null; };
+  const sql = leer('supabase/migrations/0006_rpc_obra.sql');
+  const alta = sql.slice(sql.indexOf('create or replace function public.alta_venta'), sql.indexOf('revoke all on function public.alta_venta'));
+  const arr = re => { const m = re.exec(alta); return m ? m[1].split(',').map(x => x.trim().replace(/^'|'$/g, '')) : null; };
+  eq('las cuentas: las de puente.js y las de alta_venta', [PS.CUENTAS, PS.CUENTAS], [lista('js/datos/puente.js', /export const CUENTAS = (\[[^\]]*\]);/), arr(/v_cuenta <> all \(array\[([^\]]*)\]\)/)]);
+  eq('los estatus: los de puente.js y los de alta_venta', [PS.ESTATUS, PS.ESTATUS], [lista('js/datos/puente.js', /export const ESTATUS = (\[[^\]]*\]);/), arr(/v_estatus <> all \(array\[([^\]]*)\]\)/)]);
+  eq('los tipos de trabajo: los de proyectos.js y los de alta_venta', [PS.TIPOS, PS.TIPOS], [lista('js/datos/proyectos.js', /export const TIPOS_TRABAJO = (\[[\s\S]*?\]);/), arr(/v_tipo <@ array\[([^\]]*)\]/)]);
+  eq('las entregas: las de entrega.js y las de alta_venta', [PS.ENTREGAS, PS.ENTREGAS], [lista('js/datos/entrega.js', /export const ENTREGAS = (\[[^\]]*\]);/), arr(/v_entrega <> all \(array\[([^\]]*)\]\)/)]);
+  cierto('y la cuenta sin IVA es la de interno.normalizar_iva (cuenta <> \'Elias BBVA\')', PS.CUENTA_SIN_IVA === 'Elias BBVA' && /\(v_cuenta <> 'Elias BBVA'\)/.test(alta));
+}
+
+/* ============================================================================ */
 console.log('\nQUIÉN VE LOS FORMULARIOS');
 {
   const q = PS.queMostrar;
@@ -247,25 +376,36 @@ console.log('\nQUIÉN VE LOS FORMULARIOS');
 
 /* La pestaña, corriendo, con el doble: lo que pide y lo que pinta. Cada escenario carga su propia
    copia del módulo (el «?» de la dirección), como abrir la app de nuevo. */
-async function pestana(nombre, { rolLocal, sesion, area }) {
+const _abiertas = [];
+/* `modo`: lo que dice la base de quién manda ('hoja' o 'base'; sin decirlo, como antes de 0024). `alta`: lo que dice la
+   matriz de `alta_venta` para esa área (sin decirlo, sin permisos en la respuesta). */
+async function pestana(nombre, { rolLocal, sesion, area, modo, alta }) {
+  for (const x of _abiertas.splice(0)) x.soltar();                 // la pestaña de antes se fue (ya no oye a la base)
   globalThis.localStorage.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
+  if (modo) globalThis.localStorage.setItem('al3d_pf_supa_modo', JSON.stringify({ modo, area }));
+  else globalThis.localStorage.removeItem('al3d_pf_supa_modo');
+  const permisos = alta === undefined ? undefined : { alta: { alta_venta: alta } };
   Prefs.setRol(rolLocal);
   globalThis.sessionStorage.clear();
   llamadas.length = 0;
   ESC = {
     sesion,
-    rpc: n => (n === 'mi_acceso' ? { data: { ok: true, estado: 'activo', usuario: { correo: 'quien@al3d.mx' }, empresas: [{ empresa_id: 'al3d', area, estado: 'activo' }] }, error: null }
+    rpc: n => (n === 'mi_acceso' ? { data: { ok: true, estado: 'activo', usuario: { correo: 'quien@al3d.mx' }, empresas: [{ empresa_id: 'al3d', area, estado: 'activo' }],
+      ...(modo ? { modo } : {}), ...(permisos ? { permisos } : {}) }, error: null }
       : { data: { ok: true }, error: null }),
     from: () => ({ data: [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600 }], error: null }),
   };
   const M = await import('../js/mod/pagos-supa.js?' + nombre);
+  _abiertas.push(M);
   const el = { _h: '', isConnected: true, set innerHTML(h) { this._h = h; }, get innerHTML() { return this._h; },
     addEventListener() {}, querySelector() { return null; } };
   el.innerHTML = M.html();
   M.cablear(el);
   for (let i = 0; i < 40 && /Preguntando|Leyendo/.test(el.innerHTML); i++) await espera(5);
-  return { html: el.innerHTML, llamadas: llamadas.slice() };
+  return { html: el.innerHTML, llamadas: llamadas.slice(), M, el };
 }
+const contenedor = () => ({ _h: '', isConnected: true, set innerHTML(h) { this._h = h; }, get innerHTML() { return this._h; },
+  addEventListener() {}, querySelector() { return null; } });
 {
   let r = await pestana('pagos', { rolLocal: 'pagos', sesion: true, area: 'pagos' });
   cierto('Pagos con sesión ve los cuatro formularios', ['Cobro o anticipo', 'Abono de comisión', 'Repartir un depósito', 'Corregir'].every(t => r.html.includes(t)));
@@ -286,7 +426,69 @@ async function pestana(nombre, { rolLocal, sesion, area }) {
   r = await pestana('sinsesion', { rolLocal: 'pagos', sesion: false, area: 'pagos' });
   cierto('sin sesión: el botón de Google y apagar, sin formularios', /pg-google/.test(r.html) && /Apagar Supabase/.test(r.html) && !/pg-form/.test(r.html));
   eq('sin sesión no pregunta nada a la base', r.llamadas, []);
+
+  r = await pestana('hojapagos', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'hoja', alta: true });
+  cierto('con la HOJA mandando: la prueba de siempre, «Registrar en Supabase», y avisa que se registre también en la hoja',
+    /Registrar en Supabase/.test(r.html) && /regístralo también allá/.test(r.html) && !/Cobros y abonos/.test(r.html));
+  cierto('y la venta sin cotización NO se ofrece (la da de alta la hoja)', !/Venta sin cotización/.test(r.html) && !/data-pg-form="venta"/.test(r.html));
+  llamadas.length = 0;
+  globalThis.dispatchEvent(new CustomEvent('al3d-base-cambio'));
+  await espera(20);
+  eq('y un aviso de Realtime no relee nada (con la hoja mandando no llega, y si llegara no se le hace caso)', llamadas, []);
   globalThis.localStorage.removeItem('al3d_pf_supa');
+  globalThis.localStorage.removeItem('al3d_pf_supa_modo');
+}
+
+/* ============================================================================ */
+console.log('\nCON LA BASE MANDANDO: «COBROS Y ABONOS» (paso 5)');
+{
+  let r = await pestana('basepagos', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'base', alta: true });
+  cierto('se llama «Cobros y abonos» y ya no manda a registrar en la hoja', /Cobros y abonos/.test(r.html) && !/regístralo también allá/.test(r.html) &&
+    /lo ven al momento los teléfonos de Dirección y Pagos/.test(r.html));
+  cierto('Pagos ve los cinco: los cuatro de siempre y la venta sin cotización',
+    ['Cobro o anticipo', 'Abono de comisión', 'Repartir un depósito', 'Corregir', 'Venta sin cotización'].every(x => r.html.includes(x)));
+  eq('al abrir pidió lo mismo que antes: quién es y las ventas; nada se escribe', r.llamadas.map(x => x[0] + ':' + x[1]), ['rpc:mi_acceso', 'from:ventas_calculadas']);
+
+  llamadas.length = 0;
+  globalThis.dispatchEvent(new CustomEvent('al3d-base-cambio'));
+  for (let i = 0; i < 40 && !llamadas.length; i++) await espera(5);
+  await espera(10);
+  eq('otro teléfono cobró (Realtime): se releen los saldos, una vez, sin volver a preguntar quién es', llamadas.map(x => x[0] + ':' + x[1]), ['from:ventas_calculadas']);
+  llamadas.length = 0;
+  r.M.cablear(r.el);
+  await espera(10);
+  eq('repintar el mismo contenedor no relee', llamadas, []);
+  const otro = contenedor();
+  otro.innerHTML = r.M.html();
+  r.M.cablear(otro);
+  await espera(10);
+  eq('volver a la pestaña en seguida (menos de 3 s) tampoco: lo de hace un momento sigue al día', llamadas, []);
+  r.M.soltar();
+  llamadas.length = 0;
+  globalThis.dispatchEvent(new CustomEvent('al3d-base-cambio'));
+  await espera(20);
+  eq('con Control desmontado (la pestaña se fue), un aviso no relee nada', llamadas, []);
+
+  r = await pestana('basenoalta', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'base', alta: false });
+  cierto('si la base dice que el área no da de alta ventas, la venta no se ofrece', !/Venta sin cotización/.test(r.html) && /Abono de comisión/.test(r.html));
+
+  r = await pestana('basedir', { rolLocal: 'direccion', sesion: true, area: 'direccion', modo: 'base', alta: true });
+  cierto('Dirección también ve la venta sin cotización', /Venta sin cotización/.test(r.html));
+
+  r = await pestana('basefab', { rolLocal: 'pagos', sesion: true, area: 'fabricacion', modo: 'base', alta: false });
+  cierto('Fabricación según la base, con la base mandando: ni formularios ni importes', !/pg-form/.test(r.html) && !/\$\d/.test(r.html));
+  eq('y solo se le preguntó quién es', r.llamadas.map(x => x[0] + ':' + x[1]), ['rpc:mi_acceso']);
+  llamadas.length = 0;
+  globalThis.dispatchEvent(new CustomEvent('al3d-base-cambio'));
+  await espera(20);
+  eq('ni un aviso de Realtime le pide cifras', llamadas, []);
+
+  r = await pestana('basesinsesion', { rolLocal: 'pagos', sesion: false, area: 'pagos', modo: 'base' });
+  cierto('sin sesión, con la base mandando: el botón de Google, y NO «Apagar Supabase» (volvería a escribir en la hoja)',
+    /pg-google/.test(r.html) && !/Apagar Supabase/.test(r.html));
+  for (const x of _abiertas.splice(0)) x.soltar();
+  globalThis.localStorage.removeItem('al3d_pf_supa');
+  globalThis.localStorage.removeItem('al3d_pf_supa_modo');
 }
 
 /* ============================================================================ */
@@ -301,17 +503,32 @@ console.log('\nAPAGADO NO CAMBIA NADA');
   /* Las funciones de verdad de control.js, corridas aquí con el interruptor apagado y encendido. */
   const cuerpo = n => { const m = new RegExp('function ' + n + '\\(\\) \\{[\\s\\S]*?\\n\\}').exec(sinC); return m ? m[0] : ''; };
   const TABS = /const TABS = (\[[^\]]*\]);/.exec(sinC);
-  const correr = new Function('localStorage', 'Prefs', 'const TABS = ' + (TABS ? TABS[1] : '[]') + ';' + cuerpo('supaEncendido') + cuerpo('tabs') + ' return tabs();');
+  const AREAS = /const AREAS_DE_COBRO = (\[[^\]]*\]);/.exec(sinC);
+  const correr = new Function('localStorage', 'Prefs', 'const TABS = ' + (TABS ? TABS[1] : '[]') + '; const AREAS_DE_COBRO = ' + (AREAS ? AREAS[1] : '[]') + ';' +
+    cuerpo('supaEncendido') + cuerpo('laBaseManda') + cuerpo('tabs') + ' return tabs();');
   const ls = mapa();
-  const pagos = { rol: () => 'pagos' }, fab = { rol: () => 'fabricacion' };
+  const pagos = { rol: () => 'pagos' }, fab = { rol: () => 'fabricacion' }, dir = { rol: () => 'direccion' };
   /* Seis desde octubre de 2026: «Ventas» (`lista`), el detalle que salió del Resumen. */
   const SEIS = ['ventas', 'lista', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
   eq('apagado: las seis pestañas de siempre, en su orden', correr(ls, pagos), SEIS);
   ls.setItem('al3d_pf_supa', 'basura{');
   eq('una clave dañada es apagado', correr(ls, pagos), SEIS);
+  ls.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'base' }));
+  eq('apagado con el modo «base» oído antes: las seis (sin interruptor, la base no manda aquí)', correr(ls, pagos), SEIS);
+  ls.removeItem('al3d_pf_supa_modo');
   ls.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
   eq('encendido: una séptima, al final', correr(ls, pagos), SEIS.concat('asientos'));
   eq('encendido pero Fabricación: las seis', correr(ls, fab), SEIS);
+  ls.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'hoja' }));
+  eq('encendido con la HOJA mandando: lo de siempre', [correr(ls, pagos), correr(ls, fab)], [SEIS.concat('asientos'), SEIS]);
+  ls.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'base', area: 'pagos' }));
+  eq('con la BASE mandando la decide el modo: Pagos y Dirección la tienen, Fabricación no',
+    [correr(ls, pagos), correr(ls, dir), correr(ls, fab)], [SEIS.concat('asientos'), SEIS.concat('asientos'), SEIS]);
+  ls.removeItem('al3d_pf_supa_modo');
+  cierto('la pestaña se llama «Cobros y abonos» con la base mandando y «Registrar (Supabase)» con la hoja',
+    /t: laBaseManda\(\) \? 'Cobros y abonos' : 'Registrar \(Supabase\)'/.test(sinC) && PS.nombreDeLaPestana(true) === 'Cobros y abonos' && PS.nombreDeLaPestana(false) === 'Registrar (Supabase)');
+  cierto('y le pasa a la pestaña la sincronización de la app (una venta nueva baja en el acto)', /_PS\.cablear\(el, o\)/.test(sinC) && /m\.cablear\(ahora, o\)/.test(sinC) &&
+    /sincronizar: CTX && typeof CTX\.sincronizar === 'function' \? CTX\.sincronizar : null/.test(sinC));
   cierto('la clave que mira Control es la del interruptor de supa.js', /'al3d_pf_supa'/.test(cuerpo('supaEncendido')) &&
     /CLAVE_INTERRUPTOR = 'al3d_pf_supa'/.test(leer('js/nucleo/supa.js')));
   cierto('una dirección vieja «?tab=asientos» con Supabase apagado cae en Resumen', /return tabs\(\)\.includes\(t\) \? t : null;/.test(sinC) &&
@@ -340,6 +557,63 @@ console.log('\nDOBLE ENVÍO Y CONFIRMACIÓN (la pantalla)');
   cierto('tras la respuesta el borrador decide: nuevo si se confirmó, el mismo op_id si no', /PS\.despuesDeEnviar\(b, p, r\)/.test(t));
   cierto('los errores van junto a su campo con aria-invalid y role="alert"', /setAttribute\('aria-invalid', 'true'\)/.test(m) && /role="alert"/.test(m));
   cierto('el formulario es un <form>: Enter envía', /<form class="pg-form"/.test(m) && /addEventListener\('submit', alEnviar\)/.test(m));
+  /* Paso 5. */
+  cierto('tampoco mientras se recalcula el reparto (un segundo toque no pide otra vista previa)', /if \(_preparando\) return;/.test(t));
+  cierto('lo raro se pregunta con el botón de peligro del plan', /peligro: !!p\.peligro/.test(t));
+  cierto('el reparto se recalcula ANTES de preguntar, y solo en un envío nuevo (el reintento va con el mismo op_id)',
+    i("if (tipo === 'reparto' && !reintento)") > 0 && i('repartoAlDia(form, c.monto)') < i('confirmarPf({ titulo: p.titulo') && /const reintento = !!b\.incierto;/.test(t));
+  const ra = /async function repartoAlDia[\s\S]*?\n\}/.exec(m);
+  cierto('si el reparto cambió, se enseña el nuevo y NO se manda', !!ra && /if \(PS\.mismoReparto\(_vp, r\.data\)\) return true;/.test(ra[0]) &&
+    /_vp = r\.data;/.test(ra[0]) && /return false;\n\}$/.test(ra[0]) && !/PS\.enviar/.test(ra[0]));
+  cierto('el plan sabe quién manda (la venta sin cotización solo con la base) y sella con la hora de ahora', /baseManda: enBase\(\), ahora: Date\.now\(\)/.test(t));
+  cierto('una venta nueva pide la sincronización de la app al confirmarse', /if \(tipo === 'venta' && _sincronizar\)/.test(t));
+  cierto('«Apagar Supabase» no se ofrece ni se obedece con la base mandando', /\(base \? '' : '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-pg-act="apagar">/.test(m) &&
+    /else if \(act === 'apagar' && !enBase\(\)\)/.test(m));
+  cierto('la regla de quién manda es la de supa.js', /import \{ laBaseManda \} from '\.\.\/nucleo\/supa\.js';/.test(m) && /const enBase = \(\) => laBaseManda\(\);/.test(m));
+  cierto('Realtime: la pestaña escucha `al3d-base-cambio`, el mismo que avisa el enchufe solo con la base mandando',
+    /addEventListener\('al3d-base-cambio', alCambiarLaBase\)/.test(m) && /export const EVENTO_CAMBIO = 'al3d-base-cambio';/.test(leer('js/datos/supa-enchufe.js')) &&
+    /if \(_enBase\) avisarPantallas\(\);/.test(sinComentarios(leer('js/datos/supa-enchufe.js'))));
+  cierto('y no relee mientras alguien escribe o se manda algo: espera a que suelte el campo', /if \(_enviando \|\| _preparando \|\| _cargando \|\| escribiendo\) \{ _releer = true; return; \}/.test(m) &&
+    /addEventListener\('focusout', \(\) => \{ if \(_releer\) setTimeout\(alCambiarLaBase, 0\); \}\)/.test(m));
+}
+
+/* ============================================================================ */
+console.log('\nLOS TEXTOS QUE DECÍAN «LA HOJA» CON LA BASE MANDANDO (paso 5)');
+{
+  const ctl = leer('js/mod/control.js');
+  /* Con la hoja mandando, cada frase de siempre sigue ahí, letra por letra (las pruebas de navegador las buscan). */
+  for (const f of ['Sin señal: se enseña lo último que bajó de la hoja.', "'Trayendo la hoja…'", "'Traer la hoja'", 'de la hoja de finanzas',
+    'el abono de cada comisión se registra en la hoja «Finanzas AL3D — Ventas y Comisiones»', 'Lista para registrar en la hoja',
+    ' para mandarse', 'la hoja no lo aceptó', 'Se guarda en este teléfono y se manda a la pestaña «Gastos» de la hoja de finanzas.',
+    'en la hoja queda con «Anulado: Sí», quién y cuándo', 'Los gastos viven en la pestaña «Gastos» de la hoja ']) {
+    cierto('con la hoja: «' + f.replace(/'/g, '') + '»', ctl.includes(f));
+  }
+  /* Con la base mandando, su versión. */
+  for (const f of ['Sin señal: se enseña lo último que bajó de la base.', "'Trayendo de la base…'", "'Traer de la base'", "'de la base'",
+    'el abono de cada comisión se registra en «Cobros y abonos»', "'Lista para registrar'", "' a la base'", 'la base no lo aceptó',
+    'Se guarda en este teléfono y se manda a la base', 'en la base queda anulado, con quién y cuándo', 'Los gastos viven en la base']) {
+    cierto('con la base: «' + f.replace(/'/g, '') + '»', ctl.includes(f));
+  }
+  cierto('con la base, «Falta actualizar el puente» no sale (lo apartado sale solo en el siguiente bombeo)', /if \(base\) \{ pend \+= apart; apart = 0; \}/.test(ctl) &&
+    /if \(!base && \(D\.hojaGastos === false \|\| apart\)\)/.test(ctl));
+  cierto('y la lista de comisiones lleva a «Cobros y abonos»', /data-tab="asientos">Ir a Cobros y abonos</.test(ctl));
+  const aj = leer('js/mod/ajustes.js'), app = leer('js/app.js');
+  cierto('el candado del rol dice quién lo manda (js/datos/quien-manda.js), en Ajustes las dos veces',
+    (aj.match(/' lo manda ' \+ Manda\.rolLoManda\(\) \+ '<\/span>'/g) || []).length === 2 && !/lo manda la hoja<\/span>/.test(aj));
+  cierto('y su nota también (Ajustes y la barra de arriba)', !/Prefs\.ROL_LO_MANDA_LA_HOJA/.test(aj + app) &&
+    (aj.match(/Manda\.notaDelRol\(\)/g) || []).length >= 4 && (app.match(/Manda\.notaDelRol\(\)/g) || []).length === 2);
+  cierto('y el párrafo de «Entrar con Google» dice de dónde sale el rol', /\(Manda\.rolDeLaBase\(\)\n?\s*\? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base<\/b>/.test(aj));
+  cierto('quien-manda.js no toca prefs.js (que va en los paquetes de dos funciones de Supabase)', !/rolDeLaBase|ROL_LO_MANDA_LA_BASE/.test(leer('js/datos/prefs.js')) &&
+    /'\.\/js\/datos\/quien-manda\.js'/.test(leer('sw.js')));
+  cierto('el pase que da la base lleva `de: \'base\'`', /Prefs\.setPase\(\{ correo, rol: a\.area, hasta: Date\.now\(\) \+ MS_PASE, visto: Date\.now\(\), de: 'base' \}\)/.test(leer('js/nucleo/puerta.js')));
+  /* Y corridas: el pase de la hoja y el de la base. */
+  const pase = (de) => { const p = { correo: 'a@al3d.mx', rol: 'pagos', hasta: Date.now() + 60000 }; if (de) p.de = de; globalThis.localStorage.setItem(Prefs.CLAVES.PASE, JSON.stringify(p)); };
+  pase();
+  eq('pase de la hoja: «lo manda la hoja» y la nota de «Accesos»', [Manda.rolDeLaBase(), Manda.rolLoManda(), Manda.notaDelRol() === Prefs.ROL_LO_MANDA_LA_HOJA], [false, 'la hoja', true]);
+  pase('base');
+  eq('pase de la base: «lo manda la base» y la nota de Personas', [Manda.rolDeLaBase(), Manda.rolLoManda(), /Ajustes → Supabase → Personas/.test(Manda.notaDelRol())], [true, 'la base', true]);
+  globalThis.localStorage.removeItem(Prefs.CLAVES.PASE);
+  eq('sin pase: nada que decir (el interruptor del rol es de este aparato)', [Manda.rolDeLaBase(), Manda.rolLoManda()], [false, 'la hoja']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

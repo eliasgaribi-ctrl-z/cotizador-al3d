@@ -27,10 +27,13 @@
        aritmética pura y la captura). El Resumen dice además lo gastado en el mes y la utilidad
        aproximada —vendido menos gastado—, con su letra chica.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
-   Y una sexta, «Registrar (Supabase)», que SOLO existe con el interruptor de Supabase encendido
+   Y una séptima, «Registrar (Supabase)», que SOLO existe con el interruptor de Supabase encendido
    en este aparato (Ajustes, `al3d_pf_supa`): los formularios de cobro, abono, reparto y
-   corrección contra la base de pruebas. Apagado, Control es exactamente las cinco de arriba y
+   corrección contra la base. Apagado, Control es exactamente las seis de arriba y
    js/mod/pagos-supa.js ni se descarga. Ver `supaEncendido` y docs/supabase/NOTAS-SEGUNDA-ENTREGA-PAGOS.md.
+   Con la BASE mandando (paso 5 de docs/BASE-MANDA.md) esa pestaña es «Cobros y abonos», la de
+   Dirección y Pagos, con la venta sin cotización; y lo que esta pantalla decía de «la hoja» (el
+   récord, los gastos, dónde se registra el abono de una comisión) lo dice de la base (`enBase`).
    Lo vendido POR TIPO DE TRABAJO —una tarjeta por tipo y la gráfica mes a mes o año por año— va
    al final de la pestaña Ventas. Ver `htmlPorTipo` y js/datos/ventas-por-tipo.js.
 
@@ -154,6 +157,21 @@ const MIN_FRESCO_MS = 10 * 60 * 1000;
 const _mqTelefono = typeof matchMedia === 'function' ? matchMedia('(max-width:759px)') : null;
 const enTelefono = () => !!(_mqTelefono && _mqTelefono.matches);
 function alCambiarAncho() { pintar(); }
+
+/* ----- ¿Quién manda: la hoja o la base? (docs/BASE-MANDA.md, paso 5) -----
+   Con la base mandando, el récord de esta pantalla baja de la base, los gastos se guardan en la base y
+   los cobros y abonos se registran en «Cobros y abonos»: lo que aquí decía «la hoja» lo dice de la base.
+   Con la hoja mandando cada frase es, letra por letra, la de siempre (las pruebas de navegador las buscan).
+   La regla es la de `laBaseManda()` de js/nucleo/supa.js —el interruptor de Supabase encendido aquí Y el
+   último modo oído en 'base'—, leída sin cargar supa.js, como en js/app.js (pruebas/supabase-relevo.mjs
+   corre todas las copias): con la hoja mandando Control no descarga nada nuevo. */
+function laBaseManda() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+const enBase = () => laBaseManda();
 
 export async function montar(contenedor, ctx) {
   cont = contenedor;
@@ -389,7 +407,7 @@ async function traerDeLaHoja(silencioso) {
     return;
   }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    if (!silencioso) toast('Sin señal: se enseña lo último que bajó de la hoja.', '', 3400);
+    if (!silencioso) toast(enBase() ? 'Sin señal: se enseña lo último que bajó de la base.' : 'Sin señal: se enseña lo último que bajó de la hoja.', '', 3400);
     return;
   }
   TRAYENDO = true;
@@ -431,12 +449,12 @@ function encenderBoton() {
   if (!bt) return;
   const P = piezas();
   if (!P || typeof P.estadoBoton !== 'function') {
-    bt.disabled = true; bt.innerHTML = ico('i-reloj') + ' ' + esc('Trayendo la hoja…');
+    bt.disabled = true; bt.innerHTML = ico('i-reloj') + ' ' + esc(enBase() ? 'Trayendo de la base…' : 'Trayendo la hoja…');
     return;
   }
   const h = P.estadoBoton(bt);
   if (!h) return;
-  if (h.estado !== 'trabajando') h.trabajando({ verbo: 'Trayendo la hoja', tau: 6000 });
+  if (h.estado !== 'trabajando') h.trabajando({ verbo: enBase() ? 'Trayendo de la base' : 'Trayendo la hoja', tau: 6000 });
   if (_bajada && _bajada.pagina) h.avance(_bajada.p, 'Página ' + _bajada.pagina);
 }
 
@@ -453,14 +471,15 @@ function cerrarBoton(error, cambios, borrados) {
   if (borrados) partes.push(borrados + (borrados === 1 ? ' quitada' : ' quitadas'));
   const texto = partes.join(' · ') || 'Al día';
   if (error) toast(error, 'err', 5200);
+  const La = enBase() ? 'La base' : 'La hoja', la = enBase() ? 'la base' : 'la hoja';
   if (!bt || !P || typeof P.estadoBoton !== 'function') {
     if (!error) toast(cambios || borrados
-      ? 'La hoja trajo ' + cambios + (cambios === 1 ? ' cambio' : ' cambios') +
+      ? La + ' trajo ' + cambios + (cambios === 1 ? ' cambio' : ' cambios') +
         (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '')
-      : 'El récord ya estaba al día con la hoja', 'ok', 3800);
+      : 'El récord ya estaba al día con ' + la, 'ok', 3800);
     return;
   }
-  const frase = cambios || borrados ? 'La hoja trajo ' + texto : 'El récord ya estaba al día con la hoja';
+  const frase = cambios || borrados ? La + ' trajo ' + texto : 'El récord ya estaba al día con ' + la;
   if (error) _cierre = { tipo: 'mal', texto: 'No contestó', hasta: 0 };
   else _cierre = { tipo: 'ok', texto, hasta: Date.now() + 3500, frase };
   aplicarCierre(true);
@@ -516,22 +535,26 @@ function lineaHoja() {
      silenciosa, que no lo enciende): con ella, `despuesDePintar` le devuelve su estado. */
   const P = piezas();
   const ocupado = TRAYENDO && !SILENCIOSA && !(P && typeof P.estadoBoton === 'function');
+  const base = enBase();
   const boton = txt => '<button type="button" class="btn btn-gho pf-btn-corto" data-act="hoja-traer"' +
     (ocupado ? ' disabled' : '') + '>' + ico(ocupado ? 'i-reloj' : 'i-bajar') + ' ' +
-    esc(ocupado ? 'Trayendo la hoja…' : txt) + '</button>';
+    esc(ocupado ? (base ? 'Trayendo de la base…' : 'Trayendo la hoja…') : txt) + '</button>';
   if (!b.configurado) {
     return '<p class="pf-frescura ct-hoja ct-hoja-sin">' + ico('i-nube-off') +
-      '<span>Sin conexión a la hoja de finanzas: solo se ve lo registrado en este dispositivo.</span>' +
-      '<button type="button" class="ct-hoja-ir" data-ir="ajustes">Conectar la hoja</button></p>';
+      (base ? '<span>Sin conexión a la base: solo se ve lo registrado en este dispositivo.</span>' +
+              '<button type="button" class="ct-hoja-ir" data-ir="ajustes">Revisar en Ajustes</button></p>'
+            : '<span>Sin conexión a la hoja de finanzas: solo se ve lo registrado en este dispositivo.</span>' +
+              '<button type="button" class="ct-hoja-ir" data-ir="ajustes">Conectar la hoja</button></p>');
   }
   if (!b.completa) {
     return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span>' +
-      (b.a_medias ? 'La hoja se trajo a medias y falta terminar de bajarla.' : 'Todavía no se ha traído el récord de ventas de la hoja.') +
-      (b.ultimo_error ? ' ' + esc(b.ultimo_error) : '') + '</span>' + boton('Traer la hoja') + '</p>';
+      (base ? (b.a_medias ? 'El récord de la base se trajo a medias y falta terminar de bajarlo.' : 'Todavía no se ha traído el récord de ventas de la base.')
+            : (b.a_medias ? 'La hoja se trajo a medias y falta terminar de bajarla.' : 'Todavía no se ha traído el récord de ventas de la hoja.')) +
+      (b.ultimo_error ? ' ' + esc(b.ultimo_error) : '') + '</span>' + boton(base ? 'Traer de la base' : 'Traer la hoja') + '</p>';
   }
   const n = (Number(u.de_hoja) || 0) + (Number(u.enlazados) || 0);
   return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span><b>' + n +
-    (n === 1 ? ' venta' : ' ventas') + '</b> de la hoja de finanzas' +
+    (n === 1 ? ' venta' : ' ventas') + '</b> ' + (base ? 'de la base' : 'de la hoja de finanzas') +
     (u.solo_aqui ? ' y ' + u.solo_aqui + (u.solo_aqui === 1 ? ' que solo está' : ' que solo están') + ' en este dispositivo' : '') +
     ' · actualizado ' + esc(haceCuanto(b.completa)) +
     (b.a_medias ? ' · hay una bajada a medias' : '') + '</span>' + boton('Actualizar') + '</p>';
@@ -571,7 +594,7 @@ function htmlPantalla() {
     { v: 'gastos', t: 'Gastos' },
     { v: 'bitacora', t: 'Bitácora' },
   ];
-  if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: 'Registrar (Supabase)' });
+  if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: laBaseManda() ? 'Cobros y abonos' : 'Registrar (Supabase)' });
   const pestanas = segmento(opciones, TAB, 'data-tab', 'Qué ver');
 
   let cuerpo;
@@ -1529,11 +1552,14 @@ function pintarComisiones() {
     : vacio('No hay comisiones por pagar',
         C.pend.n
           ? 'Hay ' + C.pend.n + (C.pend.n === 1 ? ' comisión que se podrá pagar' : ' comisiones que se podrán pagar') +
-            ' cuando su venta quede LIQUIDADA en la hoja.'
-          : 'Una comisión se puede pagar cuando su venta queda LIQUIDADA en la hoja.');
-  return filaCuentas(c) + cuerpo +
-    '<p class="pf-nota">La comisión es fija: ' + PCT + ' del subtotal, sin IVA, con centavos, como la calcula la hoja. Aquí no se marca ningún pago: ' +
-    'el abono de cada comisión se registra en la hoja «Finanzas AL3D — Ventas y Comisiones» y, cuando baja de allá, la comisión sale de esta lista.</p>';
+            ' cuando su venta quede LIQUIDADA' + (enBase() ? '.' : ' en la hoja.')
+          : 'Una comisión se puede pagar cuando su venta queda LIQUIDADA' + (enBase() ? '.' : ' en la hoja.'));
+  /* Con la base mandando, el abono se registra aquí mismo, en «Cobros y abonos»: la hoja ya no manda. */
+  return filaCuentas(c) + cuerpo + (enBase()
+    ? '<p class="pf-nota">La comisión es fija: ' + PCT + ' del subtotal, sin IVA, con centavos, como la calcula la base. Aquí no se marca ningún pago: ' +
+      'el abono de cada comisión se registra en «Cobros y abonos» (aquí, en Control) y, en cuanto la base lo tiene, la comisión sale de esta lista.</p>'
+    : '<p class="pf-nota">La comisión es fija: ' + PCT + ' del subtotal, sin IVA, con centavos, como la calcula la hoja. Aquí no se marca ningún pago: ' +
+      'el abono de cada comisión se registra en la hoja «Finanzas AL3D — Ventas y Comisiones» y, cuando baja de allá, la comisión sale de esta lista.</p>');
 }
 
 /* Lo que se repinta con cada tecla: el medidor, la frase, el botón, la lista armada si la hay y
@@ -1574,7 +1600,7 @@ function htmlComisionesVivas() {
     const ck = estado === 'lista' && P && typeof P.palomitaHTML === 'function'
       ? P.palomitaHTML({ circulo: true, dibujar: !!(armada && armada.nueva) }) : '';
     const parte = x.monto < x.comision ? 'faltan ' + money(x.monto) + ' de ' + money(x.comision)
-      : (x.sub > 0 ? PCT + ' de ' + money(x.sub) : 'comisión de la hoja');
+      : (x.sub > 0 ? PCT + ' de ' + money(x.sub) : (enBase() ? 'comisión de la base' : 'comisión de la hoja'));
     return '<li class="ct-com-fila ' + estado + '" data-id="' + esc(x.id) + '">' +
       '<span class="ct-com-ck" aria-hidden="true">' + ck + '</span>' +
       '<span class="ct-com-nom">' + esc(x.nombre) + '<small>' + palabra + ' · <span class="nw">' + esc(x.folio) + '</span></small></span>' +
@@ -1583,13 +1609,22 @@ function htmlComisionesVivas() {
   if (armada) armada.nueva = false;
 
   const texto = armada ? textoLista(r) : '';
+  /* Con la base mandando la lista se registra en «Cobros y abonos», una por una: el «Repartir un depósito» de allá
+     paga de la más ANTIGUA a la más nueva, y esta lista va de la más chica a la más grande. */
+  const base = enBase();
+  const irACobrar = base && tabs().includes('asientos')
+    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-tab="asientos">Ir a Cobros y abonos</button>' : '';
   const panel = armada
-    ? '<div class="ct-com-armada" id="ct-com-armada"><p class="pf-fila-t">Lista para registrar en la hoja <span class="folio">' + r.k + '</span></p>' +
+    ? '<div class="ct-com-armada" id="ct-com-armada"><p class="pf-fila-t">' + (base ? 'Lista para registrar' : 'Lista para registrar en la hoja') +
+        ' <span class="folio">' + r.k + '</span></p>' +
       '<pre class="ct-com-texto" tabindex="0" aria-label="Lista armada">' + esc(texto) + '</pre>' +
       '<div class="ct-com-acc"><button type="button" class="btn btn-pri pf-btn-corto" data-com-copiar>' + ico('i-copiar') + ' Copiar la lista</button>' +
-        '<a class="btn-wa" href="' + esc(linkWa('', texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Mandarla por WhatsApp</a></div>' +
-      '<p class="pf-nota">Aquí no se marca nada como pagado: el abono de cada una se registra en la hoja «Finanzas AL3D». ' +
-      'Cuando baje de allá, estas dejan de aparecer.</p></div>'
+        '<a class="btn-wa" href="' + esc(linkWa('', texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Mandarla por WhatsApp</a>' + irACobrar + '</div>' +
+      (base
+        ? '<p class="pf-nota">Aquí no se marca nada como pagado: cada una se registra en «Cobros y abonos» → «Abono de comisión», una por una ' +
+          '(«Repartir un depósito» paga de la venta más antigua a la más nueva, no de la más chica). Cuando la base las tiene, dejan de aparecer.</p></div>'
+        : '<p class="pf-nota">Aquí no se marca nada como pagado: el abono de cada una se registra en la hoja «Finanzas AL3D». ' +
+          'Cuando baje de allá, estas dejan de aparecer.</p></div>')
     : '';
 
   return '<div class="ct-com-med">' + medidor + '</div>' +
@@ -1602,7 +1637,8 @@ function htmlComisionesVivas() {
 /* La lista que se copia: una comisión por renglón, con folio, nombre y monto, y el total abajo. */
 function textoLista(r) {
   const lin = r.orden.slice(0, r.k).map(x => x.folio + ' · ' + x.nombre + ' — ' + money(x.monto));
-  return ['Comisiones para registrar en la hoja «Finanzas AL3D — Ventas y Comisiones»',
+  return [enBase() ? 'Comisiones para registrar como abonos en la base (Control → Cobros y abonos)'
+    : 'Comisiones para registrar en la hoja «Finanzas AL3D — Ventas y Comisiones»',
     r.k + (r.k === 1 ? ' comisión' : ' comisiones') + ' de ventas ya liquidadas, de la más chica a la más grande', '']
     .concat(lin, ['', 'Total: ' + money(r.suma), 'Disponible: ' + money(r.disponible) + ' · sobran ' + money(r.sobra)]).join('\n');
 }
@@ -1616,7 +1652,8 @@ function armarLista() {
   if (vivo) vivo.innerHTML = htmlComisionesVivas();
   const copiar = cont && cont.querySelector('[data-com-copiar]');
   if (copiar) { try { copiar.focus({ preventScroll: false }); } catch (_) {} }
-  voz('Lista armada: ' + r.k + (r.k === 1 ? ' comisión' : ' comisiones') + ' por ' + money(r.suma) + '. Cópiala para registrarla en la hoja.');
+  voz('Lista armada: ' + r.k + (r.k === 1 ? ' comisión' : ' comisiones') + ' por ' + money(r.suma) +
+    (enBase() ? '. Regístralas en Cobros y abonos.' : '. Cópiala para registrarla en la hoja.'));
 }
 
 /* ----- Gastos: lo que sale (octubre de 2026) -----
@@ -1648,7 +1685,13 @@ function pintarGastos() {
       em: 'vendido ' + money(D.kpi.mes.total) + ' menos gastado' }],
   ];
   return lineaHoja() + avisoGastosPorMandar() + filaCuentas(c) + htmlPorCategoria(G) + listaGastos() +
-    comoSeCuenta('Cada gasto cuenta en el mes del día en que se pagó, no del día en que se capturó. Los anulados no suman: ' +
+    comoSeCuenta(enBase()
+      ? 'Cada gasto cuenta en el mes del día en que se pagó, no del día en que se capturó. Los anulados no suman: ' +
+        'se quedan en la lista tachados, y en la base anulados, con quién y cuándo. Los gastos viven en la base: lo que se captura ' +
+        'aquí se guarda allá y llega solo a los teléfonos de Dirección y Pagos. La utilidad aproximada es lo vendido en el mes ' +
+        '—lo firmado, por la fecha de su anticipo— menos lo gastado; no es la del contador, pero dice hacia dónde va el mes. ' +
+        'Un gasto no se corrige: se anula y se vuelve a capturar.'
+      : 'Cada gasto cuenta en el mes del día en que se pagó, no del día en que se capturó. Los anulados no suman: ' +
       'se quedan en la lista tachados, y en la hoja con «Anulado: Sí». Los gastos viven en la pestaña «Gastos» de la hoja ' +
       '«Finanzas AL3D»: lo que se captura aquí se manda allá por el puente, y lo que se escribe allá a mano baja aquí con ' +
       '«Actualizar». La utilidad aproximada es lo vendido en el mes —lo firmado, por la fecha de su anticipo— menos lo gastado; ' +
@@ -1672,7 +1715,11 @@ function avisoGastosPorMandar() {
     else if (e.estado === 'rechazada') { rech++; razon = e.error || razon; }
   }
   let html = '';
-  if (D.hojaGastos === false || apart) {
+  /* Con la base mandando no hay versión de la hoja que esperar: lo que se quedó apartado de antes sale solo en el
+     siguiente bombeo (paso 3), y se cuenta como lo que espera señal. */
+  const base = enBase();
+  if (base) { pend += apart; apart = 0; }
+  if (!base && (D.hojaGastos === false || apart)) {
     html += '<p class="hintnote nota-av ct-gas-aviso" role="status" data-gastos-sin-puente>' + ico('i-nube-off') +
       '<span><b>Falta actualizar el puente.</b> La hoja corre un Apps Script anterior a puente-sheets-' +
       VERSION_DE_LOS_GASTOS + ' y todavía no tiene la pestaña «Gastos». ' +
@@ -1683,8 +1730,9 @@ function avisoGastosPorMandar() {
   }
   if (!pend && !rech) return html;
   const partes = [];
-  if (pend) partes.push(nGastos(pend) + (pend === 1 ? ' espera' : ' esperan') + ' para mandarse a la hoja: ' + (pend === 1 ? 'sale' : 'salen') + ' solos en cuanto haya señal');
-  if (rech) partes.push(nGastos(rech) + ' no ' + (rech === 1 ? 'entró' : 'entraron') + ' a la hoja');
+  const a = base ? ' a la base' : ' a la hoja';
+  if (pend) partes.push(nGastos(pend) + (pend === 1 ? ' espera' : ' esperan') + ' para mandarse' + a + ': ' + (pend === 1 ? 'sale' : 'salen') + ' solos en cuanto haya señal');
+  if (rech) partes.push(nGastos(rech) + ' no ' + (rech === 1 ? 'entró' : 'entraron') + a);
   return html + '<p class="hintnote ' + (rech ? 'nota-mal' : 'nota-av') + ' ct-gas-aviso" role="status">' + ico(rech ? 'i-aviso' : 'i-reloj') +
     '<span>' + esc(partes.join('; ') + '.') + (razon ? ' <small>' + esc(razon) + '</small>' : '') +
     ' No se pierde ninguno: están guardados en este teléfono.</span></p>';
@@ -1706,12 +1754,14 @@ function htmlPorCategoria(G) {
           '<span class="ct-gas-cat-riel" aria-hidden="true">' + (pc ? '<i style="width:' + pc + '%"></i>' : '') + '</span>' +
           '<span class="ct-gas-cat-v">' + esc(money(x.total)) + '</span></li>';
       }).join('') + '</ul>'
-    : vacio('Sin gastos en ' + G.mes.etiqueta, 'Cuando se capture el primero —aquí o en la pestaña «Gastos» de la hoja— aparece por categoría.');
+    : vacio('Sin gastos en ' + G.mes.etiqueta, enBase() ? 'Cuando se capture el primero —aquí o en otro teléfono— aparece por categoría.'
+      : 'Cuando se capture el primero —aquí o en la pestaña «Gastos» de la hoja— aparece por categoría.');
   return '<section class="card" id="ct-gastos-mes" aria-labelledby="ct-gastos-mes-h"><div class="card-h"><h2 id="ct-gastos-mes-h">' +
       ico('i-control') + ' Por categoría</h2><span class="folio">' + esc(G.mes.etiqueta) + '</span></div>' +
     '<div class="card-b">' + cuerpo +
       (G.anulados ? '<p class="pf-nota">' + esc(nGastos(G.anulados)) + ' de este mes ' + (G.anulados === 1 ? 'está anulado y no suma' : 'están anulados y no suman') + '.</p>' : '') +
-      (G.sinFecha ? '<p class="pf-nota">' + esc(nGastos(G.sinFecha)) + ' de la hoja no ' + (G.sinFecha === 1 ? 'tiene' : 'tienen') + ' fecha y no ' + (G.sinFecha === 1 ? 'cae' : 'caen') + ' en ningún mes: se corrige en la columna «Fecha» de la pestaña Gastos.</p>' : '') +
+      (G.sinFecha ? '<p class="pf-nota">' + esc(nGastos(G.sinFecha)) + (enBase() ? ' no ' : ' de la hoja no ') + (G.sinFecha === 1 ? 'tiene' : 'tienen') + ' fecha y no ' + (G.sinFecha === 1 ? 'cae' : 'caen') + ' en ningún mes' +
+        (enBase() ? ': se anula y se vuelve a capturar con su día.</p>' : ': se corrige en la columna «Fecha» de la pestaña Gastos.</p>') : '') +
     '</div></section>';
 }
 
@@ -1727,7 +1777,8 @@ function listaGastos() {
     ? lista.map(filaGasto).join('')
     : vacio(D.gastos.length ? 'Nada en este periodo' : 'Todavía no hay gastos',
         D.gastos.length ? 'Prueba con otro periodo u otra palabra.'
-          : 'Registra el primero con el botón de arriba: el material, la renta, la gasolina… Se guarda aquí y se manda a la hoja.');
+          : 'Registra el primero con el botón de arriba: el material, la renta, la gasolina… Se guarda aquí y se manda ' +
+            (enBase() ? 'a la base.' : 'a la hoja.'));
   return '<div class="card" id="ct-gastos"><div class="card-h"><h2>' + ico('i-venta') + ' Gastos' +
       ' <span class="folio">' + vivos.length + '</span></h2>' +
       '<span class="ct-total">' + esc(money(total)) + '</span></div>' +
@@ -1748,7 +1799,7 @@ function filaGasto(g) {
   const conPuente = !!(D.bajada && D.bajada.configurado);
   let etiqueta = '';
   if (g.anulado) etiqueta = ' <span class="pf-sem nada ct-origen">anulado</span>';
-  else if (e.estado === 'rechazada') etiqueta = ' <span class="pf-sem grave ct-origen">la hoja no lo aceptó</span>';
+  else if (e.estado === 'rechazada') etiqueta = ' <span class="pf-sem grave ct-origen">' + (enBase() ? 'la base no lo aceptó' : 'la hoja no lo aceptó') + '</span>';
   else if (e.estado === 'sin_destino') etiqueta = ' <span class="pf-sem falta ct-origen">espera la pestaña</span>';
   else if (conPuente && (e.estado === 'pendiente' || e.estado === 'local')) etiqueta = ' <span class="pf-sem falta ct-origen">por mandar</span>';
   const det = [fmtFecha(g.fecha) || 'sin fecha', g.categoria, g.cuenta || 'sin cuenta'].concat(g.folio ? [g.folio] : []);
@@ -1799,7 +1850,8 @@ function abrirGasto() {
     '<div class="pf-panel-h"><h2 id="ct-gas-titulo">Registrar gasto</h2>' +
       '<button type="button" class="pf-cerrar" data-gs="cerrar" aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
     '<div class="pf-panel-b">' +
-      '<p class="pf-fila-d">Se guarda en este teléfono y se manda a la pestaña «Gastos» de la hoja de finanzas. Sin señal, sale solo cuando vuelva.</p>' +
+      '<p class="pf-fila-d">' + (enBase() ? 'Se guarda en este teléfono y se manda a la base, que lo lleva a los demás teléfonos.'
+        : 'Se guarda en este teléfono y se manda a la pestaña «Gastos» de la hoja de finanzas.') + ' Sin señal, sale solo cuando vuelva.</p>' +
       '<div class="fld"><label for="ct-gas-fecha">¿Qué día se pagó?</label>' +
         '<input type="date" id="ct-gas-fecha" value="' + esc(hoy) + '" max="' + esc(hoy) + '" required></div>' +
       '<div class="fld"><label for="ct-gas-concepto">Concepto</label>' +
@@ -1885,7 +1937,8 @@ async function guardarGasto() {
   cerrarGasto();
   const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
   toast('Gasto de ' + money(r.valor.monto) + ' guardado' + (Sync.configurado()
-    ? (sinRed ? '. Sin señal: se manda a la hoja en cuanto vuelva.' : ' y en camino a la hoja.') : ' en este teléfono.'), 'ok', 4200);
+    ? (enBase() ? (sinRed ? '. Sin señal: se manda a la base en cuanto vuelva.' : ' y en camino a la base.')
+      : (sinRed ? '. Sin señal: se manda a la hoja en cuanto vuelva.' : ' y en camino a la hoja.')) : ' en este teléfono.'), 'ok', 4200);
   /* El mes del gasto a la vista: si se capturó uno de otro mes con el periodo en «Este mes», no
      aparecería en la lista y parecería que no se guardó. */
   if (GPER === 'mes' && Ventas.mesDe(datos.fecha) !== D.hoy.slice(0, 7)) {
@@ -1912,7 +1965,8 @@ async function anularGasto(id) {
   const si = await confirmarPf({
     titulo: '¿Anular este gasto?',
     texto: money(g.monto) + ' · ' + (g.concepto || 'sin concepto') + ' · ' + (fmtFecha(g.fecha) || 'sin fecha') +
-      '. Deja de sumar, pero no se borra: en la hoja queda con «Anulado: Sí», quién y cuándo. Si estuvo mal, captúralo otra vez.',
+      (enBase() ? '. Deja de sumar, pero no se borra: en la base queda anulado, con quién y cuándo. Si estuvo mal, captúralo otra vez.'
+        : '. Deja de sumar, pero no se borra: en la hoja queda con «Anulado: Sí», quién y cuándo. Si estuvo mal, captúralo otra vez.'),
     si: 'Sí, anular', no: 'Mejor no', peligro: true,
   });
   if (!si || !cont) return;
@@ -2057,25 +2111,32 @@ function cambiarTab(tab) {
 const TABS = ['ventas', 'lista', 'cobrar', 'comisiones', 'gastos', 'bitacora'];
 /* La séptima pestaña solo con Supabase encendido en ESTE aparato. Se lee la clave como la lee
    app.js —sin importar js/nucleo/supa.js—: apagado no se carga nada. Fabricación no tiene Control,
-   y aun así no se le ofrece. */
+   y aun así no se le ofrece.
+   Con la BASE mandando (paso 5 de docs/BASE-MANDA.md) la decide el modo de la empresa: es «Cobros y
+   abonos», donde se cobra, y la tienen Dirección y Pagos sin encender nada más que lo que ya pide la
+   base para mandar en este aparato (`laBaseManda`, arriba). Con la hoja mandando es la prueba de siempre. */
 function supaEncendido() {
   try { return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || ''); } catch (_) { return false; }
 }
+const AREAS_DE_COBRO = ['direccion', 'pagos'];
 function tabs() {
+  if (laBaseManda()) return AREAS_DE_COBRO.includes(Prefs.rol()) ? TABS.concat('asientos') : TABS;
   return supaEncendido() && Prefs.rol() !== 'fabricacion' ? TABS.concat('asientos') : TABS;
 }
 /* La pestaña de Supabase se carga la primera vez que se abre y después se pinta sin esperar: sus
-   borradores viven en ese módulo, así que un repintado de Control no tira lo escrito. */
+   borradores viven en ese módulo, así que un repintado de Control no tira lo escrito. Se le pasa la
+   sincronización de la app: una venta sin cotización recién dada de alta baja a este teléfono en el acto. */
 function cablearAsientos() {
   const el = $('ct-asientos');
   if (!el) return;
-  if (_PS) { _PS.cablear(el); return; }
+  const o = { sincronizar: CTX && typeof CTX.sincronizar === 'function' ? CTX.sincronizar : null };
+  if (_PS) { _PS.cablear(el, o); return; }
   import('./pagos-supa.js').then(m => {
     _PS = m;
     const ahora = $('ct-asientos');
     if (!ahora || !cont || !cont.contains(ahora)) return;
     ahora.innerHTML = m.html();
-    m.cablear(ahora);
+    m.cablear(ahora, o);
   }).catch(() => { const x = $('ct-asientos'); if (x) x.innerHTML = '<p class="hintnote nota-mal" role="alert">No se pudo abrir esta pestaña. Revisa la señal y vuelve a entrar.</p>'; });
 }
 function tabDeLaDireccion() {

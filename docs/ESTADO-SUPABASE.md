@@ -635,3 +635,17 @@ nueva. El detalle y lo que hace falta en producción: docs/BASE-MANDA.md, «Paso
 | Las imágenes de las cotizaciones suben y bajan con la base mandando, sin la sombra | hecho y verificado en node | `pruebas/supabase-cotizador.mjs`, `pruebas/supabase-imagenes.mjs` |
 | «Registrar venta»: el V-### de la base en el recibo del cotizador, sin «Copiar datos para la hoja»; la venta va con el folio global de la cotización aunque sea de otro teléfono | hecho y verificado en node | `pruebas/supabase-cotizador.mjs` |
 | Probarlo en un navegador y contra `al3d-produccion` | **no hecho**: hace falta la app publicada (`sw.js` 147) y la empresa en `'base'` | — |
+
+## «La base manda», paso 5: Pagos (2026-10-25, sin publicar)
+
+Rama `claude/base-manda-5`, sobre el paso 4 (#172). Con la base mandando, la pestaña de Control que era la prueba «Registrar (Supabase)» es
+«Cobros y abonos»: ahí Dirección y Pagos registran cobros, liquidación, abonos de comisión, el reparto FIFO y las ventas sin cotización, y
+todos los teléfonos ven el saldo nuevo. Con la hoja mandando, nada cambia. Sin migración nueva. El detalle y lo que hace falta en producción:
+docs/BASE-MANDA.md, «Paso 5».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| Las pantallas de Pagos con la base mandando: la pestaña la decide el modo de la empresa (Dirección y Pagos; Fabricación no), cobro/anticipo, abono, reparto y corrección por las funciones de `0007`/`0012`/`0013`, op_id por formulario, botón de peligro en lo raro (cobro de más, venta ya liquidada, reparto), el reparto recalculado antes de preguntar, Realtime que relee los saldos | hecho y verificado en node y en PGlite | `pruebas/pagos-supa.mjs` (238); `supabase/tests/pagos/pantalla.mjs` (PA-01 a PA-06) |
+| La venta sin cotización (`alta_venta`, `0006`): el V-### de la base, idempotente por su id (sale del op_id del formulario), solo con la base mandando y solo si la matriz lo deja (Dirección y Pagos) | hecho y verificado en node y en PGlite | `pruebas/pagos-supa.mjs`; PA-04 |
+| Los textos que decían «la hoja» con la base mandando: el candado del rol, el glifo de sincronización, el récord, los gastos y las comisiones de Control | hecho y verificado en node | `pruebas/pagos-supa.mjs`, `pruebas/pf-esqueleto.mjs` |
+| Probarlo en un navegador y contra `al3d-produccion` | **no hecho**: hace falta la app publicada (`sw.js` 148) y la empresa en `'base'` | — |
