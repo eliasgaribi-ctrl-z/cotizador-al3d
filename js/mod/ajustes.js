@@ -1259,15 +1259,17 @@ function guardarGcal() {
 }
 
 /* ----- Supabase (el proyecto de producción): la pieza 3 de la migración, APAGADA -----
-   Solo la ve Dirección y solo hace algo en el aparato donde se enciende. Encendida: entrar con
-   Google a Supabase, ver qué dice la base de ti, y —siendo Dirección activa— dar de alta, cambiar
-   de área o dar de baja a las personas. Nada de esto cambia la puerta de hoy ni lo que ven los
-   demás: la hoja sigue mandando. Ver js/nucleo/supa.js. */
+   La ven los TRES roles (paso 2 de docs/BASE-MANDA.md: el día que la empresa pase a la base, cada
+   teléfono tiene que haber entrado a ella para mandar y recibir) y solo hace algo en el aparato donde
+   se enciende. Encendida: entrar con Google a Supabase, ver qué dice la base de ti y quién manda en la
+   empresa —la hoja o la base—, y —siendo Dirección activa— dar de alta, cambiar de área o dar de baja a
+   las personas. Mientras la empresa trabaje con la hoja, nada de esto cambia la puerta de hoy ni lo que
+   ven los demás. Ver js/nucleo/supa.js y js/datos/supa-relevo.js. */
 const AREA_NOMBRE = { direccion: 'Dirección', fabricacion: 'Fabricación', pagos: 'Pagos' };
 const ESTADO_NOMBRE = { activo: 'activo', invitado: 'invitado (todavía no entra)', baja: 'dado de baja' };
 
 function cardSupabase() {
-  if (Prefs.rol() !== 'direccion') return '';
+  if (!Prefs.ROLES.includes(Prefs.rol())) return '';
   return tarjeta('i-nube', 'Supabase', '<div id="aj-supa" aria-live="polite">' +
     nota('Leyendo…') + '</div>', 'aj-s-supa');
 }
@@ -1281,8 +1283,11 @@ async function pintarSupabase() {
   const listo = html => { if (turno === _supaTurno && $('aj-supa')) $('aj-supa').innerHTML = html; };
   const apagar = '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
   if (!Supa.encendido()) {
-    listo('<p class="aj-p">Esto es <b>solo para probar</b> la base nueva (Supabase, con los datos reales) en <b>este</b> aparato. ' +
-      'Apagado (como está) no hace nada: la app sigue entrando y guardando como siempre, con la hoja.</p>' +
+    listo((Prefs.rol() === 'direccion'
+      ? '<p class="aj-p">Esto es <b>solo para probar</b> la base nueva (Supabase, con los datos reales) en <b>este</b> aparato. '
+      : '<p class="aj-p">Aquí entra <b>este</b> teléfono a la base nueva (Supabase). ') +
+      'Apagado (como está) no hace nada: la app sigue entrando y guardando como siempre, con la hoja. ' +
+      'El día que Dirección pase la empresa a la base, este teléfono la necesita encendida y con tu cuenta de Google para mandar y recibir.</p>' +
       '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-encender">Encender en este aparato</button></div>');
     return;
   }
@@ -1294,6 +1299,8 @@ async function pintarSupabase() {
     if (g && turno === _supaTurno) {
       Supa.botonDeGoogle(g, r => {
         if (r.ok) toast('Dentro de Supabase', 'ok', 2500); else toast(r.mensaje, 'err', 6000);
+        /* Con la base mandando, lo que esperaba la sesión en la bandeja sale ya. */
+        if (r.ok && Supa.laBaseManda() && CTX && CTX.sincronizar) CTX.sincronizar();
         pintarSupabase();
       }).catch(e => toast(Supa.mensajeDe(e), 'err', 6000));
     }
@@ -1309,9 +1316,21 @@ async function pintarSupabase() {
   else if (a.estado === 'invitacion_pendiente') html = nota(quien + ' tiene una invitación, pero no se pudo reclamar. Sal y vuelve a entrar.', 'av');
   else html = nota(esc(a.mensaje || 'No se pudo preguntar a la base. Revisa la señal y vuelve a abrir Ajustes.'), 'av');
   if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
+  html += notaDelModo(a);
   html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
   if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloquePantallas(Supa) + await bloqueSombra();
   listo(html);
+}
+
+/* Quién manda en la empresa, según la base (0024_modo.sql), y qué significa para ESTE aparato. */
+function notaDelModo(a) {
+  if (a.estado !== 'activo' || !a.modo) return '';
+  if (a.modo === 'base') {
+    return nota(ico('i-nube') + ' <b>La empresa trabaja con la base.</b> Lo que hagas en este aparato se guarda en la base y lo ven ' +
+      'todos los teléfonos al momento; lo que hacen los demás llega solo. Tu área la dice la base, no la hoja.', 'ok');
+  }
+  return nota('La empresa todavía trabaja con <b>la hoja</b>: este aparato guarda en ella como siempre. ' +
+    'El día que Dirección pase la empresa a la base, este aparato ya está listo.');
 }
 
 async function bloquePersonas(Supa) {
@@ -1365,8 +1384,17 @@ async function accionSupabase(b) {
   const Supa = await import('../nucleo/supa.js');
   const a = b.dataset.act, correo = b.dataset.correo || '';
   try {
-    if (a === 'supa-encender') { Supa.encender(true); toast('Encendido solo en este aparato', 'ok', 2500); }
-    else if (a === 'supa-apagar') { await Supa.salir(); Supa.encender(false); toast('Apagado en este aparato', 'ok', 2500); }
+    if (a === 'supa-encender') { Supa.encender(true); toast('Encendido solo en este aparato', 'ok', 2500); await reenchufar(); }
+    else if (a === 'supa-apagar') {
+      /* Con la base mandando, apagar es que este aparato vuelva a mandar a la hoja, que ya no es la fuente: se
+         pregunta. Lo de la bandeja no se pierde. */
+      if (Supa.laBaseManda()) {
+        const si = await confirmarPf({ titulo: '¿Apagar la base en este aparato?', peligro: true, si: 'Apagar', no: 'Cancelar',
+          texto: 'La empresa trabaja con la base. Apagado, este aparato vuelve a mandar a la hoja, y lo que mande ahí no lo verán los demás.' });
+        if (!si) return;
+      }
+      await Supa.salir(); Supa.encender(false); toast('Apagado en este aparato', 'ok', 2500); await reenchufar();
+    }
     else if (a === 'supa-salir') { await Supa.salir(); toast('Saliste de Supabase', 'ok', 2500); }
     else if (a === 'supa-alta') {
       const c = String(($('aj-supa-correo') || {}).value || '').trim().toLowerCase();
@@ -1405,6 +1433,13 @@ async function accionSupabase(b) {
   pintarSupabase();
 }
 
+/* Encender o apagar Supabase en este aparato cambia a dónde va la bandeja si la empresa ya trabaja con la
+   base (js/app.js, `laBaseManda`): se vuelve a enchufar en el acto, sin esperar a reabrir la app, por el
+   mismo camino que cuando la base avisa que cambió el modo (el aviso `al3d-modo`, que oye app.js). */
+async function reenchufar() {
+  try { globalThis.dispatchEvent(new CustomEvent('al3d-modo', { detail: { aparato: true } })); } catch (_) { /* sin ventana */ }
+}
+
 /* ----- Supabase: la sombra, la lectura en vivo y el cuadre (fases 3 y 4, APAGADAS) -----
    Bloque propio dentro de la tarjeta de arriba: solo se pinta para Dirección con sesión activa en la
    base, y solo hace algo en ESTE aparato. Encender la sombra copia a la base cada cambio que la hoja
@@ -1421,6 +1456,11 @@ async function bloqueSombra() {
   const Sb = await import('../datos/supa-sombra.js');
   const sombra = Sb.sombraEncendida(), vivo = Sb.vivoEncendido();
   let h = '<h3 class="aj-sub">Escritura en sombra, lectura en vivo y cuadre</h3>';
+  /* Con la base mandando (js/datos/supa-relevo.js) la sombra no tiene nada que copiar: ver js/datos/supa-enchufe.js. */
+  if ((await import('../nucleo/supa.js')).laBaseManda()) {
+    h += nota('La empresa trabaja con la base: la bandeja de este aparato ya escribe y lee la base, así que la sombra no copia nada ' +
+      'ni se hace aquí el cuadre contra la hoja. Lo que haya quedado en la cola de la sombra de antes del cambio se queda guardado, sin mandarse.', 'av');
+  }
   h += '<p class="pf-nota">La hoja sigue mandando. Con la <b>sombra</b>, cada cambio que la hoja acepta desde este aparato se escribe también en la base; ' +
     'si la base falla, no se detiene ni se pierde nada: se reintenta y se anota. Con la sombra también suben a la nube las <b>imágenes</b> de las cotizaciones del historial ' +
     '(planos, renders y propuesta), cada una una sola vez. Con la <b>lectura en vivo</b>, este aparato baja de la base (con Realtime) en vez de la hoja, ' +

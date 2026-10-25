@@ -552,7 +552,8 @@ Con esto la pieza 1 de abajo queda hecha.
 1. ~~Que la sombra y la copia no choquen~~ **hecho el 2026-10-24** (arriba). Deja encender la sombra en el Chrome de Elías sin romper la racha.
 2. «La base manda»: un interruptor por aparato con el que la bandeja escribe en Supabase en vez de la hoja (el traductor de la sombra ya
    existe), más lo que hoy solo va a la hoja: los gastos (falta su RPC), los precios (`tarifas_guardar` ya existe, falta el cliente) y
-   «Registrar venta» del cotizador. Grande.
+   «Registrar venta» del cotizador. Grande. (2026-10-25: el interruptor quedó de la EMPRESA, `0024_modo.sql`, y el relevo de la bandeja está hecho, sin publicar:
+   «La base manda, paso 2», abajo, y docs/BASE-MANDA.md.)
 3. Probar la entrada con Google en el iPhone (solo Elías).
 4. Cada persona entra a Supabase en su teléfono (ya están invitados: 3 de Fabricación y 1 de Pagos) y Pagos captura cobros y abonos en
    la plataforma (las pantallas existen, apagadas).
@@ -595,3 +596,17 @@ decisiones: `docs/AGENTE-VENTAS.md`. **Nada de esto está aplicado ni desplegado
 | Cargar `AGENTE_CUENTA` (banco, titular y CLABE) y volver a pegar `respaldo`, `importar-diario` y `pantalla` | pendiente | — |
 | El portal del cliente (`cotiza.html`): la plática sin cuenta, el secreto solo en el cuerpo o después del «#», pinta con textContent | hecho; probado en el navegador con un agente de mentiras | `pruebas/cotiza.mjs` |
 | «El agente de ventas te pregunta» en el Tablero de Dirección, con su panel (precio, nota, «No lo hacemos») | hecho; probado en el navegador con una nube de mentiras (no contra la base real) | `js/mod/tablero.js`, `js/nucleo/supa.js` |
+
+## «La base manda», paso 2: el relevo (2026-10-25, sin publicar)
+
+Rama `claude/base-manda-2`, sobre el paso 1 (#168, `0024_modo.sql`): tiene que fusionarse después. Con la empresa en modo `'base'` y el
+interruptor de Supabase encendido en el aparato, la bandeja escribe y lee la base (`js/datos/supa-relevo.js`) en vez de la hoja; con la hoja
+mandando, nada cambia. El detalle, lo que no entra y lo que hace falta en producción: docs/BASE-MANDA.md, «Paso 2».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| El traductor de la sombra, sacado a `js/datos/supa-traductor.js` y compartido con el relevo (la sombra lo vuelve a exportar tal cual) | hecho | `pruebas/supabase-sombra.mjs` sin cambios, en verde |
+| El relevo: subir (cada operación a su función, el almacén en un viaje, lo definitivo aparte, la sesión y la red paran), bajar desde la base con las reglas de siempre, el V-### de la base de vuelta al teléfono, el dinero por área | hecho y verificado en node y en PGlite | `pruebas/supabase-relevo.mjs`; `supabase/tests/sync-e-importacion/relevo.mjs` (RE-01 a RE-04) |
+| La elección por el modo de la empresa (lo último que dijo `mi_acceso`, guardado para trabajar sin señal; sin saberlo, la hoja), la tarjeta de Supabase para los tres roles, el rol desde la base, la lectura en vivo sin la sombra y la sombra quieta | hecho | `pruebas/supabase-relevo.mjs`, `pruebas/supabase-entrada.mjs` |
+| «Registrar venta» con la base mandando: por la plataforma (`ganar_proyecto`), sin escribir en la hoja | hecho; enseñar el V-### en el recibo del cotizador queda para el paso 4 | `pruebas/supabase-relevo.mjs` |
+| Probarlo contra `al3d-produccion` | **no hecho**: hace falta `0024` aplicada, la app publicada y la empresa en `'base'` (el día del cambio). Nada de esto se probó en un navegador | — |

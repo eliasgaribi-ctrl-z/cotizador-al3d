@@ -2145,6 +2145,19 @@ async function arrancar() {
   sincronizarCallado();
   contarTodo();
   window.addEventListener('hashchange', () => setTimeout(contarTodo, 800));
+  /* La base dijo que cambió quién manda —la hoja o la base— (js/nucleo/supa.js guarda el modo cada vez que
+     le pregunta, y avisa solo si cambió): la bandeja se vuelve a enchufar y el enchufe de Supabase se
+     acomoda. De vuelta en la hoja, el enchufe quita lo de la base y, si la sombra de pruebas estaba
+     encendida, la vuelve a enganchar. Sin el interruptor de Supabase este aviso no llega: supa.js ni se carga. */
+  window.addEventListener('al3d-modo', async () => {
+    await enchufarPuente();
+    if (!laBaseManda()) {
+      import('./datos/supa-enchufe.js')
+        .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
+        .catch(() => {});
+    }
+    sincronizarCallado();
+  });
 
   /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
      no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
@@ -2231,11 +2244,43 @@ async function arrancar() {
    El puente — fase 3
    ============================================================================ */
 
-/** Enchufa el relevo de la hoja si este dispositivo ya tiene URL y token en Ajustes. */
+/* ----- ¿Quién manda: la hoja o la base? (paso 2 de docs/BASE-MANDA.md) -----
+   El modo es de la EMPRESA (`empresas.modo`, 0024_modo.sql) y este aparato guarda el último que le dijo
+   la base (`al3d_pf_supa_modo`, js/nucleo/supa.js). La base manda aquí solo con el interruptor de Supabase
+   encendido en este aparato Y ese último modo en 'base'; sin interruptor, o sin haberlo oído nunca, manda
+   la hoja, que es lo de siempre y lo seguro. Se lee con una expresión regular y sin cargar supa.js, por lo
+   mismo que el enchufe de abajo: con la hoja mandando no se descarga ni se pregunta nada nuevo. Es la
+   misma regla que `laBaseManda()` de supa.js (pruebas/supabase-relevo.mjs corre las dos). */
+function laBaseManda() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+
+/** Enchufa el relevo de la hoja si este dispositivo ya tiene URL y token en Ajustes; o, con la base
+ *  mandando, el de la base (js/datos/supa-relevo.js). */
 export async function enchufarPuente() {
   if (!Prefs.hayPuente()) { Sync.registrar(null); pintarSync('quieto'); return false; }
   try {
+    if (laBaseManda()) {
+      /* La bandeja escribe y lee la base. La sombra se desengancha ANTES de enchufar: lo que la base
+         acepta no se copia a la base otra vez. Y el enchufe arranca lo que la lectura en vivo hacía para
+         bajar —Realtime—, ya sin pedir la sombra (js/datos/supa-enchufe.js). */
+      const [Supa, Relevo] = await Promise.all([import('./nucleo/supa.js'), import('./datos/supa-relevo.js')]);
+      Sync.alSubir(null);
+      Sync.registrar(Relevo.desdeSupa(Supa));
+      import('./datos/supa-enchufe.js')
+        .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
+        .catch(() => {});
+      pintarSync('quieto');
+      return Sync.configurado();
+    }
     const Puente = await import('./datos/puente.js');
+    /* De vuelta de la base a la hoja: la fuente de las filas que puso el relevo de la base se quita YA,
+       para que la siguiente bajada sea de la hoja (si la lectura en vivo de pruebas está encendida, el
+       enchufe pone la suya otra vez). Al arrancar no hay relevo todavía y no se toca nada. */
+    if (Sync.estado().adaptador === 'base') Puente.fuenteDeLectura(null);
     Sync.registrar(Puente.desdePrefs());
     pintarSync('quieto');
     return Sync.configurado();

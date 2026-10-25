@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 55 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 57 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 144;
+const APP_VERSION = 145;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -159,6 +159,10 @@ const APP_FILES = [
   './js/datos/supa-cuadre.js',
   './js/datos/supa-enchufe.js',
   './js/datos/supa-imagenes.js',
+  /* «La base manda» (paso 2, docs/BASE-MANDA.md): el traductor que comparten la sombra y el relevo, y el
+     relevo que manda la bandeja a la base con la empresa en modo «base». Solo se importan entonces. */
+  './js/datos/supa-traductor.js',
+  './js/datos/supa-relevo.js',
   './js/datos/entrega.js',
   './js/datos/datos-de-entrega.js',
   './js/mod/tablero.js',
@@ -566,7 +570,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 55 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 57 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

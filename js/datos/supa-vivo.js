@@ -6,6 +6,11 @@
    atrás es apagarlo: la siguiente bajada vuelve a ser de la hoja, que sigue completa porque la
    escritura no cambió (va a la hoja y, por la sombra, también aquí).
 
+   Con la empresa en modo 'base' («la base manda», docs/BASE-MANDA.md) esta fuente es LA bajada, para
+   los tres roles y sin pedir la sombra —con la base como fuente la sombra no tiene nada que copiar—: la
+   usa el relevo de la base (js/datos/supa-relevo.js), con sus propios candados (una cuenta activa, y una
+   lectura vacía no tira un récord lleno), y el enchufe solo pone Realtime para saber cuándo bajar.
+
    Qué hace. El relevo de la hoja (js/datos/puente.js) ya sabe todo lo que se hace con una fila: el
    récord de ventas de Control, el dinero sobre el proyecto, la regla de los sellos dato por dato,
    la cita, la revisión de copias. En vez de copiar esas reglas, esto ARMA LA MISMA FILA que manda

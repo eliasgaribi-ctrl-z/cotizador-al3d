@@ -53,10 +53,18 @@ console.log('\nAPAGADO NO HACE NADA');
   cierto('app.js solo carga supa.js con el interruptor encendido, con import() y no estático',
     /if \(\/"encendido":true\/\.test\(localStorage\.getItem\('al3d_pf_supa'\)/.test(app) && !/^import .*supa\.js/m.test(app));
   eq('y la clave que mira app.js es la del módulo', S.CLAVE_INTERRUPTOR, 'al3d_pf_supa');
-  cierto('la puerta de hoy no lo conoce', !/supa/i.test(sinComentarios(leer('js/nucleo/puerta.js'))));
+  /* Desde «la base manda» (paso 2, docs/BASE-MANDA.md) la puerta pregunta el rol a la base, pero SOLO con la base
+     mandando en este aparato: el interruptor encendido y el último modo oído 'base'. Con la hoja, ni lo carga. */
+  const pu = sinComentarios(leer('js/nucleo/puerta.js'));
+  cierto('la puerta no lo importa de forma estática, y solo lo carga con import() cuando la base manda en este aparato',
+    !/^import[^;]*supa\.js/m.test(pu) && (pu.match(/import\('\.\/supa\.js'\)/g) || []).length === 1 &&
+    /async function preguntarALaBase\(\) \{\n  let Supa;\n  try \{ Supa = await import\('\.\/supa\.js'\); \}/.test(pu) &&
+    /if \(laBaseManda\(\)\) \{\n    const v = await preguntarALaBase\(\);/.test(pu));
   const aj = leer('js/mod/ajustes.js');
-  cierto('Ajustes lo carga con import() y solo pinta la tarjeta a Dirección',
-    /import\('\.\.\/nucleo\/supa\.js'\)/.test(aj) && /function cardSupabase\(\) \{\n  if \(Prefs\.rol\(\) !== 'direccion'\) return '';/.test(aj));
+  cierto('Ajustes lo carga con import() y pinta la tarjeta a los tres roles (paso 2 de «la base manda»)',
+    /import\('\.\.\/nucleo\/supa\.js'\)/.test(aj) && /function cardSupabase\(\) \{\n  if \(!Prefs\.ROLES\.includes\(Prefs\.rol\(\)\)\) return '';/.test(aj));
+  cierto('y lo de Dirección (personas, pantallas, la sombra) sigue solo para Dirección activa',
+    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\)/.test(aj));
   cierto('ningún módulo lo importa de forma estática',
     !/^import[^;]*supa\.js/m.test(aj) && !/^import[^;]*supa\.js/m.test(app));
   cierto('su interruptor y su sesión no viajan en los respaldos (no están en Prefs.CLAVES)',
@@ -79,7 +87,7 @@ console.log('\nCANDADO 1: SOLO DOS RESPUESTAS EXPLÍCITAS, SEPARADAS');
   eq('una respuesta vacía es «no sé»', S.leerAcceso(null).estado, 'desconocido');
   eq('activo con su área y su correo', S.leerAcceso({ ok: true, estado: 'activo', usuario: { correo: 'a@b.mx' },
     empresas: [{ empresa_id: 'al3d', area: 'pagos', estado: 'activo' }], contrato: { actual: 1, minimo: 1 } }),
-    { estado: 'activo', correo: 'a@b.mx', area: 'pagos', empresa: 'al3d', contratoViejo: false });
+    { estado: 'activo', correo: 'a@b.mx', area: 'pagos', empresa: 'al3d', contratoViejo: false, modo: '', permisos: null });
   eq('un contrato mínimo mayor que el de la app se avisa', S.leerAcceso({ ok: true, estado: 'activo', contrato: { minimo: 2 } }).contratoViejo, true);
 }
 

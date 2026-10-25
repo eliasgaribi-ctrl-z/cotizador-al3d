@@ -48,6 +48,8 @@ export function idbConIndices() {
       delete: k => tx._paso({}, () => { a.datos.delete(k); }),
       clear: () => tx._paso({}, () => { a.datos.clear(); }),
       count: r => tx._paso({}, () => filas(r).length),
+      /* La cola de la sombra (js/datos/supa-sombra.js, `almacenIndexedDB`) lee así su almacén entero. */
+      getAll: r => tx._paso({}, () => filas(r).map(v => structuredClone(v))),
       index: i => vista(tx, a, i),
       openCursor(rango, dir) {
         const xs = filas(rango, dir);
