@@ -5,7 +5,7 @@
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
 // Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA_SIN_FACTURA, AGENTE_CUENTA_CON_FACTURA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   4574bd9f1129b7b9  supabase/functions/_shared/agente.js
+//   4d673e8b16fab6bb  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
 //   0441f7b445223b93  supabase/functions/_shared/ficha.js
@@ -13,7 +13,7 @@
 //   21bde10737f49fe4  supabase/functions/_shared/ia.js
 //   caedbec3fb61b918  supabase/functions/_shared/precio.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
-//   e716a2495e8b9ebb  supabase/functions/agente/handler.js
+//   a438e36c38fdb4ac  supabase/functions/agente/handler.js
 //   739ae7fbe1c67739  supabase/functions/agente/index.ts
 // ============================================================================
 // supabase/functions/agente/index.ts
@@ -967,7 +967,23 @@ function estadoDe(ficha) {
   const siguiente = pendientes.length ? "preguntar" : decisiones.length ? "direccion" : "cerrar";
   return { pendientes, decisiones, cotizacion, siguiente };
 }
-var ultimos = (mensajes, n) => (Array.isArray(mensajes) ? mensajes.slice(-n) : []).map((m) => ({ role: m.de === "cliente" ? "user" : "assistant", content: String(m.texto || "").slice(0, 1500) }));
+var PREGUNTA_MAX = 4e3;
+function platica(mensajes, cabe) {
+  const lineas = [];
+  let usado = 0;
+  for (const m of (Array.isArray(mensajes) ? mensajes : []).slice().reverse()) {
+    const l = (m.de === "cliente" ? "Cliente: " : "AL3D: ") + String(m.texto || "").replace(/\$\s?[\d.,]+/g, "[precio]").replace(/\s+/g, " ").trim().slice(0, 500);
+    if (usado + l.length + 1 > cabe) break;
+    lineas.unshift(l);
+    usado += l.length + 1;
+  }
+  return lineas.join("\n");
+}
+function conPlatica(cabeza, mensajes) {
+  const titulo = "\n\nLa plática antes de ese mensaje (de la más vieja a la más nueva):\n";
+  const p = platica(mensajes, PREGUNTA_MAX - cabeza.length - titulo.length);
+  return p ? cabeza + titulo + p : cabeza;
+}
 function instruccionExtraer(ficha, mensajes, textoCliente) {
   const tipos = Object.entries(TIPOS).map(([k, t]) => k + " (" + t.nombre + ")").join(", ");
   const campos = Object.keys(TIPOS).map((t) => t + ": " + camposDePartida(t).join(", ")).join("\n");
@@ -977,14 +993,14 @@ function instruccionExtraer(ficha, mensajes, textoCliente) {
     'Pon SOLO lo que el cliente dijo o confirmó en su último mensaje. No adivines, no completes, no supongas. Si no dijo nada nuevo: {"proyecto":{},"partidas":[]}.',
     "Campos del proyecto: " + [...CAMPOS_PROYECTO, "acepta"].join(", ") + ".",
     'entrega es "instalacion", "paqueteria" o "recoleccion" (pasa al taller). lugar es "interior" o "exterior". altura_m en metros.',
-    "lleva_logo, factura, archivo_editable y luz son true/false. acepta = true solo si dice que quiere hacer el trabajo con la cotización que ya tiene.",
+    "lleva_logo, factura, archivo_editable y luz son true/false. acepta = true si acepta la cotización que ya tiene («va», «me late», «sí, adelante») o pregunta cómo pagar o dónde depositar el anticipo.",
     "Tipos de partida: " + tipos + ". Campos por tipo:\n" + campos,
     'Medidas en centímetros. texto = lo que dice el letrero, tal cual lo escribió. tono "fria" o "calida". forma de caja "std" (rectangular o circular) o "nube" (silueta). acabado de recorte "sencillo", "vinil" o "sandwich".',
     'material de letras: "aluminio pintado", "aluminio cepillado", "acrilico con aluminio", "acrilico con vinil" o "acero inoxidable". comp: "recta", "cursiva" o "compleja".',
     'Si una medida la calcula por una foto o dice "más o menos" o "como de", pon "medida_confirmada": false.'
   ].join("\n");
-  const pregunta = "Ficha actual:\n" + JSON.stringify(ficha || {}) + "\n\nÚltimo mensaje del cliente:\n" + String(textoCliente || "").slice(0, 2e3);
-  return { sistema, pregunta, mensajes: ultimos(mensajes, 6) };
+  const pregunta = conPlatica("Último mensaje del cliente:\n" + String(textoCliente || "").slice(0, 2e3) + "\n\nFicha actual:\n" + JSON.stringify(ficha || {}), mensajes);
+  return { sistema, pregunta, mensajes: [] };
 }
 function instruccionResponder(ficha, estado, mensajes, textoCliente, decision) {
   const sistema = [
@@ -995,7 +1011,8 @@ function instruccionResponder(ficha, estado, mensajes, textoCliente, decision) {
     "2. Si hay preguntas pendientes, haz como máximo las dos primeras, con tus palabras y en ese orden.",
     "3. Si hay cosas para Dirección, dile que lo revisas con el encargado y que hoy mismo le mandas su cotización. No prometas una hora.",
     "3b. La cotización sale el MISMO DÍA en que el cliente escribe (regla de Elías): pregunta todo lo que falte en esta plática, sin dejar nada para mañana.",
-    "4. Si ya hay cotización, dile que abajo va el precio y pregúntale si quiere arrancar.",
+    "4. Si ya hay cotización, el sistema pone abajo el precio y el anticipo: no los repitas. Si no ha aceptado, pregúntale si quiere arrancar. Si ya aceptó (acepto), dale las gracias: abajo el sistema pone los datos para el anticipo y el WhatsApp del comprobante.",
+    "4b. Si el cliente pregunta algo (el taller, los tiempos, cómo pagar), contéstalo primero con lo de la regla 6.",
     "5. Si Dirección mandó una nota, transmítela con tus palabras.",
     "6. De AL3D solo puedes decir esto: " + HECHOS.join(" "),
     "7. Si te preguntan algo que no está aquí, di que lo consultas y le confirmas.",
@@ -1006,11 +1023,12 @@ function instruccionResponder(ficha, estado, mensajes, textoCliente, decision) {
     preguntas_pendientes: estado.pendientes.slice(0, 2).map((p) => p.pregunta),
     para_direccion: estado.decisiones.map((d) => d.razon),
     hay_cotizacion: !!estado.cotizacion,
+    acepto: !!(ficha && ficha.acepta === true),
     nota_de_direccion: decision && decision.nota ? decision.nota : "",
     negocio: ficha && ficha.negocio || ""
   };
-  const pregunta = "Lo que decidió el sistema:\n" + JSON.stringify(contexto) + "\n\nÚltimo mensaje del cliente:\n" + String(textoCliente || "").slice(0, 2e3);
-  return { sistema, pregunta, mensajes: ultimos(mensajes, 10) };
+  const pregunta = conPlatica("Último mensaje del cliente:\n" + String(textoCliente || "").slice(0, 2e3) + "\n\nLo que decidió el sistema:\n" + JSON.stringify(contexto) + '\n\nContesta SOLO {"respuesta": "..."}.', mensajes);
+  return { sistema, pregunta, mensajes: [] };
 }
 function leerJson(t) {
   const s = String(t || "");
@@ -1249,7 +1267,7 @@ async function rpc(deps, nombre, args) {
     return null;
   }
 }
-async function preguntarIA(deps, llaves, instr, signal) {
+async function preguntarIA(deps, llaves, instr, signal, libre = false) {
   for (const { prov, model } of IA_AGENTE) {
     if (signal.aborted) return null;
     const v = validarPeticion({ prov, model, modo: "chat", sistema: instr.sistema, pregunta: instr.pregunta, mensajes: instr.mensajes });
@@ -1259,6 +1277,7 @@ async function preguntarIA(deps, llaves, instr, signal) {
     const r = await consultarIA({ peticion: v.peticion, llaves: e.llaves, fetch: deps.fetch, signal });
     const o = r.ok ? leerJson(r.texto) : null;
     if (o) return o;
+    if (libre && r.ok && !/[{}]/.test(r.texto)) return { respuesta: r.texto };
   }
   return null;
 }
@@ -1315,7 +1334,7 @@ async function mensaje(cuerpo, deps) {
       const v = ficha.factura === true ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin;
       razones = [...razones, { id: "cuenta", razon: "El cliente aceptó la cotización y falta configurar la cuenta " + (ficha.factura === true ? "con" : "sin") + " factura (" + v + ")." }];
     }
-    const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto2, d || c.decision), ctrl.signal);
+    const r = await preguntarIA(deps, llaves, instruccionResponder(ficha, estado, c.mensajes, texto2, d || c.decision), ctrl.signal, true);
     const respuesta = armarRespuesta(r && typeof r.respuesta === "string" ? r.respuesta : "", estado, ficha, daCuenta ? tarjeta : null);
     const g = await rpc(deps, "agente_guardar", {
       p_token_hash: h,
