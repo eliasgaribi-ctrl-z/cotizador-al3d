@@ -16,7 +16,8 @@
    al arrancar y al abrir una cotización del historial.
 
    La nube (Supabase Storage, APAGADA por omisión). Con la sombra de Supabase encendida en el
-   aparato, la plataforma sube las imágenes del historial (js/datos/supa-imagenes.js); este
+   aparato, o con la base mandando (paso 4 de docs/BASE-MANDA.md), la plataforma sube las
+   imágenes del historial (js/datos/supa-imagenes.js); este
    archivo no sube nada. Lo único que cambia aquí: con la lectura en vivo encendida, la
    plataforma pone la ventanilla `AL3D_NUBE`, y una imagen que no está en este dispositivo se le
    pide a ella antes de darla por perdida; la que llega se guarda aquí como cualquier otra.

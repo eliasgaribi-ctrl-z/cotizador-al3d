@@ -33,7 +33,7 @@ const leer = r => readFileSync(join(RAIZ, r), 'utf8').replace(/\r\n/g, '\n');
 const sinComentarios = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 /* Con «la base manda» (paso 2) entran el traductor compartido y el relevo de la base: los mismos módulos de Supabase, que solo se
    importan entre ellos (pruebas/supabase-relevo.mjs vigila cómo los carga app.js). */
-const NUEVOS = ['supa-sombra', 'supa-vivo', 'supa-cuadre', 'supa-enchufe', 'supa-imagenes', 'supa-traductor', 'supa-relevo'];
+const NUEVOS = ['supa-sombra', 'supa-vivo', 'supa-cuadre', 'supa-enchufe', 'supa-imagenes', 'supa-traductor', 'supa-relevo', 'supa-cotizaciones'];
 
 /* ── El mundo: un teléfono de Dirección y la hoja ─────────────────────────────────────────── */
 const URL_PUENTE = 'https://puente.test/exec';

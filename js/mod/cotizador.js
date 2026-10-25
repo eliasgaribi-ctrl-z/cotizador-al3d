@@ -76,6 +76,7 @@ import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAb
 import * as Prefs from '../datos/prefs.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 import * as Puente from '../datos/puente.js';
+import * as DB from '../datos/db.js';
 
 let _cont = null;
 let _ctx = null;
@@ -346,6 +347,10 @@ export function desmontar() {
                        el marco a la vista contesta false y el cotizador avisa con el suyo. El
                        texto va por textContent (ui.js#toast); `f` es la función del marco que
                        abre esa cotización, y se llama después de volver al Cotizador.
+     · folioDeVenta(fg) — el V-### que tiene el proyecto de esa cotización (folio global), o '' si
+                       todavía no llega. Con la base mandando la venta sale por la bandeja de aquí y la
+                       base le da el folio unos segundos después (paso 4 de docs/BASE-MANDA.md): el recibo
+                       de «Registrar venta» pregunta por él hasta que aparece. Solo lee la base local.
 
    No se presta el token. El marco no lo necesita —lo pone `hablar` al salir— y un token que no
    sale de esta página no lo puede copiar nada de lo que corra dentro del marco. */
@@ -362,6 +367,13 @@ function exponerIdentidad() {
                   : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
     },
     hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
+    async folioDeVenta(fg) {
+      const f = String(fg || '');
+      if (!/^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f)) return '';
+      const l = await DB.listar('proyectos', { indice: 'porFolio', rango: IDBKeyRange.only(f), limite: 5 });
+      const p = l.find(x => x && !x.deleted_at && x.etapa !== 'cancelado' && /^V-\d+$/.test(String(x.notion_page_id || '')));
+      return p ? String(p.notion_page_id) : '';
+    },
     avisar(msg, tipo, abrir) {
       if (_visible || !_ctx) return false;
       const ctx = _ctx;

@@ -1317,6 +1317,7 @@ async function pintarSupabase() {
   else html = nota(esc(a.mensaje || 'No se pudo preguntar a la base. Revisa la señal y vuelve a abrir Ajustes.'), 'av');
   if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
   html += notaDelModo(a);
+  if (a.estado === 'activo' && a.modo === 'base' && Supa.laBaseManda()) html += await notaDelCotizador();
   html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
   if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloquePantallas(Supa) + await bloqueSombra();
   listo(html);
@@ -1331,6 +1332,29 @@ function notaDelModo(a) {
   }
   return nota('La empresa todavía trabaja con <b>la hoja</b>: este aparato guarda en ella como siempre. ' +
     'El día que Dirección pase la empresa a la base, este aparato ya está listo.');
+}
+
+/* Lo del cotizador con la base mandando (paso 4 de docs/BASE-MANDA.md), para las tres áreas: cuántas cotizaciones del historial de
+   este aparato ya están en la base, si ya terminó la subida única (la primera vez se sube todo, sola) y lo que espera. Lee el
+   teléfono, no la red (js/datos/supa-enchufe.js). */
+async function notaDelCotizador() {
+  let st = null, im = null;
+  try {
+    const E = await import('../datos/supa-enchufe.js');
+    st = await E.estadoCotizaciones();
+    im = await E.estadoImagenes().catch(() => null);
+  } catch (_) { return ''; }
+  if (!st) return '';
+  const su = st.subida_unica;
+  const partes = [st.en_la_base + (st.en_la_base === 1 ? ' cotización' : ' cotizaciones') + ' en la base'];
+  if (st.por_subir) partes.push(st.por_subir + ' por subir');
+  if (st.apartadas) partes.push(st.apartadas + ' que la base no aceptó');
+  if (st.ajenas) partes.push(st.ajenas + ' de otra persona (no se suben desde aquí)');
+  if (im) partes.push('imágenes: ' + im.subidas + ' subidas' + (im.porSubir ? ', ' + im.porSubir + ' por subir' : ''));
+  return nota('<b>Cotizador:</b> ' + esc(partes.join(' · ')) + '. ' +
+    (su ? 'La subida del historial de este aparato terminó el ' + esc(sbFecha(su.ts)) + '.'
+        : 'La subida del historial de este aparato todavía no termina: sigue sola mientras la app esté abierta.') +
+    (st.ultimo_error ? ' Último error: ' + esc(st.ultimo_error) : ''), st.apartadas || st.ultimo_error ? 'av' : 'ok');
 }
 
 async function bloquePersonas(Supa) {

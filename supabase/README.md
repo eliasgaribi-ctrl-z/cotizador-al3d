@@ -48,7 +48,8 @@ dos, y la prueba de humo da entonces 74.
 
 Lo decidió Elías el 2026-10-16: las imágenes de las cotizaciones (el plano de cada partida, los renders y la propuesta visual)
 suben a la nube. Las sube el teléfono con la **sombra** encendida (`js/datos/supa-imagenes.js`) y las baja, si le faltan, con la
-**lectura en vivo** encendida; apagado, la app no hace ni una petición nueva.
+**lectura en vivo** encendida; apagado, la app no hace ni una petición nueva. Con la empresa en modo `'base'` (paso 4 de
+[`docs/BASE-MANDA.md`](../docs/BASE-MANDA.md)) suben y bajan sin la sombra, detrás del historial del cotizador, que también sube solo.
 
 **Cómo se aplica** (primero en `al3d-pruebas`, después en `al3d-produccion`):
 
@@ -65,8 +66,9 @@ suben a la nube. Las sube el teléfono con la **sombra** encendida (`js/datos/su
 las de las obras GANADAS** (Q-02 bis, decidido por Elías el 2026-10-16: un proyecto con el folio de la carpeta, con V-###, no
 cancelado ni borrado; la cotización sigue cerrada para ella, solo se abren sus imágenes); subir, el autor (Pagos, con la cotización
 ya en la base) o Dirección; cambiar y borrar, solo Dirección. Ruta: `<empresa>/<folio_global>/<id>.jpg`, una vez por imagen (y,
-si una duplicada que la comparte se ganó, una copia en la carpeta de la ganada, que es donde la busca Fabricación). Hoy la app todavía no sube las cotizaciones a la base (falta la subida única), así que **solo los teléfonos de
-Dirección suben imágenes**; las de Pagos esperan, solas, a que su cotización esté en la base.
+si una duplicada que la comparte se ganó, una copia en la carpeta de la ganada, que es donde la busca Fabricación). Con la hoja mandando la app todavía no sube las cotizaciones a la base, así que **solo los teléfonos de
+Dirección suben imágenes**; las de Pagos esperan, solas, a que su cotización esté en la base (con la base mandando, el historial sube
+solo y las de Pagos salen detrás).
 
 **Cuánto ocupa.** El plan gratuito da **1 GB** de archivos para todo el proyecto (y 5 GB al mes de salida). Cada imagen ya va
 reducida a 1800 px en JPEG: entre 150 y 700 KB. Una cotización con imágenes lleva de 3 a 7 (las duplicadas no se suben otra vez),
@@ -95,7 +97,8 @@ select (storage.foldername(o.name))[2] as folio_global, count(*) as imagenes, pg
  group by 1 order by 1;
 ```
 
-**Ojo:** mientras la app no suba las cotizaciones a la base, esa lista son TODAS las carpetas: no borrar con ella todavía. Se
+**Ojo:** mientras la app no suba las cotizaciones a la base (con la hoja mandando), esa lista puede traer carpetas de cotizaciones que
+solo están en un teléfono: no borrar con ella todavía. Se
 borra desde el panel (*Storage → cotizacion-imagenes*, seleccionar la carpeta → *Delete*), que sí borra el archivo; con SQL, no.
 
 ## La copia diaria de la hoja a la nube (`importar-diario`)

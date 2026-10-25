@@ -167,6 +167,12 @@ function abrirRegistrarVenta(){
      por delante. */
   pintarCuentas();
   rvListo(null);
+  /* Con la base mandando (paso 4): la pregunta por el folio de otra venta se suelta, «Copiar datos para la hoja» se
+     va —la hoja ya no es el libro: pegar ahí una fila sería una venta que nadie más ve— y, si esta cotización ya se
+     vendió, su V-### de la base sale en el recibo. Con la hoja, el botón sigue ahí como siempre. */
+  clearTimeout(_rvFolioT); _rvFolioDe='';
+  const rvCop=document.getElementById('rv-copiar'); if(rvCop) rvCop.hidden=laBaseManda();
+  if(laBaseManda()) rvMostrarSiYaVendida();
   pintarPlazo();
   /* Los cubos del plazo son un grupo de opciones como cualquier otro: la ficha viaja del que
      estaba al que se toca (pieza 2, C23 #2). Es idempotente, así que llamarla en cada apertura
@@ -396,13 +402,85 @@ function datosParaLaHoja(){
    venta que nadie más ve. La venta sigue su otro camino, el que ya tenía: la constancia de
    `al3d_pf_ganadas` que la plataforma convierte en proyecto, y la bandeja de la plataforma la manda a la
    base (`ganar_proyecto`, js/datos/supa-relevo.js), que le da su V-###. Ese folio queda en el proyecto
-   de la plataforma; enseñarlo aquí, en el recibo del cotizador, es del paso 4. Se lee con una expresión
-   regular porque este archivo no tiene módulos. */
+   de la plataforma, y desde el paso 4 el recibo de aquí lo enseña en cuanto llega (esperarFolioDeVenta).
+   Se lee con una expresión regular porque este archivo no tiene módulos. Los demás guiones del cotizador
+   (tarifas.js, historial.js) preguntan aquí: comparten el ámbito. */
 function laBaseManda(){
   try{
     return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa')||'')&&
            /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo')||'');
   }catch(_){ return false; }
+}
+/* ----- La ventanilla de la base (paso 4 de docs/BASE-MANDA.md) -----
+   Con la base mandando, lo que el cotizador le pide a Supabase —los precios, el historial de la empresa— lo pide
+   por la ventanilla `AL3D_NUBE` que pone la plataforma (js/datos/supa-enchufe.js), igual que las imágenes
+   (imagenes.js): el cotizador no habla con la red de la base ni carga su librería, y su CSP ni la nombra. Se busca
+   en esta ventana o en la de la plataforma, que es del mismo origen. Llega cuando la plataforma ya entró a la base
+   —unos segundos después de abrir—, así que lo que la necesita al arrancar la espera un rato; si no llega (sin
+   sesión en la base, el cotizador suelto), se queda con lo que este aparato ya tenía. */
+function ventanillaBase(fn){
+  try{ if(window.AL3D_NUBE&&typeof window.AL3D_NUBE[fn]==='function') return window.AL3D_NUBE; }catch(_){}
+  try{ if(parent!==window&&parent.AL3D_NUBE&&typeof parent.AL3D_NUBE[fn]==='function') return parent.AL3D_NUBE; }catch(_){}
+  return null;
+}
+async function esperarVentanillaBase(fn,ms){
+  const hasta=Date.now()+(Number(ms)||0);
+  for(;;){
+    const v=ventanillaBase(fn);
+    if(v||Date.now()>=hasta) return v;
+    await new Promise(r=>setTimeout(r,500));
+  }
+}
+/* El aparato del folio de ESTA cotización. Con la base mandando el historial trae cotizaciones de otros
+   teléfonos, y una de ellas se vende con SU folio global —el que tiene en la base y el de la carpeta de sus
+   imágenes, donde Fabricación las busca—, no con el de este aparato. Con la hoja, el de siempre. */
+function dispDeLaCotizacion(){
+  if(!laBaseManda()) return dispositivo();
+  try{ const h=getHistorial().find(x=>x.folio===Q.folio); if(h&&h.disp) return String(h.disp); }catch(_){}
+  return dispositivo();
+}
+
+/* ----- El V-### de la base, en el recibo (paso 4) -----
+   Con la base mandando la venta no sale de aquí: la plataforma recoge la constancia de `al3d_pf_ganadas`, su
+   bandeja la manda a `ganar_proyecto` y la base le da su V-### (paso 2). Ese folio llega al proyecto de la
+   plataforma unos segundos después, y aquí se pregunta por él (`AL3D.folioDeVenta`, js/mod/cotizador.js, que lo
+   lee de la base local de la plataforma) hasta que aparece. El recibo verde dice mientras tanto «esperando su folio
+   de la base…» y, cuando llega, «Venta registrada en la base — V-123»: lo mismo que decía con la hoja. Sin la
+   plataforma alrededor (el cotizador suelto) no hay a quién preguntar, y el recibo lo dice. */
+const RV_FOLIO_CADA=2500, RV_FOLIO_HASTA=120000;
+let _rvFolioT=0, _rvFolioDe='';
+function _rvPreguntaFolio(){ const b=_al3d(); return b&&typeof b.folioDeVenta==='function'?b:null; }
+function esperarFolioDeVenta(fg){
+  clearTimeout(_rvFolioT); _rvFolioDe=fg;
+  const b=_rvPreguntaFolio();
+  if(!b){ _rvFolioDe=''; rvListo('Registrada como proyecto ganado — su folio de venta lo da la base: se ve en la plataforma'); return; }
+  rvListo('Registrada como proyecto ganado — esperando su folio de la base…');
+  const hasta=Date.now()+RV_FOLIO_HASTA;
+  const preguntar=async()=>{
+    if(_rvFolioDe!==fg) return;
+    let f='';
+    try{ f=String(await b.folioDeVenta(fg)||''); }catch(_){}
+    if(_rvFolioDe!==fg) return;
+    if(/^V-\d+$/.test(f)){
+      _rvFolioDe='';
+      rvListo('Venta registrada en la base — '+f);
+      toast('La base le dio su folio de venta: '+f,'ok',5600);
+      return;
+    }
+    if(Date.now()<hasta){ _rvFolioT=setTimeout(preguntar,RV_FOLIO_CADA); return; }
+    _rvFolioDe='';
+    rvListo('Registrada como proyecto ganado — la base todavía no le da su folio (sin señal o sin sesión en la base): llega solo y se ve en la plataforma');
+  };
+  return preguntar();
+}
+/* Al abrir el modal de una cotización que ya se vendió, su folio de la base en el recibo. */
+async function rvMostrarSiYaVendida(){
+  const b=_rvPreguntaFolio(); if(!b) return;
+  const fg=Q.folio+'@'+dispDeLaCotizacion();
+  let f='';
+  try{ f=String(await b.folioDeVenta(fg)||''); }catch(_){}
+  const m=document.getElementById('rv-modal-bg');
+  if(/^V-\d+$/.test(f)&&m&&m.classList.contains('show')&&!_rvFolioDe) rvListo('Ya está registrada en la base — '+f);
 }
 
 /* ----- Registrar la venta en la hoja -----
@@ -542,7 +620,8 @@ function registrarGanada(){
   const t=desgloseFinal();
   const g={
     folio:Q.folio,
-    disp:dispositivo(),
+    /* El de la cotización (con la base mandando puede ser de otro teléfono: dispDeLaCotizacion). */
+    disp:dispDeLaCotizacion(),
     /* La huella del trabajo al momento de ganar. La plataforma la compara contra la
        cotización de hoy: si alguien edita las partidas después de vendida, el material
        calculado ya no corresponde y hay que decirlo en vez de comprar de más. */
@@ -583,13 +662,20 @@ function registrarGanada(){
       }
       toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
         {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
+      /* Con la base mandando, su folio en el recibo en cuanto lo tenga (paso 4). */
+      if(laBaseManda()) esperarFolioDeVenta(g.folio+'@'+g.disp);
       return;
     }
     lista.push(g);
     localStorage.setItem('al3d_pf_ganadas',JSON.stringify(lista));
   }catch(_){
     /* Sin espacio o almacenamiento bloqueado. Se dice, y se ofrece lo único que sigue
-       funcionando: la fila para pegar a mano. */
+       funcionando: la fila para pegar a mano. Con la base mandando no: la hoja ya no es el
+       libro (paso 4), y lo que hay que hacer es hacer espacio y volver a registrarla. */
+    if(laBaseManda()){
+      toast('No hubo espacio para registrar el proyecto — respalda y borra cotizaciones viejas del historial, y vuelve a registrarla','err',7000);
+      return;
+    }
     toast('No hubo espacio para registrar el proyecto — copia los datos y captúralos a mano','err',6000,
       {label:'Copiar datos',fn:copiarDatosVenta});
     return;
@@ -608,6 +694,7 @@ function registrarGanada(){
   if(laBaseManda()){
     toast('Registrada como proyecto ganado — la plataforma la manda a la base, que le da su folio'+
       (sinFecha?'. Le falta la fecha de instalación':''),'ok',5600,abrir);
+    esperarFolioDeVenta(g.folio+'@'+g.disp);
     return;
   }
   if(puenteCfg()){

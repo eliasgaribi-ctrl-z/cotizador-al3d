@@ -231,7 +231,7 @@ Un revisor que **no escribió** las migraciones intentó romperlas en el arnés:
 | La holgura de **+10 min** de los sellos deja que un rol bajo anule a Dirección (decisión Q-06, igual que el `.gs`) | aceptado | **Aceptado por Elías el 2026-10-16**: gana el más reciente con 10 min para todos, como el `.gs`. `0013` lo había cerrado de forma provisional; `0014` lo regresa |
 | ~~`almacen_movimientos.ts` sin tope: un conteo con `ts` enorme congela la existencia de un material~~ | — | **Cerrado en `0013`** (2026-10-16) |
 | ~~Pagos puede **crear** un requerimiento con campos que solo debería marcar (`estado`)~~ | — | **Cerrado en `0013`** (2026-10-16) |
-| ~~Los precios editables (23-oct-2026): la hoja cobra con su pestaña «Tarifas» y `precio.js` seguía con el catálogo de fábrica~~ | — | **Cerrado en `0019`** (2026-10-23): ver «Precios editables», al final. Falta que el **teléfono** los lea de Supabase cuando se encienda la lectura (pieza 6): hoy los pide a la hoja |
+| ~~Los precios editables (23-oct-2026): la hoja cobra con su pestaña «Tarifas» y `precio.js` seguía con el catálogo de fábrica~~ | — | **Cerrado en `0019`** (2026-10-23): ver «Precios editables», al final. Que el **teléfono** los lea de Supabase: hecho en el paso 4 de «la base manda» (2026-10-25, sin publicar), con la base mandando; mientras la hoja mande, los pide a la hoja |
 | Ids y contadores globales entre empresas (oráculo de existencia, `folio_cot:*` sin tope), invitación cruzada | baja hoy (solo existe `al3d`) | Antes de dar de alta una segunda empresa |
 | `origen_obra`: la lista blanca es de primer nivel y `contiene_dinero` es una lista de nombres | baja hoy (`renders` y `propuesta` son listas de imágenes) | Cuando el cliente mande `origen` |
 | ~~Cotizaciones por `subida_unica` nacen `autorizada` sin sello; `authenticated` puede crear tablas temporales~~ | — | **Cerrado en `0013`** (2026-10-16) |
@@ -621,3 +621,17 @@ en el teléfono; con la hoja mandando, nada cambia. El detalle y lo que hace fal
 | `0025_gastos.sql`: `gasto_registrar` y `gasto_anular` (Dirección y Pagos, idempotentes por `op_id` y por el id del gasto, con la regla de `/empujar_gastos`, bitácora de nivel dinero con la entidad nueva `gasto`), `gastos` a Realtime (lista cerrada de 14), las dos funciones en las listas cerradas de todas las auditorías y las de antes admitiendo `gastos` publicada | hecho y verificado en PGlite; sin aplicar | `supabase/tests/gastos/rpc.mjs` (GA-06 a GA-11), `supabase/tests/gastos/gastos.mjs`, `supabase/tests/auditoria/` |
 | El relevo: sube los gastos (los apartados del paso 2 salen solos, una vez), los baja de la tabla con las reglas de barrido de siempre, Fabricación ni los manda ni los pide; Realtime de `gastos` solo con la base mandando | hecho y verificado en node y en PGlite | `pruebas/supabase-relevo.mjs`, `pruebas/gastos.mjs`, `supabase/tests/sync-e-importacion/relevo.mjs` (RE-05) |
 | Aplicar `0025` en `al3d-pruebas` y `al3d-produccion` y publicar la app (`sw.js` 146) | **no hecho** | — |
+
+## «La base manda», paso 4: el cotizador (2026-10-25, sin publicar)
+
+Rama `claude/base-manda-4`, sobre el paso 3 (#171). Con la base mandando, los precios, el historial de cotizaciones y sus imágenes viven en la
+base y se ven en todos los teléfonos; el sello, la IA, Maps y Drive siguen en el Apps Script (decidido por Elías el 2026-10-25). Sin migración
+nueva. El detalle y lo que hace falta en producción: docs/BASE-MANDA.md, «Paso 4».
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| Los precios: el cotizador lee `tarifas_leer` y Dirección guarda con `tarifas_guardar` (por la ventanilla de la plataforma); cada guardado se copia a la pestaña «Tarifas» de la hoja, que es con la que sella el notario, con reintento y reparación si al autorizar no cuadra | hecho y verificado en node y en PGlite | `pruebas/supabase-cotizador.mjs`; `supabase/tests/sync-e-importacion/cotizaciones.mjs` (CO-05) |
+| El historial a la base: la subida única automática (todo el historial de cada aparato, la primera vez, en lotes de 50), después solo lo que cambia (idempotente por la firma del contenido), quién gana entre dos teléfonos, lo borrado; y la bajada al cotizador, que lo junta con su historial (Dirección todo, Pagos lo suyo, Fabricación nada) | hecho y verificado en node y en PGlite | `js/datos/supa-cotizaciones.js`; `pruebas/supabase-cotizador.mjs`; `cotizaciones.mjs` (CO-01 a CO-04) |
+| Las imágenes de las cotizaciones suben y bajan con la base mandando, sin la sombra | hecho y verificado en node | `pruebas/supabase-cotizador.mjs`, `pruebas/supabase-imagenes.mjs` |
+| «Registrar venta»: el V-### de la base en el recibo del cotizador, sin «Copiar datos para la hoja»; la venta va con el folio global de la cotización aunque sea de otro teléfono | hecho y verificado en node | `pruebas/supabase-cotizador.mjs` |
+| Probarlo en un navegador y contra `al3d-produccion` | **no hecho**: hace falta la app publicada (`sw.js` 147) y la empresa en `'base'` | — |
