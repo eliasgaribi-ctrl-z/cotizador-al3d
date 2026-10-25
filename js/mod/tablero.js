@@ -70,7 +70,7 @@ import * as DD from '../datos/datos-de-entrega.js';
 import * as DE from './datos-entrega.js';
 import { $, esc, ico, money, toast, voz, vacio, hoyISO, fechaLocal, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, ajustarAltoBarra, bandaFrescura, medirMarco, esqueletoMarco,
-         scrollSuave, conservandoFoco }
+         scrollSuave, conservandoFoco, confirmarPf }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE } = Proy;
@@ -98,6 +98,8 @@ let _reloj = null;        // el retardo del esqueleto
    cada `pintar()`, y eso NO es opcional: sin vaciarlo el arreglo crece sin techo y, peor, un
    toque en un botón del pintado anterior dispararía la acción de otro renglón. */
 let _acciones = [];
+/* Lo que el agente de ventas espera de Dirección (supabase, 0023), o null si no se ha leído. */
+let _agente = null;
 
 /* Las piezas compartidas cuelgan de `window.Piezas` (js/piezas.js, guion clásico que index.html
    carga antes que los módulos). Se piden en el momento y no al importar: este archivo también lo
@@ -304,6 +306,30 @@ async function recargar() {
   if (!_cont) return;          // se cambió de módulo mientras se leía
   _d = d;
   pintar();
+  cargarAgente();
+}
+
+/* ----- El agente de ventas (docs/AGENTE-VENTAS.md) -----
+   Lo que el agente no pudo cotizar solo vive en la nube, no en el teléfono. Se pide DESPUÉS del
+   primer pintado (decisión 3 de la cabecera: el tablero no espera a la red) y solo si este aparato
+   tiene la nube encendida y quien entra es Dirección. Con la nube apagada no hay petición ni
+   renglón, y el tablero queda idéntico. supa.js se pide con import() y nunca arriba: con la nube
+   apagada no se carga (pruebas/supabase-entrada.mjs). */
+const nubeEncendida = () => { try { return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || ''); } catch (_) { return false; } };
+
+async function cargarAgente() {
+  if (Prefs.rol() !== 'direccion' || !nubeEncendida()) { _agente = null; return; }
+  try {
+    const Supa = await import('../nucleo/supa.js');
+    if (!(await Supa.haySesion())) return;
+    const a = await Supa.acceso();
+    if (a.estado !== 'activo' || a.area !== 'direccion') return;
+    const lista = await Supa.decisionesDelAgente();
+    if (!_cont) return;
+    const cambio = JSON.stringify(lista) !== JSON.stringify(_agente || []);
+    _agente = lista;
+    if (cambio && _vista === 'tablero') pintar();
+  } catch (_) { /* sin red o sin permiso: el tablero se queda como estaba */ }
 }
 
 /* ============================================================================
@@ -422,6 +448,16 @@ function necesita(d, rol) {
       vieja >= 1 ? (nd === 1 ? 'Lleva ' : 'La más vieja lleva ') + vieja + (vieja === 1 ? ' día' : ' días') + ' autorizada'
                  : 'Autorizada hoy',
       { tipo: 'ir', ruta: 'proyectos', que: 'decidir en Proyectos' }));
+  }
+
+  /* Lo que el agente de ventas no cotizó solo: un renglón que abre la más vieja; al decidirla sale la siguiente. */
+  const ag = rol === 'direccion' && _agente ? _agente : [];
+  if (ag.length) {
+    const negocio = x => String(x.resumen || '').split(' · ')[0] || 'Sin nombre';
+    const razon = x => (Array.isArray(x.razones) && x.razones[0] && x.razones[0].razon) || '';
+    filas.push(filaNecesita(ag.length, 'a', ag.length === 1 ? 'El agente de ventas te pregunta' : 'El agente de ventas te pregunta ' + ag.length + ' cosas',
+      ag.length === 1 ? negocio(ag[0]) + ' · ' + razon(ag[0]) : nombres(ag.map(negocio)),
+      { tipo: 'agente', id: ag[0].id, que: 'decidir lo de ' + negocio(ag[0]) }));
   }
 
   const nl = d.V.filter(v => v.estado === 'no_llega').sort(ordenar);
@@ -884,13 +920,91 @@ async function guardarCompletar(boton) {
   await recargar();
 }
 
+/* El panel de una decisión del agente: qué pidió el cliente, por qué no lo cotizó solo, la plática
+   reciente y dos salidas. «Mandar al cliente» lleva el precio (y el agente se lo da, con el anticipo y
+   la cuenta escritos por código) o solo una nota (y el agente la pasa con sus palabras). «No lo
+   hacemos» deja la conversación perdida; la nota, si la hay, le llega al cliente. */
+const DE_AGENTE = { cliente: 'Cliente', agente: 'Agente', direccion: 'Tú' };
+
+async function abrirAgente(id) {
+  const capa = $('pf-pide');
+  const x = (_agente || []).find(y => y.id === id);
+  if (!capa || !x) return;
+  _pide = { tipo: 'agente', id };
+  let platica = [];
+  try { platica = await (await import('../nucleo/supa.js')).platicaDelAgente(x.conversacion_id); } catch (_) { /* sin plática: se decide con el resumen */ }
+  if (!_pide || _pide.id !== id) return;          // se cerró mientras se leía
+  const razones = (Array.isArray(x.razones) ? x.razones : []).map(r => '<li>' + esc(r && r.razon || '') + '</li>').join('');
+  const msjs = platica.map(m => '<li><b>' + esc(DE_AGENTE[m.de] || m.de) + ':</b> ' + esc(m.texto) + '</li>').join('');
+  capa.innerHTML = '<div class="pf-panel">' +
+    '<div class="pf-panel-h"><h2>Lo que pregunta el agente</h2>' +
+      '<button type="button" class="pf-cerrar" data-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button>' +
+    '</div>' +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-cuenta">' + esc(x.resumen || 'Sin resumen') + '</p>' +
+      '<ul class="hintnote">' + razones + '</ul>' +
+      (msjs ? '<details class="pliegue"><summary>La plática</summary><ul class="pf-nota">' + msjs + '</ul></details>' : '') +
+      '<div class="fld"><label for="pf-ag-precio">Precio para el cliente (total, con IVA si lleva factura)</label>' +
+        '<input type="text" id="pf-ag-precio" inputmode="decimal" autocomplete="off" placeholder="$0.00"></div>' +
+      '<div class="fld"><label for="pf-ag-nota">Nota para el cliente (opcional)</label>' +
+        '<textarea id="pf-ag-nota" rows="3" maxlength="600" placeholder="Ej. El logo va en caja de luz, por eso cambia el precio."></textarea></div>' +
+      '<p class="hintnote">Con precio, el agente se lo da al cliente con el anticipo. Con nota, se la pasa con sus palabras.</p>' +
+      '<p class="hintnote nota-av" id="pf-pide-msg" hidden></p>' +
+    '</div>' +
+    '<div class="pf-panel-f">' +
+      '<button type="button" class="btn btn-gho" data-agente="descartar">No lo hacemos</button>' +
+      '<button type="button" class="btn btn-ok" data-agente="mandar">Mandar al cliente</button>' +
+    '</div></div>';
+  abrirCapa('pf-pide', { hist: true });
+}
+
+/* «$12,500.50», «12500», «12 500» → 12500.5; lo demás → NaN. */
+const leerPrecio = t => Number(String(t || '').replace(/[$\s,]/g, ''));
+
+async function decidirDelAgente(boton) {
+  const a = _pide;
+  if (!a || a.tipo !== 'agente') return;
+  const msg = $('pf-pide-msg');
+  const decir = t => { if (msg) { msg.hidden = !t; msg.textContent = t || ''; } if (t) voz(t, true); };
+  decir('');
+  const tx = ($('pf-ag-precio') || {}).value || '';
+  const nota = (($('pf-ag-nota') || {}).value || '').trim();
+  const precio = tx.trim() ? leerPrecio(tx) : null;
+  if (precio !== null && !(precio > 0 && precio < 10000000)) { decir('Ese precio no se entiende. Escríbelo como 12500 o $12,500.'); return; }
+  let accion;
+  if (boton.dataset.agente === 'descartar') {
+    if (!(await confirmarPf({ titulo: '¿No lo hacemos?', texto: 'La conversación queda como perdida.' + (nota ? ' Tu nota le llega al cliente.' : ' Si quieres que el cliente sepa por qué, escribe una nota antes.'),
+      si: 'No lo hacemos', no: 'Volver', peligro: true }))) return;
+    accion = 'descartar';
+  } else if (precio !== null) accion = 'aprobar';
+  else if (nota) accion = 'corregir';
+  else { decir('Pon el precio o una nota para el cliente.'); return; }
+  boton.disabled = true;
+  let Supa = null;
+  try {
+    Supa = await import('../nucleo/supa.js');
+    await Supa.decidirAgente(a.id, accion, accion === 'descartar' ? null : precio, nota);
+  } catch (e) {
+    decir(Supa ? Supa.mensajeDe(e) : 'No se pudo conectar con la nube.');
+    boton.disabled = false;
+    return;
+  }
+  cerrarPide();
+  toast(accion === 'descartar' ? 'Listo: no se hace.' : 'Listo: el agente se lo dice al cliente.', 'ok', 4200);
+  _agente = (_agente || []).filter(y => y.id !== a.id);
+  pintar();
+  cargarAgente();
+}
+
 function cerrarPide() { _pide = null; cerrarCapa('pf-pide'); }
 
 async function alClicPide(ev) {
   if (!_pide) return;
   if (ev.target.closest('[data-cerrar]')) { cerrarPide(); return; }
   const ok = ev.target.closest('[data-completar-ok]');
-  if (ok) await guardarCompletar(ok);
+  if (ok) { await guardarCompletar(ok); return; }
+  const ag = ev.target.closest('[data-agente]');
+  if (ag) await decidirDelAgente(ag);
 }
 
 /* ============================================================================
@@ -964,6 +1078,7 @@ async function hacer(a) {
     return;
   }
   if (a.tipo === 'completar') { abrirCompletar(a.id); return; }
+  if (a.tipo === 'agente') { await abrirAgente(a.id); return; }
   if (a.tipo === 'tablero') {
     _vista = 'tablero'; _origen = null;
     pintar();

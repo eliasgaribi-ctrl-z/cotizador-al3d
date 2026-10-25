@@ -9,7 +9,9 @@
    ENTRADA (sin sesión: el cliente no tiene cuenta; lo reconoce su SECRETO, 64 hex, que viaja en el link)
      POST { accion: 'abrir' }                       → { ok, token, respuesta }   una conversación nueva
      POST { accion: 'mensaje', token, texto }       → { ok, respuesta, estado, cotizacion }
-     GET  ?t=<token>                                → { ok, estado, mensajes, cotizacion }
+     POST { accion: 'leer', token }                 → { ok, estado, mensajes, cotizacion }
+   Todo por POST y el secreto siempre en el CUERPO, nunca en la dirección: una dirección se queda en los
+   registros de la plataforma y en el historial del navegador (como el secreto de la TV del taller).
    SALIDA siempre HTTP 200 con { ok:false, codigo, mensaje } si algo falla (como `ia`), salvo lo de
    origen y método, que resuelve http.js.
 
@@ -127,7 +129,9 @@ async function mensaje(cuerpo, deps) {
     const d = razones.length ? (c.decisiones || []).find(x => x && x.estado !== 'pendiente' && mismasRazones(x.razones, razones)) : null;
     if (d) {
       razones = [];
-      if (d.estado !== 'descartada' && d.precio !== null && d.precio !== undefined) {
+      if (d.estado === 'descartada') {
+        estado = { ...estado, decisiones: [], cotizacion: null, siguiente: 'descartada' };
+      } else if (d.precio !== null && d.precio !== undefined) {
         estado = { ...estado, decisiones: [], siguiente: 'cerrar', cotizacion: { total: Number(d.precio), iva: ficha.factura === true, de: 'direccion' } };
       }
     }
@@ -149,8 +153,8 @@ async function mensaje(cuerpo, deps) {
   }
 }
 
-async function leer(url, deps) {
-  const token = String(url.searchParams.get('t') || '');
+async function leer(cuerpo, deps) {
+  const token = String(cuerpo.token || '');
   if (!TOKEN.test(token)) return falla('DATO_INVALIDO', 'Este link no es válido.');
   const c = await rpc(deps, 'agente_leer', { p_token_hash: await huella(token) });
   if (!c) return sinRed();
@@ -166,12 +170,11 @@ export function crearManejador(depsFijas) {
 
 export async function manejar(peticion, deps, limitador) {
   const lim = limitador || crearLimitador({ ahora: deps.ahora, maximo: LIMITES.abrirPorMinuto, ventanaMs: 60000 });
-  const antes = previa(peticion, { metodos: ['GET', 'POST'] });
+  const antes = previa(peticion, { metodos: ['POST'] });
   if (antes) return antes;
   const secretos = secretosDelEntorno(deps.entorno);
   const responder = cuerpo => json(peticion, 200, cuerpo, { secretos });
   try {
-    if (peticion.method.toUpperCase() === 'GET') return responder(await leer(new URL(peticion.url), deps));
     const t = await leerTexto(peticion, LIMITES.maxCuerpo);
     if (!t.ok) return responder(falla('DATO_INVALIDO', 'El mensaje es demasiado grande.'));
     let cuerpo;
@@ -179,6 +182,7 @@ export async function manejar(peticion, deps, limitador) {
     if (!cuerpo || typeof cuerpo !== 'object') return responder(falla('DATO_INVALIDO', 'El cuerpo no es JSON.'));
     if (cuerpo.accion === 'abrir') return responder(await abrir(peticion, deps, lim));
     if (cuerpo.accion === 'mensaje') return responder(await mensaje(cuerpo, deps));
+    if (cuerpo.accion === 'leer') return responder(await leer(cuerpo, deps));
     return responder(falla('DATO_INVALIDO', 'Acción desconocida.'));
   } catch (e) {
     if (esErrorDeEntorno(e)) return json(peticion, 503, falla('CONFIGURACION', e.message), { secretos });

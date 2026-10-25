@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- Content-Security-Policy: ver la nota de index.html y pruebas/csp.mjs. Esta página solo habla con la función `agente`
+     del proyecto de producción. La dirección es la de js/datos/supabase-config.js; pruebas/cotiza.mjs lo vigila. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://gwzfdprdrdudfakjsdxf.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cotiza tu anuncio · AL3D</title>
+<meta name="description" content="Cotiza tu anuncio luminoso con AL3D: letras 3D, cajas de luz, recortes y neón, fabricados en nuestro taller.">
+<meta name="theme-color" content="#4060f8">
+<!-- noindex mientras se prueba. Cuando sea la página de los anuncios de Google, se quita. -->
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+
+<script src="js/tema.js"></script>
+<link rel="stylesheet" href="css/sistema.css">
+<link rel="stylesheet" href="css/publico.css">
+<link rel="stylesheet" href="css/vidrio.css">
+<link rel="stylesheet" href="css/estudio.css">
+<link rel="stylesheet" href="css/cotiza.css">
+</head>
+<!-- ============================================================================
+     COTIZA — donde el cliente platica con el agente de ventas de AL3D (docs/AGENTE-VENTAS.md).
+
+     Es la quinta página pública. No pide cuenta: la conversación la reconoce un SECRETO que
+     inventa la función `agente` la primera vez que el cliente escribe, y que se queda en este
+     teléfono (localStorage). Para seguir en otro aparato, el link lleva el secreto después del
+     «#» (cotiza.html#t=…): lo que va después del «#» no sale del navegador, así que no se
+     queda en ningún registro. Todo lo de la página está en js/cotiza.js; lo que se le contesta
+     al cliente lo decide la función, aquí solo se pinta, con textContent: lo que llega es un dato.
+     ============================================================================ -->
+<body class="pub">
+<main class="pub-wrap cot">
+  <div class="pub-marca">
+    <img class="logoimg" src="logo-al3d.svg" width="54" height="27" alt="AL3D">
+    <div><b>AL3D</b><span>Anuncios luminosos</span></div>
+  </div>
+  <h1>Cotiza tu anuncio</h1>
+  <p class="pub-entrada">Cuéntale al asistente qué necesitas. Te pregunta lo que hace falta y, si
+  tu letrero está en nuestro catálogo, te da el precio al momento.</p>
+
+  <section class="cot-caja">
+    <div class="cot-log" id="cot-log" role="log" aria-live="polite" aria-label="La conversación"></div>
+    <p class="cot-esperando" id="cot-esperando" hidden><span class="cot-puntos" aria-hidden="true"><i></i><i></i><i></i></span> El asistente está escribiendo…</p>
+    <form class="cot-form" id="cot-form">
+      <label class="cot-oculta" for="cot-texto">Tu mensaje</label>
+      <textarea id="cot-texto" rows="2" maxlength="2000" placeholder="Escribe aquí…" autocomplete="off"></textarea>
+      <button class="pub-btn cot-enviar" id="cot-enviar" type="submit">Enviar</button>
+    </form>
+    <p class="cot-error" id="cot-error" role="alert" hidden></p>
+  </section>
+
+  <p class="cot-nota">Los precios que da el asistente salen del catálogo de AL3D. Lo que lleva
+  logotipo o es especial lo revisa una persona del equipo y te contesta aquí mismo.
+  <a href="https://wa.me/523328130092">¿Prefieres WhatsApp?</a></p>
+  <p class="cot-nota"><button class="cot-nueva" id="cot-nueva" type="button">Empezar otra cotización</button> ·
+  <a href="privacidad.html">Aviso de privacidad</a></p>
+</main>
+<script src="js/cotiza.js"></script>
+</body>
+</html>

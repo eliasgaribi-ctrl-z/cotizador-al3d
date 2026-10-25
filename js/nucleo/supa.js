@@ -251,6 +251,30 @@ export const vincularPantalla = (codigo, nombre = '') => rpc('pantalla_aprobar',
 export const desconectarPantalla = id => rpc('pantalla_revocar', { p_id: id });
 
 /* ============================================================================
+   El agente de ventas (solo Dirección; la base lo vuelve a comprobar)
+   Lo que el agente no pudo cotizar solo y espera a Dirección, la plática de esa conversación, y
+   la decisión. Ver supabase/migrations/0023_agente.sql y docs/AGENTE-VENTAS.md.
+   ============================================================================ */
+
+export async function decisionesDelAgente() {
+  const c = await cliente();
+  const { data, error } = await c.from('agente_decisiones').select('id, conversacion_id, razones, resumen, created_at')
+    .eq('estado', 'pendiente').order('created_at');
+  if (error) throw error;
+  return data || [];
+}
+/* Los últimos mensajes, del más viejo al más nuevo. */
+export async function platicaDelAgente(conversacionId) {
+  const c = await cliente();
+  const { data, error } = await c.from('agente_mensajes').select('de, texto, created_at')
+    .eq('conversacion_id', conversacionId).order('id', { ascending: false }).limit(12);
+  if (error) throw error;
+  return (data || []).reverse();
+}
+export const decidirAgente = (id, accion, precio = null, nota = '') =>
+  rpc('agente_decidir', { p_id: id, p_accion: accion, p_precio: precio, p_nota: nota });
+
+/* ============================================================================
    Vigilar el acceso (candados 1 a 3)
    ============================================================================ */
 

@@ -34,11 +34,16 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
    dinero). Usa las llaves de IA que ya existen (IA_KEYS): Gemini, luego Qwen, luego DeepSeek.
    Para publicarla faltan: aplicar 0023, pegarla en el panel y cargar `AGENTE_CUENTA` (banco,
    titular y CLABE, en texto) como secreto de la función.
-4. **El portal del cliente** — un link por proyecto: la cotización, aceptar, la cuenta de
-   depósito (fija, nunca escrita por la IA), subir el comprobante y los archivos, y ver en qué
-   etapa va. Pendiente.
-5. **«Necesita tu decisión» en el teléfono de Elías** — cada ficha que el agente no puede
-   cobrar llega con su razón y se aprueba en un toque. Ya existe el lugar en el Tablero.
+4. **El portal del cliente** — `cotiza.html` + `js/cotiza.js` (hecho, con `pruebas/cotiza.mjs`;
+   probado en el navegador con un agente de mentiras). La plática con el agente, sin cuenta: el
+   secreto se queda en el teléfono del cliente y, para seguir en otro, va después del «#» del link.
+   Mientras espera a Dirección pregunta cada minuto, así la nota de Elías le llega sola.
+   Pendiente para después: subir el comprobante y los archivos, y ver en qué etapa va la obra.
+5. **«Necesita tu decisión» en el teléfono de Elías** — en el Tablero (hecho; probado en el
+   navegador con una nube de mentiras). Solo con la nube encendida en el aparato y para Dirección:
+   «El agente de ventas te pregunta», y al tocarlo el panel con el resumen, la razón, la plática,
+   el precio y la nota. «Mandar al cliente» (con precio aprueba; solo con nota, corrige) y «No lo
+   hacemos» (pide confirmar). Con la nube apagada el Tablero queda idéntico.
 6. **Seguimiento** — la lista diaria con el mensaje escrito; con el número nuevo, el agente lo
    manda solo.
 7. **El número nuevo con API de WhatsApp** — al final.

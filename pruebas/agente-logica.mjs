@@ -141,8 +141,9 @@ console.log('\nLA FUNCIÓN — abrir, platicar, cotizar');
   cierto('el precio sí, escrito por código', m.respuesta.includes('$9,280.00'));
   eq('dos llamadas a la IA en la vuelta', ia.pedidas.length, 2);
   cierto('la IA nunca recibe el secreto', !JSON.stringify(ia.pedidas).includes(a.token));
-  const [, g] = await leerResp(await manejar(new Request('https://al3d.supabase.co/functions/v1/agente?t=' + a.token), deps(base, ia)));
+  const [, g] = await leerResp(await manejar(post({ accion: 'leer', token: a.token }), deps(base, ia)));
   eq('el portal lee la plática', g.mensajes.map(x => x.de), ['agente', 'cliente', 'agente']);
+  eq('por GET no: el secreto nunca va en la dirección', (await manejar(new Request('https://al3d.supabase.co/functions/v1/agente?t=' + a.token), deps(base, ia))).status, 405);
 }
 
 console.log('\nLA FUNCIÓN — Dirección, topes y sin IA');
@@ -174,6 +175,14 @@ console.log('\nLA FUNCIÓN — Dirección, topes y sin IA');
   const [, m5] = await leerResp(await manejar(post({ accion: 'mensaje', token, texto: '¿a dónde deposito?' }), deps(base, ia5, { AGENTE_CUENTA: 'BBVA · AL3D · CLABE 012 000 000000000000' })));
   cierto('con cuenta, la cuenta va escrita por código', m5.respuesta.includes('CLABE 012 000 000000000000'));
   eq('con la tarjeta de la cuenta abierta, el logo sigue decidido: no se reabre', [m5.cotizacion, c.decisiones.map(d => d.razones.map(r => r.id).join())], [{ total: 15000, iva: true }, ['logo', 'cuenta']]);
+  /* Dirección dijo que no se hace: el agente no vuelve a decir «lo reviso». */
+  const t2 = (await (await manejar(post({ accion: 'abrir' }), { ...deps(base, ia), aleatorio: x => x.fill(9) })).json());   // otro secreto
+  const c2 = base.convs.get(await huella(t2.token));
+  c2.ficha = { ...LISTA, partidas: [{ tipo: 'neon', ancho_cm: 100, alto_cm: 50, colores: 'rosa', base: 'transparente' }] };
+  c2.decisiones.push({ id: 'dx', estado: 'descartada', razones: [{ id: 'tipo', i: 0, razon: 'Neón flex: no está en el catálogo, se cotiza a mano.' }], precio: null, nota: '' });
+  const iaD = iaDeMentiras(['{"proyecto":{},"partidas":[]}']);
+  const [, mD] = await leerResp(await manejar(post({ accion: 'mensaje', token: t2.token, texto: '¿y mi neón?' }), deps(base, iaD)));
+  eq('descartada: no abre otra tarjeta y no dice «lo reviso»', [c2.razones, mD.respuesta], [[], 'Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!']);
   /* El tope se mira antes de la IA. */
   c.forzar24h = 80;
   const ia6 = iaDeMentiras(['{}', '{}']);

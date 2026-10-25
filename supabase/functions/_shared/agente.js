@@ -109,7 +109,7 @@ export function aplicarCambios(ficha, ext) {
 /**
  * @returns {{pendientes:object[], decisiones:object[], cotizacion:object|null, siguiente:'preguntar'|'direccion'|'cerrar'}}
  *   `siguiente` es lo que el agente tiene que hacer en esta vuelta. «cerrar» = ya hay precio:
- *   pedir el anticipo.
+ *   pedir el anticipo. (La función agrega «descartada» cuando Dirección dijo que no se hace.)
  */
 export function estadoDe(ficha) {
   const pendientes = preguntasPendientes(ficha, 'cotizar');
@@ -159,6 +159,7 @@ export function instruccionResponder(ficha, estado, mensajes, textoCliente, deci
     '5. Si Dirección mandó una nota, transmítela con tus palabras.',
     '6. De AL3D solo puedes decir esto: ' + HECHOS.join(' '),
     '7. Si te preguntan algo que no está aquí, di que lo consultas y le confirmas.',
+    '8. Si siguiente es "descartada", dile con amabilidad que por ahora AL3D no puede hacer ese trabajo (con la nota de Dirección si la hay) y agradécele.',
   ].join('\n');
   const contexto = {
     siguiente: estado.siguiente,
@@ -216,6 +217,7 @@ export function armarRespuesta(textoIA, estado, ficha, cuenta) {
   if (!t) {
     t = estado.siguiente === 'preguntar' ? estado.pendientes[0].pregunta
       : estado.siguiente === 'direccion' ? 'Déjame revisarlo con el encargado y te confirmo en cuanto lo tenga.'
+      : estado.siguiente === 'descartada' ? 'Por ahora no podemos hacer este trabajo. ¡Gracias por escribirnos!'
       : '¡Listo! Aquí va tu cotización.';
   }
   const partes = [t];
