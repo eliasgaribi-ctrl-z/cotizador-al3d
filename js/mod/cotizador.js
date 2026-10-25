@@ -77,6 +77,7 @@ import * as Prefs from '../datos/prefs.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 import * as Puente from '../datos/puente.js';
 import * as DB from '../datos/db.js';
+import * as Sync from '../datos/sync.js';
 
 let _cont = null;
 let _ctx = null;
@@ -351,6 +352,11 @@ export function desmontar() {
                        todavía no llega. Con la base mandando la venta sale por la bandeja de aquí y la
                        base le da el folio unos segundos después (paso 4 de docs/BASE-MANDA.md): el recibo
                        de «Registrar venta» pregunta por él hasta que aparece. Solo lee la base local.
+     · estadoDeVenta(fg) — lo mismo, y además si la bandeja APARTÓ el alta de esa venta: {folio} cuando
+                       la base ya le dio su V-###, {apartada: motivo} cuando la base no la aceptó para
+                       siempre (un área que no da de alta ventas, un dato que no pasó), {} mientras
+                       tanto. Sin esto el recibo decía «llega solo» de una venta que nunca iba a llegar
+                       (auditoría 2026-10-25, CZ-1). Solo lee: la base local y la bandeja.
 
    No se presta el token. El marco no lo necesita —lo pone `hablar` al salir— y un token que no
    sale de esta página no lo puede copiar nada de lo que corra dentro del marco. */
@@ -368,12 +374,10 @@ function exponerIdentidad() {
     },
     hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
     async folioDeVenta(fg) {
-      const f = String(fg || '');
-      if (!/^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f)) return '';
-      const l = await DB.listar('proyectos', { indice: 'porFolio', rango: IDBKeyRange.only(f), limite: 5 });
-      const p = l.find(x => x && !x.deleted_at && x.etapa !== 'cancelado' && /^V-\d+$/.test(String(x.notion_page_id || '')));
-      return p ? String(p.notion_page_id) : '';
+      const e = await estadoDeVenta(fg);
+      return e.folio || '';
     },
+    estadoDeVenta,
     avisar(msg, tipo, abrir) {
       if (_visible || !_ctx) return false;
       const ctx = _ctx;
@@ -389,6 +393,30 @@ function exponerIdentidad() {
       return true;
     },
   });
+}
+
+/* El estado de la venta de una cotización (folio global), para el recibo de «Registrar venta»: el
+   proyecto vivo que la plataforma hizo con su constancia y, si todavía no tiene V-###, lo que la
+   bandeja apartó de él. Lo apartado es definitivo —no se reintenta solo—, así que el recibo puede
+   decir «no entró» con el motivo de la base, que es lo que hay que hacer, en vez de seguir esperando. */
+async function estadoDeVenta(fg) {
+  const f = String(fg || '');
+  if (!/^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f)) return {};
+  const l = await DB.listar('proyectos', { indice: 'porFolio', rango: IDBKeyRange.only(f), limite: 5 });
+  const vivos = l.filter(x => x && !x.deleted_at && x.etapa !== 'cancelado');
+  /* Lo que la venta tiene AQUÍ (la copia de la plataforma), para que un segundo «Registrar venta» con otra cuenta u
+     otro anticipo pueda decir qué no se cambió (CZ-2). Solo lo que el modal también tiene. */
+  const datosDe = p => ({ cuenta: p.cuenta || null, estatus: p.estatus_notion || null,
+    anti: p.anti_pactado != null ? Number(p.anti_pactado) : null, fecha_anticipo: p.fecha_ganado || null });
+  const conFolio = vivos.find(x => /^V-\d+$/.test(String(x.notion_page_id || '')));
+  if (conFolio) return { folio: String(conFolio.notion_page_id), datos: datosDe(conFolio) };
+  for (const p of vivos) {
+    let ops = [];
+    try { ops = await Sync.delProyecto(p.id, ['rechazada']); } catch (_) { ops = []; }
+    const alta = ops.find(o => o.almacen === 'proyectos' && o.tipo === 'crear') || ops[0];
+    if (alta) return { apartada: String(alta.ultimo_error || 'la base no la aceptó'), datos: datosDe(p) };
+  }
+  return vivos.length ? { datos: datosDe(vivos[0]) } : {};
 }
 
 /* ============================================================================
@@ -495,7 +523,20 @@ function alMensaje(ev, m) {
     return;
   }
   const ruta = String(d.ruta || '').replace(/^#?\/?/, '').trim();
-  if (ruta) _ctx.ir(ruta);
+  if (!ruta) return;
+  /* Con un pase: «Corregir en Control» de «Registrar venta» abre Cobros y abonos con la venta puesta
+     (auditoría 2026-10-25, CZ-2). Solo pasan llaves conocidas y con forma de dato: lo que llega por
+     `message` no decide nada más que a qué pestaña y qué venta. */
+  const p = d.pase && typeof d.pase === 'object' ? d.pase : null;
+  if (p && _ctx.pasar) {
+    const pase = {};
+    if (/^[a-z]{2,20}$/.test(String(p.tab || ''))) pase.tab = String(p.tab);
+    if (/^[a-z]{2,20}$/.test(String(p.form || ''))) pase.form = String(p.form);
+    if (/^(V-\d{1,7}|[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24})$/.test(String(p.venta || ''))) pase.venta = String(p.venta);
+    _ctx.pasar(ruta, pase);
+    return;
+  }
+  _ctx.ir(ruta);
 }
 
 /* ============================================================================

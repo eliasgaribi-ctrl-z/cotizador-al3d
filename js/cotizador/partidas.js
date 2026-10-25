@@ -508,7 +508,13 @@ function ojoPdfHTML(){
 function tituloOjoPdf(visible){
   return visible?'Sale en el PDF — toca para ocultarla (sigue sumando al total)':'Oculta del PDF — toca para mostrarla';
 }
-function toggleEditMode(){
+async function toggleEditMode(){
+  /* Con la base mandando el historial trae las de toda la empresa, y editar aquí la de otro teléfono la cambia también en
+     el teléfono de quien la hizo (gana la editada al último). Se dice antes, en un renglón (auditoría 2026-10-25, CZ-7).
+     Sin eso, todo sigue en el mismo paso: el `await` solo se alcanza con una ajena. */
+  const h=typeof _histAjena==='function'?getHistorial().find(x=>x.folio===Q.folio):null;
+  if(h&&_histAjena(h)&&!await confirmar({titulo:'Es una cotización de '+_histQuien(h),
+    texto:'Si la cambias aquí, también cambia en su teléfono.',si:'Editarla',no:'Dejarla así'})) return;
   Q.editMode=true;
   renderItems();renderAuth();
   /* La condición tiene que ser LA MISMA que decide soltar, y no lo era: `soltarAuthSiCambio`

@@ -72,6 +72,15 @@ async function hablarHoja(ruta,cuerpo,espera){
   if(r&&r.codigo==='CATALOGO_DESINCRONIZADO'&&ruta!=='tarifas') refrescarTarifas(true);
   return r;
 }
+/* Lo que la hoja contestó, dicho para quien lo lee. Un subtotal que no cuadra, con la base mandando y sin entrar a ella,
+   no es «ya se trajeron los de la hoja» (eso dice la hoja, y en modo base no pasa): este teléfono cotizó con los precios
+   que tenía guardados y no puede traer los de hoy hasta entrar a Supabase (auditoría 2026-10-25, CZ-3). */
+function mensajeDeLaHoja(r,porOmision){
+  if(r&&r.codigo==='CATALOGO_DESINCRONIZADO'&&typeof mensajeTarifasSinBase==='function'&&typeof laBaseManda==='function'&&
+     laBaseManda()&&!ventanillaBase('tarifas'))
+    return 'El precio no cuadra con el de hoy. '+mensajeTarifasSinBase(', y vuelve a mandarla');
+  return (r&&r.mensaje)||porOmision;
+}
 /* El mismo envío que puentePost() de venta.js —POST, text/plain, el token en el cuerpo— pero
    devolviendo la respuesta de la hoja ENTERA aunque diga que no: el notario y la IA necesitan
    su `codigo` (sin llave, cupo agotado, catálogo que no cuadra) y puentePost lo vuelve un
@@ -133,7 +142,7 @@ async function sellarEnLaHoja(folio,cot,precioAuth,itemsAuth,nota){
   try{ r=await hablarHoja('autorizar',{folio,cotizacion:cot,precioAuth:precioAuth||0,itemsAuth:itemsAuth||{},nota:nota||''},30000); }
   catch(e){ throw new Error((e&&e.message)||'No se pudo llegar a la hoja. Vuelve a intentarlo con señal.'); }
   if(!r||r.ok!==true||!r.sello){
-    const e=new Error((r&&r.mensaje)||'La hoja no selló el precio.'); e.codigo=r&&r.codigo; throw e;
+    const e=new Error(mensajeDeLaHoja(r,'La hoja no selló el precio.')); e.codigo=r&&r.codigo; throw e;
   }
   return r.sello;
 }
@@ -252,7 +261,7 @@ async function enviarSolicitud(){
       if(nueva) toast('Solicitud enviada a Dirección · te aviso cuando la autoricen','ok',4200);
     } else {
       /* Un catálogo que no cuadra no se arregla reintentando: se dice y se para. */
-      Q.solicitud.error=(r&&r.mensaje)||'La hoja no aceptó la solicitud.';
+      Q.solicitud.error=mensajeDeLaHoja(r,'La hoja no aceptó la solicitud.');
       Q.solicitud.definitivo=r&&r.codigo==='CATALOGO_DESINCRONIZADO';
       saveState(); solicitudALaCola(folio); renderAuth();
       toast(Q.solicitud.error,'err',8000);
