@@ -394,6 +394,8 @@ html[data-nav="teclado"] .pf-mod{animation-duration:0s}
 .pf-banda.mal{border-color:var(--mal-borde);background:var(--mal-bg);color:var(--mal)}
 .pf-banda .svgi{flex-shrink:0;margin-top:1px;width:var(--ico2);height:var(--ico2)}
 .pf-banda b{font-weight:700}
+/* El botón de Google para conectar la nube (app.js, `conectarLaNube`): lo dibuja Google en un iframe. */
+.pf-nube-google{display:block;margin-top:var(--e2);min-height:44px}
 .pf-banda button{margin-left:auto;flex-shrink:0;min-height:44px;padding:0 var(--e3);
   border:1px solid currentColor;border-radius:var(--rr1);background:transparent;
   color:inherit;font-weight:700;font-size:var(--t2);line-height:1;cursor:pointer}
