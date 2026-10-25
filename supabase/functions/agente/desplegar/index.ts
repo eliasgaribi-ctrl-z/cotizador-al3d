@@ -5,7 +5,7 @@
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
 // Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA_SIN_FACTURA, AGENTE_CUENTA_CON_FACTURA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   4d673e8b16fab6bb  supabase/functions/_shared/agente.js
+//   b114a219656ed351  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
 //   0441f7b445223b93  supabase/functions/_shared/ficha.js
@@ -1044,8 +1044,13 @@ function leerJson(t) {
 var pesos = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 var DINERO = /\$\s?\d|\d[\d.,]*\s?(pesos|mxn|mil pesos)\b|\bmxn\s?\d/i;
 function sinDinero(t) {
-  const partes = String(t || "").split(/(?<=[.!?\n])\s*/);
-  return partes.filter((p) => !DINERO.test(p)).join(" ").replace(/\s+\n/g, "\n").trim();
+  const partes = String(t || "").split(/((?<=[.!?])[ \t]+|\n+)/);
+  let out = "";
+  for (let i = 0; i < partes.length; i += 2) {
+    if (!DINERO.test(partes[i])) out += partes[i] + (partes[i + 1] || "");
+    else if (/\n/.test(partes[i + 1] || "")) out += partes[i + 1];
+  }
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function mensajeDePrecio(c) {
   if (!c) return "";
