@@ -18,7 +18,7 @@
    el PDF de la cotización (js/cotizador/entrega.js). Lo que no esté ahí, lo consulta.
    ============================================================================ */
 
-import { ALTURA_INSTALACION_INCLUIDA_M, CAMPOS_PROYECTO, TIPOS, camposDePartida, cotizar, decisionesParaDireccion, preguntasPendientes } from './ficha.js';
+import { ALTURA_INSTALACION_INCLUIDA_M, CAMPOS_PROYECTO, EXTRAS, TIPOS, camposDePartida, cotizar, decisionesParaDireccion, preguntasPendientes } from './ficha.js';
 
 export const MAX_PARTIDAS = 10;
 export const MAX_RESPUESTA = 1200;
@@ -53,6 +53,7 @@ export const HECHOS = Object.freeze([
   'El letrero queda de 2.5 a 3 semanas después del anticipo. Si el anticipo llega después de la 1:00 p. m., cuenta desde el siguiente día hábil (ese día ya no se surte material). La fecha exacta se confirma al dar el anticipo.',
   'La instalación va incluida en Guadalajara, Zapopan, Tlaquepaque y Tonalá hasta ' + ALTURA_INSTALACION_INCLUIDA_M + ' m de altura; más alto o en otro municipio se cotiza aparte.',
   'La salida eléctrica donde va el letrero la pone el cliente.',
+  'Si el cliente lo pide, se agregan extras: fotocelda (el letrero prende solo al oscurecer), reflector LED, huacal de madera para mandarlo por paquetería, grúa articulada o instalación aparte.',
 ]);
 
 /* ----- Las tarjetas de depósito -----
@@ -106,6 +107,8 @@ const LIMPIA_PARTIDA = {
   forma: v => uno(v, ['std', 'nube']),
   vistas: v => (v === 1 || v === 2 ? v : undefined),
   acabado: v => uno(v, ['sencillo', 'vinil', 'sandwich']),
+  extra: v => uno(String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(), Object.keys(EXTRAS)),
+  cantidad: v => { const n = numero(v, 1, 99); return n === undefined ? undefined : Math.round(n); },
   medida_confirmada: booleano,
 };
 
@@ -206,6 +209,7 @@ export function instruccionExtraer(ficha, mensajes, textoCliente) {
     'Tipos de partida: ' + tipos + '. Campos por tipo:\n' + campos,
     'Medidas en centímetros. texto = lo que dice el letrero, tal cual lo escribió. tono "fria" o "calida". forma de caja "std" (rectangular o circular) o "nube" (silueta). acabado de recorte "sencillo", "vinil" o "sandwich".',
     'material de letras: "aluminio pintado", "aluminio cepillado", "acrilico con aluminio", "acrilico con vinil" o "acero inoxidable". comp: "recta", "cursiva" o "compleja".',
+    'Una partida tipo "extra" por cada extra que el cliente pida: extra es ' + Object.keys(EXTRAS).map(k => '"' + k + '"').join(', ') + '; cantidad, cuántos.',
     'Si una medida la calcula por una foto o dice "más o menos" o "como de", pon "medida_confirmada": false.',
   ].join('\n');
   const pregunta = conPlatica('Último mensaje del cliente:\n' + String(textoCliente || '').slice(0, 2000)
