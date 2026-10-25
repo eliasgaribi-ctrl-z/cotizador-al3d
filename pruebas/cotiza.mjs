@@ -50,7 +50,7 @@ console.log('\n2. EL SECRETO NUNCA EN LA DIRECCIÓN');
 console.log('\n3. LO QUE LLEGA ES UN DATO');
 {
   eq('nada de innerHTML, outerHTML, insertAdjacentHTML ni document.write', /innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(codigo), false);
-  eq('se pinta con textContent', /\.textContent = cuerpo/.test(codigo), true);
+  eq('se pinta con nodos de texto (y las ligas con <a> armados a mano)', [/conLigas\(t, cuerpo\)/.test(codigo), /createTextNode\(x\)/.test(codigo)], [true, true]);
 }
 
 console.log('\n4. NADA EN LÍNEA QUE LA CSP BLOQUEE');
@@ -61,7 +61,9 @@ console.log('\n4. NADA EN LÍNEA QUE LA CSP BLOQUEE');
 
 console.log('\n5. EL SALUDO Y EL SERVICE WORKER');
 {
-  eq('el saludo de la página es el de la función', (/var SALUDO = '([^']+)'/.exec(js) || [])[1], SALUDO);
+  eq('el saludo de la página es el de la función (el de Elías)', ((/var SALUDO = '([^']+)'/.exec(js) || [])[1] || '').replace(/\\n/g, '\n'), SALUDO);
+  eq('la tarjeta de depósito se arma con nodos y textContent, con el diseño autorizado', [/function tarjeta\(c\)/.test(codigo), /dep-tit/.test(codigo), /Envía tu comprobante por WhatsApp/.test(codigo)], [true, true, true]);
+  eq('y las ligas también: un <a> por liga https, nunca HTML', [/function conLigas/.test(codigo), /a\.href = x/.test(codigo)], [true, true]);
   eq('APP_FILES la conoce, con su guion y su hoja', ['./cotiza.html', './js/cotiza.js', './css/cotiza.css'].every(f => sw.includes("'" + f + "'")), true);
   eq('y PAGINAS también', /\|cotiza\)\(\\\.html\)\?\$\//.test(sw), true);
 }

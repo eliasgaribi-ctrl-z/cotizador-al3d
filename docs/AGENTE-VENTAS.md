@@ -68,3 +68,28 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
 3. Pegar la función `agente` en el panel (Verify JWT apagado) y cargarle `AGENTE_CUENTA`.
 4. Probarla con un link de prueba antes de dárselo a un cliente.
 
+
+## Lo que salió de los 61 chats ganadores (25-oct-2026)
+
+Elías exportó sus chats con clientes liquidados y con el equipo. Se analizaron en su computadora
+(no se suben a ningún lado). Lo que se aplicó al agente:
+
+- **El saludo es el suyo**, con una diferencia: él dice «Soy Elías» y el agente dice que es su
+  asistente. Pide nombre y empresa, invita a contar el proyecto y deja el Instagram.
+- **El orden de las preguntas es el suyo** (`ORDEN` en `ficha.js`): nombre y empresa → qué
+  quiere y medidas → para cuándo → logo → **factura** (en 49 de 61 chats, y temprano: cambia el
+  IVA y la cuenta) → dónde va → material, color y luz.
+- **Dos cuentas, según factura**, con las tarjetas autorizadas («Sin factura» y «Con factura»).
+  El portal las pinta con el mismo diseño. Los datos son dos secretos de la función que pega
+  Elías (el repositorio es público):
+  - `AGENTE_CUENTA_SIN_FACTURA` = `{"banco":"…","beneficiario":"…","tarjeta":"…"}`
+  - `AGENTE_CUENTA_CON_FACTURA` = `{"banco":"…","beneficiario":"…","cta":"…","clabe":"…","rfc":"…"}`
+- **Lo que el equipo siempre pregunta para fabricar**: el color exacto (mate o brillante, dorado o
+  plata) y, si lleva factura, la constancia fiscal (CIF).
+- **Lo que el agente puede decir** (`HECHOS`): el taller con su liga de Maps, el Instagram, el
+  WhatsApp de los comprobantes, el anticipo y la vigencia, que el diseño se aprueba antes de
+  fabricar y dos supuestos que Elías tiene que confirmar: **de 1 a 3 semanas** después del
+  anticipo y **la instalación incluida** en la zona metropolitana hasta 4 m.
+
+Tiempos medidos en esos chats (mediana desde el primer mensaje): cotización día 1, cuenta día 8,
+anticipo día 13, instalación y liquidación día 34. Sirven para los seguimientos.

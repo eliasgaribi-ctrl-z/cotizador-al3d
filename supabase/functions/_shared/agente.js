@@ -25,14 +25,54 @@ export const MAX_RESPUESTA = 1200;
 export const ANTICIPO_PCT = 50;
 export const VIGENCIA_DIAS = 10;
 
-/* Las condiciones que ya imprime el PDF (entrega.js, «Condiciones»). */
+export const WHATSAPP = '33 2813 0092';
+export const TALLER = Object.freeze(['Naranjos 648, Linda Vista', '45169 Zapopan, Jal.']);
+
+/* El saludo es el de Elías (su plantilla, en 35 de sus 61 chats ganadores), con una diferencia a
+   propósito: él dice «Soy Elías» y el agente dice que es su asistente. Al cliente no se le hace creer
+   que platica con una persona. */
+export const SALUDO = '¡Holaa! Soy el asistente de Elías, de Anuncios Luminosos 3D 🚀\n\n' +
+  '¿Cuál es tu nombre y de qué empresa nos contactas?\n\n' +
+  'Cuéntame con confianza lo que necesitas o tienes en mente para poderte cotizar.\n\n' +
+  '¿Quieres ver más de nuestros trabajos?\n⬇️⬇️⬇️\nhttps://www.instagram.com/construimagen.gg';
+
+/* Lo que el agente puede decir de AL3D. Las condiciones son las que imprime el PDF (entrega.js,
+   «Condiciones»); el taller, el Instagram y el WhatsApp de los comprobantes, los de las plantillas
+   y las tarjetas de depósito de Elías. Dos son supuestos que él tiene que confirmar y están dichos
+   como supuestos en docs/AGENTE-VENTAS.md: la instalación incluida y el tiempo de entrega (sale de
+   los cubos de plazo del taller, js/datos/taller.js, y de sus chats: de anticipo a instalación, tres
+   semanas de mediana). */
 export const HECHOS = Object.freeze([
-  'AL3D fabrica anuncios luminosos en su propio taller (Naranjos #648, Col. Lindavista, C.P. 45169).',
+  'AL3D (Anuncios Luminosos 3D) fabrica en su propio taller: ' + TALLER.join(', ') + ' (Google Maps: https://maps.app.goo.gl/AQHck791iv5U4qRS9). El cliente puede visitarlo para conocer procesos y materiales.',
+  'Trabajos anteriores: https://www.instagram.com/construimagen.gg',
   'Para arrancar se deja un anticipo de al menos el ' + ANTICIPO_PCT + ' %; el resto se liquida al instalar.',
   'La cotización vale ' + VIGENCIA_DIAS + ' días. El anticipo no es reembolsable.',
-  'Con factura se agrega el IVA (16 %).',
+  'El IVA (16 %) solo se agrega si el cliente requiere factura; con factura se deposita a la cuenta de la empresa y sin factura a otra.',
+  'El comprobante del anticipo se manda por WhatsApp al ' + WHATSAPP + '.',
+  'Antes de fabricar se le enseña el diseño al cliente para que lo apruebe.',
+  'Normalmente el letrero queda entre 1 y 3 semanas después del anticipo, según el trabajo; la fecha exacta se confirma al dar el anticipo.',
+  'La instalación en la zona metropolitana de Guadalajara va incluida hasta 4 m de altura; más alto o fuera de la zona se cotiza aparte.',
   'La salida eléctrica donde va el letrero la pone el cliente.',
 ]);
+
+/* ----- Las tarjetas de depósito -----
+   Las autorizadas por Elías: «Sin factura» (banco, beneficiario, tarjeta) y «Con factura» (banco,
+   beneficiario, cuenta, CLABE, RFC y «precio neto establecido en la cotización»). Los datos NO viven
+   en el repositorio, que es público: son dos secretos de la función, JSON con esas llaves, que pega
+   Elías. El portal pinta la tarjeta con el mismo diseño (css/cotiza.css, .dep). */
+export const VARIABLE_CUENTA = Object.freeze({ sin: 'AGENTE_CUENTA_SIN_FACTURA', con: 'AGENTE_CUENTA_CON_FACTURA' });
+const ROTULOS = [['banco', 'Banco'], ['beneficiario', 'Beneficiario'], ['tarjeta', 'Tarjeta'], ['cta', 'Cta'], ['clabe', 'Clabe'], ['rfc', 'RFC']];
+
+/** La tarjeta que le toca al cliente según su factura, o null si esa cuenta no está configurada. */
+export function tarjetaDeDeposito(ficha, entorno) {
+  const con = !!ficha && ficha.factura === true;
+  let d = null;
+  try { d = JSON.parse(entorno(con ? VARIABLE_CUENTA.con : VARIABLE_CUENTA.sin) || 'null'); } catch (_) { return null; }
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const filas = ROTULOS.filter(([k]) => typeof d[k] === 'string' && d[k].trim()).map(([k, r]) => [r, d[k].trim().slice(0, 80)]);
+  if (!filas.length || filas[0][0] !== 'Banco' || filas.length < 3) return null;
+  return { titulo: con ? 'Con factura' : 'Sin factura', filas, nota: con ? 'Precio neto establecido en la cotización' : '', whatsapp: WHATSAPP, taller: [...TALLER] };
+}
 
 /* ============================================================================
    2 · Meter en la ficha solo lo que existe
@@ -45,6 +85,7 @@ const uno = (v, lista) => (lista.includes(v) ? v : undefined);
 
 /* Cómo se limpia cada campo. Lo que no esté aquí pasa como texto corto. */
 const LIMPIA_PROYECTO = {
+  contacto: v => texto(v, 80),
   negocio: v => texto(v, 80),
   lleva_logo: booleano,
   entrega: v => uno(v, ['instalacion', 'paqueteria', 'recoleccion']),
@@ -207,12 +248,13 @@ export function mensajeDePrecio(c) {
 }
 
 /**
- * Lo que se le manda al cliente: el texto de la IA sin dinero, y después el precio y la cuenta
- * escritos por código. La cuenta solo cuando el cliente aceptó y hay cuenta configurada.
+ * Lo que se le manda al cliente: el texto de la IA sin dinero, y después el precio escrito por
+ * código. Cuando el cliente aceptó y su cuenta está configurada (`tarjeta`), la frase que la
+ * presenta: la tarjeta misma la pinta el portal, con el diseño autorizado.
  * Sin texto de la IA (no contestó o contestó algo que no se lee) queda un texto fijo: el cliente
  * nunca se queda sin respuesta.
  */
-export function armarRespuesta(textoIA, estado, ficha, cuenta) {
+export function armarRespuesta(textoIA, estado, ficha, tarjeta) {
   let t = sinDinero(textoIA).slice(0, MAX_RESPUESTA);
   if (!t) {
     t = estado.siguiente === 'preguntar' ? estado.pendientes[0].pregunta
@@ -222,7 +264,9 @@ export function armarRespuesta(textoIA, estado, ficha, cuenta) {
   }
   const partes = [t];
   if (estado.cotizacion) partes.push(mensajeDePrecio(estado.cotizacion));
-  if (estado.cotizacion && ficha && ficha.acepta === true && cuenta) partes.push('Te dejo la cuenta para el anticipo:\n' + cuenta);
+  if (estado.cotizacion && ficha && ficha.acepta === true && tarjeta) {
+    partes.push('Te dejo los datos para tu anticipo (' + tarjeta.titulo.toLowerCase() + '). Cuando deposites, mándanos tu comprobante por WhatsApp al ' + WHATSAPP + '.');
+  }
   return partes.join('\n\n');
 }
 

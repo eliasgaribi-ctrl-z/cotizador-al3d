@@ -25,7 +25,7 @@ const ids = l => l.map(q => q.id);
 
 /* Una ficha que el agente puede cobrar sola, y de ahí cada caso le cambia algo. */
 const TACOS = { tipo: 'letras', texto: 'TACOS', altura_cm: 40, material: 'acr-vol', luz: true, tono: 'fria', comp: 'recta', colores: 'blanco' };
-const base = { negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior',
+const base = { contacto: 'Daniel', negocio: 'Tacos Juan', lleva_logo: false, entrega: 'instalacion', municipio: 'Zapopan', lugar: 'exterior',
   altura_m: 3, factura: true, fecha_deseada: '2026-11-20', partidas: [TACOS] };
 const con = (o, partidas) => ({ ...base, ...o, partidas: partidas || base.partidas });
 
@@ -37,7 +37,10 @@ eq('«Café» con el acento separado cuenta 4', F.contarLetras('Café'), 4);
 eq('vacío es 0', F.contarLetras(''), 0);
 
 console.log('\nPREGUNTAS PENDIENTES');
-eq('ficha vacía: primero qué quiere', F.preguntasPendientes({})[0].id, 'partidas');
+eq('ficha vacía: primero el nombre, la empresa y qué quiere (el saludo de Elías)', ids(F.preguntasPendientes({})).slice(0, 3), ['contacto', 'negocio', 'partidas']);
+eq('el orden de Elías: medidas, fecha, logo y factura antes de dónde va; material y luz al final',
+  ids(F.preguntasPendientes({ contacto: 'D', negocio: 'N', partidas: [{ tipo: 'letras', texto: 'TACOS' }] })),
+  ['altura_cm', 'fecha_deseada', 'lleva_logo', 'factura', 'entrega', 'lugar', 'material', 'comp', 'luz']);
 eq('la ficha completa no pregunta nada para cotizar', F.preguntasPendientes(base, 'cotizar'), []);
 eq('sin negocio ni factura', ids(F.preguntasPendientes(con({ negocio: '', factura: null }))), ['negocio', 'factura']);
 eq('recolección no pregunta municipio ni altura', ids(F.preguntasPendientes(con({ entrega: 'recoleccion', municipio: '', altura_m: null }))), []);
@@ -48,17 +51,17 @@ eq('con luz, ya pregunta el tono',
   ids(F.preguntasPendientes(con({}, [{ ...TACOS, tono: '' }]))), ['tono']);
 eq('una letra de 6 cm pide el acabado del recorte (es dinero)',
   ids(F.preguntasPendientes(con({}, [{ ...TACOS, altura_cm: 6 }]))), ['acabado']);
-eq('fabricar con luz pide la salida eléctrica; sin logo no pide archivo',
-  ids(F.preguntasPendientes(base, 'fabricar')), ['salidas_electricas']);
+eq('fabricar con luz pide la salida eléctrica y, con factura, la CIF; sin logo no pide archivo',
+  ids(F.preguntasPendientes(base, 'fabricar')), ['salidas_electricas', 'datos_factura']);
 eq('fabricar con logo pide el archivo editable',
-  ids(F.preguntasPendientes(con({ lleva_logo: true }), 'fabricar')), ['archivo_editable', 'salidas_electricas']);
+  ids(F.preguntasPendientes(con({ lleva_logo: true }), 'fabricar')), ['archivo_editable', 'salidas_electricas', 'datos_factura']);
 eq('sin luz no hay salida eléctrica que pedir',
-  ids(F.preguntasPendientes(con({}, [{ ...TACOS, luz: false, tono: '' }]), 'fabricar')), []);
+  ids(F.preguntasPendientes(con({ factura: false }, [{ ...TACOS, luz: false, tono: '' }]), 'fabricar')), []);
 eq('la caja lleva luz aunque nadie lo haya dicho todavía',
   ids(F.preguntasPendientes(con({}, [{ tipo: 'caja', ancho_cm: 200, alto_cm: 105, forma: 'std', vistas: 1, tono: 'fria', colores: 'blanco' }]), 'fabricar')),
-  ['luz', 'salidas_electricas']);
+  ['luz', 'salidas_electricas', 'datos_factura']);
 eq('instalar: dirección, superficie y reglas del sitio',
-  ids(F.preguntasPendientes({ ...base, salidas_electricas: 'hay' }, 'instalar')), ['direccion', 'superficie', 'reglas_sitio']);
+  ids(F.preguntasPendientes({ ...base, salidas_electricas: 'hay', datos_factura: 'la manda por correo' }, 'instalar')), ['direccion', 'superficie', 'reglas_sitio']);
 eq('una partida null no tumba la ficha', ids(F.preguntasPendientes(con({}, [null, TACOS]))), []);
 
 console.log('\nDECISIONES PARA DIRECCIÓN');
