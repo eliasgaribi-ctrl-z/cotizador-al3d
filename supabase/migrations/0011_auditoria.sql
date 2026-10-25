@@ -27,7 +27,7 @@ create or replace function interno.auditoria() returns text[]
 language plpgsql stable set search_path = '' as $$
 declare
   c_cliente     constant text[] := array['agente_decidir','almacen_aplicar','alta_venta','cancelar_solicitud','comisiones_cobradas','constante_guardar','corregir_abono','corregir_venta','cotizacion_guardar',
-                                         'cuaderno_guardar','descartar_cotizacion','emitir_salidas_derivadas','estado_solicitudes','ganar_proyecto','instalacion_guardar','mi_acceso','miembro_alta',
+                                         'cuaderno_guardar','descartar_cotizacion','emitir_salidas_derivadas','estado_solicitudes','ganar_proyecto','gasto_anular','gasto_registrar','instalacion_guardar','mi_acceso','miembro_alta',
                                          'miembro_baja','miembro_cambiar_area','modo_cambiar','mover_etapa','pantalla_aprobar','pantalla_revocar','proyecto_actualizar','rechazar_solicitud','reclamar_acceso','registrar_abono_comision','registrar_cobro',
                                          'repartir_abono_fifo','revocar_autorizacion','solicitar','subida_unica','tarifas_guardar','tarifas_leer','version_contrato','vista_previa_reparto'];
   c_servicio    constant text[] := array['agente_abrir','agente_guardar','agente_leer','autorizacion_para_verificar','contador_sembrar','cuadre_hoja','ia_cuota','ia_turno','pantalla_solicitar','pantalla_tablero','registrar_autorizacion','tarifas_de','verificar_cupo'];
@@ -36,6 +36,9 @@ declare
   c_vistas_cli  constant text[] := array['comisiones_pendientes','ventas_calculadas'];
   c_publicadas  constant text[] := array['abonos','almacen_costos','almacen_movimientos','bitacora','constantes','cotizaciones','instalaciones','materiales','miembros','proyectos',
                                          'requerimientos','solicitudes','ventas_dinero'];
+  -- 0025: `gastos` entra a Realtime con sus RPC (0025_gastos.sql). Esta auditoría es de antes: la ADMITE publicada (volver a correr este archivo
+  --       sobre una base con 0025 no debe abortar), pero no la exige (la primera vez que corre, todavía no lo está). La de 0025 sí la exige.
+  c_publicables constant text[] := array['gastos'];
   v text[] := '{}'; r record; t text;
 begin
   -- ---- GR-03: toda tabla de `public` con RLS; `contadores` sin NINGUNA política (denegado por defecto) ---------------------------------------------
@@ -120,7 +123,9 @@ begin
 
   -- ---- GR-05: Realtime = lista cerrada, y ninguna con la fila vieja completa ------------------------------------------------------------------------
   for r in select pt.tablename from pg_publication_tables pt where pt.pubname = 'supabase_realtime' and pt.schemaname = 'public' order by 1 loop
-    if not r.tablename = any (c_publicadas) then v := v || format('GR-05 public.%I está publicada en supabase_realtime y no es de las 13 de la lista cerrada', r.tablename); end if;
+    if not (r.tablename = any (c_publicadas) or r.tablename = any (c_publicables)) then
+      v := v || format('GR-05 public.%I está publicada en supabase_realtime y no es de las 13 de la lista cerrada', r.tablename);
+    end if;
   end loop;
   foreach t in array c_publicadas loop
     if not exists (select 1 from pg_publication_tables pt where pt.pubname = 'supabase_realtime' and pt.schemaname = 'public' and pt.tablename = t) then

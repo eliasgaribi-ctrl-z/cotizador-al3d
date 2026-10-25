@@ -337,7 +337,8 @@ create table public.bitacora (
   nivel         text not null default 'general' check (nivel in ('general','dinero','direccion')),
   accion        text not null check (btrim(accion) <> ''),
   entidad       text not null check (entidad in ('proyecto','instalacion','material','constante','almacen',
-                                                 'cotizacion','autorizacion','abono','venta','miembro','plataforma','sistema')),
+                                                 'cotizacion','autorizacion','abono','venta','miembro','plataforma','sistema',
+                                                 'gasto')),                     -- 'gasto': desde 0025 (gasto_registrar, gasto_anular)
   entidad_id    text not null default '',
   titulo        text not null check (btrim(titulo) <> '' and length(titulo) <= 200),
   detalle       text not null default '' check (length(detalle) <= 600),

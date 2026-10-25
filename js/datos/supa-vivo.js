@@ -9,7 +9,8 @@
    Con la empresa en modo 'base' («la base manda», docs/BASE-MANDA.md) esta fuente es LA bajada, para
    los tres roles y sin pedir la sombra —con la base como fuente la sombra no tiene nada que copiar—: la
    usa el relevo de la base (js/datos/supa-relevo.js), con sus propios candados (una cuenta activa, y una
-   lectura vacía no tira un récord lleno), y el enchufe solo pone Realtime para saber cuándo bajar.
+   lectura vacía no tira un récord lleno), y el enchufe solo pone Realtime para saber cuándo bajar. Con la
+   base mandando, además, los gastos (0025): `gastos()` en lugar de /jalar_gastos, y su tabla en Realtime.
 
    Qué hace. El relevo de la hoja (js/datos/puente.js) ya sabe todo lo que se hace con una fila: el
    récord de ventas de Control, el dinero sobre el proyecto, la regla de los sellos dato por dato,
@@ -41,10 +42,12 @@ export const COLUMNAS_DE_DINERO = Object.freeze([P.subtotal, P.neto, P.anticipo,
 export const VE_DINERO = Object.freeze(['direccion', 'pagos']);
 export const veDinero = area => VE_DINERO.includes(String(area || ''));
 
-/** Las tablas que se leen y a las que se suscribe cada área. */
-export function tablasDe(area) {
+/** Las tablas que se leen y a las que se suscribe cada área. Los `gastos` (0025) solo con la base mandando (`o.gastos`): con la hoja
+ *  mandando no se leen de aquí (la bajada de la hoja promete no pedírselos a nadie), y antes de 0025 la tabla no está en Realtime. */
+export function tablasDe(area, o = {}) {
   const obra = ['proyectos', 'instalaciones', 'materiales', 'requerimientos', 'almacen_movimientos'];
-  return veDinero(area) ? obra.concat(['ventas_dinero', 'abonos', 'almacen_costos']) : obra;
+  if (!veDinero(area)) return obra;
+  return obra.concat(['ventas_dinero', 'abonos', 'almacen_costos'], o && o.gastos ? ['gastos'] : []);
 }
 
 const num = v => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : Number(v);
@@ -156,6 +159,7 @@ const COLS_PROYECTO = 'id, folio_hoja, folio_global, nombre, estatus, iva, tipo_
   'fecha_instalacion_hist, dir_texto, lat, lng, maps_url, tel, entrega, notas, plazo_k, sellos, etapa_vacia:procedencia->etapa_vacia';
 const COLS_DINERO = 'proyecto_id, d_cuenta, g_subtotal, h_neto, i_anticipo, j_liquidacion, k_saldo, r_comision, ' +
   's_abonado, t_restante, pct_comision, n_fecha_liquidacion';
+const COLS_GASTO = 'id, fecha, concepto, categoria, monto, cuenta, folio, registro_por, registrado_en, anulado, anulo, anulado_en';
 
 /**
  * @param {{cliente:function():Promise<Object>, area:function():Promise<string>|string, empresa?:string,
@@ -237,7 +241,18 @@ export function crearFuente(deps) {
     return { ok: true, registros, hay_mas: false };
   }
 
-  return { filas, almacen };
+  /* Los gastos (0025), en lugar de /jalar_gastos: la tabla entera, sin los que tienen lápida (alguien los quitó de la pestaña mientras la
+     hoja mandaba: para el teléfono ya no están, como no estaban en la pestaña). Las filas van tal cual; las lee `gastos.gastoDeBase`. Solo
+     la pide el relevo de la base, y solo para quien ve el dinero: a Fabricación ni se le pregunta (y la RLS de 0020 le daría cero filas). */
+  async function gastos() {
+    const c = await deps.cliente();
+    const a = await area();
+    if (!veDinero(a)) return { ok: true, gastos: [], completa: false };
+    const filas = await todas(() => c.from('gastos').select(COLS_GASTO).eq('empresa_id', empresa).is('deleted_at', null).order('id'));
+    return { ok: true, gastos: filas, completa: true };
+  }
+
+  return { filas, almacen, gastos };
 }
 
 /**
@@ -249,7 +264,7 @@ export function suscribir(cliente, area, alCambio, o = {}) {
   let reloj = 0, viva = false;
   const avisar = () => { clearTimeout(reloj); reloj = setTimeout(() => { try { alCambio(); } catch (_) {} }, espera); };
   let canal = cliente.channel('al3d-vivo');
-  for (const tabla of tablasDe(area)) {
+  for (const tabla of tablasDe(area, { gastos: !!o.gastos })) {
     canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: tabla, filter: 'empresa_id=eq.' + (o.empresa || 'al3d') }, avisar);
   }
   canal.subscribe(estado => { viva = estado === 'SUBSCRIBED'; if (o.alEstado) o.alEstado(estado); });

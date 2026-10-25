@@ -2,7 +2,8 @@
 // «Gastos» de la hoja en la copia diaria (scripts/importador, función `importar-diario`). Hojas de mentiras: ni un dato real.
 //
 //   GA-01  quién lee: Dirección y Pagos de su empresa; Fabricación, la persona ajena, la baja y otra empresa, nada; anon, ni la tabla
-//   GA-02  nadie escribe desde la app y nadie borra (ni el dueño); M-6: sin estadísticas en texto y fecha; la auditoría sigue limpia
+//   GA-02  nadie escribe directo desde la app (desde 0025, solo por sus dos RPC: supabase/tests/gastos/rpc.mjs) y nadie borra (ni el dueño);
+//          M-6: sin estadísticas en texto y fecha; la auditoría sigue limpia; desde 0025 va por Realtime
 //   GA-03  la base no acepta lo que la hoja tampoco (las reglas de gastoValidar_ del .gs)
 //   GA-04  la copia trae la pestaña: altas, la segunda vez nada, lo corregido en la hoja pisa, lo que sale de la hoja queda con lápida
 //          (y la pierde si vuelve), sin la pestaña no se toca nada, y lo que no entra se cuenta sin frenar la copia
@@ -54,7 +55,7 @@ describir('GA-01 quién lee los gastos', () => {
   }));
 });
 
-describir('GA-02 nadie escribe desde la app y nadie borra', () => {
+describir('GA-02 nadie escribe directo desde la app y nadie borra', () => {
   prueba('authenticated no inserta, no cambia ni borra; service_role no borra; ni el dueño borra (sin_borrar); la auditoría sigue limpia', async () => conCopia(plantilla, async db => {
     await copia(db, conGastos([gasto('gas-a1')]));
     const dir = sesionDe(db, db.u.dir, { confirmar: true });
@@ -64,11 +65,12 @@ describir('GA-02 nadie escribe desde la app y nadie borra', () => {
     await esperarError(como(db, { rol: 'service_role', confirmar: true }).query(`delete from public.gastos`), '42501', 'service_role no tiene DELETE');
     await esperarError(sql(db, `delete from public.gastos`), /no se borran/, 'ni el dueño (sin_borrar)');
     igual((await una(db, `select count(*)::int as n from public.gastos`)).n, 1);
-    igual((await una(db, `select interno.auditoria() as p`)).p, [], 'la auditoría de 0011 sigue limpia con 0020');
+    igual((await una(db, `select interno.auditoria() as p`)).p, [], 'la auditoría sigue limpia (con 0020 y con 0025)');
     const est = await sql(db, `select a.attname, a.attstattarget::int as e from pg_attribute a where a.attrelid = 'public.gastos'::regclass and a.attnum > 0 and not a.attisdropped
                                   and a.atttypid in ('text'::regtype, 'date'::regtype) order by 1`);
     igual(est.filter(x => x.e !== 0).map(x => x.attname), [], 'M-6: ninguna columna de texto o fecha con estadísticas');
-    igual((await una(db, `select count(*)::int as n from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'gastos'`)).n, 0, 'no va por Realtime');
+    igual((await una(db, `select count(*)::int as n from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'gastos'`)).n, 1,
+      'desde 0025 va por Realtime (0020 la dejó fuera mientras nadie la escribía desde la app)');
   }));
 });
 

@@ -1,5 +1,6 @@
-/* LA BASE MANDA, PASO 2 — el relevo de la base (js/datos/supa-relevo.js), el traductor compartido
- * (js/datos/supa-traductor.js), la elección del relevo por el modo de la empresa y la sombra quieta.
+/* LA BASE MANDA, PASOS 2 Y 3 — el relevo de la base (js/datos/supa-relevo.js), el traductor compartido
+ * (js/datos/supa-traductor.js), la elección del relevo por el modo de la empresa, la sombra quieta y, desde
+ * el paso 3 (0025_gastos.sql), los gastos.
  *
  * Lo que se vigila:
  *   · CON LA HOJA MANDANDO, LO DE SIEMPRE: un teléfono de verdad (js/datos con su IndexedDB de mentiras)
@@ -15,7 +16,11 @@
  *   · REINTENTAR ES IDEMPOTENTE (el mismo op_id, el mismo folio) y lo definitivo se aparta sin trabar;
  *   · FABRICACIÓN SIN DINERO: ni lo escribe ni lo lee;
  *   · LA BAJADA sale de la base, nunca de /jalar, y no tira un récord lleno por una lectura vacía;
- *   · SIN DOBLE ENVÍO: con la base mandando, la sombra no copia ni bombea.
+ *   · SIN DOBLE ENVÍO: con la base mandando, la sombra no copia ni bombea;
+ *   · LOS GASTOS (paso 3): con la hoja mandando van a la pestaña como siempre; con la base, a
+ *     `gasto_registrar` / `gasto_anular` con su op_id, los que esperaban desde el paso 2 salen solos y una
+ *     vez, Fabricación ni los manda ni los pide, la bajada sale de la tabla (con sus reglas de barrido) y
+ *     Realtime avisa de ellos solo con la base mandando. La sombra sigue sin copiarlos.
  *
  * No toca Supabase: el cliente es un doble con una base de mentiras en memoria. Lo que la base de verdad
  * contesta a estas mismas llamadas lo prueba supabase/tests/sync-e-importacion/relevo.mjs (PGlite).
@@ -76,7 +81,10 @@ const Supa = await import('../js/nucleo/supa.js');
 const R = await import('../js/datos/supa-relevo.js');
 const T = await import('../js/datos/supa-traductor.js');
 const Sb = await import('../js/datos/supa-sombra.js');
+const Gastos = await import('../js/datos/gastos.js');
+const Vivo = await import('../js/datos/supa-vivo.js');
 await DB.abrir();
+let GASTO_DE_LA_HOJA = '';     // el gasto que se capturó con la hoja mandando (la primera parte), para la bajada de la base
 
 /* ── La base de mentiras y su cliente (el doble de supabase-js) ─────────────────────────────────── */
 /* La matriz de permisos de VERDAD, leída de la migración: si la base cambia lo que escribe cada área,
@@ -86,13 +94,39 @@ const MATRIZ = JSON.parse(/interno\.matriz_permisos\(\)[\s\S]*?select '(\{[\s\S]
 const base = {
   cuenta: { sesion: true, estado: 'activo', area: 'direccion', modo: 'base', correo: 'ana@al3d.mx' },
   tablas: { proyectos: [], instalaciones: [], ventas_calculadas: [], ventas_dinero: [], materiales: [], requerimientos: [],
-            almacen_movimientos: [], almacen_costos: [] },
+            almacen_movimientos: [], almacen_costos: [], gastos: [] },
   contador: 300,
   llamadas: [],
   pedidas: [],
   guion: null,           // (rpc, args) => {data|error} para forzar una respuesta
   vistosAlmacen: new Set(),
+  opsGasto: new Map(),   // la bitácora de los gastos: `gasto:<op>` / `anulo:<op>` → la respuesta (0025)
 };
+/* Los gastos con la regla de 0025 (la de /empujar_gastos): el mismo id no entra dos veces; la anulación sin su alta da de alta el gasto
+   ya anulado; el reintento con el mismo op_id contesta lo mismo. La base de verdad la prueba supabase/tests/gastos/rpc.mjs. */
+function rpcDeGastos(n, a) {
+  const G = base.tablas.gastos;
+  const o = a.p_op || {};
+  const llave = (n === 'gasto_registrar' ? 'gasto:' : 'anulo:') + o.op_id;
+  if (o.op_id && base.opsGasto.has(llave)) return { data: base.opsGasto.get(llave) };
+  const ya = G.find(g => g.id === o.id) || null;
+  const iso = ms => new Date(Number(ms) > 0 ? Number(ms) : Date.now()).toISOString();
+  const alta = g => {
+    if (!(Number(g.monto) > 0)) return err('DATO_INVALIDO', 'La base no aceptó ese gasto: el monto no es un número mayor que cero.');
+    if (!String(g.concepto || '').trim()) return err('DATO_INVALIDO', 'La base no aceptó ese gasto: no dice en qué se gastó.');
+    G.push({ empresa_id: 'al3d', id: g.id, fecha: g.fecha, concepto: g.concepto, categoria: g.categoria, monto: Math.round(g.monto * 100) / 100,
+      cuenta: g.cuenta || '', folio: g.folio || '', registro_por: g.registro_por || '', registrado_en: iso(g.registrado_en),
+      anulado: g.anulado === true, anulo: g.anulado === true ? (g.anulo || '') : '', anulado_en: g.anulado === true ? iso(g.anulado_en) : null, deleted_at: null });
+    return { data: { ok: true, id: g.id, creado: true, anulado: g.anulado === true } };
+  };
+  const anula = (g, p) => { Object.assign(g, { anulado: true, anulo: p.anulo || '', anulado_en: iso(p.anulado_en) }); return { data: { ok: true, id: g.id, anulado: true } }; };
+  let r;
+  if (n === 'gasto_registrar') r = ya ? (o.anulado === true && !ya.anulado && !ya.deleted_at ? anula(ya, o) : { data: { ok: true, id: ya.id, ya_estaba: true } }) : alta(o);
+  else if (ya) r = (ya.anulado || ya.deleted_at) ? { data: { ok: true, id: ya.id, ya_estaba: true } } : anula(ya, o);
+  else r = o.gasto ? alta({ ...o.gasto, id: o.id, anulado: true, anulo: o.anulo, anulado_en: o.anulado_en }) : err('NO_ENCONTRADO', 'Ese gasto no está en la base.');
+  if (o.op_id && r.data && r.data.ok && !r.data.ya_estaba) base.opsGasto.set(llave, r.data);
+  return r;
+}
 const filaProyecto = (o = {}) => ({ id: 'p', empresa_id: 'al3d', folio_hoja: null, folio_global: null, nombre: '', estatus: 'FABRICACION', iva: true,
   tipo_trabajo: [], etapa: 'ganado', fecha_anticipo: '2026-10-01', fecha_instalacion_hist: null, dir_texto: '', lat: null, lng: null, maps_url: '',
   tel: '', entrega: null, notas: '', plazo_k: null, sellos: {}, deleted_at: null, etapa_vacia: null, ...o });
@@ -154,6 +188,10 @@ function rpcDeLaBase(n, a) {
       base.vistosAlmacen.add(llave);
       return ya ? { id: o.id, ok: true, ya_estaba: true } : { id: o.id, ok: true, creada: true };
     }) } };
+  }
+  if (n === 'gasto_registrar' || n === 'gasto_anular') {
+    if (!['direccion', 'pagos'].includes(c.area)) return err('ROL_SIN_PERMISO', 'No tienes permiso para esto.');
+    return rpcDeGastos(n, a);
   }
   return err('DESCONOCIDO', 'Función desconocida: ' + n);
 }
@@ -227,6 +265,14 @@ try {
     await DB.poner('proyectos', { ...p, etapa: 'en_diseno', sellos: { ...p.sellos, etapa: 2000 } });
     await S.encolar({ tipo: 'actualizar', almacen: 'proyectos', registro_id: 'proy-1', datos: await DB.obtener('proyectos', 'proy-1'), campos: ['etapa'], ts: 2000 });
     eq('mover la etapa también', (await S.bombear()).valor.subidas, 1);
+    /* Los gastos (paso 3), con la hoja mandando: a la pestaña «Gastos» por /empujar_gastos y de vuelta por /jalar_gastos, como siempre. */
+    const gh = await Gastos.registrar({ fecha: '2026-10-20', concepto: 'Lámina de acrílico 3 mm', categoria: 'Material', monto: 1500, cuenta: 'Elias BBVA' });
+    const bgh = await S.bombear();
+    const enLaHoja = H.ss.getSheetByName('Gastos');
+    eq('un gasto sube a la pestaña «Gastos» de la hoja, como siempre, y queda marcado', [gh.ok, bgh.valor.subidas, (await DB.obtener('gastos', gh.valor.id)).en_hoja,
+      enLaHoja ? enLaHoja._g.slice(2).filter(r => r.includes(gh.valor.id)).length : 0], [true, 1, true, 1]);
+    eq('y baja de la hoja', [(await S.jalar()).ok, (await DB.obtener('gastos', gh.valor.id)).concepto], [true, 'Lámina de acrílico 3 mm']);
+    GASTO_DE_LA_HOJA = gh.valor.id;
     eq('TODA la red fue la URL del puente: ni una petición a Supabase', [...new Set(red)], [URL_PUENTE]);
     eq('no se creó ningún <script> (la librería de Supabase no se cargó)', scripts, []);
     eq('la única base local que se abrió es la de siempre', [...new Set(abiertas)], ['al3d_pf']);
@@ -318,10 +364,10 @@ try {
     eq('cada miembro del de la hoja está en el de la base, con su tipo (menos `revive`, que es de las versiones de la hoja)',
       de(hoja).filter(x => !de(relevo).includes(x)), []);
     eq('se llama «base» (Ajustes y el arranque lo distinguen por el nombre)', relevo.nombre, 'base');
-    eq('lleva la venta, la cita y el almacén', R.LLEVA, ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos']);
-    eq('y agrupa el almacén como la hoja', ['movimientos', 'materiales', 'requerimientos', 'proyectos', 'gastos'].map(a => relevo.agrupa(a)), [true, true, true, false, false]);
-    eq('los gastos todavía no (paso 3): «no se sabe», para que Control no diga «falta actualizar el puente»', [relevo.lleva('gastos'), relevo.sabe('gastos')], [false, null]);
-    cierto('y el porqué se dice entero', /paso 3/.test(relevo.motivo('gastos')) && /no se pierde nada/.test(relevo.motivo('gastos')));
+    eq('lleva la venta, la cita, el almacén y (paso 3) los gastos', R.LLEVA, ['proyectos', 'instalaciones', 'movimientos', 'materiales', 'requerimientos', 'gastos']);
+    eq('y agrupa el almacén como la hoja; los gastos, uno por viaje', ['movimientos', 'materiales', 'requerimientos', 'proyectos', 'gastos'].map(a => relevo.agrupa(a)), [true, true, true, false, false]);
+    eq('los gastos ya tienen a dónde: Control no dice «falta actualizar el puente»', [relevo.lleva('gastos'), relevo.sabe('gastos')], [true, true]);
+    eq('lo que no lleva, con su porqué entero', [relevo.lleva('avisos'), relevo.sabe('avisos'), /se calculan al abrir/.test(relevo.motivo('avisos'))], [false, false, true]);
     eq('el récord de ventas se baja entero, como el de la hoja', relevo.espejos, ['ventas_hoja']);
   }
 
@@ -382,14 +428,97 @@ try {
       [3, [['almacen_aplicar', ['op-mov-1', 'op-mat-1', 'op-req-1']]]]);
     cierto('sin la marca `sync` de este teléfono', llamadasDe()[0][1].p_ops.every(o => !('sync' in o.datos)));
 
-    await S.encolar({ id: 'op-gasto-1', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-1', datos: { id: 'gas-1', concepto: 'Gasolina', monto: 500 }, ts: 9000 });
     await S.encolar({ id: 'op-aviso-1', tipo: 'actualizar', almacen: 'avisos', registro_id: 'r1', datos: { rid: 'r1' }, ts: 9001 });
     base.llamadas.length = 0;
     const bg = await S.bombear();
     const apartadas = await S.sinDestino();
-    eq('un gasto y un aviso no van a la base: se apartan aquí con su razón, sin gastar red', [bg.valor.sin_destino, apartadas.map(x => x.id), llamadasDe().length],
-      [2, ['op-gasto-1', 'op-aviso-1'], 0]);
-    cierto('el gasto dice que espera al paso 3', /paso 3/.test(apartadas[0].ultimo_error));
+    eq('un aviso no va a la base: se aparta aquí con su razón, sin gastar red', [bg.valor.sin_destino, apartadas.map(x => x.id), llamadasDe().length],
+      [1, ['op-aviso-1'], 0]);
+    await DB.borrar('pendientes', 'op-aviso-1');
+  }
+
+  console.log('\nLOS GASTOS (paso 3): A LA BASE, CON SU op_id, Y LOS QUE ESPERABAN SALEN SOLOS Y UNA VEZ');
+  {
+    /* Un gasto que se capturó con la app del paso 2 y la base mandando: se quedó apartado en este teléfono, con su razón, esperando. */
+    const viejo = { id: 'gas-viejo-1', fecha: '2026-10-24', concepto: 'Gasolina de la camioneta', categoria: 'Transporte y gasolina', monto: 500, cuenta: '',
+      folio: '', registro_por: 'Ana · Dirección (K7QM)', registrado_en: Date.parse('2026-10-24T18:00:00Z'), anulado: false, anulo: '', anulado_en: null,
+      en_hoja: false, subido_en: 0 };
+    await DB.poner('gastos', viejo);
+    const { en_hoja: _e, subido_en: _s, ...queViajaba } = viejo;
+    await DB.poner('pendientes', { id: 'op-gasto-viejo', tipo: 'crear', almacen: 'gastos', entidad: 'gastos', registro_id: viejo.id, entidad_id: viejo.id,
+      datos: queViajaba, campos: null, ts: 9100, disp: 'K7QM', intentos: 0, estado: 'sin_destino', sync: 0,
+      ultimo_error: 'Los gastos esperan en este teléfono: la base todavía no los guarda (paso 3 de «la base manda»). Salen solos el día que los lleve; no se pierde nada.' });
+    eq('(así lo dejó el paso 2: apartado)', (await S.sinDestino()).map(x => x.id), ['op-gasto-viejo']);
+    base.llamadas.length = 0; red.length = 0;
+    const b1 = await S.bombear();
+    const g1 = llamadasDe();
+    eq('el siguiente bombeo lo devuelve a la cola y sale solo, a gasto_registrar, con el id de la operación como op_id',
+      [b1.valor.subidas, g1.map(x => [x[0], x[1].p_op.op_id, x[1].p_op.id])], [1, [['gasto_registrar', 'op-gasto-viejo', 'gas-viejo-1']]]);
+    eq('con los campos de la pestaña y nada de este teléfono', Object.keys(g1[0][1].p_op).sort(),
+      ['anulado', 'anulado_en', 'anulo', 'categoria', 'concepto', 'cuenta', 'fecha', 'folio', 'id', 'monto', 'op_id', 'registrado_en', 'registro_por']);
+    eq('la base lo tiene una vez; aquí queda como ya enviado; ni apartado ni en la bandeja; ni una petición a la hoja',
+      [base.tablas.gastos.filter(g => g.id === 'gas-viejo-1').length, (await DB.obtener('gastos', 'gas-viejo-1')).en_hoja, (await S.sinDestino()).length,
+       (await S.pendientes()).length, red.length], [1, true, 0, 0, 0]);
+    base.llamadas.length = 0;
+    eq('el bombeo siguiente no lo vuelve a mandar', [(await S.bombear()).valor.subidas, llamadasDe().length], [0, 0]);
+    /* Y si se vuelve a encolar (un respaldo restaurado: `reencolarSueltos`), la base contesta «ya estaba» y no lo duplica. */
+    await DB.poner('gastos', { ...(await DB.obtener('gastos', 'gas-viejo-1')), en_hoja: false });
+    eq('un gasto suelto se vuelve a encolar…', await Gastos.reencolarSueltos(), 1);
+    const b2 = await S.bombear();
+    eq('…y la base contesta «ya estaba»: sigue habiendo uno', [b2.valor.subidas, base.tablas.gastos.filter(g => g.id === 'gas-viejo-1').length,
+      (await DB.obtener('gastos', 'gas-viejo-1')).en_hoja], [1, 1, true]);
+
+    /* Capturar y anular con la app, como en Control. */
+    base.llamadas.length = 0;
+    const nuevo = await Gastos.registrar({ fecha: '2026-10-25', concepto: 'Fuente de 12 V', categoria: 'Material', monto: 389.5, cuenta: 'Constru BNT', folio: 'V-301' });
+    const opNuevo = (await S.pendientes()).find(x => x.registro_id === nuevo.valor.id);
+    await S.bombear();
+    eq('capturar un gasto: gasto_registrar con la operación de la bandeja', llamadasDe().map(x => [x[0], x[1].p_op.op_id, x[1].p_op.monto, x[1].p_op.cuenta, x[1].p_op.folio]),
+      [['gasto_registrar', opNuevo.id, 389.5, 'Constru BNT', 'V-301']]);
+    base.llamadas.length = 0;
+    await Gastos.anular(nuevo.valor.id);
+    const opAnulo = (await S.pendientes()).find(x => x.registro_id === nuevo.valor.id);
+    await S.bombear();
+    const an = llamadasDe();
+    eq('anularlo: gasto_anular, con quién y cuándo, y el gasto entero por si la base no lo tuviera',
+      [an.map(x => x[0]), an[0][1].p_op.op_id, an[0][1].p_op.id, !!an[0][1].p_op.anulo, an[0][1].p_op.anulado_en > 0, an[0][1].p_op.gasto.concepto, an[0][1].p_op.gasto.anulado],
+      [['gasto_anular'], opAnulo.id, nuevo.valor.id, true, true, 'Fuente de 12 V', true]);
+    eq('la base lo tiene anulado (no borrado)', base.tablas.gastos.filter(g => g.id === nuevo.valor.id).map(g => g.anulado), [true]);
+
+    /* La anulación cuya alta nunca llegó a la base (salió de otro teléfono que se quedó sin señal): la base lo da de alta ya anulado. */
+    base.llamadas.length = 0;
+    const huerfano = { id: 'gas-otro-tel', fecha: '2026-10-25', concepto: 'Pintura', categoria: 'Material', monto: 210, cuenta: '', folio: '', registro_por: 'Beto',
+      registrado_en: 1, anulado: true, anulo: 'Ana', anulado_en: Date.parse('2026-10-25T20:00:00Z') };
+    await S.encolar({ id: 'op-anulo-huerfano', tipo: 'actualizar', almacen: 'gastos', registro_id: huerfano.id, datos: huerfano, campos: ['anulado', 'anulo', 'anulado_en'], ts: 9200 });
+    await S.bombear();
+    eq('la anulación sin su alta: entra el gasto, ya anulado, una vez', base.tablas.gastos.filter(g => g.id === 'gas-otro-tel').map(g => [g.anulado, g.monto]), [[true, 210]]);
+
+    /* El reintento de una respuesta que se perdió: el mismo op_id, la misma respuesta, un solo gasto. */
+    base.llamadas.length = 0;
+    const perdido = await Gastos.registrar({ fecha: '2026-10-25', concepto: 'Gasolina', categoria: 'Transporte y gasolina', monto: 700 });
+    base.guion = (n, a) => { if (n === 'gasto_registrar') { rpcDeLaBase(n, a); return { data: null, error: { code: '', message: 'TypeError: Failed to fetch' } }; } return null; };
+    const r1 = await S.bombear();
+    base.guion = null;
+    const r2 = await S.bombear();
+    eq('la base lo escribió y la respuesta se perdió: se queda en la bandeja; el reintento sale con el MISMO op_id y no lo duplica',
+      [r1.valor.subidas, r2.valor.subidas, new Set(llamadasDe().map(x => x[1].p_op.op_id)).size, base.tablas.gastos.filter(g => g.id === perdido.valor.id).length],
+      [0, 1, 1, 1]);
+
+    /* Lo que la base no acepta se aparta con su razón (definitivo) y no traba lo de atrás. */
+    base.llamadas.length = 0;
+    await S.encolar({ id: 'op-gasto-malo', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-malo', datos: { id: 'gas-malo', fecha: '2026-10-25', concepto: 'x', categoria: 'Otros', monto: 0 }, ts: 9300 });
+    const bueno = await Gastos.registrar({ fecha: '2026-10-25', concepto: 'Cinta doble cara', categoria: 'Material', monto: 85 });
+    const bm = await S.bombear();
+    eq('un gasto que la base no acepta se aparta (DATO_INVALIDO, con la función) y el siguiente sale',
+      [bm.valor.subidas, bm.valor.rechazadas, (await S.rechazadas()).filter(x => x.id === 'op-gasto-malo').map(x => [x.codigo_rechazo, /gasto_registrar/.test(x.ultimo_error)]),
+       base.tablas.gastos.some(g => g.id === bueno.valor.id)], [1, 1, [['DATO_INVALIDO', true]], true]);
+    await DB.borrar('pendientes', 'op-gasto-malo');
+
+    /* La sombra sigue sin copiar gastos: su traductor no los conoce (la copia de cada 3 horas ya los trae de la hoja). */
+    eq('el traductor de la sombra no los traduce; el de los gastos, sí', [!!T.traducir({ id: 'o', almacen: 'gastos', tipo: 'crear', datos: { id: 'g' } }).omitir,
+      T.traducirGasto({ id: 'o', almacen: 'gastos', tipo: 'crear', datos: { id: 'g' } }).llamadas[0].rpc], [true, 'gasto_registrar']);
+    eq('un cambio que no es anulación es un alta otra vez («ya estaba»): un gasto no se corrige',
+      T.traducirGasto({ id: 'o', almacen: 'gastos', tipo: 'actualizar', datos: { id: 'g', monto: 5 }, campos: ['monto'] }).llamadas.map(x => x.rpc), ['gasto_registrar']);
   }
 
   console.log('\nREINTENTAR ES IDEMPOTENTE; LO DEFINITIVO SE APARTA SIN TRABAR');
@@ -508,8 +637,14 @@ try {
 
     base.pedidas.length = 0;
     const j = await S.jalar();
-    eq('Fabricación baja de la base sin pedir dinero', [j.ok, base.pedidas.includes('ventas_calculadas'), base.pedidas.includes('almacen_costos'), base.pedidas.includes('ventas_dinero')],
-      [true, false, false, false]);
+    eq('Fabricación baja de la base sin pedir dinero (ni los gastos)', [j.ok, base.pedidas.includes('ventas_calculadas'), base.pedidas.includes('almacen_costos'), base.pedidas.includes('ventas_dinero'),
+      base.pedidas.includes('gastos')], [true, false, false, false, false]);
+    base.llamadas.length = 0;
+    await S.encolar({ id: 'op-gasto-fab', tipo: 'crear', almacen: 'gastos', registro_id: 'gas-fab', datos: { id: 'gas-fab', fecha: '2026-10-25', concepto: 'Lija', categoria: 'Material', monto: 40 }, ts: 15200 });
+    const bf = await S.bombear();
+    eq('un gasto en un teléfono de Fabricación ni se intenta: se aparta, definitivo, con su razón', [bf.valor.rechazadas, llamadasDe().filter(x => x[0].startsWith('gasto_')).length,
+      (await S.rechazadas()).filter(x => x.id === 'op-gasto-fab').map(x => [x.codigo_rechazo, /Dirección y Pagos/.test(x.ultimo_error)])], [1, 0, [['ROL_SIN_PERMISO', true]]]);
+    await DB.borrar('pendientes', 'op-gasto-fab');
     const v = await DB.obtener('ventas_hoja', 'hoja:V-301');
     eq('y su récord no trae importes', ['sub', 'neto', 'anticipo', 'pago_pendiente', 'comisiones', 'cuenta'].map(k => v && v[k] !== undefined && v[k] !== null), [false, false, false, false, false, false]);
     base.cuenta = { sesion: true, estado: 'activo', area: 'direccion', modo: 'base', correo: 'ana@al3d.mx' };
@@ -539,6 +674,41 @@ try {
     await relevo.salud();
   }
 
+  console.log('\nLOS GASTOS (paso 3): LA BAJADA SALE DE LA TABLA, NUNCA DE /jalar_gastos');
+  {
+    /* Lo que hay en la base: lo de este teléfono, uno de otro teléfono, uno con lápida y el de la hoja (lo trajo la copia). */
+    base.tablas.gastos.push(
+      { empresa_id: 'al3d', id: 'gas-de-pagos', fecha: '2026-10-25', concepto: 'Renta de octubre', categoria: 'Renta y servicios', monto: 9000, cuenta: 'Elias BBVA',
+        folio: '', registro_por: 'Caro · Pagos', registrado_en: '2026-10-25T15:00:00.000+00:00', anulado: false, anulo: '', anulado_en: null, deleted_at: null },
+      { empresa_id: 'al3d', id: 'gas-con-lapida', fecha: '2026-10-01', concepto: 'Quitado de la hoja', categoria: 'Otros', monto: 1, cuenta: '', folio: '',
+        registro_por: '', registrado_en: null, anulado: false, anulo: '', anulado_en: null, deleted_at: '2026-10-20T00:00:00Z' },
+      { empresa_id: 'al3d', id: GASTO_DE_LA_HOJA, fecha: '2026-10-20', concepto: 'Lámina de acrílico 3 mm', categoria: 'Material', monto: 1500, cuenta: 'Elias BBVA',
+        folio: '', registro_por: 'Ana', registrado_en: '2026-10-20T17:00:00Z', anulado: false, anulo: '', anulado_en: null, deleted_at: null });
+    /* Aquí: uno que la base ya no trae (otro lo quitó cuando la hoja mandaba) y uno recién capturado que todavía no sube. */
+    await DB.poner('gastos', { id: 'gas-ya-no-esta', fecha: '2026-10-02', concepto: 'Viejo', categoria: 'Otros', monto: 3, en_hoja: true, subido_en: 1 });
+    const recien = await Gastos.registrar({ fecha: '2026-10-25', concepto: 'Brocas', categoria: 'Herramienta', monto: 120 });
+    red.length = 0; base.pedidas.length = 0;
+    const j = await S.jalar();
+    const local = id => DB.obtener('gastos', id);
+    eq('baja bien, de la tabla `gastos` y sin pedirle nada a la hoja', [j.ok, base.pedidas.includes('gastos'), red.length], [true, true, 0]);
+    const p = await local('gas-de-pagos');
+    eq('el de otro teléfono llega con la forma de siempre (el instante en milisegundos) y como ya enviado',
+      [p && p.concepto, p && p.monto, p && p.registrado_en, p && p.en_hoja], ['Renta de octubre', 9000, Date.parse('2026-10-25T15:00:00Z'), true]);
+    eq('el que la base tiene anulado (y este teléfono nunca tuvo) baja anulado', [(await local('gas-otro-tel')).anulado, (await local('gas-otro-tel')).anulo], [true, 'Ana']);
+    eq('el de la lápida no baja; el que la base ya no trae se barre; el de la hoja se queda',
+      [await local('gas-con-lapida'), await local('gas-ya-no-esta'), !!(await local(GASTO_DE_LA_HOJA))], [null, null, true]);
+    eq('y el recién capturado, con su operación en la bandeja, no se toca ni se barre', [(await local(recien.valor.id)).en_hoja, (await S.pendientes()).some(x => x.registro_id === recien.valor.id)], [false, true]);
+    await S.bombear();
+
+    /* Una lectura VACÍA (una RLS que contesta cero filas) no barre los gastos de este teléfono. */
+    const guardados = base.tablas.gastos;
+    base.tablas.gastos = [];
+    const nAntes = (await DB.listar('gastos')).length;
+    await S.jalar();
+    eq('una lectura vacía de gastos no barre nada', (await DB.listar('gastos')).length, nAntes);
+    base.tablas.gastos = guardados;
+  }
+
   console.log('\nSIN DOBLE ENVÍO: CON LA BASE MANDANDO, LA SOMBRA NO COPIA NI BOMBEA');
   {
     const E = await import('../js/datos/supa-enchufe.js');
@@ -566,6 +736,10 @@ try {
     const st = await E.estado();
     eq('Ajustes lo ve así', [st.base, st.vivo, st.leeDeLaBase], [true, true, true]);
     cierto('Realtime se suscribe a las tablas del área', canales.length > 0 && canales[canales.length - 1].tablas.includes('proyectos'));
+    cierto('y, con la base mandando, a los gastos (paso 3): un gasto de otro teléfono avisa como una venta', canales[canales.length - 1].tablas.includes('gastos'));
+    eq('los gastos en Realtime: solo con la base mandando y solo para quien ve el dinero',
+      [Vivo.tablasDe('direccion').includes('gastos'), Vivo.tablasDe('direccion', { gastos: true }).includes('gastos'), Vivo.tablasDe('pagos', { gastos: true }).includes('gastos'),
+       Vivo.tablasDe('fabricacion', { gastos: true }).includes('gastos')], [false, true, true, false]);
     base.llamadas.length = 0;
     await S.encolar({ id: 'op-notas-11', tipo: 'actualizar', almacen: 'proyectos', registro_id: 'proy-11', datos: { ...(await DB.obtener('proyectos', 'proy-11')), notas: 'x', sellos: { notas: 16100 } }, campos: ['notas'], ts: 16100 });
     await S.bombear();

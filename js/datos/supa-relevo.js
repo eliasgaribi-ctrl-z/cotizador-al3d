@@ -31,9 +31,17 @@
    una venta ni da de alta una. Y no lo lee: la fuente no le pide ni una columna de dinero, y la RLS de la
    base se lo negaría igual (R1, supabase/DISENO.md §4.6).
 
-   LO QUE NO LLEVA TODAVÍA. Los gastos (paso 3: la base no tiene su función): se apartan en este teléfono
-   con su razón y salen solos el día que la base los lleve (`sync.revivirSinDestino`). Las notas de una
-   cita ya creada tampoco viajan (la base pide el renglón nuevo, `anexo`), igual que con la sombra.
+   LOS GASTOS (paso 3, 0025_gastos.sql). Suben con `gasto_registrar` y `gasto_anular` (`traducirGasto`, solo
+   de este relevo: la sombra no copia gastos), una operación por viaje, con su `op_id`; la base sigue la regla
+   de /empujar_gastos (el mismo id no entra dos veces; la anulación sin su alta da de alta el gasto ya anulado).
+   Los que se apartaron en el teléfono mientras la base no tenía a dónde (paso 2) vuelven solos a la cola en el
+   siguiente bombeo (`sync.revivirSinDestino`) y entran una vez. Bajan de la tabla `gastos` en lugar de
+   /jalar_gastos, con las reglas de la bajada de la hoja (js/datos/gastos.js): lo que espera en la bandeja no
+   se pisa, lo que la base ya no trae se barre solo si este teléfono lo había visto allá, y una lectura vacía
+   no barre un teléfono lleno. Solo para quien ve el dinero: a Fabricación ni se le piden.
+
+   LO QUE NO LLEVA TODAVÍA. Las notas de una cita ya creada (la base pide el renglón nuevo, `anexo`), igual
+   que con la sombra.
 
    QUIÉN LO ENCHUFA: js/app.js, solo cuando `laBaseManda()` (js/nucleo/supa.js): el interruptor de
    Supabase encendido en este aparato Y el último modo que dijo la base, 'base'. Con la hoja mandando ni
@@ -44,12 +52,12 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Puente from './puente.js';
-import { traducir, leerRespuesta, crearEscritor, ALMACEN } from './supa-traductor.js';
-import { crearFuente } from './supa-vivo.js';
+import { traducir, traducirGasto, leerRespuesta, crearEscritor, ALMACEN } from './supa-traductor.js';
+import { crearFuente, veDinero } from './supa-vivo.js';
 
 export const AREAS = Object.freeze(['direccion', 'fabricacion', 'pagos']);
 /** Lo que este relevo lleva a la base. Lo demás se aparta en el teléfono con su razón (`motivo`). */
-export const LLEVA = Object.freeze(['proyectos', 'instalaciones', ...ALMACEN]);
+export const LLEVA = Object.freeze(['proyectos', 'instalaciones', ...ALMACEN, 'gastos']);
 /* Cuánto vale lo que la base dijo de esta cuenta antes de volver a preguntar: lo mismo que la vigilancia
    del acceso retirado (js/nucleo/supa.js, MS_VIGILAR). */
 const MS_CUENTA = 10 * 60 * 1000;
@@ -60,7 +68,6 @@ const t = v => (v === null || v === undefined) ? '' : String(v);
 /* Cada uno con su frase entera, como en puente.js: la lee una persona que quiere saber por qué su cambio
    no salió, y una plantilla con el nombre del almacén pegado no concuerda. */
 const NO_LLEVA = {
-  gastos:     'Los gastos esperan en este teléfono: la base todavía no los guarda (paso 3 de «la base manda»). Salen solos el día que los lleve; no se pierde nada.',
   avisos:     'Los avisos se calculan al abrir la plataforma, en cada dispositivo. No viajan y no hace falta que viajen.',
   constantes: 'Las constantes del taller se quedan en este dispositivo.',
   geo:        'La caché de ubicaciones se queda en este dispositivo. Se vuelve a llenar sola.',
@@ -341,6 +348,79 @@ export function crearRelevo(deps) {
     return noSalio(op.id, r);
   }
 
+  /* ── LOS GASTOS (paso 3) ─────────────────────────────────────────────────────────────────────── */
+
+  /* Lo mismo que hacía el relevo de la hoja al subir uno (`marcarGastoEnHoja` de puente.js): `en_hoja` es «ya está en la fuente» —la
+     hoja, o con la base mandando, la base— y `subido_en` desde cuándo. Es lo que deja barrer después lo que la base ya no trae sin barrer
+     lo que nunca llegó (`gastos.porBarrer`), y va ANTES de que `sync` saque la operación de la bandeja: en ningún instante un gasto de
+     aquí está sin operación y sin marca. Con DB directo y sin encolar, como `espejarLocal`. */
+  async function marcarGasto(id) {
+    try {
+      const g = await DB.obtener('gastos', id);
+      if (g) await DB.poner('gastos', { ...g, en_hoja: true, subido_en: ahora() });
+    } catch (_) { /* sin la marca, la bajada lo trae igual; no se para el bombeo por ella */ }
+  }
+
+  /* Un gasto, en un viaje. Lo que el área no ve (Fabricación) ni se intenta: se aparta con su razón, como lo apartaba la hoja. */
+  async function subirGasto(p, op) {
+    if (!veDinero(p.a.area)) {
+      return { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', definitivo: true,
+               mensaje: 'Los gastos son dinero: los registran Dirección y Pagos, y esta cuenta es de ' + t(p.a.area) + '.' };
+    }
+    const tr = traducirGasto(op);
+    if (tr.omitir) return { id: op.id, ok: true, omitida: true, remoto: null, rechazadas: [] };
+    let r;
+    try { r = await escritor.mandar(p.c, op, { llamadas: tr.llamadas }); }
+    catch (e) { r = { caso: 'reintentar', codigo: 'SIN_RED', mensaje: t(e && e.message) }; }
+    if (r.caso === 'ok') {
+      await marcarGasto(t((op.datos && op.datos.id) || op.registro_id));
+      /* «Ya estaba» es éxito: es el reintento de uno que sí llegó (o uno que la base ya tenía por la copia de la hoja). */
+      return { id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: /ya_estaba/.test(t(r.detalle)) };
+    }
+    return noSalio(op.id, r);
+  }
+
+  /* La bajada de los gastos, con las reglas de `bajarGastos` de puente.js: la tabla ENTERA (unos cientos de renglones al año), de cada
+     uno la base es la dueña (sello de «ahora»), salvo el que tiene una operación todavía en la bandeja —para no deshacerle en pantalla a
+     quien lo acaba de anular—; lo que ya no trae se barre al cerrar la bajada (`despuesDeBajar`). Y un candado más, el de las ventas: una
+     lectura VACÍA con gastos de la base en este teléfono no barre nada (una RLS que contesta vacío no es «ya no hay gastos»). */
+  let gastosVistos = null;
+  async function bajarGastos() {
+    if (!deps.fuente || typeof deps.fuente.gastos !== 'function') return [];
+    const a = await cuenta();
+    if (a.estado !== 'activo' || !veDinero(a.area)) return [];
+    const G = await import('./gastos.js');
+    const leidoEn = ahora();
+    const r = await deps.fuente.gastos();
+    if (!r || r.ok !== true || !Array.isArray(r.gastos)) return [];
+    let enBandeja;
+    try { enBandeja = G.idsEnLaBandeja(await DB.listar('pendientes')); } catch (_) { enBandeja = new Map(); }
+    const lista = r.gastos.map(G.gastoDeBase).filter(Boolean);
+    let barrer = r.completa !== false;
+    if (barrer && !lista.length) {
+      let vistos = 0;
+      try { vistos = (await DB.listar('gastos')).filter(g => g && g.en_hoja === true).length; } catch (_) { vistos = 0; }
+      if (vistos) barrer = false;
+    }
+    gastosVistos = barrer ? { ids: new Set(lista.map(g => g.id)), leidoEn } : null;
+    const sello = ahora();
+    return lista.filter(g => !enBandeja.has(g.id)).map(g => ({ almacen: 'gastos', datos: { ...g, en_hoja: true, actualizado_en: sello } }));
+  }
+
+  async function barrerGastos(vistos) {
+    try {
+      const G = await import('./gastos.js');
+      const locales = await DB.listar('gastos');
+      const enBandeja = G.idsEnLaBandeja(await DB.listar('pendientes'));
+      let k = 0;
+      for (const id of G.porBarrer(locales, vistos, enBandeja)) {
+        const r = await DB.borrar('gastos', id);
+        if (r && r.ok) k++;
+      }
+      return k;
+    } catch (_) { return 0; }
+  }
+
   /* Una respuesta que para el bombeo: lo que sigue del lote se queda como estaba. */
   const para = x => !!x && !x.ok && !x.definitivo && x.codigo !== 'SIN_DESTINO';
 
@@ -370,9 +450,9 @@ export function crearRelevo(deps) {
     nombre: 'base',
     lleva: almacen => LLEVA.includes(almacen),
     motivo,
-    /* Lo que se sabe sin red de si un almacén tiene a dónde ir. Los gastos: «no se sabe» (null) y no
-       «no»: con un no, Control diría «falta actualizar el puente», que con la base mandando no es cierto. */
-    sabe: almacen => (LLEVA.includes(almacen) ? true : (almacen === 'gastos' ? null : false)),
+    /* Lo que se sabe sin red de si un almacén tiene a dónde ir: con la base no depende de ninguna versión de la hoja. Los gastos también
+       (0025): Control ya no dice «falta actualizar el puente». */
+    sabe: almacen => LLEVA.includes(almacen),
     agrupa: almacen => ALMACEN.includes(almacen),
     espejos: Puente.ESPEJOS.slice(),
     /** Para Ajustes: la última cuenta que la base reconoció (sin red). */
@@ -388,6 +468,7 @@ export function crearRelevo(deps) {
       for (const op of lista) {
         let x;
         if (ALMACEN.includes(op.almacen)) [x] = await subirAlmacen(p, [op]);
+        else if (op.almacen === 'gastos') x = await subirGasto(p, op);
         else if (!LLEVA.includes(op.almacen)) x = { id: op.id, ok: false, codigo: 'SIN_DESTINO', mensaje: motivo(op.almacen) };
         else x = await subirUna(p, op);
         salida.push(x);
@@ -400,9 +481,27 @@ export function crearRelevo(deps) {
       /* La fuente de las filas es SIEMPRE la base, y se pone antes de cada bajada: la de `Puente` es una
          sola para todo el módulo, y la lectura en vivo de Ajustes la quita al apagarse. */
       Puente.fuenteDeLectura(fuente);
-      return lector.bajar(cursor);
+      gastosVistos = null;
+      const r = await lector.bajar(cursor);
+      /* Los gastos, en la última página y en su propio try, como en el relevo de la hoja: si la base no los da, lo de la venta ya bajó
+         igual. (Con una fuente, el de la hoja no los pide: esa bajada promete no hablarle a la hoja.) */
+      if (r && !r.hay_mas) {
+        try {
+          const g = await bajarGastos();
+          if (g.length) r.registros = (Array.isArray(r.registros) ? r.registros : []).concat(g);
+        } catch (_) { gastosVistos = null; }
+      }
+      return r;
     },
-    despuesDeBajar: info => lector.despuesDeBajar(info),
+    async despuesDeBajar(info) {
+      /* Los gastos que la base ya no trae, con lo que bajó ya escrito. */
+      if (gastosVistos) {
+        const v = gastosVistos;
+        gastosVistos = null;
+        await barrerGastos(v);
+      }
+      return lector.despuesDeBajar(info);
+    },
 
     async salud() {
       const a = await cuenta(true);

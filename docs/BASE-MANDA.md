@@ -21,7 +21,7 @@ Cada teléfono lee el modo de `mi_acceso`. Solo Dirección lo cambia (`modo_camb
 |---|---|---|
 | 1 | `0024_modo.sql` (el modo, `modo_cambiar`, `mi_acceso` con el modo) y la copia que lo respeta | este PR |
 | 2 | El relevo: la app escribe y lee la base cuando el modo es `'base'` (`supa-relevo.js` con la interfaz de `sync`, sacando de la sombra el traductor); la entrada con Google para los 3 roles; la lectura en vivo sin depender de la sombra | hecho, sin publicar (abajo) |
-| 3 | Gastos: `gasto_registrar` y `gasto_anular` (con `op_id`), la tabla a Realtime | |
+| 3 | Gastos: `gasto_registrar` y `gasto_anular` (con `op_id`), la tabla a Realtime | hecho, sin publicar (abajo) |
 | 4 | Cotizador: precios, solicitudes, «Registrar venta» por la plataforma, el historial a la nube | |
 | 5 | Pagos: las pantallas de cobros y abonos encendidas en modo base; venta sin cotización (`alta_venta`) | |
 | 6 | El sello de los QR (según decida Elías) | |
@@ -56,8 +56,35 @@ este aparato» y entrar con Google (las 3 de Fabricación y la de Pagos ya está
 minutos como mucho. Hasta entonces escribe en la hoja: por eso el paso 7 necesita la hoja en solo lectura, para que eso se quede en la bandeja
 y salga a la base después.
 
+## Paso 3: los gastos (hecho, sin publicar)
+
+Va después del paso 2 (PR #169). Hasta aquí, con la base mandando, un gasto capturado en Control se quedaba apartado en el teléfono («la base
+todavía no los guarda»). Ahora va a la base, y los que se quedaron esperando salen solos en el siguiente bombeo, una sola vez.
+
+| Pieza | Dónde | Prueba |
+|---|---|---|
+| **Las dos funciones**, con la regla de `/empujar_gastos` del Apps Script: `gasto_registrar` (el mismo id no entra dos veces: «ya estaba»; si trae la anulación y la base no la tiene, anula y nada más) y `gasto_anular` (lo repetido es «ya estaba»; sin su alta, y con el gasto entero en la operación, lo da de alta ya anulado). Validan como `gastoValidar_` (el día, el concepto, la categoría de la lista, el monto mayor que cero y hasta diez millones, la cuenta de las cinco o vacía, el folio); «Subió» es el correo de Google, no lo que diga el teléfono; una lápida no se revive | `supabase/migrations/0025_gastos.sql` | `supabase/tests/gastos/rpc.mjs` (GA-06 a GA-11) |
+| **Quién**: Dirección y Pagos registran y anulan (cualquier gasto de su empresa, como en la hoja); Fabricación recibe `ROL_SIN_PERMISO` definitivo, y su teléfono ni lo intenta. Lo que ve cada área no cambia (la RLS de `0020`): Fabricación, ni una fila | `0025`, `supa-relevo.js` | GA-06, GA-11; RE-05; «Fabricación sin dinero» |
+| **Idempotentes por `op_id`**: el id de la operación de la bandeja se guarda en la línea de la bitácora (`gasto:<op>`, `anulo:<op>`) con la respuesta, y el reintento contesta lo mismo. Y por el id del gasto: un gasto que se vuelve a encolar no se duplica | `0025` | GA-08; «el reintento… no lo duplica» |
+| **La bitácora**: una línea de nivel dinero por lo que sí se escribió; la tabla aprende la entidad `gasto` | `0025` | GA-10 |
+| **Realtime**: `gastos` a `supabase_realtime` (identidad DEFAULT); la lista cerrada de la auditoría pasa a 14 en `0025`. Las auditorías de antes (`0011`, `0019`, `0022`–`0024`) llevan las dos funciones en su lista de cliente y **admiten** `gastos` publicada sin exigirla: volver a correr `0011` sobre una base con `0025` no aborta | `0025` y las cinco de antes | `auditoria.mjs` (38 + 13 funciones, 14 publicadas, la idempotencia de todo), GA-11 |
+| **El relevo sube los gastos** con `traducirGasto` (aparte de `traducir`: la sombra sigue sin copiarlos) y marca el gasto como enviado; **baja** de la tabla `gastos` en lugar de `/jalar_gastos` (`crearFuente().gastos`, sin lápidas, solo para quien ve el dinero), con las reglas de siempre: lo que espera en la bandeja no se pisa, lo que la base ya no trae se barre solo si este teléfono lo había visto allá, y una lectura vacía no barre nada. La pantalla de Control no cambia: `gastoDeBase` da la misma forma que `gastoDeHoja` | `js/datos/supa-relevo.js`, `supa-traductor.js`, `supa-vivo.js`, `gastos.js` | `pruebas/supabase-relevo.mjs` («Los gastos»), `pruebas/gastos.mjs`; RE-05 contra la base real |
+| **Realtime en el teléfono**: con la base mandando, la suscripción incluye `gastos` (Dirección y Pagos): un gasto de otro teléfono avisa como una venta. Con la hoja mandando, no | `supa-enchufe.js`, `supa-vivo.js` (`tablasDe`) | «Sin doble envío» |
+| Con la hoja mandando, **lo de siempre**: el gasto va a la pestaña por `/empujar_gastos` y baja por `/jalar_gastos`; ni una petición a Supabase | — | «Con la hoja mandando» |
+
+**Lo que no entra en el paso 3**: los textos de Control que dicen «la hoja» junto a los gastos («esperan para mandarse a la hoja», «Los gastos
+viven en la pestaña “Gastos”»): con la base mandando el gasto va a la base aunque el texto diga la hoja (mismo pendiente que los textos del paso
+2). Y `gastos` no está en el espejo a la hoja.
+
+**Para que surta efecto en producción:** (1) fusionar este PR; (2) aplicar `0025` en `al3d-pruebas` y después en `al3d-produccion` (Editor SQL,
+el archivo entero; termina con la auditoría) **antes** de publicar la app: la app nueva se suscribe a `gastos` en Realtime con la base mandando;
+(3) publicar la app (`sw.js` 146). No hay que volver a pegar ninguna función: ningún archivo de `js/` que vaya en sus paquetes cambió. Mientras
+la empresa siga en `'hoja'` nada de esto se usa; los gastos empiezan a ir a la base el día del cambio (paso 7).
+
 Cómo se regresa en cualquier paso: `modo_cambiar('hoja')`. La hoja sigue completa mientras no se apague la copia. Ojo: el espejo a
-la hoja solo lleva Ventas y Abonos; lo que se capture de almacén, gastos o autorizaciones en modo base no vuelve solo a la hoja.
+la hoja solo lleva Ventas y Abonos; lo que se capture de almacén, gastos o autorizaciones en modo base no vuelve solo a la hoja. Con los gastos,
+además: de vuelta en la hoja, la copia de cada 3 horas le pone lápida (`deleted_at`) a los que se capturaron en la base y no están en la
+pestaña; no se pierden (siguen en la base), pero dejan de verse hasta que alguien los pase a la hoja.
 
 ## Lo que decide Elías
 
