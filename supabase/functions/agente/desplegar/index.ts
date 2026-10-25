@@ -5,10 +5,10 @@
 // se cambian las fuentes y se vuelve a armar (node supabase/functions/agente/desplegar/armar.mjs).
 // Cómo se despliega: docs/AGENTE-VENTAS.md, «Para publicarlo». Lee IA_KEYS y, si existen, AGENTE_CUENTA_SIN_FACTURA, AGENTE_CUENTA_CON_FACTURA y AGENTE_EMPRESA.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/agente-logica.mjs falla si una cambió:
-//   b114a219656ed351  supabase/functions/_shared/agente.js
+//   1cf6a50dc46d9b77  supabase/functions/_shared/agente.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
 //   2a71c519bbc0ec5f  supabase/functions/_shared/entorno.js
-//   0441f7b445223b93  supabase/functions/_shared/ficha.js
+//   4477d086ea0b5e23  supabase/functions/_shared/ficha.js
 //   13245dbb0ee89b72  supabase/functions/_shared/http.js
 //   21bde10737f49fe4  supabase/functions/_shared/ia.js
 //   caedbec3fb61b918  supabase/functions/_shared/precio.js
@@ -598,11 +598,19 @@ var MUNICIPIOS_ZMG = Object.freeze([
   "tonala"
 ]);
 var TARIFA_CAJA = Object.freeze({ std: 3900, nube: 4600 });
+var EXTRAS = Object.freeze({
+  fotocelda: { nombre: "Fotocelda (prende sola al oscurecer)", precio: 950 },
+  reflector: { nombre: "Reflector LED", precio: 980 },
+  huacal: { nombre: "Huacal de madera para envío", precio: 1200 },
+  grua: { nombre: "Grúa articulada", precio: 11900 },
+  instalacion: { nombre: "Instalación aparte", precio: 950 }
+});
 var TIPOS = Object.freeze({
   letras: { nombre: "Letras 3D", cotizaSolo: true },
   recorte: { nombre: "Recorte (acrílico o PVC)", cotizaSolo: true },
   caja: { nombre: "Caja de luz", cotizaSolo: true },
   bastidor: { nombre: "Bastidor", cotizaSolo: true },
+  extra: { nombre: "Extra", cotizaSolo: true },
   neon: { nombre: "Neón flex", cotizaSolo: false },
   totem: { nombre: "Tótem", cotizaSolo: false },
   senaletica: { nombre: "Señalética", cotizaSolo: false },
@@ -718,6 +726,10 @@ var P_PARTIDA = {
     { id: "material", etapa: "cotizar", pregunta: "¿En lámina galvanizada o en alucobond?" },
     { id: "rotulacion", etapa: "fabricar", pregunta: "¿Qué lleva encima: vinil de corte, vinil impreso o letras 3D?" }
   ],
+  extra: [
+    { id: "extra", etapa: "cotizar", orden: 50, pregunta: "¿Cuál extra: fotocelda, reflector, huacal para envío, grúa articulada o instalación aparte?" },
+    { id: "cantidad", etapa: "cotizar", orden: 51, aplica: (p) => p.extra === "reflector" || p.extra === "fotocelda", pregunta: "¿Cuántos?" }
+  ],
   neon: [
     { id: "ancho_cm", etapa: "cotizar", medida: true, pregunta: "¿Qué medida aproximada, ancho y alto (en cm)?" },
     { id: "alto_cm", etapa: "cotizar", medida: true, pregunta: "¿Y de alto (en cm)?" },
@@ -812,7 +824,7 @@ function decisionesParaDireccion(ficha) {
   if (f.entrega === "instalacion") {
     const m = sinAcentos(f.municipio);
     if (m && !MUNICIPIOS_ZMG.some((z) => m === z || m.includes(z))) out.push({ id: "zona", razon: "Instalación fuera de la zona metropolitana (" + f.municipio + "): falta cobrar el traslado." });
-    if (Number(f.altura_m) > ALTURA_INSTALACION_INCLUIDA_M) out.push({ id: "altura", razon: "Se instala a " + f.altura_m + " m: arriba de " + ALTURA_INSTALACION_INCLUIDA_M + " m puede pedir grúa." });
+    if (Number(f.altura_m) > ALTURA_INSTALACION_INCLUIDA_M) out.push({ id: "altura", razon: "Se instala a " + f.altura_m + " m: arriba de " + ALTURA_INSTALACION_INCLUIDA_M + " m puede pedir grúa (la articulada, $" + EXTRAS.grua.precio.toLocaleString("en-US") + ")." });
   }
   if (f.entrega === "paqueteria") out.push({ id: "envio", razon: "Va por paquetería: falta el costo del envío." });
   return out;
@@ -856,6 +868,8 @@ function aPartidasDelCotizador(ficha) {
       items.push({ id, tipo: "caja", tarifa: TARIFA_CAJA[p.forma === "nube" ? "nube" : "std"], ancho: Number(p.ancho_cm) || 0, alto: Number(p.alto_cm) || 0 });
     } else if (p.tipo === "bastidor") {
       items.push({ id, tipo: "bastidor", bas: sinAcentos(p.material) === "alucobond" ? "alucobond" : "lamina", ancho: Number(p.ancho_cm) || 0, alto: Number(p.alto_cm) || 0 });
+    } else if (p.tipo === "extra" && EXTRAS[p.extra]) {
+      items.push({ id, tipo: "extra", desc: EXTRAS[p.extra].nombre, pz: Number(p.cantidad) || 1, pu: EXTRAS[p.extra].precio });
     }
   });
   return items;
@@ -886,7 +900,8 @@ var HECHOS = Object.freeze([
   "Antes de fabricar se le enseña el diseño al cliente para que lo apruebe.",
   "El letrero queda de 2.5 a 3 semanas después del anticipo. Si el anticipo llega después de la 1:00 p. m., cuenta desde el siguiente día hábil (ese día ya no se surte material). La fecha exacta se confirma al dar el anticipo.",
   "La instalación va incluida en Guadalajara, Zapopan, Tlaquepaque y Tonalá hasta " + ALTURA_INSTALACION_INCLUIDA_M + " m de altura; más alto o en otro municipio se cotiza aparte.",
-  "La salida eléctrica donde va el letrero la pone el cliente."
+  "La salida eléctrica donde va el letrero la pone el cliente.",
+  "Si el cliente lo pide, se agregan extras: fotocelda (el letrero prende solo al oscurecer), reflector LED, huacal de madera para mandarlo por paquetería, grúa articulada o instalación aparte."
 ]);
 var VARIABLE_CUENTA = Object.freeze({ sin: "AGENTE_CUENTA_SIN_FACTURA", con: "AGENTE_CUENTA_CON_FACTURA" });
 var ROTULOS = [["banco", "Banco"], ["beneficiario", "Beneficiario"], ["tarjeta", "Tarjeta"], ["cta", "Cta"], ["clabe", "Clabe"], ["rfc", "RFC"]];
@@ -932,6 +947,11 @@ var LIMPIA_PARTIDA = {
   forma: (v) => uno(v, ["std", "nube"]),
   vistas: (v) => v === 1 || v === 2 ? v : void 0,
   acabado: (v) => uno(v, ["sencillo", "vinil", "sandwich"]),
+  extra: (v) => uno(String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(), Object.keys(EXTRAS)),
+  cantidad: (v) => {
+    const n = numero(v, 1, 99);
+    return n === void 0 ? void 0 : Math.round(n);
+  },
   medida_confirmada: booleano
 };
 function aplicarCambios(ficha, ext) {
@@ -997,6 +1017,7 @@ function instruccionExtraer(ficha, mensajes, textoCliente) {
     "Tipos de partida: " + tipos + ". Campos por tipo:\n" + campos,
     'Medidas en centímetros. texto = lo que dice el letrero, tal cual lo escribió. tono "fria" o "calida". forma de caja "std" (rectangular o circular) o "nube" (silueta). acabado de recorte "sencillo", "vinil" o "sandwich".',
     'material de letras: "aluminio pintado", "aluminio cepillado", "acrilico con aluminio", "acrilico con vinil" o "acero inoxidable". comp: "recta", "cursiva" o "compleja".',
+    'Una partida tipo "extra" por cada extra que el cliente pida: extra es ' + Object.keys(EXTRAS).map((k) => '"' + k + '"').join(", ") + "; cantidad, cuántos.",
     'Si una medida la calcula por una foto o dice "más o menos" o "como de", pon "medida_confirmada": false.'
   ].join("\n");
   const pregunta = conPlatica("Último mensaje del cliente:\n" + String(textoCliente || "").slice(0, 2e3) + "\n\nFicha actual:\n" + JSON.stringify(ficha || {}), mensajes);

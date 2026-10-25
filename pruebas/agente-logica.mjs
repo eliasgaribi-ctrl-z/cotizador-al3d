@@ -44,6 +44,9 @@ eq('con `i` completa la que ya existe', [f.partidas.length, f.partidas[0].materi
 eq('un tono que no existe no entra', 'tono' in f.partidas[0], false);
 eq('la ficha de entrada no se toca', A.aplicarCambios(LISTA, { proyecto: { negocio: 'Otro' } }).negocio === 'Otro' && LISTA.negocio === 'Tacos Juan', true);
 eq('basura de la IA no rompe nada', A.aplicarCambios(LISTA, 'no soy un objeto').negocio, 'Tacos Juan');
+eq('un extra: el nombre se limpia («Grúa» → grua), la cantidad es entera y uno inventado no entra',
+  A.aplicarCambios({}, { partidas: [{ tipo: 'extra', extra: 'Grúa', cantidad: '2.4' }, { tipo: 'extra', extra: 'cohete' }] }).partidas,
+  [{ tipo: 'extra', extra: 'grua', cantidad: 2 }, { tipo: 'extra' }]);
 eq('no más de 10 partidas', A.aplicarCambios({}, { partidas: Array.from({ length: 15 }, () => ({ tipo: 'neon' })) }).partidas.length, 10);
 
 console.log('\nQUÉ SIGUE');

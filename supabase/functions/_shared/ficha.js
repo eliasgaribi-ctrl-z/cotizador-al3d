@@ -29,7 +29,9 @@
 
    Lo que este archivo NO hace, a propósito:
    1. No inventa precios de lo que el catálogo no tiene (neón, tótem, señalética, instalación
-      fuera de la zona, grúa, envío). Esos van a Dirección; el día que tengan tarifa, entran.
+      fuera de la zona, envío). Esos van a Dirección; el día que tengan tarifa, entran. Los
+      extras de precio fijo (`EXTRAS`: fotocelda, reflector, huacal, grúa, instalación aparte)
+      ya entraron así, con los precios de las cotizaciones de Elías.
    2. No redondea medidas «a algo razonable». Una medida que salió de una foto se marca
       `medida_confirmada: false` y manda la partida a Dirección: un precio plausible y
       equivocado se va a una cotización real y cuesta dinero.
@@ -57,11 +59,22 @@ export const MUNICIPIOS_ZMG = Object.freeze([
    catálogo del cotizador (CAJAS). */
 export const TARIFA_CAJA = Object.freeze({ std: 3900, nube: 4600 });
 
+/* Los extras de precio fijo, por pieza: los que Elías cobra igual en sus cotizaciones de Canva
+   (revisadas las 50 del 12-sep al 23-oct-2026) y que confirmó el 2026-10-25. Se cambian aquí. */
+export const EXTRAS = Object.freeze({
+  fotocelda:   { nombre: 'Fotocelda (prende sola al oscurecer)', precio: 950 },
+  reflector:   { nombre: 'Reflector LED', precio: 980 },
+  huacal:      { nombre: 'Huacal de madera para envío', precio: 1200 },
+  grua:        { nombre: 'Grúa articulada', precio: 11900 },
+  instalacion: { nombre: 'Instalación aparte', precio: 950 },
+});
+
 export const TIPOS = Object.freeze({
   letras:        { nombre: 'Letras 3D',                  cotizaSolo: true },
   recorte:       { nombre: 'Recorte (acrílico o PVC)',   cotizaSolo: true },
   caja:          { nombre: 'Caja de luz',                cotizaSolo: true },
   bastidor:      { nombre: 'Bastidor',                   cotizaSolo: true },
+  extra:         { nombre: 'Extra',                      cotizaSolo: true },
   neon:          { nombre: 'Neón flex',                  cotizaSolo: false },
   totem:         { nombre: 'Tótem',                      cotizaSolo: false },
   senaletica:    { nombre: 'Señalética',                 cotizaSolo: false },
@@ -162,6 +175,10 @@ const P_PARTIDA = {
     { id: 'material', etapa: 'cotizar', pregunta: '¿En lámina galvanizada o en alucobond?' },
     { id: 'rotulacion', etapa: 'fabricar', pregunta: '¿Qué lleva encima: vinil de corte, vinil impreso o letras 3D?' },
   ],
+  extra: [
+    { id: 'extra', etapa: 'cotizar', orden: 50, pregunta: '¿Cuál extra: fotocelda, reflector, huacal para envío, grúa articulada o instalación aparte?' },
+    { id: 'cantidad', etapa: 'cotizar', orden: 51, aplica: p => p.extra === 'reflector' || p.extra === 'fotocelda', pregunta: '¿Cuántos?' },
+  ],
   neon: [
     { id: 'ancho_cm', etapa: 'cotizar', medida: true, pregunta: '¿Qué medida aproximada, ancho y alto (en cm)?' },
     { id: 'alto_cm', etapa: 'cotizar', medida: true, pregunta: '¿Y de alto (en cm)?' },
@@ -260,7 +277,7 @@ export function decisionesParaDireccion(ficha) {
   if (f.entrega === 'instalacion') {
     const m = sinAcentos(f.municipio);
     if (m && !MUNICIPIOS_ZMG.some(z => m === z || m.includes(z))) out.push({ id: 'zona', razon: 'Instalación fuera de la zona metropolitana (' + f.municipio + '): falta cobrar el traslado.' });
-    if (Number(f.altura_m) > ALTURA_INSTALACION_INCLUIDA_M) out.push({ id: 'altura', razon: 'Se instala a ' + f.altura_m + ' m: arriba de ' + ALTURA_INSTALACION_INCLUIDA_M + ' m puede pedir grúa.' });
+    if (Number(f.altura_m) > ALTURA_INSTALACION_INCLUIDA_M) out.push({ id: 'altura', razon: 'Se instala a ' + f.altura_m + ' m: arriba de ' + ALTURA_INSTALACION_INCLUIDA_M + ' m puede pedir grúa (la articulada, $' + EXTRAS.grua.precio.toLocaleString('en-US') + ').' });
   }
   if (f.entrega === 'paqueteria') out.push({ id: 'envio', razon: 'Va por paquetería: falta el costo del envío.' });
   return out;
@@ -299,6 +316,9 @@ export function aPartidasDelCotizador(ficha) {
       items.push({ id, tipo: 'caja', tarifa: TARIFA_CAJA[p.forma === 'nube' ? 'nube' : 'std'], ancho: Number(p.ancho_cm) || 0, alto: Number(p.alto_cm) || 0 });
     } else if (p.tipo === 'bastidor') {
       items.push({ id, tipo: 'bastidor', bas: sinAcentos(p.material) === 'alucobond' ? 'alucobond' : 'lamina', ancho: Number(p.ancho_cm) || 0, alto: Number(p.alto_cm) || 0 });
+    } else if (p.tipo === 'extra' && EXTRAS[p.extra]) {
+      /* precio.js cobra lo que no es letras, recorte, caja ni bastidor como piezas × precio unitario. */
+      items.push({ id, tipo: 'extra', desc: EXTRAS[p.extra].nombre, pz: Number(p.cantidad) || 1, pu: EXTRAS[p.extra].precio });
     }
   });
   return items;

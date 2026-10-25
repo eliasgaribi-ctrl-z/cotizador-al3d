@@ -113,5 +113,18 @@ cierto('interior (Salon Amour)', F.notasDeOrden(con({ lugar: 'interior' })).incl
 cierto('logo sin archivo editable (Psicología Irma)', F.notasDeOrden(con({ lleva_logo: true, archivo_editable: false })).some(n => /editable/.test(n)));
 eq('sin partidas no hay notas de luz', F.notasDeOrden({}), []);
 
+console.log('\nLOS EXTRAS DE PRECIO FIJO (Elías, 2026-10-25, de sus cotizaciones de Canva)');
+eq('los cinco, con sus precios', Object.fromEntries(Object.entries(F.EXTRAS).map(([k, v]) => [k, v.precio])),
+  { fotocelda: 950, reflector: 980, huacal: 1200, grua: 11900, instalacion: 950 });
+cierto('el extra se cotiza solo', F.TIPOS.extra.cotizaSolo === true);
+const conExtras = con({}, [...base.partidas, { tipo: 'extra', extra: 'fotocelda', cantidad: 2 }, { tipo: 'extra', extra: 'grua' }]);
+const cx = F.cotizar(conExtras);
+eq('fotocelda × 2 y una grúa: piezas × precio, sobre lo de las letras',
+  cx.renglones.slice(-2).map(r => r.importe), [1900, 11900]);
+eq('y el subtotal los suma', cx.subtotal, F.cotizar(con({})).subtotal + 1900 + 11900);
+eq('sin decir cuál extra, se pregunta (y no hay precio)', [ids(F.preguntasPendientes(con({}, [...base.partidas, { tipo: 'extra' }]), 'cotizar')), F.cotizar(con({}, [...base.partidas, { tipo: 'extra' }]))], [['extra'], null]);
+eq('cuántos, solo para los que se cuentan', ids(F.preguntasPendientes(con({}, [{ tipo: 'extra', extra: 'reflector' }]), 'cotizar')), ['cantidad']);
+cierto('la razón de altura ya dice cuánto cuesta la grúa', F.decisionesParaDireccion(con({ altura_m: 9 })).find(d => d.id === 'altura').razon.includes('$11,900'));
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 if (mal) process.exit(1);

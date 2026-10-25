@@ -58,6 +58,8 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
 - **Texto chico**: normalmente abajo de 10 cm va en recorte plano, sin volumen ni luz (la misma
   regla del cotizador); el recorte también se hace más grande si el cliente lo pide.
 - **Las cuentas de depósito**: las dos tarjetas autorizadas, como secretos de la función.
+- **Extras de precio fijo** (`EXTRAS` en `ficha.js`, de sus 50 cotizaciones de Canva): fotocelda $950, reflector $980,
+  huacal $1,200, grúa articulada $11,900 e instalación aparte $950, por pieza. El agente los agrega si el cliente los pide.
 
 ## La primera plática en producción (25-oct-2026)
 
