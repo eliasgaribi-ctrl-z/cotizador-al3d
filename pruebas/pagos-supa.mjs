@@ -318,8 +318,9 @@ console.log('\nAPAGADO NO CAMBIA NADA');
     /if \(!tabs\(\)\.includes\(TAB\)\) TAB = 'ventas';/.test(sinC));
   const app = leer('js/app.js'), idx = leer('index.html');
   cierto('ni app.js ni index.html conocen estos módulos', !/pagos-supa/.test(app) && !/pagos-supa/.test(idx));
-  cierto('Ajustes no se tocó para esto (sigue solo para Dirección)', !/pagos-supa/.test(leer('js/mod/ajustes.js')) &&
-    /function cardSupabase\(\) \{\n  if \(Prefs\.rol\(\) !== 'direccion'\) return '';/.test(leer('js/mod/ajustes.js')));
+  cierto('Ajustes no se tocó para esto (su tarjeta de Supabase es la de entrar, para los tres roles desde «la base manda»)',
+    !/pagos-supa/.test(leer('js/mod/ajustes.js')) &&
+    /function cardSupabase\(\) \{\n  if \(!Prefs\.ROLES\.includes\(Prefs\.rol\(\)\)\) return '';/.test(leer('js/mod/ajustes.js')));
   cierto('la capa pura no toca el DOM ni el almacenamiento', !/document|localStorage|sessionStorage|window\./.test(sinComentarios(leer('js/datos/pagos-supa.js'))));
   const sw = leer('sw.js');
   cierto('los dos módulos van en la caché del service worker', sw.includes("'./js/datos/pagos-supa.js'") && sw.includes("'./js/mod/pagos-supa.js'"));

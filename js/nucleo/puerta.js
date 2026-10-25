@@ -454,8 +454,54 @@ export async function reconfirmar() {
   }
 }
 
-/** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. */
+/* ── Con la base mandando, el rol lo dice la base (paso 2 de docs/BASE-MANDA.md) ─────────────
+   El modo es de la empresa y este aparato guarda el último que oyó (`al3d_pf_supa_modo`, ver
+   js/nucleo/supa.js). Con él en 'base' y el interruptor de Supabase encendido aquí —la misma regla que
+   el arranque, js/app.js—, quién eres y qué área tienes los dice `mi_acceso` y no la pestaña «Accesos»:
+   la base es la que decide qué escribe cada área, y un rol de la hoja distinto enseñaría pantallas que
+   la base va a rechazar. Se lee sin cargar nada, y supa.js solo se carga en ese caso: con la hoja
+   mandando esta puerta es, byte por byte, la de siempre. */
+function laBaseManda() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+
+/**
+ * Quién dice la base que soy, para el pase. null cuando la base no lo puede decir —sin sesión en ella,
+ * otra cuenta que la de la puerta, sin red, una respuesta que no es explícita, o un acceso retirado—:
+ * entonces pregunta la hoja, como siempre. Ahí no se deja fuera a nadie: la bandeja de ese teléfono
+ * espera a que entre a la base (js/datos/supa-relevo.js), y lo que vea lo bajó de ella.
+ * «Fuera» lo sigue diciendo solo la hoja, con su código (pruebas/puerta.mjs). Un acceso retirado EN LA
+ * BASE no se dice aquí: lo tapa la vigilancia de js/nucleo/supa.js, con sus dos respuestas explícitas
+ * separadas, y el relevo no manda nada de esa cuenta.
+ */
+async function preguntarALaBase() {
+  let Supa;
+  try { Supa = await import('./supa.js'); } catch (_) { return null; }
+  try {
+    if (!await Supa.haySesion()) return null;
+    const a = await Supa.acceso();
+    const correo = Ingreso.correo() || '';
+    if (!Supa.esLaMismaPersona(a.correo, correo)) return null;
+    /* La base acaba de decir que la empresa volvió a la hoja: el rol, de la hoja. */
+    if (a.modo && a.modo !== 'base') return null;
+    if (a.estado === 'activo' && Prefs.ROLES.includes(a.area)) {
+      Prefs.setPase({ correo, rol: a.area, hasta: Date.now() + MS_PASE, visto: Date.now(), de: 'base' });
+      return { estado: 'ok', correo, rol: a.area };
+    }
+  } catch (_) { /* la base no contestó: pregunta la hoja */ }
+  return null;
+}
+
+/** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. Con la base mandando,
+ *  primero la base (ver `preguntarALaBase`). */
 async function preguntarALaHoja() {
+  if (laBaseManda()) {
+    const v = await preguntarALaBase();
+    if (v) return v;
+  }
   const relevo = Puente.desdePrefs();
   if (!relevo) return { estado: 'sin_red' };
   let s;

@@ -21,6 +21,15 @@
        se le pone `obra`, a Fabricación no se le pone `imagenes`.
    `apagar()` lo desenchufa todo sin recargar: los ganchos vuelven a null, la ventanilla se quita y
    la app vuelve a ser la de siempre.
+
+   CON LA BASE MANDANDO (paso 2 de docs/BASE-MANDA.md; `Supa.laBaseManda()`) la bandeja ya escribe y lee
+   la base por su propio relevo (js/datos/supa-relevo.js). Entonces la sombra NO corre: copiaría a la base
+   lo que ya está en la base, y una operación saldría dos veces. Ni se engancha, ni bombea su cola (lo
+   que quedó en ella de antes del cambio se queda ahí, a la vista en Ajustes: mandarlo ahora podría pisar
+   lo que ya se corrigió en la base), ni hace el cuadre contra la hoja. Lo que sí queda de aquí es lo que
+   la lectura en vivo hacía para la bajada, y ya sin pedir la sombra: Realtime avisa cuándo bajar y la
+   ventanilla de las imágenes. La FUENTE de las filas no se pone aquí: el relevo trae la suya.
+   Esto lo arranca app.js al enchufar la bandeja a la base, con o sin los interruptores de la sombra.
    ============================================================================ */
 
 import * as Sync from './sync.js';
@@ -41,6 +50,7 @@ const MS_IMAGENES = 15 * 60 * 1000;          // sin cambios en el historial, las
 let _almacen = null, _sombra = null, _canal = null, _fuente = null, _area = '', _empresa = 'al3d';
 let _reloj = 0, _programado = 0, _sincronizar = null, _debeJalar = true, _ultimoJalar = 0, _estadoCanal = '';
 let _avisarApp = null, _cuadreIntentadoEn = 0;
+let _enBase = false;                         // la lectura en vivo de «la base manda»: Realtime sin fuente propia
 let _imagenes = null, _imgSucias = true, _imgUltima = 0;
 
 const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
@@ -59,6 +69,7 @@ function sombra() {
 /** Manda la cola de la sombra si hay sesión (y después, las imágenes que falten). Nunca lanza. */
 export async function bombearSombra() {
   if (!sombraEncendida()) return { motivo: 'apagada' };
+  if (Supa.laBaseManda()) return { motivo: 'modo_base' };
   if (!await Supa.haySesion()) return { motivo: 'sin_sesion' };
   const r = await sombra().bombear();
   cuadreDelDia().catch(() => {});
@@ -152,7 +163,7 @@ export async function cuadrarAhora() {
 
 /** El cuadre del día, si todavía no hay uno de hoy. Solo con la sombra encendida. */
 async function cuadreDelDia() {
-  if (!sombraEncendida()) return;
+  if (!sombraEncendida() || Supa.laBaseManda()) return;
   const hoy = diaMx(Date.now());
   const lista = await almacen().listar('cuadres').catch(() => []);
   if (lista.some(x => x.dia === hoy)) return;
@@ -185,18 +196,22 @@ export async function cuadreDiario() {
 
 /* ----- La lectura en vivo ----- */
 
-function encenderVivo() {
-  if (_fuente) return;
-  const marca = {
-    leer: () => { try { return Number(localStorage.getItem(CLAVE_MARCA_ALMACEN)) || 0; } catch (_) { return 0; } },
-    poner: v => { try { localStorage.setItem(CLAVE_MARCA_ALMACEN, String(v)); } catch (_) {} },
-  };
-  _fuente = crearFuente({ cliente: Supa.cliente, area: () => _area, empresa: _empresa, marca });
-  Puente.fuenteDeLectura(_fuente);
+/* `enBase`: con la base mandando, solo Realtime y la ventanilla; las filas las pone el relevo de la base. */
+function encenderVivo(enBase = false) {
+  if (_fuente || _enBase) return;
+  _enBase = !!enBase;
+  if (!enBase) {
+    const marca = {
+      leer: () => { try { return Number(localStorage.getItem(CLAVE_MARCA_ALMACEN)) || 0; } catch (_) { return 0; } },
+      poner: v => { try { localStorage.setItem(CLAVE_MARCA_ALMACEN, String(v)); } catch (_) {} },
+    };
+    _fuente = crearFuente({ cliente: Supa.cliente, area: () => _area, empresa: _empresa, marca });
+  }
+  if (_fuente) Puente.fuenteDeLectura(_fuente);
   ponerVentanilla();
   _debeJalar = true;
   Supa.cliente().then(c => {
-    if (!_fuente) return;
+    if (!_fuente && !_enBase) return;
     _canal = suscribir(c, _area, () => { _debeJalar = true; if (_sincronizar) _sincronizar(); },
       { empresa: _empresa, alEstado: e => { _estadoCanal = e; } });
   }).catch(() => {});
@@ -206,7 +221,7 @@ function encenderVivo() {
 function apagarVivo() {
   Puente.fuenteDeLectura(null);
   quitarVentanilla();
-  _fuente = null;
+  _fuente = null; _enBase = false;
   if (_canal) { _canal.cerrar(); _canal = null; }
   _estadoCanal = '';
   _debeJalar = true;
@@ -218,7 +233,7 @@ function apagarVivo() {
 export const lecturaEnVivo = {
   saltarJalar() {
     const ahora = Date.now();
-    const salta = !!(_fuente && _canal && _canal.viva() && !_debeJalar && ahora - _ultimoJalar < MS_RESPALDO_VIVO);
+    const salta = !!((_fuente || _enBase) && _canal && _canal.viva() && !_debeJalar && ahora - _ultimoJalar < MS_RESPALDO_VIVO);
     if (!salta) { _debeJalar = false; _ultimoJalar = ahora; }
     return salta;
   },
@@ -233,11 +248,17 @@ export const lecturaEnVivo = {
 export async function arrancar(o = {}) {
   if (o.sincronizar) _sincronizar = o.sincronizar;
   if (o.avisarApp) _avisarApp = o.avisarApp;
+  if (Supa.laBaseManda()) return arrancarBase();
+  if (_enBase) apagarVivo();                    // la empresa volvió a la hoja: fuera lo de la base
   if (!sombraEncendida()) { apagar(); return { sombra: false, vivo: false }; }
 
   /* La copia se guarda aunque todavía no haya sesión: nada de lo que la hoja aceptó se pierde, y
-     sale en cuanto se entre a la base. */
-  Sync.alSubir(async (op, respuesta) => { await sombra().encolar(op, respuesta); programar(MS_TRAS_COPIA); });
+     sale en cuanto se entre a la base. Con la base mandando no se copia nada (ver la cabecera): el
+     gancho se quita al cambiar de modo, y si una vuelta lo alcanza a medias, no encola. */
+  Sync.alSubir(async (op, respuesta) => {
+    if (Supa.laBaseManda()) return;
+    await sombra().encolar(op, respuesta); programar(MS_TRAS_COPIA);
+  });
   if (!_reloj) {
     _reloj = setInterval(() => { if (visible()) bombearSombra().catch(() => {}); }, MS_BOMBEO);
     try { globalThis.addEventListener('online', () => programar(MS_TRAS_COPIA)); } catch (_) {}
@@ -254,6 +275,19 @@ export async function arrancar(o = {}) {
   return { sombra: true, vivo: !!_fuente };
 }
 
+/* La base manda: Realtime y la ventanilla con el área que dice la base; la sombra, quieta. */
+async function arrancarBase() {
+  Sync.alSubir(null);
+  clearInterval(_reloj); _reloj = 0;
+  clearTimeout(_programado);
+  if (_fuente) apagarVivo();                    // la lectura en vivo de pruebas traía su propia fuente
+  const haySesion = await Supa.haySesion();
+  if (haySesion) await acceso();
+  if (haySesion && ['direccion', 'fabricacion', 'pagos'].includes(_area)) encenderVivo(true);
+  else apagarVivo();
+  return { sombra: false, vivo: _enBase, base: true };
+}
+
 /** Desenchufa todo. La cola de la sombra se queda guardada (sale si se vuelve a encender). */
 export function apagar() {
   Sync.alSubir(null);
@@ -265,8 +299,8 @@ export function apagar() {
 /** Para la tarjeta de Ajustes. */
 export async function estado() {
   const s = sombraEncendida() ? await sombra().estado() : { pendientes: 0, rechazadas: 0, ultimo_error: '' };
-  return { sombra: sombraEncendida(), vivo: !!_fuente, vivoPedido: vivoEncendido(), area: _area,
-           canal: _estadoCanal, leeDeLaBase: Puente.leeDeOtraFuente(), ...s };
+  return { sombra: sombraEncendida(), vivo: !!_fuente || _enBase, vivoPedido: vivoEncendido(), area: _area,
+           canal: _estadoCanal, leeDeLaBase: Puente.leeDeOtraFuente() || _enBase, base: Supa.laBaseManda(), ...s };
 }
 export async function registro(n) { return sombraEncendida() ? sombra().registro(n) : []; }
 export async function reintentarRechazadas() {

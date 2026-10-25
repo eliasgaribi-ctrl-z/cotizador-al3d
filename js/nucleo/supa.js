@@ -29,6 +29,12 @@
 
    Nada de aquí guarda la sesión en los respaldos: su clave no está en Prefs.CLAVES ni en
    RESPALDO_KEYS.
+
+   Y el MODO de la empresa (0024_modo.sql, paso 2 de docs/BASE-MANDA.md): `acceso()` guarda lo que la
+   base dice de quién manda —la hoja o la base— y, si cambió, avisa a la app (`al3d-modo`) para que
+   vuelva a enchufar la bandeja: con 'base', y el interruptor de este aparato encendido, la bandeja
+   escribe y lee la base (js/datos/supa-relevo.js) y el rol sale de aquí y no de la hoja. Ver
+   `laBaseManda`.
    ============================================================================ */
 
 import { SUPABASE } from '../datos/supabase-config.js';
@@ -76,7 +82,59 @@ export function leerAcceso(r) {
     area: activa && ['direccion', 'fabricacion', 'pagos'].includes(activa.area) ? activa.area : '',
     empresa: activa ? activa.empresa_id : '',
     contratoViejo: !!(r.contrato && Number(r.contrato.minimo) > Number(CONTRATO)),
+    /* Quién manda en la empresa (0024_modo.sql): 'hoja' o 'base'. '' si la base no lo dijo (una base sin
+       0024, una cuenta sin acceso activo): eso es «no sé», y no cambia lo que este aparato ya sabía. */
+    modo: MODOS.includes(r.modo) ? r.modo : '',
+    /* Lo que el área puede escribir (`interno.matriz_permisos()` de 0002): el relevo de la base lo usa
+       para no mandar lo que el área no escribe, como la hoja con sus `escribibles`. */
+    permisos: (r.permisos && typeof r.permisos === 'object' && !Array.isArray(r.permisos)) ? r.permisos : null,
   };
+}
+
+/* ============================================================================
+   QUIÉN MANDA: la hoja o la base (paso 2 de docs/BASE-MANDA.md)
+
+   El modo es UNO para toda la empresa y lo dice la base (`mi_acceso().modo`). Este aparato guarda el
+   último que oyó, para saber a dónde mandar la bandeja al abrir, sin señal, antes de preguntar nada.
+   Fuera de Prefs.CLAVES, como el interruptor: un respaldo restaurado en otro teléfono no debe decidirle
+   a dónde escribe.
+
+   La regla, y su porqué: la base manda en ESTE aparato solo con el interruptor encendido Y el último
+   modo oído 'base'. Sin interruptor, o sin haberlo oído nunca, la hoja: lo de siempre, que es lo seguro
+   (pruebas/supabase-relevo.mjs). El arranque (js/app.js), la puerta (js/nucleo/puerta.js) y el
+   cotizador (js/cotizador/venta.js) leen la misma clave con una expresión regular, sin cargar este
+   módulo: con la hoja mandando no se descarga nada nuevo.
+   ============================================================================ */
+export const CLAVE_MODO = 'al3d_pf_supa_modo';
+export const MODOS = Object.freeze(['hoja', 'base']);
+
+/** Lo último que la base le dijo a este aparato: {modo, area, permisos, correo, empresa, visto}, o null. */
+export function modoGuardado() {
+  try {
+    const v = JSON.parse(ls()?.getItem(CLAVE_MODO) || 'null');
+    return (v && typeof v === 'object' && MODOS.includes(v.modo)) ? v : null;
+  } catch (_) { return null; }
+}
+
+/** ¿La bandeja de ESTE aparato va a la base? */
+export function laBaseManda() {
+  const g = modoGuardado();
+  return encendido() && !!g && g.modo === 'base';
+}
+
+/**
+ * Guarda lo que dijo `mi_acceso` si lo dijo de verdad (una cuenta activa con su modo). Devuelve true si
+ * el modo CAMBIÓ: entonces la app vuelve a enchufar la bandeja (el evento `al3d-modo`, ver app.js).
+ * @param {{estado:string, modo:string, area:string, permisos:Object, correo:string, empresa:string}} a
+ */
+export function guardarModo(a, ahora = Date.now()) {
+  if (!a || a.estado !== 'activo' || !MODOS.includes(a.modo)) return false;
+  const antes = modoGuardado();
+  try {
+    ls()?.setItem(CLAVE_MODO, JSON.stringify({ modo: a.modo, area: a.area || '', permisos: a.permisos || null,
+      correo: a.correo || '', empresa: a.empresa || '', visto: ahora }));
+  } catch (_) { return false; }
+  return !antes || antes.modo !== a.modo;
 }
 
 /**
@@ -100,7 +158,7 @@ export const SE_CONSERVAN = ['al3d_pf_disp', 'al3d_folio'];
 export const SE_BORRAN = ['al3d_pf_rol', 'al3d_pf_nombre', 'al3d_pf_ganadas', 'al3d_pf_gcal', 'al3d_pf_puente', 'al3d_pf_ingreso',
   'al3d_pf_empresa', 'al3d_pf_restaurar', 'al3d_pf_pase', 'al3d_pf_entrada', 'al3d_pf_gtok', 'al3d_pf_carpetas', 'al3d_historial',
   'al3d_queue', 'al3d_q', 'al3d_aifile', 'al3d_hitos', 'al3d_canva', 'al3d_cuadernos', 'al3d_logo', 'al3d_autorizador', 'al3d_rv_pct',
-  'al3d_rv_cuenta', 'al3d_anidador_retazos', 'al3d_anidador_material', CLAVE_SESION];
+  'al3d_rv_cuenta', 'al3d_anidador_retazos', 'al3d_anidador_material', CLAVE_SESION, 'al3d_pf_supa_modo'];
 /* `al3d_sombra` es la cola de la sombra de Supabase (js/datos/supa-sombra.js): solo existe en un aparato
    que la encendió, y lleva copias de operaciones de la bandeja. */
 export const BASES_LOCALES = ['al3d_pf', 'al3d_cot_imgs', 'al3d_sombra'];
@@ -206,6 +264,11 @@ export async function acceso() {
   let a = leerAcceso(await rpc('mi_acceso').catch(e => ({ ok: false, codigo: e.codigo || '', mensaje: mensajeDe(e) })));
   if (a.estado === 'invitacion_pendiente') {
     a = leerAcceso(await rpc('reclamar_acceso').catch(e => ({ ok: false, codigo: e.codigo || '', mensaje: mensajeDe(e) })));
+  }
+  /* Lo que la base dijo de quién manda se guarda (`reclamar_acceso` contesta con `mi_acceso`, modo
+     incluido); si cambió, la app vuelve a enchufar la bandeja. */
+  if (guardarModo(a)) {
+    try { globalThis.dispatchEvent(new CustomEvent('al3d-modo', { detail: { modo: a.modo } })); } catch (_) { /* sin ventana: las pruebas */ }
   }
   return a;
 }

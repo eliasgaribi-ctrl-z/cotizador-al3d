@@ -20,10 +20,12 @@
      'conflicto' (ver más abajo). Nada se descarta por viejo ni por intentos: una operación
      sale de la bandeja por éxito, porque el relevo la despachó sin mandarla (`omitida`), por
      `resolver()`, por `descartarDelProyecto()` o porque alguien borra todo.
-   - El relevo. `registrar()` enchufa UN adaptador. Hoy el único es `datos/puente.js`
-     ('hoja'), que le habla por POST a la aplicación web del Apps Script publicada dentro de
-     la hoja de Google «Finanzas AL3D»; lo enchufa `app.js` al arrancar. Este archivo solo
-     conoce su interfaz (ver el bloque de abajo).
+   - El relevo. `registrar()` enchufa UN adaptador. Hoy es `datos/puente.js` ('hoja'), que le
+     habla por POST a la aplicación web del Apps Script publicada dentro de la hoja de Google
+     «Finanzas AL3D»; lo enchufa `app.js` al arrancar. Con la empresa en modo 'base' («la base
+     manda», docs/BASE-MANDA.md) `app.js` enchufa en su lugar `datos/supa-relevo.js` ('base'),
+     que escribe y lee Supabase con la misma interfaz. Este archivo solo conoce esa interfaz
+     (ver el bloque de abajo) y no distingue uno del otro.
    - Bombear y jalar. `bombear()` sube la bandeja de una en una, en el orden en que se
      emitió (el almacén, en lotes de hasta 25 seguidas). `jalar()` baja lo que cambió del otro
      lado y lo mezcla por registro (`fusionar`); en los almacenes que el relevo baja enteros
@@ -73,9 +75,12 @@
    que la SOMBRA (fase 3) recibe una copia de cada operación que la hoja aceptó. Lo enchufa
    `datos/supa-enchufe.js` solo con su interruptor encendido; apagado vale null y todo lo de arriba
    es lo que corre, sin una línea distinta. La lectura en vivo (fase 4) tampoco pasa por aquí: es
-   otra fuente de filas dentro del relevo (`Puente.fuenteDeLectura`). Lo que el plan conserva de
-   aquí es la bandeja y la regla de sellos. El estado real de cada fase está en
-   docs/ESTADO-SUPABASE.md y lo de esta entrega en docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md.
+   otra fuente de filas dentro del relevo (`Puente.fuenteDeLectura`). Con la base mandando, el
+   relevo enchufado es el de la base (`datos/supa-relevo.js`) y el gancho se queda en null: la
+   sombra no copia a la base lo que ya se escribió en ella. Lo que el plan conserva de aquí es la
+   bandeja y la regla de sellos. El estado real de cada fase está en docs/ESTADO-SUPABASE.md, lo
+   de la fase 3 en docs/supabase/NOTAS-SEGUNDA-ENTREGA-CLIENTE.md y el cambio de fuente en
+   docs/BASE-MANDA.md.
    ============================================================================ */
 
 import * as DB from './db.js';

@@ -389,6 +389,22 @@ function datosParaLaHoja(){
   return d;
 }
 
+/* ----- Con la base mandando, la venta NO va directo a la hoja (paso 2 de docs/BASE-MANDA.md) -----
+   El modo es de la empresa (`empresas.modo`, 0024_modo.sql) y el aparato guarda el último que le dijo
+   la base (`al3d_pf_supa_modo`). Con 'base' y el interruptor de Supabase encendido —la misma regla que
+   el arranque de la plataforma, js/app.js— la hoja ya no es la fuente, y escribirle aquí sería una
+   venta que nadie más ve. La venta sigue su otro camino, el que ya tenía: la constancia de
+   `al3d_pf_ganadas` que la plataforma convierte en proyecto, y la bandeja de la plataforma la manda a la
+   base (`ganar_proyecto`, js/datos/supa-relevo.js), que le da su V-###. Ese folio queda en el proyecto
+   de la plataforma; enseñarlo aquí, en el recibo del cotizador, es del paso 4. Se lee con una expresión
+   regular porque este archivo no tiene módulos. */
+function laBaseManda(){
+  try{
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa')||'')&&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo')||'');
+  }catch(_){ return false; }
+}
+
 /* ----- Registrar la venta en la hoja -----
    Devuelve una promesa que nunca se rechaza: los caminos que fallan avisan y ofrecen el
    respaldo, porque este botón se aprieta con el cliente enfrente. */
@@ -560,7 +576,7 @@ function registrarGanada(){
       /* Se reintenta la hoja aunque la constancia ya existiera: el puente busca por folio
          antes de crear, así que no puede duplicar, y este es justo el camino de «se
          registró pero ese día no había señal». */
-      if(puenteCfg()){
+      if(puenteCfg()&&!laBaseManda()){
         registrarEnLaHoja({sufijo:' — ya estaba registrada como proyecto ganado',
           accion:{label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }}});
         return;
@@ -589,6 +605,11 @@ function registrarGanada(){
      la plataforma —de ahí salen el material, la agenda y el mapa— y escribir el renglón en
      la hoja, que es el libro mayor del dinero. Se avisa UNA vez: dos avisos seguidos se
      pisan y el segundo borra al primero antes de que nadie lo lea. */
+  if(laBaseManda()){
+    toast('Registrada como proyecto ganado — la plataforma la manda a la base, que le da su folio'+
+      (sinFecha?'. Le falta la fecha de instalación':''),'ok',5600,abrir);
+    return;
+  }
   if(puenteCfg()){
     registrarEnLaHoja({sufijo:' · registrada como proyecto ganado'+(sinFecha?', le falta la fecha de instalación':''),
       accion:abrir});
