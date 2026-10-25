@@ -57,8 +57,9 @@ bloquea un número, se cierra esa puerta y no se pierde nada: el agente se conec
 
 1. Aplicar `0023_agente.sql` en `al3d-pruebas` y luego en `al3d-produccion` (la auditoría del final
    tiene que pasar). Lleva también las listas de seguridad al día en `0011`, `0019` y `0022`.
-2. Volver a pegar la función `respaldo`: ahora respalda 24 tablas, y antes de aplicar `0023`
-   fallaría al no encontrar las tres del agente.
+2. Volver a pegar las funciones `respaldo` e `importar-diario` (las dos respaldan ahora 24
+   tablas): **solo después** de aplicar `0023`, porque antes fallarían al no encontrar las tres
+   del agente.
 3. Pegar la función `agente` en el panel (Verify JWT apagado) y cargarle `AGENTE_CUENTA`.
 4. Probarla con un link de prueba antes de dárselo a un cliente.
 
