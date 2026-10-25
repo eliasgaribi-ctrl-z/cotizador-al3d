@@ -18,7 +18,7 @@
    el PDF de la cotización (js/cotizador/entrega.js). Lo que no esté ahí, lo consulta.
    ============================================================================ */
 
-import { CAMPOS_PROYECTO, TIPOS, camposDePartida, cotizar, decisionesParaDireccion, preguntasPendientes } from './ficha.js';
+import { ALTURA_INSTALACION_INCLUIDA_M, CAMPOS_PROYECTO, TIPOS, camposDePartida, cotizar, decisionesParaDireccion, preguntasPendientes } from './ficha.js';
 
 export const MAX_PARTIDAS = 10;
 export const MAX_RESPUESTA = 1200;
@@ -38,10 +38,10 @@ export const SALUDO = '¡Holaa! Soy el asistente de Elías, de Anuncios Luminoso
 
 /* Lo que el agente puede decir de AL3D. Las condiciones son las que imprime el PDF (entrega.js,
    «Condiciones»); el taller, el Instagram y el WhatsApp de los comprobantes, los de las plantillas
-   y las tarjetas de depósito de Elías. Dos son supuestos que él tiene que confirmar y están dichos
-   como supuestos en docs/AGENTE-VENTAS.md: la instalación incluida y el tiempo de entrega (sale de
-   los cubos de plazo del taller, js/datos/taller.js, y de sus chats: de anticipo a instalación, tres
-   semanas de mediana). */
+   y las tarjetas de depósito de Elías. La instalación incluida y el tiempo de entrega los confirmó
+   él el 2026-10-25 (6 m; Guadalajara, Zapopan, Tlaquepaque y Tonalá; 2.5 a 3 semanas, y el anticipo
+   que llega después de la 1:00 p. m. cuenta desde el siguiente día hábil porque ya no se surte
+   material ese día). Lo de la zona y la altura sale de ficha.js para que no se digan dos cosas. */
 export const HECHOS = Object.freeze([
   'AL3D (Anuncios Luminosos 3D) fabrica en su propio taller: ' + TALLER.join(', ') + ' (Google Maps: https://maps.app.goo.gl/AQHck791iv5U4qRS9). El cliente puede visitarlo para conocer procesos y materiales.',
   'Trabajos anteriores: https://www.instagram.com/construimagen.gg',
@@ -50,8 +50,8 @@ export const HECHOS = Object.freeze([
   'El IVA (16 %) solo se agrega si el cliente requiere factura; con factura se deposita a la cuenta de la empresa y sin factura a otra.',
   'El comprobante del anticipo se manda por WhatsApp al ' + WHATSAPP + '.',
   'Antes de fabricar se le enseña el diseño al cliente para que lo apruebe.',
-  'Normalmente el letrero queda entre 1 y 3 semanas después del anticipo, según el trabajo; la fecha exacta se confirma al dar el anticipo.',
-  'La instalación en la zona metropolitana de Guadalajara va incluida hasta 4 m de altura; más alto o fuera de la zona se cotiza aparte.',
+  'El letrero queda de 2.5 a 3 semanas después del anticipo. Si el anticipo llega después de la 1:00 p. m., cuenta desde el siguiente día hábil (ese día ya no se surte material). La fecha exacta se confirma al dar el anticipo.',
+  'La instalación va incluida en Guadalajara, Zapopan, Tlaquepaque y Tonalá hasta ' + ALTURA_INSTALACION_INCLUIDA_M + ' m de altura; más alto o en otro municipio se cotiza aparte.',
   'La salida eléctrica donde va el letrero la pone el cliente.',
 ]);
 
