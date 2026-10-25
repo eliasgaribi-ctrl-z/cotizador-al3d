@@ -53,6 +53,14 @@
    clic). Sin gesto contesta `SIN_GESTO` en el acto y NO toca la red ni el guion de Google. Lo que
    no se renovó solo lo renueva el siguiente toque (app.js), que además da la vuelta a la hoja
    (`reconfirmar`).
+
+   ── Dos fichas de Google, y cuál sirve para qué (2026-10-25) ───────────────────
+   Lo de arriba es el token de ACCESO (`oauth2.initTokenClient`): es lo que la hoja verifica, y
+   la hoja no se toca más (Elías, 2026-10-25: la empresa se va a Supabase). El botón de Google de
+   la puerta da otra ficha, el token de IDENTIDAD (`google.accounts.id`, `botonDeIdentidad`), que
+   es la que acepta Supabase. De ese token aquí solo se toma el CORREO (`anotarCredencial`): el
+   token no se guarda como el del puente —la hoja lo rechazaría— ni en ningún almacenamiento;
+   vive lo que dura la llamada y se va a Supabase (js/nucleo/supa.js, `entrarConCredencial`).
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
@@ -141,6 +149,13 @@ const MSG = {
     ': esa dirección no está autorizada para esta app. Abre la plataforma desde ' + URL_APP + ' y vuelve a intentar.',
   BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
   SIN_GESTO: 'El permiso de Google se renueva con tu siguiente toque: sin él, la ventana de Google se abriría sola con la app en segundo plano.',
+  /* El token de identidad del botón de Google no pasó la revisión de `leerCredencial`. Casi siempre es un
+     reloj del teléfono muy desfasado o una pestaña que se quedó abierta con un botón viejo: volver a tocar
+     lo arregla, y si no, el botón de la app (el de siempre) sigue ahí. */
+  CREDENCIAL: 'Google contestó algo que la app no pudo leer. Vuelve a intentar.',
+  CREDENCIAL_OTRA_APP: 'Google dio un permiso para otra app, no para ésta. Vuelve a intentar.',
+  CREDENCIAL_SIN_VERIFICAR: 'Google dice que el correo de esa cuenta no está verificado. Verifícalo en tu cuenta de Google o entra con otra.',
+  CREDENCIAL_VENCIDA: 'El permiso de Google ya venció (¿la hora del teléfono está bien?). Vuelve a intentar.',
 };
 
 /* El token de acceso, en memoria y nada más. Ver la cabecera. */
@@ -226,6 +241,112 @@ export function cargarGis() {
     document.head.appendChild(s);
   });
   return _cargando;
+}
+
+/* ============================================================================
+   EL TOKEN DE IDENTIDAD — el botón de Google (la puerta, la banda de arriba y Ajustes)
+   ============================================================================ */
+
+/** Huella SHA-256 en hexadecimal (lo que se le da a Google como nonce). Vive aquí y no en supa.js para
+ *  que la puerta pinte el botón de Google sin cargar nada de Supabase antes del toque. */
+export async function huella(texto) {
+  const b = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+export function nonceNuevo() {
+  const a = new Uint8Array(32); globalThis.crypto.getRandomValues(a);
+  return [...a].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Pinta el botón de Google (`google.accounts.id`, un iframe suyo) en `caja`. Al tocarlo, Google da un
+ * token de IDENTIDAD y `alCredencial` lo recibe con su nonce: `{credencial, crudo, nonce}` —a Google se le
+ * dio `nonce`, la huella SHA-256 de `crudo`; a Supabase se le da `crudo`, así un token robado de otra
+ * página no sirve—. Resuelve true si el botón se mandó pintar, false si no hay con qué (sin guion de
+ * Google, sin señal, un navegador viejo) o si `caja` ya no está en la página.
+ *
+ * Es UNO para los tres botones de Google de la app (la puerta, la banda de arriba y Ajustes): antes cada
+ * uno armaba su `initialize` y su nonce, y un arreglo en uno no llegaba a los otros.
+ * @param {{clienteId?:string, aspecto?:Object}} [opc] `aspecto` se mezcla con lo de `renderButton`.
+ */
+export async function botonDeIdentidad(caja, alCredencial, opc = {}) {
+  if (!await cargarGis()) return false;
+  const g = globalThis.google && globalThis.google.accounts && globalThis.google.accounts.id;
+  if (!g || typeof g.initialize !== 'function' || typeof g.renderButton !== 'function') return false;
+  const crudo = nonceNuevo();
+  const nonce = await huella(crudo);
+  if (!caja || !caja.isConnected) return false;     // se repintó mientras tanto: el botón nuevo es de otro turno
+  g.initialize({
+    client_id: opc.clienteId || CLIENT_ID, nonce, auto_select: false, cancel_on_tap_outside: true, itp_support: true,
+    use_fedcm_for_button: true,
+    callback: resp => alCredencial({ credencial: (resp && resp.credential) || '', crudo, nonce }),
+  });
+  caja.innerHTML = '';
+  g.renderButton(caja, Object.assign({ type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'es' }, opc.aspecto || {}));
+  return true;
+}
+
+/* El JWT de Google son tres trozos en base64url; el de en medio es lo que dice. atob() no entiende el
+   alfabeto de URL ni la falta de relleno, y su resultado son bytes, no texto: un nombre con acento
+   llegaría roto sin el TextDecoder. */
+function cuerpoDelJwt(jwt) {
+  const partes = String(jwt || '').split('.');
+  if (partes.length !== 3 || !partes[1]) return null;
+  let b = partes[1].replace(/-/g, '+').replace(/_/g, '/');
+  while (b.length % 4) b += '=';
+  const bytes = Uint8Array.from(atob(b), c => c.charCodeAt(0));
+  const j = JSON.parse(new TextDecoder().decode(bytes));
+  return (j && typeof j === 'object' && !Array.isArray(j)) ? j : null;
+}
+
+/**
+ * Lee el token de identidad que dio el botón de Google y dice si es para ESTA app, de un correo verificado
+ * y todavía vivo. Devuelve `ok({correo, expira})` —la misma forma que `entrar()`— o `mal(...)`.
+ *
+ * Esto NO es la verificación de seguridad: la firma, el emisor y el nonce los comprueba Supabase al
+ * cambiarlo por su sesión (`signInWithIdToken`), que es quien abre algo. Lo de aquí es para no anotar el
+ * correo de un token que Supabase va a rechazar de todas formas, y para decirlo con palabras en vez de
+ * con el error de la base: un token de otra app, un correo sin verificar, uno vencido (el reloj del
+ * teléfono, casi siempre), o uno con otro nonce que el que se le dio a Google.
+ * @param {{clienteId?:string, nonce?:string, ahora?:number}} [opc] `nonce`: la huella que se le dio a Google.
+ */
+export function leerCredencial(credencial, opc = {}) {
+  let p = null;
+  try { p = cuerpoDelJwt(credencial); } catch (_) { p = null; }
+  if (!p) return mal('DATO_INVALIDO', MSG.CREDENCIAL);
+  const id = opc.clienteId || clienteId();
+  const aud = Array.isArray(p.aud) ? p.aud.map(String) : [String(p.aud || '')];
+  if (!id || !aud.includes(id)) return mal('DATO_INVALIDO', MSG.CREDENCIAL_OTRA_APP);
+  if (p.iss !== 'accounts.google.com' && p.iss !== 'https://accounts.google.com') return mal('DATO_INVALIDO', MSG.CREDENCIAL);
+  if (p.email_verified !== true && p.email_verified !== 'true') return mal('DATO_INVALIDO', MSG.CREDENCIAL_SIN_VERIFICAR);
+  const c = typeof p.email === 'string' ? p.email.trim() : '';
+  if (!/^[^\s@]+@[^\s@]+$/.test(c)) return mal('DATO_INVALIDO', MSG.CREDENCIAL);
+  const expira = Number(p.exp) * 1000;
+  if (!(expira > (opc.ahora || Date.now()))) return mal('DATO_INVALIDO', MSG.CREDENCIAL_VENCIDA);
+  if (opc.nonce && p.nonce !== opc.nonce) return mal('DATO_INVALIDO', MSG.CREDENCIAL);
+  return ok({ correo: c, expira });
+}
+
+/**
+ * La puerta entró con el botón de Google: el correo de ese token queda como el de la puerta, igual que lo
+ * deja `entrar()` —para la banda de la cuenta, para saber a quién renovarle el permiso de la hoja y para
+ * que la vigilancia de Supabase sepa quién es la persona de este aparato—.
+ *
+ * El token NO se guarda como el del puente (`_tok`): es de identidad, no de acceso, y la hoja lo
+ * rechazaría con «ese correo no está en Accesos». Tampoco va a ningún almacenamiento (ni localStorage ni
+ * sessionStorage) ni a un respaldo. Si había un permiso de la hoja vivo de OTRA cuenta, se suelta: no es
+ * de quien acaba de entrar.
+ * @returns {Resultado} valor = {correo, expira}
+ */
+export function anotarCredencial(credencial, opc) {
+  const r = leerCredencial(credencial, opc);
+  if (!r.ok) return r;
+  const c = r.valor.correo;
+  const antes = correo();
+  if (antes && antes.toLowerCase() !== c.toLowerCase()) { _tok = null; guardarTok(null); }
+  _correo = c;
+  try { Prefs.setIngreso({ ...(Prefs.ingreso() || {}), correo: c }); } catch (_) {}
+  return ok({ correo: c, expira: r.valor.expira });
 }
 
 /**

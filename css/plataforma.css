@@ -3324,6 +3324,13 @@ html[data-nav="teclado"] .pf-cab-t.cambia{animation:none}
 .puerta-captcha-nota[hidden]{display:block;visibility:hidden}
 /* .85 y no .72: a .72 el blanco del texto quedaba en ~3,1:1 sobre el azul deslavado (pub-6). */
 .puerta-btn[data-captcha="espera"]{opacity:.85;cursor:default}
+/* El botón de Google de la puerta (js/nucleo/puerta.js, `montarGoogle`): lo dibuja Google en un iframe suyo.
+   Mientras no carga no ocupa sitio ni se ve —el botón de la app está en su lugar— pero SÍ se dibuja, para
+   que el iframe cargue y se sepa cuándo. Al cargar toma el sitio del de la app con su misma altura (52 px),
+   y nada se mueve bajo el dedo. El foco le llega al hueco solo para pasar al iframe con el tabulador. */
+.puerta-google{display:flex;justify-content:center;align-items:center;min-height:52px}
+.puerta-google:not([data-listo="1"]){height:0;min-height:0;overflow:hidden;visibility:hidden}
+.puerta-google:focus{outline:none}
 
 /* ── fin de pf-esqueleto ── */
 

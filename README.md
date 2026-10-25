@@ -45,6 +45,10 @@ archivos estáticos que se sirven tal cual, desde GitHub Pages
 
 ### Lo más reciente (octubre de 2026)
 
+- **Un toque en la puerta.** La puerta enseña el botón de Google mismo y con él entra a Supabase
+  ahí mismo. Con la empresa en la base, ese toque basta: el área sale de la base y la hoja no se
+  toca. Con la empresa en la hoja, la hoja sigue decidiendo como siempre. Si el botón de Google no
+  carga, queda el de siempre (`docs/BASE-MANDA.md`, «Un toque en la puerta»).
 - **La ventana de Google ya no salta sola al abrir Chrome.** Renovar el permiso abre una
   ventana de Google, y se renovaba también sin que nadie tocara nada —al arrancar y en cada
   petición al puente—: con las ventanas permitidas, al cerrar y abrir Chrome saltaba la de

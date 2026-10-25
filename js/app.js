@@ -1790,7 +1790,13 @@ export function pintarBanda(msg) {
    botón. No pasa nada de esto si se entró con el token de emergencia (sin correo de Google), ni si
    alguien lo apagó a propósito en este aparato (Ajustes, o la base que retiró el acceso). Con la
    empresa en «hoja» no cambia lo que se guarda ni a dónde: deja al aparato listo para el día del
-   cambio y le dice quién manda (`mi_acceso`), que es lo que lo cambia de lado ese día. */
+   cambio y le dice quién manda (`mi_acceso`), que es lo que lo cambia de lado ese día.
+
+   Desde la entrada de un toque (2026-10-25), casi siempre esto ya está hecho cuando llega aquí: el botón
+   de Google de la puerta entró a Supabase ahí mismo (js/nucleo/puerta.js, `montarGoogle`), y
+   `entrarSinBoton` encuentra esa sesión y no le pregunta nada a Google —salvo que sea de otra cuenta que
+   la de la puerta: entonces la suelta y pide la buena—. Lo de abajo queda para el aparato que entró con
+   el botón de siempre (la empresa en la hoja, o el de Google que no cargó). */
 let _nube = null;      // la banda con el botón de Google, mientras haga falta un toque
 async function conectarLaNube() {
   const Ingreso = await import('./nucleo/ingreso.js');
@@ -2257,6 +2263,12 @@ async function arrancar() {
     /* Con la pantalla de entrar puesta, el clic es suyo: dos peticiones a Google a la vez se
        pisan la ventana. */
     if (document.documentElement.classList.contains('con-puerta')) return;
+    /* Con la base mandando, este permiso ya no hace falta para trabajar: la bandeja va a la base y el pase
+       lo confirma la base (js/nucleo/puerta.js). Renovarlo en cualquier clic sería abrirle la ventana de
+       Google a quien entró con UN toque por el botón de Google de la puerta: justo lo que se quitó. Lo
+       que todavía vive en el Apps Script (el sello, la IA, Maps, Drive) lo pide solo cuando se usa
+       (js/datos/puente.js, `tokenDeGoogle`). */
+    if (laBaseManda()) return;
     const ahora = Date.now();
     if (ahora - _renovadoEn < MS_ENTRE_RENOVACIONES || ahora < _renovarDesde) return;
     try {

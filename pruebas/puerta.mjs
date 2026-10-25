@@ -395,5 +395,71 @@ console.log('\nSOLO LOS BOTONES ABREN GOOGLE');
          clic.includes('caja.contains(b)'));
 }
 
+/* EL BOTÓN DE GOOGLE DE LA PUERTA (2026-10-25, «no tener que ingresar nuevamente con Google»).
+ *
+ * La puerta enseña el botón de Google mismo y con su token entra a Supabase; con la empresa en 'base' eso
+ * basta. Lo que se vigila aquí es lo que no se ve en una prueba sin navegador —la de punta a punta, con el
+ * token, está en pruebas/supabase-entrada-unica.mjs—: cuándo sale el botón, cuándo NO, que el de siempre
+ * se quede de respaldo, y que el camino con el token sea el mismo de siempre después de Google. */
+console.log('\nEL BOTÓN DE GOOGLE DE LA PUERTA');
+{
+  const sinCom = t => t.replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const pu = sinCom(readFileSync(join(aqui, '..', 'js', 'nucleo', 'puerta.js'), 'utf8'));
+  const cuerpo = nombre => (pu.match(new RegExp('function ' + nombre + '\\([^)]*\\) \\{[\\s\\S]*?\\n\\}')) || [''])[0];
+
+  const con = cuerpo('conBotonDeGoogle');
+  cierto('sale solo con el Client ID del código (el que conoce Supabase)', con.includes('if (Ingreso.clienteId() !== Ingreso.CLIENT_ID) return false;'));
+  cierto('  desde un origen que Google conoce', con.includes('if (!Ingreso.origenAutorizado(origen)) return false;'));
+  cierto('  con Supabase no apagado a propósito en este aparato', con.includes('if (supaApagadoAProposito()) return false;') &&
+         /localStorage\.getItem\('al3d_pf_supa_no'\) === '1'/.test(cuerpo('supaApagadoAProposito')));
+  cierto('  con señal', con.includes('navigator.onLine === false) return false;'));
+  cierto('  y, con la empresa en la hoja y este aparato sabiéndolo, el de siempre (un toque al día, no dos)',
+         con.includes('if (!BOTON_GOOGLE_CON_LA_HOJA && laEmpresaSigueEnLaHoja()) return false;') &&
+         /const BOTON_GOOGLE_CON_LA_HOJA = false;/.test(pu) &&
+         /"modo":"hoja"/.test(cuerpo('laEmpresaSigueEnLaHoja')));
+
+  const mon = cuerpo('montarGoogle');
+  cierto('con captcha en espera NO se pinta: espera su visto bueno', /if \(btn\.dataset\.captcha === 'espera'\) \{ _trasCaptcha = /.test(mon) &&
+         /if \(_trasCaptcha\) \{ const f = _trasCaptcha; _trasCaptcha = null; f\(\); \}/.test(pu));
+  const ms = Number((pu.match(/const MS_BOTON_GOOGLE = (\d+);/) || [])[1]);
+  cierto('si Google no pinta su botón en unos segundos, se queda el de siempre', ms >= 3000 && ms <= 10000 &&
+         /setTimeout\(\(\) => \{ vencido = true; rendirse\(\); \}, MS_BOTON_GOOGLE\)/.test(mon));
+  cierto('  el de siempre se esconde SOLO cuando el iframe de Google cargó, y no si ya lo están usando',
+         (pu.match(/btn\.hidden = true/g) || []).length === 1 && /f\.addEventListener\('load', cambiar/.test(mon) &&
+         /btn\.dataset\.estado === 'trabajando'\) \{ lugar\.remove\(\); return; \}/.test(mon));
+  cierto('  y si tenía el foco, el foco pasa al hueco del de Google (y de ahí, con el tabulador, al botón)',
+         /if \(conFoco\) lugar\.focus\(\);/.test(mon) && /lugar\.tabIndex = -1;/.test(mon) && /setAttribute\('aria-label', 'Entrar con Google'\)/.test(mon));
+  cierto('con un «fuera» la puerta es la de siempre: sin botón de Google', /if \(!\(av && av\.fuera\)\) montarGoogle\(caja, conCredencial\);/.test(pu));
+  cierto('repintar la caja (un «fuera» tardío) cancela el botón que esperaba al captcha', /_yaEntro = true;\s*_trasCaptcha = null;/.test(pu));
+
+  /* Después de Google, el mismo camino: el botón de la app cuenta lo que pasa y el veredicto se pinta igual. */
+  cierto('con el token, el botón de la app vuelve y trabaja como siempre', /quitarGoogle\(caja, btn\);[\s\S]{0,200}alTerminar\(await pedirConGoogle\(btn, t, otra, cred\)\);/.test(pu));
+  cierto('  y el clic del botón de la app termina por el mismo lado', /const res = await pedirConGoogle\(btn, t, otra\);\s*alTerminar\(res\);/.test(pu));
+  cierto('  pedirConGoogle empieza por el token si lo hay, y si no abre la ventana de siempre',
+         /\(cred \? confirmarConCredencial\(cred, alPaso\) : confirmar\(true, alPaso\)\)/.test(pu));
+  const con2 = cuerpo('entrarConCredencialDeVerdad');
+  cierto('el token se lee ANTES de todo, y uno malo es «no se pudo», nunca «fuera»',
+         con2.indexOf('Ingreso.anotarCredencial(') > 0 && con2.indexOf('Ingreso.anotarCredencial(') < con2.indexOf('entrarPorLaBase(') &&
+         !con2.includes("'fuera'"));
+  cierto('  la base primero; si no, la hoja como siempre —sola si el navegador todavía deja abrir su ventana, si no un toque más—',
+         /if \(v\) \{ paso\('hoja', 'ok', ''\); return v; \}/.test(con2) &&
+         /if \(Ingreso\.hayGesto\(\)\) return await confirmarDeVerdad\(true, alPaso\);/.test(con2) &&
+         /return \{ estado: 'sin_red', toque: true, mensaje: MSG\.FALTA_LA_HOJA\.texto \};/.test(con2));
+  cierto('  y con tope, como confirmar()', /Promise\.race\(\[real, new Promise\(r => setTimeout\(\(\) => r\(\{ estado: 'sin_red', tarde: true \}\), MS_CON_PANTALLA\)\)\]\)/.test(cuerpo('confirmarConCredencial')));
+  const base = cuerpo('entrarPorLaBase');
+  cierto('el camino de la base no le pregunta nada a la hoja', !/preguntarALaHoja|Puente\.|salud/.test(base) &&
+         /if \(!r\.ok \|\| !laBaseManda\(\)\) return null;/.test(base) && /return paseDeLaBase\(Supa, r\.acceso, correo\);/.test(base));
+  const pase = cuerpo('paseDeLaBase');
+  cierto('  y da pase solo a la MISMA persona, activa, con la empresa en la base y un área que existe',
+         /if \(!a \|\| !Supa\.esLaMismaPersona\(a\.correo, correo\)\) return null;/.test(pase) && /if \(a\.modo && a\.modo !== 'base'\) return null;/.test(pase) &&
+         /a\.estado === 'activo' && Prefs\.ROLES\.includes\(a\.area\)/.test(pase));
+
+  /* Con la base mandando, la comprobación de fondo del pase ya no depende del permiso de la hoja: quien entró
+     con el botón de Google no lo tiene, y sin esto la vuelta de fondo nunca le preguntaba a nadie. */
+  const ver = cuerpo('confirmarDeVerdad');
+  cierto('la vuelta de fondo pregunta a la base sin el permiso de la hoja (y solo la de fondo: el botón sigue abriendo la ventana)',
+         /if \(!e\.ok\) \{\s*if \(!conPantalla && laBaseManda\(\)\) \{ const vb = await preguntarALaBase\(\); if \(vb\) return vb; \}/.test(ver));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

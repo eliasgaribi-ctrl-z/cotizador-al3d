@@ -52,6 +52,24 @@
    dejó a propósito— también entra, y lo hace ENSEÑÁNDOLO: la banda de arriba dice que se
    entró sin identificar a la persona. No se quita esa puerta porque el día que Google no
    conteste bien no puede ser el día en que el taller no pueda trabajar.
+
+   ── El botón de Google, y la base (2026-10-25) ─────────────────────────────────
+   Elías, desde su iPhone: «no tener que ingresar nuevamente con Google cuando ya lo hice desde un
+   principio». La puerta pedía a Google un token de ACCESO (el que verifica la hoja) y Supabase pide
+   uno de IDENTIDAD; en el iPhone eso eran dos ventanas de Google. Ahora la puerta enseña el botón
+   de Google mismo (`montarGoogle`, un iframe de Google), que da el de identidad, y con él entra a
+   Supabase ahí mismo (js/nucleo/supa.js, `entrarConCredencial`):
+     · si la base dice que la empresa ya está en 'base' y la persona está activa, se entra con el
+       área de la base y su pase —sin la hoja, sin token de acceso, sin otra ventana—;
+     · si la empresa sigue en la hoja, la hoja decide como siempre (`confirmarDeVerdad`), y eso
+       pide su propio permiso de Google: un toque más, hasta el día del cambio. La hoja no se toca
+       (decisión de Elías): no va a aprender a leer el token de identidad;
+     · quien no está activo en la base no entra por ella: la hoja dice, con su «fuera» y su
+       segunda opinión, lo de siempre.
+   Con la empresa en la hoja Y este aparato sabiéndolo (`laEmpresaSigueEnLaHoja`), la puerta pone el
+   botón de siempre: el de Google costaría dos toques cada mañana en vez de uno. Si el guion o el
+   botón de Google no cargan en unos segundos (sin señal, bloqueado, un navegador viejo), también
+   queda el de siempre, con su camino de siempre.
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
@@ -169,6 +187,11 @@ const MSG = {
   CAPTCHA_ABIERTO: 'No cargó la comprobación de «no soy un robot» (falta de señal o un bloqueador de anuncios). Puedes entrar igual.',
   CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
                            esc(correo) + '</b>. Conéctate a internet y vuelve a entrar.'),
+  /* El botón de Google ya dijo quién eres, pero la empresa sigue en la hoja (o la base no lo pudo decir),
+     y la hoja pide su propio permiso de Google: eso abre una ventana, y una ventana solo se abre con un
+     toque reciente. Es ámbar y no rojo: no es un «no», es un paso que falta. */
+  FALTA_LA_HOJA: aviso('Google ya te reconoció. Mientras la empresa siga trabajando con la hoja, la hoja pide su ' +
+                       'propio permiso de Google: toca el botón otra vez y escoge la misma cuenta.'),
 };
 
 /* El resultado de custodiar(), para que app.js no tenga que adivinar. */
@@ -369,6 +392,11 @@ async function confirmarDeVerdad(conPantalla, alPaso) {
   paso('google', 'trabaja');
   const e = conPantalla ? await Ingreso.entrar(false) : await Ingreso.renovar();
   if (!e.ok) {
+    /* Con la base mandando, la comprobación de fondo no necesita el permiso de Google de la hoja: quién
+       eres y qué te toca lo dice la sesión de Supabase, que se renueva sola. Sin esto, con la puerta
+       entrando por el botón de Google —que no deja ese permiso— la vuelta de fondo terminaba siempre
+       en `sin_red` y nunca preguntaba a la base. Si la base no lo dice, sigue lo de siempre. */
+    if (!conPantalla && laBaseManda()) { const vb = await preguntarALaBase(); if (vb) return vb; }
     /* El detalle del renglón es corto a propósito: la frase entera de por qué no se pudo —la
        ventana que se cerró, la que el navegador bloqueó— sale en el aviso de la puerta, y
        repetirla aquí la cortaría a media palabra en un teléfono de 360 px. */
@@ -478,21 +506,93 @@ function laBaseManda() {
  * separadas, y el relevo no manda nada de esa cuenta.
  */
 async function preguntarALaBase() {
-  let Supa;
-  try { Supa = await import('./supa.js'); } catch (_) { return null; }
+  const Supa = await cargarSupa();
+  if (!Supa) return null;
   try {
     if (!await Supa.haySesion()) return null;
-    const a = await Supa.acceso();
-    const correo = Ingreso.correo() || '';
-    if (!Supa.esLaMismaPersona(a.correo, correo)) return null;
-    /* La base acaba de decir que la empresa volvió a la hoja: el rol, de la hoja. */
-    if (a.modo && a.modo !== 'base') return null;
-    if (a.estado === 'activo' && Prefs.ROLES.includes(a.area)) {
-      Prefs.setPase({ correo, rol: a.area, hasta: Date.now() + MS_PASE, visto: Date.now(), de: 'base' });
-      return { estado: 'ok', correo, rol: a.area };
-    }
+    return paseDeLaBase(Supa, await Supa.acceso(), Ingreso.correo() || '');
   } catch (_) { /* la base no contestó: pregunta la hoja */ }
   return null;
+}
+
+/* supa.js se carga en UN solo lugar, y solo en dos casos: la base manda en este aparato, o alguien acaba de
+   tocar el botón de Google de la puerta. Con la hoja mandando y el botón de siempre, la puerta no lo
+   descarga. Lo pesado —la librería de Supabase— ni siquiera es esto: lo carga supa.js al pedir el cliente. */
+async function cargarSupa() {
+  try { return await import('./supa.js'); } catch (_) { return null; }
+}
+
+/** El pase que da la base, o null. Lo mismo para la vuelta de fondo (`preguntarALaBase`) que para el botón
+ *  de Google de la puerta (`entrarPorLaBase`): la misma persona que la de la puerta, la empresa en 'base'
+ *  (o sin decirlo, cuando este aparato ya sabía que la base manda), la cuenta activa y un área que existe. */
+function paseDeLaBase(Supa, a, correo) {
+  if (!a || !Supa.esLaMismaPersona(a.correo, correo)) return null;
+  /* La base acaba de decir que la empresa volvió a la hoja: el rol, de la hoja. */
+  if (a.modo && a.modo !== 'base') return null;
+  if (a.estado === 'activo' && Prefs.ROLES.includes(a.area)) {
+    Prefs.setPase({ correo, rol: a.area, hasta: Date.now() + MS_PASE, visto: Date.now(), de: 'base' });
+    return { estado: 'ok', correo, rol: a.area };
+  }
+  return null;
+}
+
+/**
+ * El botón de Google de la puerta dio un token de identidad: se entra con él a Supabase y, si la empresa ya
+ * está en 'base' y la persona activa, ése es el pase. null en cualquier otro caso —la empresa sigue en la
+ * hoja, la base no contestó, la cuenta no está activa (no invitada, dada de baja)—, y entonces decide la
+ * hoja como siempre. Aquí no sale nunca un «fuera»: ése lo sigue diciendo solo la hoja.
+ *
+ * `laBaseManda()` se lee DESPUÉS de entrar: `acceso()` acaba de guardar el modo que dijo la base y el
+ * interruptor quedó encendido, así que es la respuesta de hoy y no la que este aparato recordaba.
+ */
+async function entrarPorLaBase(cred, correo) {
+  const Supa = await cargarSupa();
+  if (!Supa) return null;
+  try {
+    const r = await Supa.entrarConCredencial(cred.credencial, cred.crudo, correo);
+    if (!r.ok || !laBaseManda()) return null;
+    return paseDeLaBase(Supa, r.acceso, correo);
+  } catch (_) { return null; }
+}
+
+/**
+ * La entrada con el botón de Google: lo mismo que `confirmar(true)` —los dos pasos, el veredicto— pero
+ * empezando por el token de identidad que Google ya dio. Con tope, como `confirmar()`.
+ *   · Google: el token se lee y su correo queda como el de la puerta (`Ingreso.anotarCredencial`).
+ *   · La base: con la empresa en 'base' y la persona activa, adentro (`entrarPorLaBase`).
+ *   · Si no, la hoja, exactamente como hoy (`confirmarDeVerdad`). Eso abre la ventana de Google del permiso
+ *     de la hoja, y el navegador solo la deja abrir con un toque reciente: si todavía lo hay, se sigue
+ *     solo; si ya no, se pide un toque más (`toque: true`) y el botón de la app hace el resto.
+ *
+ * Se exporta para pruebas/supabase-entrada-unica.mjs, que la corre entera sin navegador: el resto de la
+ * puerta pinta y pide DOM, y esto es justo lo que decide quién pasa.
+ * @param {{credencial:string, crudo:string, nonce:string}} cred lo que da `Ingreso.botonDeIdentidad`.
+ */
+export function confirmarConCredencial(cred, alPaso) {
+  const real = entrarConCredencialDeVerdad(cred, alPaso);
+  real.catch(() => {});
+  return Promise.race([real, new Promise(r => setTimeout(() => r({ estado: 'sin_red', tarde: true }), MS_CON_PANTALLA))]);
+}
+
+async function entrarConCredencialDeVerdad(cred, alPaso) {
+  const paso = (c, e, d, tx) => { if (alPaso) { try { alPaso(c, e, d, tx); } catch (_) {} } };
+  paso('google', 'trabaja');
+  const c = Ingreso.anotarCredencial(cred && cred.credencial, { nonce: cred && cred.nonce });
+  if (!c.ok) {
+    paso('google', 'mal', 'no se completó');
+    paso('hoja', 'salta', 'no se preguntó');
+    return { estado: 'sin_red', mensaje: c.mensaje || '' };
+  }
+  const correo = c.valor.correo;
+  paso('google', 'ok', correo);
+  paso('hoja', 'trabaja', '', 'La base · qué te toca');
+  const v = await entrarPorLaBase(cred, correo);
+  if (v) { paso('hoja', 'ok', ''); return v; }
+  /* La empresa sigue en la hoja, o la base no lo pudo decir: el camino de siempre. */
+  paso('hoja', 'espera', '', 'La hoja · qué te toca');
+  if (Ingreso.hayGesto()) return await confirmarDeVerdad(true, alPaso);
+  paso('hoja', 'mal', 'falta un toque');
+  return { estado: 'sin_red', toque: true, mensaje: MSG.FALTA_LA_HOJA.texto };
 }
 
 /** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. Con la base mandando,
@@ -632,6 +732,7 @@ function pedirEntrada(av, pendiente, echando) {
     const entrar = r => {
       if (echando) { location.reload(); return; }
       if (_cap) { try { _cap.quitar(); } catch (_) {} _cap = null; }
+      _trasCaptcha = null;
       pararFondo();
       despertar();
       document.documentElement.classList.remove('con-puerta');
@@ -719,13 +820,37 @@ function pedirEntrada(av, pendiente, echando) {
       if (cj) cj.classList.remove('entra');
       const t = arrancarPasos(caja);
       const res = await pedirConGoogle(btn, t, otra);
+      alTerminar(res);
+    });
+
+    /* Cómo termina un intento, venga del botón de la app o del de Google: adentro, o el aviso. */
+    function alTerminar(res) {
       if (res.ocupado) return;
       if (res.ok && res.valor && res.valor.estado === 'ok') return entrarConPausa(res.valor);
       const r = res.valor || { estado: 'sin_red' };
       av = r.estado === 'fuera' ? MSG.FUERA(r.correo)
          : (r.mensaje ? aviso(r.mensaje) : (_delDia ? MSG.SIN_RED_HOY : MSG.SIN_RED_PRIMERA));
       ponerAviso(caja, av);
-    });
+    }
+
+    /* ----- El botón de Google (ver la cabecera y `montarGoogle`) -----
+       Google ya dio el token de identidad: desde aquí es la misma entrada que la del botón de la app, con
+       el mismo botón contando lo que pasa y los mismos dos pasos. El de Google se quita y vuelve el de la
+       app, que es el que sabe decir «Entrando · 6 s» y, si falta algo, «Volver a intentar» con el camino
+       de siempre. Aquí no hace falta cuidar el gesto: lo que sigue no abre ventanas, salvo el permiso de
+       la hoja, que lo pide solo si el navegador todavía lo deja (`entrarConCredencialDeVerdad`). */
+    async function conCredencial(cred) {
+      const btn = caja.querySelector('[data-puerta="entrar"]');
+      if (!btn || saliendo || caja.hidden || btn.dataset.estado === 'trabajando') return;
+      const otra = caja.querySelector('[data-puerta="otra"]');
+      quitarGoogle(caja, btn);
+      const cj = caja.querySelector('.puerta-caja');
+      if (cj) cj.classList.remove('entra');
+      const t = arrancarPasos(caja);
+      alTerminar(await pedirConGoogle(btn, t, otra, cred));
+    }
+    /* Con un «fuera» la puerta es la de siempre: el botón de la app y «Entrar con otra cuenta». */
+    if (!(av && av.fuera)) montarGoogle(caja, conCredencial);
   });
 }
 
@@ -753,8 +878,9 @@ function arrancarPasos(caja) {
 
 /** Pide la entrada con el botón puesto a trabajar (pieza 14) y los pasos avanzando (pieza 8).
  *  Nunca se rechaza: devuelve lo mismo que `Piezas.trabajando`, con el veredicto de la hoja en
- *  `valor` —sea bueno o no— y `ocupado` si el botón ya estaba trabajando. */
-function pedirConGoogle(btn, t, otra) {
+ *  `valor` —sea bueno o no— y `ocupado` si el botón ya estaba trabajando. Con `cred` (el token de
+ *  identidad del botón de Google) empieza por él en vez de abrir la ventana: `confirmarConCredencial`. */
+function pedirConGoogle(btn, t, otra, cred) {
   const P = typeof window !== 'undefined' ? window.Piezas : null;
   /* Las manchas del logo (pieza 25) van EN el lugar del logo: el logo se separa en sus tres
      azules mientras se espera y se vuelve a juntar al terminar. Solo mientras dura la espera, y
@@ -765,15 +891,16 @@ function pedirConGoogle(btn, t, otra) {
      de `confirmar()` la petición de fondo sigue viva, y si contestara tarde volvería a poner
      palomita en un renglón que ya se marcó con cruz. */
   let cerrado = false;
-  const alPaso = (clave, estado, detalle) => { if (t && !cerrado) t.paso(clave, null, estado, detalle); };
+  /* `texto` cambia el rótulo del renglón: el segundo paso es «La base» cuando pregunta la base. */
+  const alPaso = (clave, estado, detalle, texto) => { if (t && !cerrado) t.paso(clave, texto || null, estado, detalle); };
   /* `true`: esto sale de un click, así que aquí SÍ se puede abrir la ventana de Google. Es la
      única parte del arranque donde eso es posible, y por eso `confirmar()` se llama sin esperar
      a nada antes. */
-  const trabajo = () => confirmar(true, alPaso).then(v => {
+  const trabajo = () => (cred ? confirmarConCredencial(cred, alPaso) : confirmar(true, alPaso)).then(v => {
     if (v.estado === 'ok') return v;
     /* Un veredicto que no es «ok» es un fallo PARA EL BOTÓN, pero no es una excepción: el
        veredicto viaja colgado del error para que quien llama pinte el aviso de siempre. */
-    const e = new Error(v.estado === 'fuera' ? 'Sin acceso' : 'No se pudo entrar');
+    const e = new Error(v.estado === 'fuera' ? 'Sin acceso' : (v.toque ? 'Falta un toque' : 'No se pudo entrar'));
     e.puerta = v;
     throw e;
   });
@@ -826,7 +953,8 @@ function ponerAviso(caja, av) {
     p.className = 'puerta-aviso' + (fuera ? ' es-no' : '') + (repetido ? ' otra-vez' : '');
     p.setAttribute('role', 'alert');
     p.innerHTML = cuerpo;
-    btn.before(p);
+    /* Encima de los dos botones de entrar: el de Google, si sigue puesto, va justo antes del de la app. */
+    (caja.querySelector('.puerta-google') || btn).before(p);
     if (repetido) p.addEventListener('animationend', () => p.classList.remove('otra-vez'), { once: true });
   }
   /* «Entrar con otra cuenta» solo existe cuando la hoja dijo que no: es lo que se puede hacer. */
@@ -868,6 +996,9 @@ function pintar(caja, av) {
      tardía que dice «fuera»— ya no vuelve a entrar: sería moverse sin que nadie tocara nada. */
   const entra = !_yaEntro && !sinMovimiento();
   _yaEntro = true;
+  /* Repintar la caja se lleva el botón de Google si estaba (va dentro); el que esperaba al captcha
+     tampoco sale ya: después de un «fuera» se entra con el de la app o con «Entrar con otra cuenta». */
+  _trasCaptcha = null;
   const pideCaptcha = Captcha.configurado();
   /* El fondo vive fuera de la caja y sobrevive al repintado: es el mismo nodo, con su lienzo y
      sus ondas, y no vuelve a arrancar de cero. */
@@ -953,6 +1084,8 @@ function iniciarCaptcha(caja, pide) {
       if (btn) btn.dataset.captcha = estado;
       if (estado === 'espera') return;
       decir(estado === 'abierto' ? MSG.CAPTCHA_ABIERTO : '');
+      /* El botón de Google esperaba el visto bueno (`montarGoogle`): ya puede salir. */
+      if (_trasCaptcha) { const f = _trasCaptcha; _trasCaptcha = null; f(); }
     },
     /* El recuadro solo ocupa sitio cuando Cloudflare pide un clic. */
     alInteractivo: visible => { el.dataset.interactivo = visible ? '1' : '0'; },
@@ -971,6 +1104,120 @@ let _yaEntro = false;
 const sinMovimiento = () => {
   try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
 };
+
+/* ----------------------------------------------------------------------------
+   El botón de Google (2026-10-25, ver la cabecera)
+   ---------------------------------------------------------------------------- */
+
+/* Cuánto se le espera a Google para pintar su botón —el guion, y luego el iframe del botón— antes de
+   quedarse con el de la app. Con buena señal tarda uno o dos segundos. Pasado esto ya no se cambia
+   aunque llegue: un botón que se cambia por otro bajo el dedo es peor que el de siempre. */
+const MS_BOTON_GOOGLE = 6000;
+
+/* Con la empresa en la hoja, ¿se enseña igual el botón de Google? Con `false` (lo de hoy), un aparato que
+   ya sabe que la empresa sigue en la hoja enseña el botón de siempre: un toque al día, y Supabase por
+   detrás como desde la entrada única (js/app.js, `conectarLaNube`). Con el de Google serían DOS toques
+   cada mañana —el de Google y el permiso de la hoja— hasta el día del cambio. Con `true`, el de Google
+   siempre. Un aparato que no sabe en qué modo está la empresa (nunca entró a Supabase) enseña el de
+   Google: así se entera. */
+const BOTON_GOOGLE_CON_LA_HOJA = false;
+
+/* La función que el captcha llama cuando da el visto bueno, si el botón de Google lo estaba esperando. */
+let _trasCaptcha = null;
+
+/* Lo que este aparato oyó la última vez de la base (js/nucleo/supa.js, `guardarModo`): la empresa en la
+   hoja. Se lee como `laBaseManda()`, con una expresión regular y sin cargar supa.js. */
+function laEmpresaSigueEnLaHoja() {
+  try { return /"modo":"hoja"/.test(localStorage.getItem('al3d_pf_supa_modo') || ''); } catch (_) { return false; }
+}
+/* Supabase apagado A PROPÓSITO en este aparato (Ajustes, o la base que retiró el acceso: `al3d_pf_supa_no`
+   de supa.js). El token de identidad no tendría a dónde ir. */
+function supaApagadoAProposito() {
+  try { return localStorage.getItem('al3d_pf_supa_no') === '1'; } catch (_) { return false; }
+}
+
+/** ¿Va el botón de Google en la puerta? Solo cuando su token tiene a dónde ir y Google lo va a dar. */
+function conBotonDeGoogle() {
+  /* Un identificador de Google pegado en Ajustes para probar otro: Supabase solo conoce el del código. */
+  if (Ingreso.clienteId() !== Ingreso.CLIENT_ID) return false;
+  /* Desde un origen que Google no tiene dado de alta su botón sale con «Error 400»; el de la app dice cuál
+     es la dirección buena al tocarlo (ingreso.js, ORIGENES). */
+  let origen = '';
+  try { origen = location.origin; } catch (_) {}
+  if (!Ingreso.origenAutorizado(origen)) return false;
+  if (supaApagadoAProposito()) return false;
+  if (!BOTON_GOOGLE_CON_LA_HOJA && laEmpresaSigueEnLaHoja()) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  return true;
+}
+
+/**
+ * Pone el botón de Google en lugar del de la app, si se puede y en cuanto esté pintado de verdad.
+ *
+ * El de la app se pinta primero, siempre, y se queda mientras tanto: es el de siempre, con el foco puesto
+ * y su captcha. El de Google se pide a un hueco encima de él que no ocupa sitio ni se ve
+ * (`.puerta-google` sin `data-listo`) y solo cuando su iframe CARGÓ se cambian: el hueco toma la altura
+ * del botón de la app y éste se esconde, sin que nada se mueva. Si en MS_BOTON_GOOGLE no cargó, el hueco
+ * se quita y se queda el de siempre, con su camino de siempre.
+ *
+ * Con captcha, el de Google espera a que dé el visto bueno: lo que pasa dentro del iframe de Google no se
+ * puede frenar como el toque del botón de la app (`captchaEnEspera`), así que mientras el captcha no
+ * termina, el que está es el de la app, apagado y explicando qué se espera.
+ */
+function montarGoogle(caja, alCredencial) {
+  const btn = caja.querySelector('[data-puerta="entrar"]');
+  if (!btn || !conBotonDeGoogle()) return;
+  if (btn.dataset.captcha === 'espera') { _trasCaptcha = () => montarGoogle(caja, alCredencial); return; }
+  if (caja.querySelector('.puerta-google')) return;
+  const lugar = document.createElement('div');
+  lugar.className = 'puerta-google';
+  /* Para el lector de pantalla, el hueco se llama como el botón que trae dentro; y puede recibir el foco
+     (`tabindex=-1`) para pasárselo cuando el de la app se esconda con el foco puesto. */
+  lugar.setAttribute('role', 'group');
+  lugar.setAttribute('aria-label', 'Entrar con Google');
+  lugar.tabIndex = -1;
+  btn.before(lugar);
+
+  let listo = false, vencido = false, vigia = null;
+  const rendirse = () => { if (vigia) vigia.disconnect(); if (!listo) lugar.remove(); };
+  const reloj = setTimeout(() => { vencido = true; rendirse(); }, MS_BOTON_GOOGLE);
+  const cambiar = () => {
+    if (listo || vencido) return;
+    listo = true;
+    clearTimeout(reloj);
+    /* Si en lo que cargaba alguien ya tocó el de la app, o la puerta se fue, el de la app se queda. */
+    if (!lugar.isConnected || !btn.isConnected || caja.hidden || btn.dataset.estado === 'trabajando') { lugar.remove(); return; }
+    const conFoco = document.activeElement === btn;
+    lugar.dataset.listo = '1';
+    btn.hidden = true;
+    if (conFoco) lugar.focus();
+  };
+  /* El iframe del botón lo mete Google un momento después de `renderButton`; listo es cuando CARGA, no
+     cuando aparece: un iframe vacío del tamaño del botón sería un botón que no hace nada. */
+  vigia = typeof MutationObserver === 'function' ? new MutationObserver(() => {
+    const f = lugar.querySelector('iframe');
+    if (f) { vigia.disconnect(); f.addEventListener('load', cambiar, { once: true }); }
+  }) : null;
+  if (vigia) vigia.observe(lugar, { childList: true, subtree: true });
+
+  /* Del ancho del botón de la app (Google acepta de 200 a 400 px) y con su altura más grande; azul en
+     los dos temas, como el botón de la app, que también es azul de día y de noche. */
+  const ancho = Math.max(200, Math.min(400, Math.round(btn.getBoundingClientRect().width) || 320));
+  Ingreso.botonDeIdentidad(lugar, alCredencial, {
+    aspecto: { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'rectangular', logo_alignment: 'left', width: ancho },
+  }).then(pintado => {
+    if (!pintado) { clearTimeout(reloj); rendirse(); }
+    else if (!vigia) cambiar();          // sin MutationObserver no hay cómo saber cuándo carga: se confía
+  }).catch(() => { clearTimeout(reloj); rendirse(); });
+}
+
+/** Quita el botón de Google y deja el de la app, con el foco: lo que sigue lo cuenta él. */
+function quitarGoogle(caja, btn) {
+  _trasCaptcha = null;
+  const lugar = caja.querySelector('.puerta-google');
+  if (lugar) lugar.remove();
+  if (btn) { btn.hidden = false; try { btn.focus(); } catch (_) {} }
+}
 
 /* ----------------------------------------------------------------------------
    El fondo

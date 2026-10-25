@@ -216,10 +216,87 @@ console.log('\nEL ORIGEN SE COMPRUEBA ANTES DE ABRIR LA VENTANA DE GOOGLE');
   cierto('un archivo abierto a mano (origen «null») no', !I.origenAutorizado('null'));
   cierto('localhost tampoco, porque Google no lo tiene', !I.origenAutorizado('http://localhost:8080'));
   cierto('sin origen no se juzga', I.origenAutorizado(''));
-  const ing = readFileSync(join(aqui, '..', 'js', 'nucleo', 'ingreso.js'), 'utf8');
+  const ing = readFileSync(join(aqui, '..', 'js', 'nucleo', 'ingreso.js'), 'utf8').replace(/\r\n/g, '\n');
+  /* Dentro de entrar(), y no en el archivo entero: desde el botón de Google (`botonDeIdentidad`) hay
+     otra llamada a cargarGis() más arriba en el archivo, que no tiene nada que ver con ésta. */
+  const ent = (ing.match(/export async function entrar\(callado, opc\) \{[\s\S]*?\n\}/) || [''])[0];
   cierto('entrar() lo comprueba antes de cargar el guion de Google',
-         ing.indexOf('origenAutorizado(origenActual())') !== -1 &&
-         ing.indexOf('origenAutorizado(origenActual())') < ing.indexOf('await cargarGis()'));
+         ent.indexOf('origenAutorizado(origenActual())') !== -1 &&
+         ent.indexOf('origenAutorizado(origenActual())') < ent.indexOf('await cargarGis()'));
+}
+
+/* EL TOKEN DE IDENTIDAD DEL BOTÓN DE GOOGLE (la puerta de un toque, 2026-10-25).
+ *
+ * La puerta ya no solo abre la ventana del permiso de la hoja: enseña el botón de Google, que da un token
+ * de IDENTIDAD (un JWT) y se va a Supabase. Del lado de la app ese token solo se LEE —la firma la comprueba
+ * Supabase, que es quien abre algo—, pero leerlo mal tiene costo: anotar el correo de un token de otra app,
+ * de un correo sin verificar o ya vencido dejaría a la puerta diciendo «entraste como…» de alguien que
+ * Supabase va a rechazar. Y lo que NO puede pasar nunca: que el token se quede guardado en el aparato
+ * (viajaría en un respaldo) o que se use como el token de la hoja (la hoja lo rechaza y echaría a su dueño). */
+console.log('\nEL TOKEN DE IDENTIDAD DEL BOTÓN DE GOOGLE');
+{
+  const almacen = new Map();
+  globalThis.localStorage = {
+    getItem: k => (almacen.has(k) ? almacen.get(k) : null), setItem: (k, v) => almacen.set(k, String(v)),
+    removeItem: k => almacen.delete(k),
+  };
+  const I = await import('../js/nucleo/ingreso.js');
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const AHORA = Date.now();
+  const jwt = (extra = {}) => b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({
+    iss: 'https://accounts.google.com', aud: I.CLIENT_ID, email: 'beto@al3d.mx', email_verified: true,
+    exp: Math.floor(AHORA / 1000) + 3600, nonce: 'huella-del-nonce', name: 'Alberto Núñez', ...extra,
+  }) + '.firma-que-solo-mira-supabase';
+
+  const r = I.leerCredencial(jwt(), { nonce: 'huella-del-nonce' });
+  eq('uno bueno: su correo y cuándo vence, con la forma de entrar()', [r.ok, r.valor && r.valor.correo, r.valor && r.valor.expira],
+     [true, 'beto@al3d.mx', (Math.floor(AHORA / 1000) + 3600) * 1000]);
+  eq('un nombre con acento no rompe la lectura (base64url → bytes → UTF-8)', I.leerCredencial(jwt({ name: 'Ñandú Pérez' })).ok, true);
+  eq('el emisor también puede venir sin https', I.leerCredencial(jwt({ iss: 'accounts.google.com' })).ok, true);
+
+  /* La audiencia, por lo mismo que en el Apps Script: un token de otra app no es de esta app. */
+  const otra = I.leerCredencial(jwt({ aud: 'otra-app.apps.googleusercontent.com' }));
+  cierto('un token de OTRA app no se anota', !otra.ok && /otra app/.test(otra.mensaje));
+  cierto('  ni uno con la audiencia en lista que no la incluye', !I.leerCredencial(jwt({ aud: ['otra-app.apps.googleusercontent.com'] })).ok);
+  cierto('  y en lista que sí, sí', I.leerCredencial(jwt({ aud: ['x', I.CLIENT_ID] })).ok);
+  const sinVerificar = I.leerCredencial(jwt({ email_verified: false }));
+  cierto('un correo sin verificar no se anota: lo pone cualquiera', !sinVerificar.ok && /no está verificado/.test(sinVerificar.mensaje));
+  eq('  «true» como texto sí vale (así lo escribe tokeninfo)', I.leerCredencial(jwt({ email_verified: 'true' })).ok, true);
+  const vencido = I.leerCredencial(jwt({ exp: Math.floor(AHORA / 1000) - 5 }));
+  cierto('uno vencido no se anota, y se dice (casi siempre es el reloj del teléfono)', !vencido.ok && /venció/.test(vencido.mensaje));
+  cierto('  ni uno sin fecha', !I.leerCredencial(jwt({ exp: undefined })).ok);
+  cierto('otro emisor que no es Google, no', !I.leerCredencial(jwt({ iss: 'https://evil.example' })).ok);
+  cierto('con otro nonce que el que se le dio a Google, no', !I.leerCredencial(jwt(), { nonce: 'otra-huella' }).ok);
+  cierto('sin correo, o con uno que no es correo, no', !I.leerCredencial(jwt({ email: undefined })).ok && !I.leerCredencial(jwt({ email: 'beto' })).ok);
+  for (const [que, t] of [['vacío', ''], ['dos trozos', 'a.b'], ['basura', 'a.%%%.c'], ['JSON que no es objeto', 'x.' + Buffer.from('[1]').toString('base64url') + '.y'], ['null', null]]) {
+    eq('un token ' + que + ' no truena: dice que no', I.leerCredencial(t).ok, false);
+  }
+  eq('el Client ID pegado en Ajustes también manda aquí (clienteId())',
+     I.leerCredencial(jwt({ aud: 'probando.apps.googleusercontent.com' }), { clienteId: 'probando.apps.googleusercontent.com' }).ok, true);
+
+  /* Anotar: el correo queda como el de la puerta; el token, en ninguna parte. */
+  I.salir();
+  const cred = jwt();
+  const a = I.anotarCredencial(cred, { nonce: 'huella-del-nonce' });
+  eq('anotarlo deja el correo de la puerta, como entrar()', [a.ok, I.correo()], [true, 'beto@al3d.mx']);
+  eq('  pero NO es el token de la hoja: la hoja lo rechazaría', [I.dentro(), I.token()], [false, '']);
+  const crudo = [...almacen.values()].join('\n');
+  cierto('  y no queda guardado en el aparato (ni el token ni su cuerpo): no viaja en un respaldo',
+         !crudo.includes(cred) && !crudo.includes(cred.split('.')[1]) && !almacen.has('al3d_pf_gtok'));
+  eq('uno malo no cambia el correo que había', [I.anotarCredencial(jwt({ aud: 'otra' })).ok, I.correo()], [false, 'beto@al3d.mx']);
+
+  /* Un permiso de la hoja vivo de OTRA cuenta no se queda: no es de quien acaba de entrar. */
+  almacen.set('al3d_pf_gtok', JSON.stringify({ token: 'tok-de-beto', expira: Date.now() + 600000 }));
+  const I2 = await import('../js/nucleo/ingreso.js?otra-vez');
+  I2.anotarCredencial(jwt({ email: 'beto@al3d.mx' }));
+  eq('el permiso de la hoja de la MISMA cuenta se queda', I2.token(), 'tok-de-beto');
+  I2.anotarCredencial(jwt({ email: 'ana@al3d.mx' }));
+  eq('el de otra cuenta se suelta', [I2.token(), I2.correo(), almacen.has('al3d_pf_gtok')], ['', 'ana@al3d.mx', false]);
+
+  const ing = readFileSync(join(aqui, '..', 'js', 'nucleo', 'ingreso.js'), 'utf8');
+  const anotar = (ing.match(/export function anotarCredencial\([\s\S]*?\n\}/) || [''])[0];
+  cierto('anotarCredencial no toca el token de la hoja salvo para soltarlo', anotar && !/_tok = \{/.test(anotar) && !/guardarTok\(\{/.test(anotar));
+  cierto('ni ingreso.js usa sessionStorage para nada', !/sessionStorage/.test(ing.replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
