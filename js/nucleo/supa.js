@@ -8,10 +8,12 @@
    aparato de quien lo encendió y nada más:
 
      · Entrar. Google da un TOKEN DE IDENTIDAD (`google.accounts.id`, el botón de Google) y
-       Supabase lo cambia por su sesión (`signInWithIdToken`). Es otro token que el de la puerta
-       de hoy: aquella pide a Google un token de ACCESO (`oauth2.initTokenClient`), que Supabase
-       no acepta. El Client ID es el mismo (js/nucleo/ingreso.js). Va con NONCE: a Google se le
+       Supabase lo cambia por su sesión (`signInWithIdToken`, en `cambiarPorSesion` y en ningún otro
+       lado). Es otro token que el de la hoja: aquel es de ACCESO (`oauth2.initTokenClient`), que
+       Supabase no acepta. El Client ID es el mismo (js/nucleo/ingreso.js). Va con NONCE: a Google se le
        da su huella SHA-256 y a Supabase el original, así un token robado de otra página no sirve.
+       Desde el 2026-10-25 lo pide la PUERTA misma con el botón de Google (`entrarConCredencial`): con la
+       empresa en 'base' ese toque basta para entrar, sin la hoja (js/nucleo/puerta.js).
      · Quién eres. `mi_acceso()` de la base dice el estado (activo, invitación pendiente, sin
        acceso, acceso retirado) y el área. Con una invitación pendiente se reclama sola
        (`reclamar_acceso`): así queda vinculada la cuenta de Google al correo invitado.
@@ -38,7 +40,10 @@
    ============================================================================ */
 
 import { SUPABASE } from '../datos/supabase-config.js';
-import { CLIENT_ID, cargarGis, correo as correoDeLaPuerta } from './ingreso.js';
+import { CLIENT_ID, cargarGis, correo as correoDeLaPuerta, huella, nonceNuevo, botonDeIdentidad } from './ingreso.js';
+/* El nonce y su huella viven en ingreso.js desde que la puerta pinta el botón de Google sin cargar este
+   módulo; se siguen ofreciendo desde aquí para quien ya los pedía a supa.js. */
+export { huella, nonceNuevo };
 
 /* El interruptor de ESTE aparato y la sesión de Supabase. Fuera de Prefs.CLAVES a propósito:
    esas viajan en el respaldo, y un respaldo restaurado en otro teléfono no debe encender nada
@@ -173,16 +178,6 @@ export const SE_BORRAN = ['al3d_pf_rol', 'al3d_pf_nombre', 'al3d_pf_ganadas', 'a
    que la encendió, y lleva copias de operaciones de la bandeja. */
 export const BASES_LOCALES = ['al3d_pf', 'al3d_cot_imgs', 'al3d_sombra'];
 
-/** Huella SHA-256 en hexadecimal (lo que se le da a Google como nonce). */
-export async function huella(texto) {
-  const b = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
-  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-}
-export function nonceNuevo() {
-  const a = new Uint8Array(32); globalThis.crypto.getRandomValues(a);
-  return [...a].map(x => x.toString(16).padStart(2, '0')).join('');
-}
-
 /** Un error de la base o de la red, en palabras para la pantalla. */
 export function mensajeDe(e) {
   const c = e && (e.codigo || e.code || '');
@@ -246,27 +241,57 @@ async function rpc(nombre, args) {
  * que ya funciona con la puerta de hoy. Devuelve {ok:true, acceso} o {ok:false, mensaje}.
  */
 export async function botonDeGoogle(caja, alEntrar) {
-  if (!await cargarGis()) { alEntrar({ ok: false, mensaje: 'No cargó el botón de Google. Revisa la señal.' }); return; }
-  const crudo = nonceNuevo();
-  const g = globalThis.google && globalThis.google.accounts && globalThis.google.accounts.id;
-  if (!g) { alEntrar({ ok: false, mensaje: 'Google no contestó.' }); return; }
-  const nonce = await huella(crudo);
-  if (!caja.isConnected) return;                    // Ajustes se repintó mientras tanto: el botón nuevo es de otro turno
-  g.initialize({
-    client_id: CLIENT_ID, nonce, auto_select: false, cancel_on_tap_outside: true, itp_support: true,
-    use_fedcm_for_button: true,
-    callback: async resp => {
-      try {
-        const c = await cliente();
-        const { error } = await c.auth.signInWithIdToken({ provider: 'google', token: resp && resp.credential, nonce: crudo });
-        if (error) throw error;
-        vigilar();                                    // desde ya, no hasta la siguiente vez que se abra la app
-        alEntrar({ ok: true, acceso: await acceso() });
-      } catch (e) { alEntrar({ ok: false, mensaje: mensajeDe(e) }); }
-    },
-  });
-  caja.innerHTML = '';
-  g.renderButton(caja, { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'es' });
+  /* El botón y su nonce los arma ingreso.js (`botonDeIdentidad`), el mismo que usa la puerta. */
+  const pintado = await botonDeIdentidad(caja, async ({ credencial, crudo }) => alEntrar(await cambiarPorSesion(credencial, crudo)));
+  if (!pintado && caja.isConnected) alEntrar({ ok: false, mensaje: 'No cargó el botón de Google. Revisa la señal.' });
+}
+
+/**
+ * Cambia el token de identidad de Google por la sesión de Supabase y dice quién eres según la base. Es la
+ * única llamada a `signInWithIdToken` de la app: la usan el botón de la puerta (`entrarConCredencial`), el
+ * de la banda y Ajustes (`botonDeGoogle`) y el de sin botón (`entrarSinBoton`). A Supabase va el nonce
+ * ORIGINAL; a Google se le dio su huella.
+ *
+ * Con `correoPuerta`, una cuenta que no es la de la puerta no se queda dentro: se sale y se dice. La cuenta
+ * es la que dice la SESIÓN (la de Google, recién verificada por Supabase) y, si la sesión no la trae, la
+ * que dice `mi_acceso`. Si ninguna de las dos lo dice —la base no contestó— no se sale: una respuesta
+ * que falta no es otra persona.
+ * @returns {Promise<{ok:true, acceso:Object}|{ok:false, codigo:string, mensaje:string}>}
+ */
+async function cambiarPorSesion(credencial, crudo, correoPuerta) {
+  try {
+    if (!credencial || !crudo) throw new Error('Google no dio el token de identidad. Vuelve a tocar el botón.');
+    const c = await cliente();
+    const { data, error } = await c.auth.signInWithIdToken({ provider: 'google', token: credencial, nonce: crudo });
+    if (error) throw error;
+    const otra = async () => {
+      await salir();
+      return { ok: false, codigo: 'OTRA_CUENTA', mensaje: 'Esa cuenta de Google no es con la que entraste a la app (' + correoPuerta + ').' };
+    };
+    /* Antes de `acceso()` cuando se puede: `acceso()` guarda lo que la base dice de esa cuenta (el modo, el
+       área) en este aparato, y lo de una cuenta ajena no tiene por qué quedarse. */
+    const deLaSesion = (data && data.user && typeof data.user.email === 'string') ? data.user.email : '';
+    if (correoPuerta && deLaSesion && !esLaMismaPersona(deLaSesion, correoPuerta)) return await otra();
+    const a = await acceso();
+    if (correoPuerta && !deLaSesion && a.correo && !esLaMismaPersona(a.correo, correoPuerta)) return await otra();
+    vigilar();                                    // desde ya, no hasta la siguiente vez que se abra la app
+    return { ok: true, acceso: a };
+  } catch (e) { return { ok: false, codigo: 'RECHAZO', mensaje: mensajeDe(e) }; }
+}
+
+/* ----- La puerta (2026-10-25: «no tener que ingresar nuevamente con Google») -----
+   El botón de Google de la puerta (js/nucleo/puerta.js) da el token de identidad, y aquí se cambia por la
+   sesión de Supabase en ese mismo momento: sin otra ventana, sin la banda de arriba después. Lo que se
+   haga con el acceso —entrar con el área de la base si la empresa ya está en 'base', o seguir con la hoja—
+   lo decide la puerta. Igual que la entrada única de abajo: enciende el interruptor de este aparato, salvo
+   que alguien lo haya apagado aquí a propósito (entonces no hace nada, y la puerta ni siquiera enseña el
+   botón de Google). */
+export async function entrarConCredencial(credencial, crudo, correoPuerta) {
+  if (!encendido()) {
+    if (apagadoAProposito()) return { ok: false, codigo: 'APAGADO' };
+    encender(true);
+  }
+  return await cambiarPorSesion(credencial, crudo, correoPuerta);
 }
 
 /* ----- Una sola entrada (Elías, 2026-10-25: «¿por qué un segundo acceso a Google?») -----
@@ -281,7 +306,16 @@ export async function botonDeGoogle(caja, alEntrar) {
 export const MS_ESPERA_SIN_BOTON = 20000;
 export async function entrarSinBoton(correoPuerta, opc = {}) {
   if (!encendido()) return { ok: false, codigo: 'APAGADO' };
-  if (await haySesion()) return { ok: true, ya: true };
+  /* La sesión que ya hay es casi siempre la que dejó la puerta hace un momento (`entrarConCredencial`):
+     entonces no se le vuelve a preguntar nada a Google. Pero si es de OTRA cuenta que la de la puerta
+     —alguien entró a la nube con una y a la puerta con otra, «Entrar con otra cuenta»—, no sirve: se
+     suelta y se pide la buena. Sin correo en la sesión o sin correo de la puerta, se queda como está. */
+  const s = await sesion();
+  if (s) {
+    const deLaSesion = (s.user && typeof s.user.email === 'string') ? s.user.email : '';
+    if (!correoPuerta || !deLaSesion || esLaMismaPersona(deLaSesion, correoPuerta)) return { ok: true, ya: true };
+    await salir();
+  }
   if (!await cargarGis()) return { ok: false, codigo: 'SIN_RED' };
   const g = globalThis.google && globalThis.google.accounts && globalThis.google.accounts.id;
   if (!g || typeof g.prompt !== 'function') return { ok: false, codigo: 'NECESITA_TOQUE' };
@@ -293,20 +327,7 @@ export async function entrarSinBoton(correoPuerta, opc = {}) {
     g.initialize({
       client_id: CLIENT_ID, nonce, auto_select: true, login_hint: correoPuerta || undefined,
       cancel_on_tap_outside: false, itp_support: true, use_fedcm_for_prompt: true,
-      callback: async resp => {
-        try {
-          const c = await cliente();
-          const { error } = await c.auth.signInWithIdToken({ provider: 'google', token: resp && resp.credential, nonce: crudo });
-          if (error) throw error;
-          const a = await acceso();
-          if (correoPuerta && !esLaMismaPersona(a.correo, correoPuerta)) {
-            await salir();
-            return fin({ ok: false, codigo: 'OTRA_CUENTA', mensaje: 'Esa cuenta de Google no es con la que entraste a la app (' + correoPuerta + ').' });
-          }
-          vigilar();
-          fin({ ok: true, acceso: a });
-        } catch (e) { fin({ ok: false, codigo: 'RECHAZO', mensaje: mensajeDe(e) }); }
-      },
+      callback: async resp => fin(await cambiarPorSesion(resp && resp.credential, crudo, correoPuerta)),
     });
     /* Con FedCM Google ya no avisa de todos los momentos; los que sí avisa —no se enseñó, se saltó,
        se cerró— significan lo mismo aquí: hace falta el toque. Y si no avisa nada, el reloj. */
@@ -336,11 +357,13 @@ export async function acceso() {
   return a;
 }
 
-export async function haySesion() {
-  if (!encendido()) return false;
-  try { const c = await cliente(); const { data } = await c.auth.getSession(); return !!(data && data.session); }
-  catch (_) { return false; }
+/** La sesión de Supabase de este aparato, o null (apagado, sin sesión, la librería que no cargó). */
+async function sesion() {
+  if (!encendido()) return null;
+  try { const c = await cliente(); const { data } = await c.auth.getSession(); return (data && data.session) || null; }
+  catch (_) { return null; }
 }
+export async function haySesion() { return !!(await sesion()); }
 
 export async function salir() {
   try { const c = await cliente(); await c.auth.signOut(); } catch (_) { /* sin red: la sesión local se va igual abajo */ }

@@ -54,11 +54,16 @@ console.log('\nAPAGADO NO HACE NADA');
     /if \(\/"encendido":true\/\.test\(localStorage\.getItem\('al3d_pf_supa'\)/.test(app) && !/^import .*supa\.js/m.test(app));
   eq('y la clave que mira app.js es la del módulo', S.CLAVE_INTERRUPTOR, 'al3d_pf_supa');
   /* Desde «la base manda» (paso 2, docs/BASE-MANDA.md) la puerta pregunta el rol a la base, pero SOLO con la base
-     mandando en este aparato: el interruptor encendido y el último modo oído 'base'. Con la hoja, ni lo carga. */
+     mandando en este aparato: el interruptor encendido y el último modo oído 'base'. Y desde la puerta de un toque
+     (2026-10-25), también cuando alguien toca el botón de Google de la puerta. Con la hoja y el botón de siempre, ni
+     lo carga: el import() está en UN lugar (`cargarSupa`) y solo lo llaman esos dos caminos. */
   const pu = sinComentarios(leer('js/nucleo/puerta.js'));
-  cierto('la puerta no lo importa de forma estática, y solo lo carga con import() cuando la base manda en este aparato',
+  cierto('la puerta no lo importa de forma estática, y solo lo carga con import() cuando la base manda o al tocar el botón de Google',
     !/^import[^;]*supa\.js/m.test(pu) && (pu.match(/import\('\.\/supa\.js'\)/g) || []).length === 1 &&
-    /async function preguntarALaBase\(\) \{\n  let Supa;\n  try \{ Supa = await import\('\.\/supa\.js'\); \}/.test(pu) &&
+    /async function cargarSupa\(\) \{\n  try \{ return await import\('\.\/supa\.js'\); \}/.test(pu) &&
+    (pu.match(/await cargarSupa\(\)/g) || []).length === 2 &&
+    /async function preguntarALaBase\(\) \{\n  const Supa = await cargarSupa\(\);/.test(pu) &&
+    /async function entrarPorLaBase\(cred, correo\) \{\n  const Supa = await cargarSupa\(\);/.test(pu) &&
     /if \(laBaseManda\(\)\) \{\n    const v = await preguntarALaBase\(\);/.test(pu));
   const aj = leer('js/mod/ajustes.js');
   cierto('Ajustes lo carga con import() y pinta la tarjeta a los tres roles (paso 2 de «la base manda»)',
@@ -102,7 +107,10 @@ console.log('\nSOLO SE TAPA LA APP DE LA MISMA PERSONA, Y SIEMPRE CON SALIDA');
     /if \(!encendido\(\) \|\| !esLaMismaPersona\(b\.correo \|\| a\.correo, correoDeLaPuerta\(\)\)\) return;/.test(v));
   cierto('una revisión a la vez', /if \(_enCurso\) return;/.test(v));
   cierto('la pantalla de «acceso retirado» trae su botón para apagar en este aparato', /id="pf-sin-acceso-apagar"/.test(v) && /encender\(false\); location\.reload\(\);/.test(v));
-  cierto('al entrar empieza a vigilar sin esperar a la siguiente vez que se abra la app', /if \(error\) throw error;\n\s*vigilar\(\);/.test(v));
+  /* Los tres botones entran por `cambiarPorSesion`, y ahí se vigila en cuanto la cuenta es la buena. */
+  const cambio = (v.match(/async function cambiarPorSesion\([^)]*\) \{[\s\S]*?\n\}/) || [''])[0];
+  cierto('al entrar empieza a vigilar sin esperar a la siguiente vez que se abra la app',
+    /if \(error\) throw error;/.test(cambio) && /vigilar\(\);[^\n]*\n\s*return \{ ok: true, acceso: a \};/.test(cambio));
 }
 
 console.log('\nCANDADO 2: EL BORRADO ESTÁ DESHABILITADO HASTA LA SUBIDA ÚNICA');
@@ -134,7 +142,17 @@ console.log('\nEL NONCE');
   cierto('el nonce son 64 hexadecimales y cambia cada vez', /^[0-9a-f]{64}$/.test(n) && n !== S.nonceNuevo());
   eq('a Google va su huella SHA-256', await S.huella('abc'), createHash('sha256').update('abc').digest('hex'));
   const v = sinComentarios(leer('js/nucleo/supa.js'));
-  cierto('a Google la huella y a Supabase el original', /const nonce = await huella\(crudo\);/.test(v) && /client_id: CLIENT_ID, nonce,/.test(v) && /signInWithIdToken\(\{ provider: 'google', token: resp && resp\.credential, nonce: crudo \}\)/.test(v));
+  /* El nonce lo arman dos: el aviso sin botón (aquí) y el botón (`botonDeIdentidad`, en ingreso.js, que usan la
+     puerta, la banda y Ajustes). Los dos le dan a Google la huella; a Supabase va el original en `cambiarPorSesion`. */
+  const ing = sinComentarios(leer('js/nucleo/ingreso.js'));
+  cierto('a Google la huella y a Supabase el original',
+    /const nonce = await huella\(crudo\);/.test(v) && /client_id: CLIENT_ID, nonce,/.test(v) &&
+    /signInWithIdToken\(\{ provider: 'google', token: credencial, nonce: crudo \}\)/.test(v) &&
+    /callback: async resp => fin\(await cambiarPorSesion\(resp && resp\.credential, crudo, correoPuerta\)\)/.test(v) &&
+    /const nonce = await huella\(crudo\);/.test(ing) && /client_id: opc\.clienteId \|\| CLIENT_ID, nonce,/.test(ing) &&
+    /callback: resp => alCredencial\(\{ credencial: \(resp && resp\.credential\) \|\| '', crudo, nonce \}\)/.test(ing));
+  const I = await import('../js/nucleo/ingreso.js');
+  cierto('el nonce de supa.js es el de ingreso.js (uno solo)', S.huella === I.huella && S.nonceNuevo === I.nonceNuevo);
   cierto('con el Client ID de siempre', /client_id: CLIENT_ID/.test(v));
   cierto('y cada llamada de escritura lleva la cabecera del contrato', /'x-al3d-contrato': CONTRATO/.test(v));
 }

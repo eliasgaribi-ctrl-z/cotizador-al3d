@@ -250,8 +250,9 @@ La fecha la decide Elías. **Antes del día:**
    limpia; la prueba de humo, 65 casos, 81 con `storage.sql`); la app publicada (`sw.js` 149) y abierta en cada teléfono con señal, para que
    tenga la versión nueva.
 2. Si Fabricación debe ver las imágenes de las obras ganadas: volver a aplicar `supabase/opcional/storage.sql` (Q-02 bis) en las dos bases.
-3. En cada teléfono (Dirección, Pagos y las 3 de Fabricación): abrir la app (`sw.js` 150 o más) y entrar como siempre con Google. Desde la
+3. En cada teléfono (Dirección, Pagos y las 3 de Fabricación): abrir la app (`sw.js` 151 o más) y entrar como siempre con Google. Desde la
    **entrada única** (abajo) el teléfono se enciende y entra a Supabase solo; si Google pide un toque, la banda de arriba trae su botón.
+   Desde **un toque en la puerta** (abajo, `sw.js` 151), con la base mandando el botón de Google de la puerta basta: no se pasa por la hoja.
    Ajustes → Supabase dice el área que da la base. La entrada en el iPhone, probada (pendiente de Elías).
 4. La copia de cada 3 horas, cuadrando: Ajustes → Supabase → «cuadró X de los últimos 7 días» en 7.
 
@@ -315,3 +316,27 @@ Ahora, al abrir la app con la cuenta de Google de la puerta (`js/app.js`, `conec
 
 Con la empresa en «hoja» esto no cambia lo que se guarda ni a dónde: deja a cada teléfono dentro de Supabase y sabiendo quién manda, que es
 lo que lo cambia de lado el día del cambio. Pruebas: `pruebas/supabase-entrada-unica.mjs`.
+
+### Un toque en la puerta (2026-10-25, `sw.js` 151)
+
+Elías, desde el iPhone: «no tener que ingresar nuevamente con Google cuando ya lo hice desde un principio». La hoja y el Apps Script no
+se tocan (decisión de Elías): la hoja sigue sin saber leer el token de identidad. Lo que cambia es la puerta (`js/nucleo/puerta.js`):
+
+- enseña **el botón de Google mismo** (un iframe de Google, `montarGoogle`; el nonce como siempre: a Google la huella, a Supabase el
+  original). Al tocarlo, la puerta entra a Supabase ahí mismo (`entrarConCredencial` en `supa.js`) y pregunta `mi_acceso`;
+- con la empresa en **`'base'`** y la persona **activa**: adentro con el área de la base y su pase (`de: 'base'`). **No toca la hoja**: ni
+  `/salud`, ni token de acceso, ni otra ventana de Google. Después tampoco: la vuelta de fondo que confirma el pase pregunta a la base sin
+  pedir el permiso de la hoja, y el clic que renovaba ese permiso ya no lo hace con la base mandando. Lo único que todavía lo pide es lo
+  que sigue en el Apps Script (el sello, la IA, Maps, Drive), y solo cuando se usa;
+- con la empresa en **`'hoja'`**, o si la base no contesta, o si la persona no está activa en la base (no invitada, dada de baja): la hoja
+  decide como hoy, con su «fuera» y su segunda opinión. Eso pide el permiso de Google de la hoja: si el navegador todavía lo deja, sigue
+  solo; si no, «Falta un toque» y el botón de la app hace el resto. Para no cobrar ese segundo toque cada mañana, un teléfono que **ya sabe**
+  que la empresa sigue en la hoja enseña el botón de siempre (un toque, y Supabase por detrás como arriba); uno que no lo sabe enseña el de
+  Google y así se entera. Cambiarlo es una constante (`BOTON_GOOGLE_CON_LA_HOJA`);
+- si el botón de Google no carga en 6 s (sin señal, bloqueado, un navegador viejo), o Supabase está apagado a propósito en ese teléfono,
+  queda el botón de siempre con su camino de siempre. Con captcha, el de Google sale cuando el captcha da el visto bueno.
+
+El token de identidad no se guarda en ningún lado: su correo queda como el de la puerta (`Ingreso.anotarCredencial`) y el token va directo
+a Supabase. La banda de arriba ya no sale después de entrar así: `entrarSinBoton` encuentra la sesión de la puerta (y si es de otra cuenta
+que la de la puerta, la suelta y pide la buena). Pruebas: `pruebas/supabase-entrada-unica.mjs` (la puerta con el token, de punta a punta),
+`pruebas/ingreso.mjs` (leer el token), `pruebas/puerta.mjs`. Sin probar en un navegador de verdad: el botón de Google en el iPhone.
