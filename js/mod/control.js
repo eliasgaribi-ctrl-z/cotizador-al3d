@@ -218,7 +218,11 @@ export async function montar(contenedor, ctx) {
   if (pide) pide.addEventListener('click', alClicPide);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
-  if (pase && tabs().includes(pase.tab)) TAB = pase.tab;
+  if (pase && tabs().includes(pase.tab)) {
+    TAB = pase.tab;
+    /* El «Ir a corregir» del Cotizador trae también el formulario y el V-### de la venta (auditoría 2026-10-25, CZ-2). */
+    if (TAB === 'asientos' && pase.form) { _formAlAbrir = String(pase.form); _ventaAlAbrir = String(pase.venta || ''); }
+  }
   /* La pestaña también vive en la dirección (`#/control?tab=cobrar`): un enlace directo a
      «Comisiones» y una recarga caen donde se estaba (auditoría completa 2026-10, control-11). El
      pase manda sobre la dirección: es quien acaba de pedir venir aquí. */
@@ -2131,7 +2135,7 @@ function bajarCSVGastos() {
    (antes «+ Ingreso», que hacía pensar en cualquier dinero que entra: auditoría 2026-10-25, DN-5) abre «Cobros y abonos» con el
    formulario de cobro a la vista (el dinero de AL3D entra cobrando una venta); «+ Gasto» abre el mismo
    formulario de siempre; «Ver gastos» lleva a la lista, que es donde se anula uno. Solo con la base mandando, como las pestañas. */
-let _formAlAbrir = '';
+let _formAlAbrir = '', _ventaAlAbrir = '';
 function botonesDinero() {
   return '<div class="ct-gas-acc ct-dinero-acc">' +
     '<button type="button" class="btn btn-pri pf-btn-corto" data-act="ingreso-nuevo">' + ico('i-mas') + ' Cobro de una venta</button>' +
@@ -2423,10 +2427,10 @@ function cablearAsientos() {
   const el = $('ct-asientos');
   if (!el) return;
   const o = { sincronizar: CTX && typeof CTX.sincronizar === 'function' ? CTX.sincronizar : null };
-  if (_PS) { if (_formAlAbrir) { _PS.elegirFormulario(_formAlAbrir); _formAlAbrir = ''; } _PS.cablear(el, o); return; }
+  if (_PS) { if (_formAlAbrir) { _PS.elegirFormulario(_formAlAbrir, _ventaAlAbrir); _formAlAbrir = _ventaAlAbrir = ''; } _PS.cablear(el, o); return; }
   import('./pagos-supa.js').then(m => {
     _PS = m;
-    if (_formAlAbrir) { m.elegirFormulario(_formAlAbrir); _formAlAbrir = ''; }
+    if (_formAlAbrir) { m.elegirFormulario(_formAlAbrir, _ventaAlAbrir); _formAlAbrir = _ventaAlAbrir = ''; }
     const ahora = $('ct-asientos');
     if (!ahora || !cont || !cont.contains(ahora)) return;
     ahora.innerHTML = m.html();

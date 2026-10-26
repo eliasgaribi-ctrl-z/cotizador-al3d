@@ -820,7 +820,8 @@ console.log('\nLOS TEXTOS QUE DECÍAN «LA HOJA» CON LA BASE MANDANDO (paso 5)'
     /if \(datos\.cuenta === EFECTIVO\) datos\.cuenta = '';/.test(ctlC) && /'<option value="">Elige la cuenta…<\/option><option value="' \+ EFECTIVO \+ '">Efectivo u otra<\/option>'/.test(ctlC));
   cierto('«+ Cobro de una venta», no «+ Ingreso»', / Cobro de una venta<\/button>/.test(ctlC) && !/ Ingreso<\/button>/.test(ctlC));
   cierto('con Material en mantenimiento no hay tarjeta del almacén', /if \(D\.almacen && !MATERIAL_EN_MANTENIMIENTO\) partes\.push\(filaAlmacen\(\)\);/.test(ctlC) &&
-    /const MATERIAL_EN_MANTENIMIENTO = true;/.test(ctlC) && /EN_MANTENIMIENTO = true;/.test(leer('js/mod/material.js')));
+    /const MATERIAL_EN_MANTENIMIENTO = Agenda\.MATERIAL_EN_MANTENIMIENTO;/.test(ctlC) &&
+    /export const MATERIAL_EN_MANTENIMIENTO = true;/.test(leer('js/datos/agenda.js')));
   const aj = leer('js/mod/ajustes.js'), app = leer('js/app.js');
   cierto('el candado del rol dice quién lo manda (js/datos/quien-manda.js), en Ajustes las dos veces',
     (aj.match(/' lo manda ' \+ Manda\.rolLoManda\(\) \+ '<\/span>'/g) || []).length === 2 && !/lo manda la hoja<\/span>/.test(aj));

@@ -184,13 +184,26 @@ export function cablear(el, o = {}) {
 /** Control se va: se olvida el contenedor (el estado y los borradores se quedan). */
 export function soltar() { _el = null; }
 
-/** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Ingreso» abre el de cobro). El borrador de
- *  cada formulario no se toca: solo cambia cuál está a la vista. */
-export function elegirFormulario(t) {
+/** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Cobro de una venta» abre el de cobro) y el «Ir a
+ *  corregir» del Cotizador, que trae además el V-### de la venta (auditoría 2026-10-25, CZ-2). El borrador de cada formulario no se
+ *  toca, salvo la venta elegida cuando llega una y el formulario no tiene un envío en duda. */
+export function elegirFormulario(t, ventaFolio = '') {
   if (!PS.FORMULARIOS.includes(t)) return;
   _form = t;
+  _ventaAlAbrir = /^V-\d+$/.test(String(ventaFolio || '')) ? String(ventaFolio) : '';
+  ponerVentaAlAbrir();
   guardar();
   if (_el) repintar();
+}
+/* La venta del pase se elige cuando las ventas de la base ya están leídas (si todavía no, al leerlas). Un formulario con un envío en
+   duda no cambia de venta: eso movería su huella y el reintento parecería otro registro (DN-1). */
+let _ventaAlAbrir = '';
+function ponerVentaAlAbrir() {
+  if (!_ventaAlAbrir || !_ventas) return;
+  const v = _ventas.find(x => x.folio === _ventaAlAbrir);
+  _ventaAlAbrir = '';
+  const b = borradores()[_form];
+  if (v && _form !== 'venta' && _form !== 'reparto' && !b.incierto) b.campos.proyecto = v.id;
 }
 
 /* ============================================================================
@@ -214,7 +227,7 @@ function cargar() {
 async function leerVentas(Supa) {
   const r = await PS.leerVentas(await Supa.cliente());
   _leidasEn = Date.now();
-  if (r.ok) { _ventas = r.ventas; _ventasMsg = ''; } else { _ventas = _ventas || []; _ventasMsg = r.mensaje; }
+  if (r.ok) { _ventas = r.ventas; _ventasMsg = ''; ponerVentaAlAbrir(); guardar(); } else { _ventas = _ventas || []; _ventasMsg = r.mensaje; }
 }
 
 /** Los saldos otra vez, sin volver a preguntar quién eres. */
