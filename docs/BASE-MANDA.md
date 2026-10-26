@@ -340,3 +340,23 @@ El token de identidad no se guarda en ningún lado: su correo queda como el de l
 a Supabase. La banda de arriba ya no sale después de entrar así: `entrarSinBoton` encuentra la sesión de la puerta (y si es de otra cuenta
 que la de la puerta, la suelta y pide la buena). Pruebas: `pruebas/supabase-entrada-unica.mjs` (la puerta con el token, de punta a punta),
 `pruebas/ingreso.mjs` (leer el token), `pruebas/puerta.mjs`. Sin probar en un navegador de verdad: el botón de Google en el iPhone.
+
+## Auditoría del 2026-10-25: 0028
+
+La auditoría del día del cambio ([`AUDITORIA-SUPABASE-2026-10.md`](AUDITORIA-SUPABASE-2026-10.md)) encontró tres cosas que se arreglan en la base,
+con `supabase/migrations/0028_auditoria_base.sql` (Elías pidió aplicarlo todo; se tomó lo recomendado):
+
+| Hallazgo | Qué pasaba | Qué hace 0028 | Prueba |
+|---|---|---|---|
+| **CZ-1** | Pagos «registraba» desde el Cotizador una venta que nunca llegaba a la base: `ganar_proyecto` era solo de Dirección, la bandeja la apartaba y el recibo decía que el folio «llega solo» | Pagos da de alta la venta que viene de una cotización (la matriz que lee el teléfono y el preámbulo que decide la base), **solo con la base mandando** (con la hoja, `DATO_INVALIDO` definitivo sin escribir nada, como `alta_venta` en `0026`); su cita nace `propuesta`. Fabricación sigue sin poder | `supabase/tests/pagos/auditoria-0028.mjs` (A28-01 a A28-04); `acceso/matriz.mjs` (RL-20); humo H01–H02 |
+| (de paso) | El reintento de un «Se ganó» que SÍ entró con su cita (la respuesta se perdió) contestaba «Ese id de instalación ya existe», definitivo: la bandeja lo apartaba y el teléfono nunca recibía su V-###. Venía desde `0006` | Esa pregunta va después de «ya existía», como en `alta_venta`: el reintento contesta «ya existía» con el mismo folio | A28-08 |
+| **DN-2** | «Repartir un depósito» le pagaba comisión a ventas canceladas («No se dio») | `comisiones_pendientes` las deja fuera: la vista previa y el reparto ya no las tocan. La T de `ventas_calculadas` no cambia | A28-06; humo H03 |
+| **DN-3** | Un cobro olvidado, capturado hoy con su fecha vieja, regresaba `fecha_liquidacion` y movía toda la liquidación a ese mes | La fecha de liquidación solo avanza (`greatest`) | A28-07; humo H04 |
+| CZ-5 | El aviso del Cotizador decía «la hoja le quita el IVA» | Nada en la base: el IVA ya lo ponía la cuenta al ganar desde `0006` (`normalizar_iva`). Falta solo el texto del Cotizador | A28-05 |
+
+**Para que surta efecto en producción:** aplicar `0028` en `al3d-pruebas` y después en `al3d-produccion` (Editor SQL, el archivo entero; termina
+con la auditoría) y correr `supabase/opcional/prueba-de-humo.sql`: verde con **78** casos (94 con `storage.sql`, 98 con `storage.sql` y
+`constancias.sql`). No hay que volver a pegar ninguna función ni tocar el Apps Script. La app no depende de `0028` para funcionar: sin ella, la
+venta de Pagos se sigue apartando como hoy; con ella, el teléfono de Pagos se entera en su siguiente `mi_acceso` (al abrir la app o Ajustes, o a
+los 10 minutos) y la bandeja manda las ventas nuevas. Una que ya se apartó antes de `0028` no sale sola: en el teléfono de Pagos, Ajustes →
+«Volver a intentarlos» (o Dirección la registra desde su Cotizador).
