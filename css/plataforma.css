@@ -87,7 +87,7 @@ body.pf::before{display:none}
 
 /* ----- El encabezado ----- */
 .pf-cab{
-  position:sticky;top:0;z-index:30;
+  position:sticky;top:0;z-index:var(--z-encabezado);
   display:flex;align-items:center;gap:var(--e3);
   height:56px;flex:0 0 auto;
   padding:0 max(var(--e4),env(safe-area-inset-right,0px)) 0 max(var(--e4),env(safe-area-inset-left,0px));
@@ -188,7 +188,7 @@ body.pf::before{display:none}
    inicio, y en un Android sin indicador, 8. */
 @media(max-width:759px){
   .pf-abajo{
-    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:var(--z-barra);
     background:var(--nav);
     padding:6px 4px calc(8px + env(safe-area-inset-bottom,0px));
   }
@@ -220,13 +220,17 @@ body.pf::before{display:none}
   /* Y la barra de acción del módulo se posa ENCIMA de la de módulos, no debajo. */
   .pf-mbar{bottom:calc(66px + env(safe-area-inset-bottom,0px))}
 }
+/* Desde 370 px la celda mide 67 px y «Calendario» a 12 px mide 64: cabe, y el nombre sube al
+   mínimo de lectura (auditoría 2026-10-25, TR-12). En 320 y 360 la celda mide 56 y 64: ahí se
+   queda en 11, que es lo que cabe. */
+@media(min-width:370px) and (max-width:759px){ .pf-abajo button{font-size:12px} }
 
 /* ----- La barra lateral, de 760 px para arriba ----- */
 @media(min-width:760px){
   :root{--lat:168px}
   .pf-lat{
     display:flex;flex-direction:column;gap:2px;
-    position:fixed;left:0;top:0;bottom:0;width:var(--lat);z-index:50;
+    position:fixed;left:0;top:0;bottom:0;width:var(--lat);z-index:var(--z-lateral);
     padding:20px 10px 14px;
     background:var(--nav);color:rgba(255,255,255,.72);
     overflow-y:auto;overscroll-behavior:contain;
@@ -582,7 +586,7 @@ button.cal-cifra:active{transform:scale(.97)}
 .cal-ley.al-pie{display:none}
 @media(max-width:559px){
   .cal-tira>.cal-ley{display:none}
-  .cal-ley.al-pie{display:flex;margin:0;padding:10px 12px 12px;gap:4px 12px;border-top:1px solid var(--linea2);font-size:11.5px}
+  .cal-ley.al-pie{display:flex;margin:0;padding:10px 12px 12px;gap:4px 12px;border-top:1px solid var(--linea2);font-size:12px}
   .cal-ley.al-pie>span::before{width:8px;height:8px;border-radius:50%}
 }
 
@@ -683,7 +687,7 @@ button.cal-cifra:active{transform:scale(.97)}
    el número en 30: más aire que los 48 de antes, y el mes sigue cabiendo entero en la pantalla. */
 @media(max-width:559px){
   .cal-rej{grid-auto-rows:minmax(54px,auto)}
-  .cal-dow{padding:9px 0 7px;text-align:center;font-size:10.5px;letter-spacing:.04em}
+  .cal-dow{padding:9px 0 7px;text-align:center;font-size:12px;letter-spacing:.04em}
   .cal-dia{align-items:center;padding:4px 2px 6px;gap:3px}
   .cal-dia-h{justify-content:center;min-height:30px}
   .cal-n{min-width:30px;height:30px;font-size:14px}
@@ -694,7 +698,7 @@ button.cal-cifra:active{transform:scale(.97)}
   .cal-ev .tx{display:none}
   .cal-ev.envio{width:7px;height:7px;min-width:7px;padding:0;border:1.5px solid var(--ev-pt,var(--n7));border-radius:1px;
     background:transparent;transform:rotate(45deg)}
-  .cal-mas{padding:0;font-size:10px;text-align:center}
+  .cal-mas{padding:0;font-size:12px;text-align:center}
   .cal-mas .tx{display:none}
 }
 
@@ -764,7 +768,7 @@ button.cal-cifra:active{transform:scale(.97)}
   background:var(--ev-pt,var(--n4))}
 .pf-fila.cal-fila:first-of-type{border-top:0}
 .cal-fila-hora{padding-top:1px;font:800 15px/1.2 var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
-.cal-fila-hora small{display:block;margin-top:2px;font:600 11.5px/1.2 var(--f-texto);color:var(--tinta3)}
+.cal-fila-hora small{display:block;margin-top:2px;font:600 12px/1.2 var(--f-texto);color:var(--tinta3)}
 .cal-fila .pf-fila-t{font-weight:700}
 .cal-fila .pf-fila-acc{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:6px;width:auto;padding:0}
 /* `.btn` nace a todo el ancho (sistema.css); en el renglón cada botón mide lo que su rótulo, como
@@ -817,7 +821,7 @@ button.cal-cifra:active{transform:scale(.97)}
 /* «Lo que viene» y «Ya pasó»: un renglón por entrega que es un botón entero —abre la ficha, donde
    están «Ya se instaló», «Mover de día» y lo demás—. */
 .cal-prox-dia+.cal-prox-dia{margin-top:10px}
-.cal-prox-f{margin:0 0 5px;font:700 11.5px/1.3 var(--f-texto);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta3)}
+.cal-prox-f{margin:0 0 5px;font:700 12px/1.3 var(--f-texto);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta3)}
 .cal-prox-f b{color:var(--a-tx)}
 .cal-prox-ev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;width:100%;margin:0 0 5px;
   padding:9px 12px 10px 14px;border:0;border-radius:14px;background:var(--ev-bg,var(--n1));
@@ -2356,7 +2360,7 @@ html[data-tema="oscuro"] .ct-grafica{--ct-barra-fuerte:var(--a)}
 }
 .ct-mes-t{display:block;height:var(--et);padding-top:7px;text-align:center;font-weight:600;font-size:var(--t1);line-height:1.2;
   color:var(--tinta2);text-transform:capitalize;white-space:nowrap}
-.ct-mes-t small{display:block;font-weight:500;font-size:10px;color:var(--tinta2)}
+.ct-mes-t small{display:block;font-weight:500;font-size:var(--t1);color:var(--tinta2)}
 .ct-mes.actual .ct-mes-t{color:var(--a-tx);font-weight:800}
 .ct-mes.vacio .ct-mes-t{font-weight:500}
 /* La raya del promedio: punteada, encima de las barras y sin recibir toques. */
@@ -2462,7 +2466,7 @@ html[data-tema="oscuro"] .ct-ley-mejor{background:var(--a)}
    cabe sin taparle el renglón a la lista. */
 .pf-ia-btn{
   position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));
-  z-index:45;display:inline-flex;align-items:center;gap:8px;
+  z-index:var(--z-flotante);display:inline-flex;align-items:center;gap:8px;
   height:48px;padding:0 18px 0 14px;border:0;border-radius:999px;
   background:var(--a-fill);color:#fff;font-family:inherit;font-weight:600;font-size:var(--t3);
   box-shadow:var(--sombra-accion),0 1px 2px rgba(0,0,0,.12);cursor:pointer;
@@ -4949,7 +4953,7 @@ small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align
 }
 .ct-cta-notas{margin:var(--e3) 0}
 .ct-cta-casillas{border:0;margin:0 0 var(--e3);padding:0;display:grid;gap:2px}
-.ct-cta-casilla small{color:var(--tinta2);font-weight:500}
+.ct-cta-casilla small{color:var(--tinta2);font-weight:500;font-size:var(--t1)}
 .ct-gas-nota{margin-top:0}
 
 .fx-barra{flex-wrap:wrap}

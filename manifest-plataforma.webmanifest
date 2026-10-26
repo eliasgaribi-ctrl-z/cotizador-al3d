@@ -19,7 +19,7 @@
   "shortcuts": [
     { "name": "Tablero",    "url": "./#/hoy" },
     { "name": "Cotizador",  "url": "./#/cotizador" },
-    { "name": "Material",   "url": "./#/material" },
+    { "name": "Control",    "url": "./#/control" },
     { "name": "Calendario", "url": "./#/agenda" }
   ]
 }
