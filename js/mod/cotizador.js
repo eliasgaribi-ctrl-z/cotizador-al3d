@@ -11,13 +11,13 @@
 
    ----- POR QUÉ NO SE PORTA A MÓDULO ES. NO LO INTENTES. -----
 
-   El marcado del cotizador —`cotizador.html` y las plantillas de js/cotizador/— nombra 154
+   El marcado del cotizador —`cotizador.html` y las plantillas de js/cotizador/— nombra 155
    acciones con `data-acc="irAPaso(2)"` y compañía, y CERO asignaciones explícitas a
    `window.X`. Hasta octubre de 2026 eran manejadores en línea (onclick=…); se volvieron
    nombres para poder quitar 'unsafe-inline' de la política (M6, ver «Los botones del
    marcado» en js/cotizador/nucleo.js), pero el repartidor las sigue buscando en `window` por
    su nombre (accionesDirectas). En un módulo ES el ámbito superior NO es el global, así
-   que las 154 dejarían
+   que las 155 dejarían
    de resolver EN SILENCIO: sin error de compilación, sin excepción al cargar, y se
    descubrirían haciendo clic uno por uno sobre 645 KB de JS que no tiene una sola prueba
    unitaria y que guarda `al3d_historial`, el único dato irrecuperable del sistema.

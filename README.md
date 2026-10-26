@@ -306,7 +306,7 @@ cuenta. En el teléfono la barra de abajo lleva Tablero · Calendario · Proyect
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: las 154 acciones que el marcado nombra (`data-acc`) se buscan por su
+eran un solo `<script>`: las 155 acciones que el marcado nombra (`data-acc`) se buscan por su
 nombre en ese ámbito, y portarlos a módulos ES las dejaría mudas sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 

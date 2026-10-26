@@ -2596,7 +2596,7 @@ function avisoHoja(p, rol) {
       'Los cambios de este proyecto van a ' + esc(fs[0] || '') + ', y de ella sale su dinero; ' +
       (fs.length > 2 ? 'las otras no reciben' : 'la otra no recibe') + ' nada. No se borró ninguna: ' +
       (base
-        ? (dir ? 'cuál sobra se corrige en la base (desde Supabase) —revisa antes cuál tiene los cobros— y con la siguiente bajada este aviso se va.'
+        ? (dir ? 'cuál sobra se corrige en la base —revisa antes cuál tiene los cobros— y con la siguiente bajada este aviso se va.'
                : 'cuál sobra lo corrige Dirección en la base; con la siguiente bajada este aviso se va.')
         : (dir ? 'en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada este aviso se va.'
                : 'cuál sobra lo decide Dirección en la hoja; con la siguiente bajada este aviso se va.'));

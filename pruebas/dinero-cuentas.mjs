@@ -217,8 +217,8 @@ console.log('\nCONTROL: con la base mandando, «Cuentas» y «Facturas»; con la
     /data-act="ingreso-nuevo"/.test(sinC) && /data-act="gasto-nuevo">' \+ ico\('i-mas'\) \+ ' Gasto/.test(sinC) && /data-va="tab:gastos">Ver gastos/.test(sinC));
   cierto('«+ Ingreso» abre «Cobros y abonos» con el formulario de cobro a la vista, esté o no cargada esa pestaña',
     /function abrirIngreso\(\) \{\n  _formAlAbrir = 'cobro';/.test(sinC) && /cambiarTab\('asientos'\);/.test(sinC) &&
-    (sinC.match(/elegirFormulario\(_formAlAbrir\)/g) || []).length === 2 &&
-    /export function elegirFormulario\(t\) \{\n  if \(!PS\.FORMULARIOS\.includes\(t\)\) return;/.test(sinComentarios(leer('js/mod/pagos-supa.js'))));
+    (sinC.match(/elegirFormulario\(_formAlAbrir, _ventaAlAbrir\)/g) || []).length === 2 &&
+    /export function elegirFormulario\(t, ventaFolio = ''\) \{\n  if \(!PS\.FORMULARIOS\.includes\(t\)\) return;/.test(sinComentarios(leer('js/mod/pagos-supa.js'))));
   cierto('el formulario del gasto, con la hoja mandando, es el desplegable de siempre (ni «disponible» ni la nota)',
     /if \(!disp\) return CUENTAS\.map\(c => '<option>' \+ esc\(c\) \+ '<\/option>'\)\.join\(''\);/.test(sinC) && /return disp \? '<p class="pf-nota ct-gas-nota">/.test(sinC));
   cierto('y con la base mandando cada cuenta lleva su NOMBRE como valor (lo que se guarda en el gasto y lo que resta)',
