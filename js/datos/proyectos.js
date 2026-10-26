@@ -927,10 +927,15 @@ export async function listar(filtro = {}) {
     filas = filas.filter(p => !con.has(p.id));
   }
 
+  /* También el V-### de la venta (`notion_page_id`, o el `folio_hoja` de una tarjeta importada) y
+     el folio global: con la base mandando el V-### es el nombre común de una venta —lo da el recibo
+     del cotizador, lo usan Cobros y abonos y Facturas— y buscar «V-321» daba cero (auditoría
+     2026-10-25, TP-6). */
   const q = plano(f.texto).trim();
   if (q) {
     filas = filas.filter(p => plano([p.nombre, p.contacto, p.negocio, p.folio_local,
-      p.tel, p.dir_texto, p.notas, (p.tipo_trabajo || []).join(' ')].join(' ')).includes(q));
+      p.tel, p.dir_texto, p.notas, (p.tipo_trabajo || []).join(' '),
+      p.notion_page_id, p.folio_hoja, p.folio_global].join(' ')).includes(q));
   }
 
   /* Lo último que se ganó, primero. Con la misma fecha manda el sello, que sí distingue. */

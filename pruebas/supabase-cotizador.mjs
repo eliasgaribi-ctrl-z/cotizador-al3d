@@ -491,7 +491,12 @@ try {
       datos: C.datosParaLaNube(entrada('COT-0001-K', { disp: 'OTRO', cliente: 'Otro' })), hitos: {}, updated_at: '2026-10-25T13:00:00Z' }], hasta: '2026-10-25T13:00:00Z' });
     avisos.length = 0;
     await traer({ forzar: true });
-    eq('un folio repetido no entra y se avisa', [JSON.parse(lsC.al3d_historial).length, avisos.length, /su propia letra/.test(avisos[0] || '')], [3, 1, true]);
+    eq('un folio repetido no entra y se avisa, con su folio y su teléfono', [JSON.parse(lsC.al3d_historial).length, avisos.length,
+      /COT-0001-K del teléfono OTRO/.test(avisos[0] || ''), /la suya en Ajustes/.test(avisos[0] || '')], [3, 1, true, true]);
+    avisos.length = 0;
+    await traer({ forzar: true });
+    eq('la siguiente vuelta (y la siguiente apertura) ya no lo repite: se dice UNA vez por cotización', [avisos.length, JSON.parse(lsC.al3d_hist_choques)],
+      [0, ['COT-0001-K@OTRO']]);
     /* Sin ventanilla (sin sesión en la base): no pasa nada. */
     delete ctx.window.AL3D_NUBE;
     eq('sin ventanilla, nada', await traer({ forzar: true }), 0);
@@ -519,7 +524,7 @@ try {
       Q: null,
     });
     ctx.parent = ctx.window;
-    vm.runInContext(BASE_COT + '\n' + ['getHistorial', 'saveHistorial', 'guardarEnHistorial', '_histDispDe', '_histFirma'].map(nm => funcion(hist, nm)).join('\n'), ctx);
+    vm.runInContext(BASE_COT + '\n' + ['getHistorial', 'saveHistorial', 'guardarEnHistorial', '_histDispDe', '_histFirma', '_histCorreoAqui', '_histAjena', '_histQuien'].map(nm => funcion(hist, nm)).join('\n'), ctx);
     const Q = (o = {}) => ({ folio: 'COT-0010-K', proy: 'Café', cliente: 'Ana', tel: '3310000000', estado: 'autorizada', fechaAuth: 'hoy', autorizador: 'dir',
       huellaAuth: 'h', items: [{ id: 1, tipo: 'letras' }], itemsAuth: {}, renders: [], propuesta: [], anti: 5800, antiPct: 50, iva: true, ...o });
     const guardar = q => { vm.runInContext('Q=' + JSON.stringify(q), ctx); vm.runInContext('guardarEnHistorial()', ctx); return JSON.parse(lsC.al3d_historial); };
@@ -537,6 +542,18 @@ try {
     lsC.al3d_historial = JSON.stringify([entrada('COT-0002-P', { disp: 'P4G0' })]);
     h = guardar(Q({ folio: 'COT-0002-P', cliente: 'Cliente COT-0002-P', tel: '33 1000 0002' }));
     eq('una ajena corregida aquí sigue siendo de su teléfono', h[0].disp, 'P4G0');
+    eq('y no se vuelve de quien la corrigió (una de antes, sin vendedor, se queda sin él)', 'vendedor' in h[0], false);
+    eq('de otro teléfono: es ajena, y se dice de quién (sin correo, el teléfono)', vm.runInContext('[_histAjena(getHistorial()[0]), _histQuien(getHistorial()[0])]', ctx),
+      [true, 'otro teléfono (P4G0)']);
+    /* Una nueva lleva el correo de quien entró, y una que ya lo tenía lo conserva aunque la guarde otra persona. */
+    ctx.identidadVerificada = () => ({ correo: 'ana.pagos@al3d.mx', rol: 'pagos' });
+    h = guardar(Q({ folio: 'COT-0012-K' }));
+    eq('una nueva guarda quién la hizo (el correo de la puerta)', h.find(x => x.folio === 'COT-0012-K').vendedor, 'ana.pagos@al3d.mx');
+    ctx.identidadVerificada = () => ({ correo: 'dir@al3d.mx', rol: 'direccion' });
+    h = guardar(Q({ folio: 'COT-0012-K', anti: 9000 }));
+    eq('y la conserva aunque la corrija otra persona', h.find(x => x.folio === 'COT-0012-K').vendedor, 'ana.pagos@al3d.mx');
+    eq('el nombre que se enseña sale del correo', vm.runInContext('_histQuien({vendedor:"ana.pagos@al3d.mx"})', ctx), 'Ana pagos');
+    delete ctx.identidadVerificada;
     eq('y «Registrar venta» la vende con SU folio global', vm.runInContext('Q.folio=\'COT-0002-P\'; dispDeLaCotizacion()', ctx), 'P4G0');
     delete lsC.al3d_pf_supa;
     eq('con la hoja mandando, la de este teléfono (lo de siempre)', vm.runInContext('dispDeLaCotizacion()', ctx), 'K7QM');
@@ -552,7 +569,7 @@ try {
     const el = id => (elementos[id] = elementos[id] || { classList: { add() {}, remove() {}, contains: () => false }, focus() {}, hidden: false, innerHTML: '' });
     const ctx = vm.createContext({
       localStorage: { getItem: k => (k in lsC ? lsC[k] : null), setItem: (k, v) => { lsC[k] = String(v); }, removeItem: k => { delete lsC[k]; } },
-      window: { addEventListener() {} }, parent: null, setTimeout, Date, JSON, Math, console,
+      window: { addEventListener() {} }, parent: null, setTimeout, clearTimeout, Date, JSON, Math, console,
       $: el, toast: (m, t) => avisos.push([m, t || '']), renderItems() {}, renderSummary() {}, puedeAutorizar: () => dir, asegurarSesion: async () => ({ ok: true }),
       hablarHoja: async (ruta, cuerpo) => { hoja.push([ruta, cuerpo]); return respuestaHoja(ruta, cuerpo); },
       esc: s => String(s), dispositivo: () => 'K7QM', Q: null,
@@ -613,6 +630,18 @@ try {
     hoja.length = 0;
     vm.runInContext('esperarVentanillaBase=async function(){ return null; }', ctx);
     eq('sin ventanilla: se queda la que había, sin ir a la hoja', [await refrescar(false), hoja.length, precio()], [false, 0, 44]);
+    /* Auditoría 2026-10-25 · CZ-3: y el paso de Precio lo dice, con la fecha de esos precios y la salida. */
+    eq('sin ventanilla, el letrero del paso de Precio sale y dice de cuándo son y qué hacer',
+      [el('s-tar-aviso').hidden, /^Precios de este teléfono del .+: entra a Supabase para traer los de hoy\.$/.test(el('s-tar-aviso-txt').textContent)], [false, true]);
+    eq('la autorización que rebota por precios dice lo mismo (no «ya se trajeron los de la hoja»)',
+      vm.runInContext('mensajeTarifasSinBase(\', y vuelve a mandarla\')', ctx).endsWith('entra a Supabase para traer los de hoy, y vuelve a mandarla.'), true);
+    vm.runInContext('esperarVentanillaBase=async function(){ return window.AL3D_NUBE||null; }', ctx);
+    ctx.window.AL3D_NUBE = nube;
+    await refrescar(false);
+    eq('en cuanto hay ventanilla, se traen y el letrero se va', el('s-tar-aviso').hidden, true);
+    delete lsC.al3d_pf_supa;
+    vm.runInContext('_tarSinBaseEs(true)', ctx);
+    eq('con la hoja mandando, el letrero nunca sale', el('s-tar-aviso').hidden, true);
   }
 
   console.log('\nEL COTIZADOR: «REGISTRAR VENTA» CON EL V-### DE LA BASE EN EL RECIBO');
@@ -670,6 +699,48 @@ try {
     recibos.length = 0;
     vm.runInContext('esperarFolioDeVenta(\'COT-0002-P@P4G0\')', ctx);
     cierto('sin la plataforma alrededor, el recibo dice dónde verlo', /se ve en la plataforma/.test(recibos[0] || ''));
+
+    /* Auditoría 2026-10-25 · CZ-1: si la bandeja APARTÓ el alta (la base no la aceptó), el recibo dice que no entró y por qué,
+       en vez de «llega solo». */
+    vm.runInContext('rvNoEntro=function(t,tono){ _recibos.push((tono===\'av\'?\'AV:\':\'NO:\')+t); }', ctx);
+    recibos.length = 0; avisos.length = 0;
+    ctx.AL3D = { estadoDeVenta: async fg => { recibos.push('?' + fg); return { apartada: 'Este teléfono no puede dar de alta la venta en la base' }; },
+      folioDeVenta: async () => '' };
+    await vm.runInContext('esperarFolioDeVenta(\'COT-0002-P@P4G0\')', ctx);
+    eq('una venta apartada por la bandeja: «No entró a la base» con el motivo, y no se sigue esperando',
+      recibos, ['Registrada como proyecto ganado — esperando su folio de la base…', '?COT-0002-P@P4G0', 'NO:No entró a la base: Este teléfono no puede dar de alta la venta en la base']);
+    cierto('y lo dice en un aviso de error', avisos.some(a => /no entró a la base/.test(a)));
+    /* Con `estadoDeVenta`, el folio también llega por ahí. */
+    recibos.length = 0;
+    ctx.AL3D = { estadoDeVenta: async () => ({ folio: 'V-306' }) };
+    await vm.runInContext('esperarFolioDeVenta(\'COT-0002-P@P4G0\')', ctx);
+    eq('y cuando la base le dio su V-###, el recibo lo enseña', recibos.slice(-1), ['Venta registrada en la base — V-306']);
+
+    /* CZ-1: Fabricación con la base mandando no deja constancia (la base no le deja dar de alta ventas) y se le dice antes. */
+    ctx.identidadVerificada = () => ({ correo: 'taller@al3d.mx', rol: 'fabricacion' });
+    vm.runInContext('abrirRegistrarVenta()', ctx);
+    eq('Fabricación: el modal lo dice antes y el botón va apagado', [elementos['rv-base-av'].hidden, /Dirección o Pagos/.test(elementos['rv-base-av'].textContent), elementos['rv-registrar'].disabled],
+      [false, true, true]);
+    const antesF = lsC.al3d_pf_ganadas;
+    avisos.length = 0;
+    vm.runInContext('registrarGanada()', ctx);
+    eq('y registrar no deja constancia (no se aparta después en la bandeja)', [lsC.al3d_pf_ganadas === antesF, avisos.some(a => /Dirección o Pagos/.test(a))], [true, true]);
+    ctx.identidadVerificada = () => ({ correo: 'ana@al3d.mx', rol: 'pagos' });
+    vm.runInContext('abrirRegistrarVenta()', ctx);
+    eq('Pagos sí registra (0028): ni aviso ni botón apagado', [elementos['rv-base-av'].hidden, elementos['rv-registrar'].disabled], [true, false]);
+
+    /* CZ-2: el segundo toque con OTRA cuenta no la cambia en silencio: dice qué no se cambió y a dónde ir. */
+    recibos.length = 0; avisos.length = 0;
+    elementos['rv-cuenta'].value = 'Constru BNT';
+    vm.runInContext('registrarGanada()', ctx);
+    const ganadas = JSON.parse(lsC.al3d_pf_ganadas);
+    eq('con otra cuenta: no se manda nada nuevo y el recibo dice que la cuenta se corrige en Control',
+      [ganadas.length, ganadas[0].cuenta, recibos.some(r => /^AV:La venta ya está en la base: la cuenta no se cambia desde aquí, se corrige en Control → Cobros y abonos/.test(r))],
+      [1, '', true]);
+    cierto('con un botón para ir a corregirla', avisos.some(a => /la cuenta no se cambia/.test(a)));
+    eq('lo que cambió, sin contar lo que no se sabe de antes', vm.runInContext('rvCambiosDesde({cuenta:\'Elias BBVA\',anti:5800,estatus:null},{cuenta:\'Elias BBVA\',anti:7000,estatus:\'COBRANDO\'})', ctx),
+      ['el anticipo']);
+    delete ctx.identidadVerificada;
   }
 
   console.log('\nCON LA HOJA MANDANDO, LO DE SIEMPRE (y el código)');

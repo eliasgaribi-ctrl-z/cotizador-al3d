@@ -15,7 +15,7 @@ import { pase, ROL_LO_MANDA_LA_HOJA } from './prefs.js';
 
 export const ROL_LO_MANDA_LA_BASE =
   'Tu rol lo decide la base (Supabase), no este teléfono. Para cambiarlo, Dirección cambia ' +
-  'tu área en Ajustes → Supabase → Personas y se aplica la próxima vez que abras la app.';
+  'tu área en Ajustes → La base de datos → Personas y se aplica la próxima vez que abras la app.';
 
 /** true cuando el pase de ahora lo dio LA BASE: el rol es el área de `mi_acceso`, no el renglón de «Accesos». */
 export function rolDeLaBase() {

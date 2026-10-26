@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   155 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -179,6 +179,11 @@ function guardarEnHistorial(extra){
     const prev=idx>=0?arr[idx]:null;
     const dPrev=prev?_histDispDe(prev):'';
     if(dPrev) entry.disp=dPrev;
+    /* Quién la hizo (el correo de la puerta), para que en los demás teléfonos se vea de quién es (CZ-7). Es de quien la
+       guardó primero y no cambia: una corrección desde otro teléfono no la vuelve suya. Las de antes no lo traen y así
+       se quedan (ponérselo ahora movería `editado` sin que nada cambiara). */
+    const quien=prev?String(prev.vendedor||''):_histCorreoAqui();
+    if(quien) entry.vendedor=quien;
     if(prev&&_histFirma(prev)===_histFirma(entry)){ if(prev.editado) entry.editado=prev.editado; }
     else entry.editado=Date.now();
   }
@@ -218,6 +223,24 @@ function _histDispDe(e){
   if(typeof e.disp==='string'&&e.disp) return e.disp;
   return (e.sello&&typeof e.sello==='object'&&String(e.sello.folio||'').split('@')[1])||'';
 }
+/* De OTRO teléfono: con la base mandando el historial trae las de toda la empresa, y editar o borrar una de ellas
+   también la cambia en el teléfono de quien la hizo (auditoría 2026-10-25, CZ-4 y CZ-7). Con la hoja, nunca. */
+function _histAjena(e){
+  if(!laBaseManda()||!e) return false;
+  const d=_histDispDe(e);
+  return !!d&&d!==dispositivo();
+}
+/* Quién la hizo, dicho para una persona: el nombre de su correo, o el teléfono si la entrada es de antes. */
+function _histQuien(e){
+  const c=String(e&&e.vendedor||'').trim();
+  const n=c?c.split('@')[0].replace(/[._-]+/g,' ').trim():'';
+  return n?n.charAt(0).toUpperCase()+n.slice(1):'otro teléfono ('+(_histDispDe(e)||'?')+')';
+}
+/* El correo de quien entró a la plataforma (identidadVerificada es de notario.js). '' sin la plataforma alrededor. */
+function _histCorreoAqui(){
+  try{ const i=typeof identidadVerificada==='function'?identidadVerificada():null; return i&&i.correo?String(i.correo):''; }
+  catch(_){ return ''; }
+}
 /* El contenido de una entrada sin lo que no cuenta como cambio: cuándo se editó, y la imagen de referencia en
    sí (la base no la guarda). Con las llaves en orden: una que llegó de la base las trae en otro. */
 function _histFirma(e){
@@ -245,7 +268,7 @@ function _histLapida(entry,poner){
   if(poner) l.push({clave,ts:ahora});
   try{ localStorage.setItem(HIST_BORRADAS,JSON.stringify(l)); }catch(_){}
 }
-let _histTrayendo=null, _histTraidoEn=0, _histChoquesDichos=false;
+let _histTrayendo=null, _histTraidoEn=0;
 /* Trae lo que cambió en la base y lo junta con el historial de aquí. Devuelve cuántas entradas cambiaron. Nunca
    lanza. `forzar` no espera el minuto desde la última vez; `esperar`, cuántos ms se espera a la ventanilla. */
 function traerHistorialDeLaNube(o){
@@ -277,14 +300,31 @@ function traerHistorialDeLaNube(o){
       if($('histmodal')&&$('histmodal').classList.contains('show')){ _histData=getHistorial(); indexarHistorial(); pintarFichasHistorial(); pintarHistorial(); }
       if($('climodal')&&$('climodal').classList.contains('show')&&!_cuaAbierto){ _cuaData=cuadernos(); pintarCuadernos(); }
     }
-    if(m.choques&&!_histChoquesDichos){
-      _histChoquesDichos=true;
-      toast((m.choques===1?'Una cotización de la base no entra':m.choques+' cotizaciones de la base no entran')+
-        ' a este historial: su folio ya es de otra de este teléfono. Que cada teléfono tenga su propia letra (Ajustes).','err',9000);
-    }
+    if(m.choques) avisarChoquesDeFolio(m.choquesDe);
     return m.cambios;
   })().catch(()=>0).finally(()=>{ _histTrayendo=null; });
   return _histTrayendo;
+}
+/* ----- Un folio corto que ya es de otra (auditoría 2026-10-25, CZ-8) -----
+   Salía en rojo, 9 segundos, en CADA apertura de la app, y no tenía arreglo: cambiar la letra no cambia los folios que ya
+   existen. Ahora se dice UNA vez por cotización (se recuerdan aquí, `al3d_hist_choques`; no viaja en los respaldos), sin
+   rojo —no es un error de quien lo lee—, con el folio y el teléfono de la que no entró. Lo que sí evita los siguientes es
+   que cada teléfono tenga su propia letra. */
+const HIST_CHOQUES='al3d_hist_choques';
+function avisarChoquesDeFolio(lista){
+  const nuevos=[];
+  let dichos=[];
+  try{ dichos=JSON.parse(localStorage.getItem(HIST_CHOQUES)||'[]'); if(!Array.isArray(dichos)) dichos=[]; }catch(_){ dichos=[]; }
+  for(const c of (Array.isArray(lista)?lista:[])){
+    if(c&&c.folio_global&&!dichos.includes(c.folio_global)&&!nuevos.some(x=>x.folio_global===c.folio_global)) nuevos.push(c);
+  }
+  if(!nuevos.length) return;
+  try{ localStorage.setItem(HIST_CHOQUES,JSON.stringify(dichos.concat(nuevos.map(c=>c.folio_global)).slice(-300))); }catch(_){}
+  const uno=nuevos[0];
+  const texto=nuevos.length===1
+    ? uno.folio+' del teléfono '+(uno.disp||'?')+' no entra a este historial: aquí ya hay otra '+uno.folio+'.'
+    : nuevos.length+' cotizaciones de otros teléfonos no entran a este historial ('+nuevos.slice(0,3).map(c=>c.folio).join(', ')+(nuevos.length>3?'…':'')+'): aquí ya hay otras con esos folios.';
+  toast(texto+' Pasa cuando dos teléfonos tienen la misma letra de folio: dale a cada uno la suya en Ajustes.','',9000);
 }
 /* Al abrir (cuando la plataforma ya entró a la base: se le espera hasta 20 s) y al volver a la app. */
 window.addEventListener('load',()=>{ setTimeout(()=>{ traerHistorialDeLaNube({forzar:true,esperar:20000}); },1500); });
@@ -780,9 +820,17 @@ function pintarHistorial(){
 function histEntradaHTML(e,q,ahora){
   const P=window.Piezas, dsc=histDsc, R=t=>P.resaltar(t,q);
   const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
+  /* La imagen de referencia no viaja a la base (pesa y puede ser un PDF): en otro teléfono la entrada sabe que existe
+     pero no la tiene. Antes salía el icono de documento, como si hubiera algo que abrir (CZ-9). */
+  const refFuera=!!(e.aiFile&&!e.aiFile.url);
   const imgHTML=isImg
     ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" loading="lazy" decoding="async" ${_ABRIBLE} data-acc="openHistImg(${jsArg(e.folio)})" title="Ver imagen completa" alt="Referencia">`
-    : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
+    : refFuera
+      ? `<div class="hentry-img-ph hentry-img-fuera" role="img" aria-label="La referencia está en el teléfono que la cotizó" title="La referencia está en el teléfono que la cotizó">${ico('i-imagen')}</div>`
+      : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
+  /* De quién es, cuando no es de este teléfono (CZ-7): sin esto solo la letra del folio lo delataba. */
+  const ajena=_histAjena(e);
+  const deQuien=ajena?`<span class="hentry-de">de ${esc(_histQuien(e))}</span>`:'';
   const items=e.items||[];
   const rows=items.map((it,i)=>{
     const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
@@ -809,7 +857,7 @@ function histEntradaHTML(e,q,ahora){
         <div class="hentry-top">
           ${imgHTML}
           <div class="hentry-meta">
-            <div class="hentry-folio">${R(e.folio)}</div>
+            <div class="hentry-folio">${R(e.folio)}${deQuien}</div>
             <div class="hentry-name">${R(e.proy||e.cliente||'Sin nombre')}</div>
             <div class="hentry-sub">${R(e.cliente||'')+(e.tel?' · '+R(e.tel):'')}</div>
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${R(e.autorizador||'—')} · ${R(e.fechaAuth||'')}</div>
@@ -817,7 +865,7 @@ function histEntradaHTML(e,q,ahora){
           <div class="hentry-acts">
             <button class="hentry-open" data-acc="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
             <button class="hentry-open" data-acc="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
-            <button type="button" class="hentry-del" title="Eliminar: mantén presionado" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <button type="button" class="hentry-del" title="${laBaseManda()?'Eliminar de todos los teléfonos: mantén presionado':'Eliminar: mantén presionado'}" aria-label="${laBaseManda()?'Eliminar cotización de todos los teléfonos':'Eliminar cotización'}">${ico('i-basura')}</button>
             <span class="hentry-pista" aria-hidden="true"></span>
           </div>
         </div>
@@ -863,8 +911,26 @@ function armarBoteDeBasura(b){
   const caja=b.closest('.hentry'); if(!caja) return;
   const folio=caja.dataset.folio, pista=caja.querySelector('.hentry-pista');
   if(pista) pista.addEventListener('animationend',()=>{ pista.textContent=''; });
-  P.mantener(b,{ms:900,tono:'mal',aviso:pista||undefined,pista:'mantén presionado para eliminar la cotización',
-    otraVez:'Otra vez para eliminar',alConfirmar:()=>borrarDeHistorial(folio)});
+  P.mantener(b,{ms:900,tono:'mal',aviso:pista||undefined,
+    pista:laBaseManda()?'mantén presionado para eliminarla de todos los teléfonos':'mantén presionado para eliminar la cotización',
+    otraVez:'Otra vez para eliminar',alConfirmar:()=>pedirBorrarDeHistorial(folio)});
+}
+/* Con la base mandando, borrar del historial es borrar para todos (la base, y los demás teléfonos pasada la ventana de
+   «Deshacer»), y solo se recupera con SQL. Una cotización ya VENDIDA o de OTRO teléfono pregunta antes, con el botón de
+   peligro: el aviso de después llegaba tarde, y Dirección ve las de toda la empresa (auditoría 2026-10-25, CZ-4). */
+async function pedirBorrarDeHistorial(folio){
+  const e=getHistorial().find(x=>x.folio===folio); if(!e) return;
+  if(laBaseManda()){
+    const vendida=hitosDe(folio).venta>0, ajena=_histAjena(e);
+    if(vendida||ajena){
+      const por=[vendida?'ya se vendió':'',ajena?'es de '+_histQuien(e):''].filter(Boolean).join(' y ');
+      const si=await confirmar({titulo:'¿Borrar '+folio+' de todos los teléfonos?',
+        texto:'Esta cotización '+por+'. Se borra aquí, en la base y en los demás teléfonos; después solo se recupera desde la base.',
+        si:'Borrar para todos',no:'Dejarla',peligro:true});
+      if(!si) return;
+    }
+  }
+  borrarDeHistorial(folio);
 }
 function armarEntradasHistorial(body){
   if(body._bote) return;
@@ -1078,7 +1144,7 @@ async function reabrirDeHistorial(folio,o){
      partidas, que es donde está el trabajo y desde donde se reimprime. */
   irAPantalla(pantallaSegunDatos(),{forzar:true});
   cerrarHistorial();
-  if(!o.sinAviso) toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',
+  if(!o.sinAviso) toast('Cotización '+e.folio+(_histAjena(e)?' de '+_histQuien(e):'')+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',
     _vaciada?7000:5200, _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
 }
 

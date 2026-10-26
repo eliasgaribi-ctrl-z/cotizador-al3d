@@ -162,10 +162,17 @@ console.log('\nLA VENTANA DE GOOGLE NO SE ABRE SOLA');
          ent.indexOf("mal('SIN_GESTO', MSG.SIN_GESTO)") < ent.indexOf('await cargarGis()'));
   cierto('  y solo frena la renovación callada: entrar a mano nunca se frena', ent.includes('if (callado && !(opc && opc.gesto) && !hayGesto())'));
   const pt = sinComentarios(leer('js/datos/puente.js'));
-  const tg = (pt.match(/async function tokenDeGoogle\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  const tg = (pt.match(/async function tokenDeGoogle\(conVentana\) \{[\s\S]*?\n\}/) || [''])[0];
   cierto('cada petición al puente espera un toque antes de renovar',
          tg.includes('if (!Ingreso.hayGesto()) return') &&
          tg.indexOf('Ingreso.hayGesto()') < tg.indexOf('_renovadoEn = Date.now()'));
+  /* Con la base mandando, lo de fondo (Drive, los links de Maps) no abre la ventana de Google aunque haya un toque reciente;
+     solo una pregunta pedida con un botón (`hablar`: el sello, la IA) (auditoría 2026-10-25, ES-3). */
+  cierto('  y con la base mandando, solo una pregunta pedida con un botón la renueva',
+         /if \(!conVentana && laBaseManda\(\)\) return '';/.test(tg) &&
+         tg.indexOf('laBaseManda()') < tg.indexOf('Ingreso.hayGesto()') &&
+         /await tokenDeGoogle\(opciones\.conVentana === true\)/.test(pt) &&
+         /conVentana: true \}, espera\)/.test(pt));
   const pu = sinComentarios(leer('js/nucleo/puerta.js'));
   cierto('la puerta no pide ventana por su cuenta: solo entrar(false), que sale del botón', !/Ingreso\.entrar\(true\)/.test(pu) && (pu.match(/Ingreso\.entrar\(/g) || []).length === 1);
 }

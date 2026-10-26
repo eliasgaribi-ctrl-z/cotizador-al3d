@@ -86,6 +86,9 @@
      apertura en oscuro no parpadee en claro. -->
 <script src="js/tema.js"></script>
 <link rel="stylesheet" href="css/sistema.css">
+<!-- Lo que solo usa esta página, aparte para que la plataforma no lo baje (auditoría 2026-10-25, TR-10). Justo después
+     del sistema: así queda en el mismo lugar de la cascada que cuando vivía dentro de él. -->
+<link rel="stylesheet" href="css/cotizador.css">
 <!-- La capa de vidrio va SIEMPRE la última: solo repinta tokens y cromado, y con la misma
      especificidad que las hojas de abajo gana la que se lee después. Quitar esta línea
      devuelve la app exactamente a como estaba. -->
@@ -477,6 +480,12 @@
            el número que se va a copiar, y dice a dónde va. Late cuando cambia, igual que el
            total. El total sigue siendo el más grande de la pantalla; éste es el que lleva el
            color, que es la otra manera de pesar. -->
+      <!-- Con la base mandando y sin entrar a ella, los precios de arriba son los que este teléfono guardó la última
+           vez (o los de fábrica): se dice aquí, con la fecha y la salida. Lo pinta pintarAvisoTarifas() en tarifas.js. -->
+      <div class="tar-aviso-base" id="s-tar-aviso" hidden>
+        <span id="s-tar-aviso-txt"></span>
+        <button type="button" class="key-btn" data-acc="entrarALaBaseParaPrecios()">Entrar a Supabase</button>
+      </div>
       <div class="sum-rows sum-rows-2">
         <div class="srow subtotal" id="s-sub-box">
           <div class="sub-top">
@@ -1138,6 +1147,9 @@
     </div>
     <div class="rv-body">
       <div class="rv-aviso" id="rv-aviso-auth" style="display:none"></div>
+      <!-- Con la base mandando, quien no da de alta ventas (Fabricación) lo lee aquí ANTES de tocar el botón, que va
+           apagado. Lo escribe abrirRegistrarVenta() en venta.js. -->
+      <p class="rv-iva-av" id="rv-base-av" hidden></p>
       <div class="rv-grid">
         <div class="rv-field full">
           <label for="rv-proyecto">Proyecto</label>

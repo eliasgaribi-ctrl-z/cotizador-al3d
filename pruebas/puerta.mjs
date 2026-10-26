@@ -235,8 +235,10 @@ console.log('\nLO QUE LA PUERTA PROMETE');
      comprueba es que el fallo del ingreso sale por `sin_red` —«no se pudo preguntar»— y
      NUNCA por `fuera`, que es el estado que cierra. */
   const traloIngreso = (src.match(/if \(!e\.ok\) \{[\s\S]*?\n  \}/) || [''])[0];
+  /* Dentro va la vuelta a la base con la base mandando, que sí puede traer un «fuera» de la base (con su segunda
+     opinión): lo que se vigila es que el ingreso fallido no DEVUELVA «fuera» por sí mismo. */
   cierto('un ingreso que no salió se trata como «todavía no», no como «no»',
-         traloIngreso.includes("estado: 'sin_red'") && !traloIngreso.includes("'fuera'"));
+         traloIngreso.includes("estado: 'sin_red'") && !/return \{ estado: 'fuera'/.test(traloIngreso));
 
   /* Y al revés: `fuera` solo puede salir del código que la hoja manda para «este correo no
      está en Accesos». Si saliera de cualquier otra rama, un error de red dejaría a alguien
@@ -245,9 +247,17 @@ console.log('\nLO QUE LA PUERTA PROMETE');
      saliera de otra rama —un error de red, un tope que vence— alguien acabaría viendo el
      cartel de «no tienes acceso» por algo que no es eso. La cuenta de apariciones es lo que
      lo vigila; la ventana es ancha porque en medio va la guarda del token vivo. */
-  cierto('«fuera» solo lo dice la hoja, con su código',
+  /* Desde la auditoría del 2026-10-25 (ES-1), con la base mandando también lo dice la base: una baja o una cuenta que
+     no conoce, dicho por ella para la misma persona (`paseDeLaBase`), o la baja que la base ya le dijo a este aparato
+     (`cuentaRetiradaAqui`). Las dos solo con la base mandando; con la hoja, el único origen sigue siendo la hoja. */
+  const deLaBase = (src.match(/function paseDeLaBase[\s\S]*?\n\}/) || [''])[0];
+  const deLaHoja = (src.match(/async function preguntarALaHoja[\s\S]*?\n\}/) || [''])[0];
+  cierto('«fuera» lo dice la hoja con su código, y con la base mandando la base (y nadie más)',
          /codigo === 'ROL_SIN_PERMISO'[\s\S]{0,400}estado: 'fuera'/.test(src) &&
-         (src.match(/return \{ estado: 'fuera'/g) || []).length === 1);
+         (src.match(/return \{ estado: 'fuera'/g) || []).length === 3 &&
+         /if \(FUERA_EN_LA_BASE\.includes\(a\.estado\) && laBaseManda\(\)\) return \{ estado: 'fuera', correo \};/.test(deLaBase) &&
+         /if \(laBaseManda\(\)\) \{[\s\S]*?const retirada = cuentaRetiradaAqui\(\);\s*if \(retirada\) return \{ estado: 'fuera', correo: retirada \};/.test(deLaHoja) &&
+         /const FUERA_EN_LA_BASE = \['acceso_revocado', 'sin_acceso'\];/.test(src));
 
   cierto('la puerta enlaza la privacidad y las condiciones, que es donde Google las pide',
          src.includes('privacidad.html') && src.includes('condiciones.html'));
@@ -442,7 +452,8 @@ console.log('\nEL BOTÓN DE GOOGLE DE LA PUERTA');
          con2.indexOf('Ingreso.anotarCredencial(') > 0 && con2.indexOf('Ingreso.anotarCredencial(') < con2.indexOf('entrarPorLaBase(') &&
          !con2.includes("'fuera'"));
   cierto('  la base primero; si no, la hoja como siempre —sola si el navegador todavía deja abrir su ventana, si no un toque más—',
-         /if \(v\) \{ paso\('hoja', 'ok', ''\); return v; \}/.test(con2) &&
+         /if \(v && v\.estado === 'ok'\) \{ paso\('hoja', 'ok', ''\); return v; \}/.test(con2) &&
+         /if \(v\) \{ paso\('hoja', 'mal', 'tu cuenta no tiene acceso'\); return v; \}/.test(con2) &&
          /if \(Ingreso\.hayGesto\(\)\) return await confirmarDeVerdad\(true, alPaso\);/.test(con2) &&
          /return \{ estado: 'sin_red', toque: true, mensaje: MSG\.FALTA_LA_HOJA\.texto \};/.test(con2));
   cierto('  y con tope, como confirmar()', /Promise\.race\(\[real, new Promise\(r => setTimeout\(\(\) => r\(\{ estado: 'sin_red', tarde: true \}\), MS_CON_PANTALLA\)\)\]\)/.test(cuerpo('confirmarConCredencial')));
@@ -458,7 +469,11 @@ console.log('\nEL BOTÓN DE GOOGLE DE LA PUERTA');
      con el botón de Google no lo tiene, y sin esto la vuelta de fondo nunca le preguntaba a nadie. */
   const ver = cuerpo('confirmarDeVerdad');
   cierto('la vuelta de fondo pregunta a la base sin el permiso de la hoja (y solo la de fondo: el botón sigue abriendo la ventana)',
-         /if \(!e\.ok\) \{\s*if \(!conPantalla && laBaseManda\(\)\) \{ const vb = await preguntarALaBase\(\); if \(vb\) return vb; \}/.test(ver));
+         /if \(!e\.ok\) \{\s*if \(!conPantalla && laBaseManda\(\)\) \{\s*let vb = await preguntarALaBase\(\);/.test(ver) &&
+         /if \(vb\) return vb;/.test(ver));
+  /* Y un «fuera» de la base por detrás se pregunta dos veces, como el de la hoja (ES-1). */
+  cierto('  un «fuera» de la base en la vuelta de fondo se repite antes de echar a nadie',
+         /if \(vb && vb\.estado === 'fuera'\) \{\s*await new Promise\(r => setTimeout\(r, MS_SEGUNDA_OPINION\)\);\s*vb = await preguntarALaBase\(\);\s*\}/.test(ver));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

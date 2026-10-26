@@ -124,10 +124,13 @@ const RUTAS = [
   { ruta: 'publicaciones', mod: 'herramientas', seccion: 'mod-publicaciones', icono: 'i-publicar', nombre: 'Publicaciones', sub: 'plantillas de marca para redes',              grupo: 'herramientas', roles: ['direccion'], conservar: true },
   /* El almacén va con las herramientas y al final de ellas: no es una herramienta de marco, pero
      es de los mismos dos roles y de la misma mesa de trabajo —qué hay, qué falta, qué se compra—.
-     A Material se sigue llegando derecho desde el Tablero («Ver material»): es la misma ruta. */
-  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         grupo: 'herramientas', roles: ['direccion', 'fabricacion'] },
+     A Material se sigue llegando derecho desde el Tablero («Ver material»): es la misma ruta.
+     Mientras esté en mantenimiento (`MATERIAL_EN_MANTENIMIENTO`, js/datos/agenda.js) va `oculto`: sin
+     botón en la tira de Herramientas ni en «Más», porque llevaba a una pantalla que no hace nada
+     (auditoría 2026-10-25, CM-2). Para volver, quitar `oculto`. */
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         grupo: 'herramientas', roles: ['direccion', 'fabricacion'], oculto: true },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
-  { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
+  { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este teléfono, la base de datos y el respaldo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
 
 /* El nombre y el icono del botón de un grupo de varias pantallas. Solo lleva renglón el que no se
@@ -1015,7 +1018,7 @@ function escribirNav(grupos, barra, mas) {
          no puede esconder el tres— y el `aria-label`, que dice la suma porque el globo es
          `aria-hidden` (lo escribe `pintarCuentasNav`). */
       ? '<button type="button" class="pf-mas-btn" data-mas aria-haspopup="dialog" aria-expanded="false"' +
-        ' aria-controls="pf-mas" aria-label="Más módulos" aria-current="false">' +
+        ' aria-controls="pf-mas" aria-label="Más pantallas" aria-current="false">' +
         '<span class="pil">' + ico('i-puntos') +
         '<span class="cta" data-cta-mas hidden aria-hidden="true"></span></span>Más</button>'
       : '');
@@ -1087,7 +1090,7 @@ function abrirMas() {
   }
   vaciarSueltas();
   capa.innerHTML = '<div class="pf-panel pf-mas-panel">' +
-    '<div class="pf-panel-h"><h2 id="pf-mas-t">Más módulos</h2>' +
+    '<div class="pf-panel-h"><h2 id="pf-mas-t">Más pantallas</h2>' +
     '<button type="button" class="pf-cerrar" data-mas-cerrar aria-label="Cerrar">' + ico('i-cerrar') + '</button></div>' +
     '<div class="pf-panel-b">' + cuerpo + '</div></div>';
   capa.setAttribute('aria-labelledby', 'pf-mas-t');
@@ -1405,9 +1408,9 @@ function pintarCuentasNav() {
     _cuentaAntes.set(f.clave, f.n);
   }
   /* El botón «Más» dice la suma con palabras: su globo es `aria-hidden` y sin esto un lector de
-     pantalla oiría «Más módulos» sin saber que dentro espera algo. */
+     pantalla oiría «Más pantallas» sin saber que dentro espera algo. */
   const bm = document.querySelector('#pf-abajo [data-mas]');
-  if (bm) bm.setAttribute('aria-label', 'Más módulos' + (sumaMas ? ', ' + sumaMas + (sumaMas === 1 ? ' cosa que atender' : ' cosas que atender') : ''));
+  if (bm) bm.setAttribute('aria-label', 'Más pantallas' + (sumaMas ? ', ' + sumaMas + (sumaMas === 1 ? ' cosa que atender' : ' cosas que atender') : ''));
   /* Un globo que aparece ensancha su pestaña, y la elegida que estaba justo a la vista queda
      cortada por el borde (Material con su «3», a 360 px). Se vuelve a acomodar con los anchos de
      ahora. */
@@ -1798,6 +1801,36 @@ export function pintarBanda(msg) {
    la de la puerta: entonces la suelta y pide la buena—. Lo de abajo queda para el aparato que entró con
    el botón de siempre (la empresa en la hoja, o el de Google que no cargó). */
 let _nube = null;      // la banda con el botón de Google, mientras haga falta un toque
+/* Con la base mandando, un teléfono sin sesión en ella ni sube ni baja nada (js/datos/supa-relevo.js), y
+   antes eso lo decía una nube roja de 20 px: «Ahora no» parecía inofensivo y el teléfono trabajaba el día
+   entero sin que nadie viera lo que hacía (auditoría 2026-10-25, TR-4 y ES-4). Ahora:
+     · `_sinBase` marca ese estado —la clase `sin-base` en <html> y el aviso `al3d-sin-base`, para la
+       pantalla que quiera decirlo en su lugar (el Tablero, en vez de «Nada urgente hoy»)—;
+     · la banda lo dice con todas sus letras, y «Recordármelo» la quita solo 15 minutos o hasta la
+       siguiente pantalla;
+     · si Google ni siquiera cargó, se vuelve a intentar al recuperar la señal y al volver a la app. */
+let _sinBase = false;
+let _nubeLuego = 0, _nubeReloj = 0, _reintentoNube = false;
+const MS_RECORDAR = 15 * 60 * 1000;
+function marcarSinBase(si) {
+  if (_sinBase === !!si) return;
+  _sinBase = !!si;
+  document.documentElement.classList.toggle('sin-base', _sinBase);
+  try { window.dispatchEvent(new CustomEvent('al3d-sin-base', { detail: { sin: _sinBase } })); } catch (_) {}
+}
+function reintentarNubeLuego() {
+  if (_reintentoNube) return;
+  _reintentoNube = true;
+  const otra = () => {
+    if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
+    window.removeEventListener('online', otra);
+    document.removeEventListener('visibilitychange', otra);
+    _reintentoNube = false;
+    conectarLaNube().catch(() => {});
+  };
+  window.addEventListener('online', otra);
+  document.addEventListener('visibilitychange', otra);
+}
 async function conectarLaNube() {
   const Ingreso = await import('./nucleo/ingreso.js');
   const correo = Ingreso.correo();
@@ -1809,23 +1842,62 @@ async function conectarLaNube() {
     Supa.vigilar();
   }
   const r = await Supa.entrarSinBoton(correo);
-  if (r.ok || (r.codigo !== 'NECESITA_TOQUE' && r.codigo !== 'OTRA_CUENTA')) return;
+  if (r.ok) { marcarSinBase(false); return; }
+  marcarSinBase(laBaseManda());
+  if (r.codigo !== 'NECESITA_TOQUE' && r.codigo !== 'OTRA_CUENTA') {
+    /* Google no cargó (sin red, bloqueado): se vuelve a intentar solo, y con la base mandando se dice ya. */
+    reintentarNubeLuego();
+    revisarDispositivo();
+    return;
+  }
   if (r.codigo === 'OTRA_CUENTA') toast(r.mensaje, 'err', 6000);
+  ofrecerNube(Supa, correo);
+}
+
+/** La banda con el botón de Google: lo que hace falta para entrar a la base con un toque. */
+function ofrecerNube(Supa, correo) {
   _nube = () => {
     const caja = $('pf-nube-google');
     if (!caja) return;
     Supa.botonDeGoogle(caja, async res => {
-      if (res.ok && !Supa.esLaMismaPersona(res.acceso && res.acceso.correo, correo)) {
+      if (res.ok && correo && !Supa.esLaMismaPersona(res.acceso && res.acceso.correo, correo)) {
         await Supa.salir();
         toast('Esa cuenta de Google no es con la que entraste a la app (' + correo + '). Escoge esa.', 'err', 6000);
         return;
       }
       if (!res.ok) { toast(res.mensaje, 'err', 6000); return; }
       _nube = null;
-      toast('Listo: este teléfono ya está en la nube', 'ok', 3000);
+      _nubeLuego = 0;
+      marcarSinBase(false);
+      toast(laBaseManda() ? 'Listo: este teléfono ya está en la base' : 'Listo: este teléfono ya está en la nube', 'ok', 3000);
       revisarDispositivo();
+      /* Con la base mandando, lo que esperaba la sesión sale ya, y el aviso en vivo se vuelve a conectar. */
+      if (laBaseManda()) volverAEnchufarLaBase();
     }).catch(() => {});
   };
+  revisarDispositivo();
+}
+
+/* Realtime y la ventanilla del cotizador dependen de la sesión de la base: al entrar o salir se vuelven a acomodar
+   (js/datos/supa-enchufe.js, `arrancar`: sin sesión los apaga) y después se sincroniza, para que el glifo diga lo de ahora. */
+function volverAEnchufarLaBase() {
+  import('./datos/supa-enchufe.js')
+    .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
+    .catch(() => {})
+    .then(() => sincronizarCallado());
+}
+
+/* «Recordármelo»: la banda de la base se aparta 15 minutos, o hasta que se cambie de pantalla, lo que pase primero. */
+function recordarNubeLuego() {
+  _nubeLuego = Date.now() + MS_RECORDAR;
+  clearTimeout(_nubeReloj);
+  _nubeReloj = setTimeout(() => { _nubeLuego = 0; revisarDispositivo(); }, MS_RECORDAR);
+  revisarDispositivo();
+}
+function nubeAlCambiarDePantalla() {
+  if (!_nubeLuego) return;
+  _nubeLuego = 0;
+  clearTimeout(_nubeReloj);
   revisarDispositivo();
 }
 
@@ -1851,12 +1923,26 @@ function revisarDispositivo() {
      acabando, la copia está rota— cambian en qué condiciones estás trabajando ahora mismo;
      «van 11 días sin respaldo» es importante y puede esperar a la siguiente apertura. */
   /* La nube pide un toque (`conectarLaNube`, abajo): Google no dio la cuenta sin enseñar nada. El botón lo
-     dibuja Google dentro de la banda; «Ahora no» la quita hasta la siguiente vez que se abra la app. */
-  if (_nube) {
-    pintarBanda({ html: 'Conecta tu cuenta a la nube con un toque: así lo de este teléfono se guarda y se ve en los demás. ' +
-      '<span id="pf-nube-google" class="pf-nube-google"></span>',
-      accion: { label: 'Ahora no', fn: () => { _nube = null; revisarDispositivo(); } } });
+     dibuja Google dentro de la banda. Con la hoja mandando, «Ahora no» la quita hasta la siguiente vez que se
+     abra la app. Con la base mandando no es opcional —sin sesión el teléfono no manda ni recibe nada—: se dice
+     así, y «Recordármelo» la aparta 15 minutos o hasta la siguiente pantalla (TR-4). */
+  const manda = laBaseManda();
+  if (_nube && Date.now() >= _nubeLuego) {
+    pintarBanda({ tono: manda ? 'mal' : '',
+      html: (manda
+        ? '<b>Este teléfono no ha entrado a la base.</b> Sin esto, lo que hagas se queda solo en este teléfono y lo que ves puede no estar al día. Entra con un toque: '
+        : 'Conecta tu cuenta a la nube con un toque: así lo de este teléfono se guarda y se ve en los demás. ') +
+        '<span id="pf-nube-google" class="pf-nube-google"></span>',
+      accion: manda
+        ? { label: 'Recordármelo', fn: recordarNubeLuego }
+        : { label: 'Ahora no', fn: () => { _nube = null; revisarDispositivo(); } } });
     _nube();
+    return;
+  }
+  /* Sin sesión en la base y sin el botón de Google (no cargó): lo mismo, con «Entrar» para volver a intentarlo (ES-4). */
+  if (_sinBase && manda && !_nube && Date.now() >= _nubeLuego) {
+    pintarBanda({ tono: 'mal', texto: 'Este teléfono no ha entrado a la base: lo que ves puede no estar al día, y lo que hagas se queda solo aquí hasta que entre.',
+      accion: { label: 'Entrar', fn: () => { conectarLaNube().catch(() => {}); } } });
     return;
   }
   if (_quien && _quien.nota) {
@@ -2215,6 +2301,27 @@ async function arrancar() {
     }
     sincronizarCallado();
   });
+  /* La sesión de la base se fue —«Salir de Supabase», o un refresco que falló solo— (js/nucleo/supa.js,
+     `al3d-supa-salio`): el relevo olvida la cuenta que recordaba, Realtime se apaga y el glifo dice la verdad.
+     Con la base mandando, además, vuelve la banda para entrar (ES-5). Se espera un momento antes de mirar:
+     cambiar de cuenta en la entrada única también sale primero y entra después. */
+  window.addEventListener('al3d-supa-salio', () => {
+    Sync.olvidarCuenta();
+    setTimeout(async () => {
+      try {
+        const Supa = await import('./nucleo/supa.js');
+        if (await Supa.haySesion()) return;
+        if (laBaseManda()) {
+          marcarSinBase(true);
+          const Ingreso = await import('./nucleo/ingreso.js');
+          ofrecerNube(Supa, Ingreso.correo());
+          volverAEnchufarLaBase();
+        }
+      } catch (_) { /* sin módulo: la siguiente vuelta lo dice */ }
+    }, 1500);
+  });
+  /* «Recordármelo» aparta la banda de la base hasta la siguiente pantalla (TR-4). */
+  window.addEventListener('hashchange', nubeAlCambiarDePantalla);
 
   /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
      no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
@@ -2229,7 +2336,9 @@ async function arrancar() {
   window.addEventListener('offline', () => { if (Sync.configurado()) pintarSync('sin-senal'); });
   /* Tocar la nube dice qué significa (marco-3): con el dedo no hay `title`. */
   const nube = $('pf-sync');
-  if (nube) nube.addEventListener('click', () => toast(nube.getAttribute('aria-label') || '', _syncEstado === 'mal' ? 'err' : '', 4000));
+  if (nube) nube.addEventListener('click', () => toast(nube.getAttribute('aria-label') || '', _syncEstado === 'mal' ? 'err' : '', 4000,
+    /* Con algo apartado, el aviso lleva a donde se resuelve. */
+    _syncEstado === 'mal' && _syncApartadas ? { label: 'Ver qué fue', fn: () => { location.hash = '#/ajustes'; } } : null));
 
   /* ----- Traer lo nuevo sin cerrar ni abrir -----
      Lo que otro teléfono o la hoja cambian llega solo: cada 30 segundos mientras la app está
@@ -2406,6 +2515,7 @@ let _lecturaEnVivo = null;
 const MS_SYNC_LENTO = 1000;
 const MS_SYNC_OK = 2600;
 let _syncEstado = 'quieto', _syncOkReloj = 0;
+let _syncApartadas = 0;     // con la base mandando: lo que la base rechazó para siempre (ver `sincronizarDeVerdad`)
 
 /* Cuándo bajó la hoja por última vez en ESTE aparato, completa y sin error. «Al día» solo se
    dice si fue hace poco: en octubre de 2026 un aparato llevaba cinco días sin bajar —nadie había
@@ -2561,6 +2671,18 @@ async function sincronizarDeVerdad() {
     } catch (e) { console.warn('links de Maps', e); }
   }
   clearTimeout(lento);
+  /* Con la base mandando, lo que la base rechazó para siempre SÍ se dice aquí (auditoría 2026-10-25, TP-5): la
+     tarjeta se quedaba movida solo en este teléfono, y el único aviso vivía en Ajustes, donde nadie lo iba a
+     buscar. Es la cruz, con el número y a dónde ir; se va en cuanto se reintenta o se descarta. Con la hoja
+     mandando, como siempre: lo apartado se dice en Ajustes. */
+  _syncApartadas = 0;
+  if (!falla && !sinRed && laBaseManda()) {
+    try { _syncApartadas = (await Sync.rechazadas()).length; } catch (_) { _syncApartadas = 0; }
+    if (_syncApartadas) {
+      falla = (_syncApartadas === 1 ? '1 cambio no se guardó en la base: está apartado'
+        : _syncApartadas + ' cambios no se guardaron en la base: están apartados') + ' en Ajustes → La base de datos';
+    }
+  }
   /* La palomita solo cuando BAJÓ algo. Una vuelta que no trajo nada terminó bien y no tiene
      nada que decir: volver a la nube ES decirlo. */
   pintarSync(sinRed ? 'sin-senal' : falla ? 'mal' : (movio ? 'ok' : 'quieto'), falla);

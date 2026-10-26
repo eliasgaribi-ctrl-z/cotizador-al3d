@@ -250,8 +250,9 @@ export function calendario(evs) {
    DTSTART tiene que ser una ocurrencia real de la regla, y 20260901T000000Z es martes en
    UTC (lunes 31 de agosto, 18:00, en Guadalajara).
    El conteo mensual es a las 9:00 y no cruza medianoche, así que ahí BYMONTHDAY=1 se queda
-   como 1 y no hay nada que corregir. */
-export function ritmo() {
+   como 1 y no hay nada que corregir.
+   `conteo: false` lo deja fuera: mientras Material esté en mantenimiento no hay a dónde ir a contar. */
+export function ritmo({ conteo = true } = {}) {
   const stamp = ahoraUTC();
   const L = [
     'BEGIN:VEVENT',
@@ -268,6 +269,8 @@ export function ritmo() {
     'DESCRIPTION:' + escapar('Manda el avance del día antes de irte.'),
     'TRIGGER:PT0S', 'END:VALARM',
     'END:VEVENT',
+  ];
+  if (conteo) L.push(
     'BEGIN:VEVENT',
     'UID:' + uid('ritmo-conteo-fisico@al3d.mx'),
     'DTSTAMP:' + stamp,
@@ -282,7 +285,7 @@ export function ritmo() {
     'DESCRIPTION:' + escapar('Cuenta el material que la plataforma te marque.'),
     'TRIGGER:PT0S', 'END:VALARM',
     'END:VEVENT',
-  ];
+  );
   return envolver(L);
 }
 

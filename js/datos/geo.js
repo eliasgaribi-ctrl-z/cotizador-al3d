@@ -53,7 +53,7 @@ export const AVISO_CORTO =
  *  `proyectos.resolverLinksPendientes`). */
 export const AVISO_CORTO_PENDIENTE =
   'Es el link corto de WhatsApp y para leerlo hace falta señal. Quedó guardado: el pin se ' +
-  'pone solo en cuanto el teléfono sincronice con la hoja.';
+  'pone solo en cuanto el teléfono vuelva a sincronizar.';
 
 /** Lo que se dice cuando el texto no trae coordenadas por ningún lado. Lo comparten el panel de
  *  pegar link del Mapa, «Se ganó» y «Completar» del Tablero. */

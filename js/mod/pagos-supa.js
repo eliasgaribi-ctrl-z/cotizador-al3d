@@ -75,7 +75,7 @@ let _sincronizar = null;        // la sincronización de la app (Control la pasa
 const _aviso = {};              // por formulario: { tono: 'ok'|'mal'|'av', texto, incierto }
 let _foco = null;               // { id, ini, fin } del campo enfocado, para devolverlo tras un repintado
 
-const NOMBRE = { cobro: 'Cobro o anticipo', abono: 'Abono de comisión', reparto: 'Repartir un depósito', correccion: 'Corregir',
+const NOMBRE = { cobro: 'Cobro de una venta', abono: 'Abono de comisión', reparto: 'Repartir un depósito', correccion: 'Corregir',
   venta: 'Venta sin cotización', datos: 'Datos de la venta' };
 const AREA = { direccion: 'Dirección', pagos: 'Pagos', fabricacion: 'Fabricación' };
 const CAMPOS = ['proyecto', 'que', 'monto', 'fecha', 'nota', 'nombre', 'cuenta', 'estatus', 'tipos', 'subtotal', 'anticipo', 'cita',
@@ -84,23 +84,36 @@ const MS_RELEER = 3000;
 
 const enBase = () => laBaseManda();
 
-/* ----- Los borradores ----- */
+/* ----- Los borradores -----
+   En el almacenamiento de la pestaña, y los INCIERTOS también en el del aparato (`PS.CLAVE_INCIERTOS`): cerrar la app en el iPhone
+   se lleva el de la pestaña, y un cobro que se mandó sin respuesta no puede volver como un formulario cualquiera, sin su aviso y con
+   otro op_id (auditoría 2026-10-25, DN-7). Lo de la pestaña manda; lo del aparato solo llena un formulario que la pestaña no trae. */
 function ss() { try { return globalThis.sessionStorage || null; } catch (_) { return null; } }
+function ls() { try { return globalThis.localStorage || null; } catch (_) { return null; } }
+const valido = x => !!(x && typeof x.opId === 'string' && x.opId && typeof x.campos === 'object' && x.campos);
 function borradores() {
   if (_b) return _b;
-  let g = null;
+  let g = null, li = null;
   try { g = JSON.parse(ss()?.getItem(PS.CLAVE_BORRADOR) || 'null'); } catch (_) { g = null; }
+  try { li = JSON.parse(ls()?.getItem(PS.CLAVE_INCIERTOS) || 'null'); } catch (_) { li = null; }
   _b = {};
   for (const t of PS.FORMULARIOS) {
-    const x = g && g[t];
-    _b[t] = (x && typeof x.opId === 'string' && x.opId && typeof x.campos === 'object')
-      ? { tipo: t, opId: x.opId, campos: x.campos || {}, incierto: x.incierto || null } : PS.borradorNuevo(t);
+    const x = g && g[t], y = li && li[t];
+    const z = valido(x) && !(valido(y) && y.incierto && !x.incierto && y.opId === x.opId) ? x : (valido(y) && y.incierto ? y : null);
+    _b[t] = z ? { tipo: t, opId: z.opId, campos: z.campos || {}, incierto: z.incierto || null, mandado: z.mandado || null } : PS.borradorNuevo(t);
   }
   if (g && PS.FORMULARIOS.includes(g._form)) _form = g._form;
+  else { const conDuda = PS.FORMULARIOS.find(t => _b[t].incierto); if (conDuda) _form = conDuda; }
   return _b;
 }
 function guardar() {
-  try { ss()?.setItem(PS.CLAVE_BORRADOR, JSON.stringify({ ...borradores(), _form })); } catch (_) { /* sin almacenamiento: queda en memoria */ }
+  const b = borradores();
+  try { ss()?.setItem(PS.CLAVE_BORRADOR, JSON.stringify({ ...b, _form })); } catch (_) { /* sin almacenamiento: queda en memoria */ }
+  try {
+    const inciertos = Object.fromEntries(PS.FORMULARIOS.filter(t => b[t].incierto).map(t => [t, b[t]]));
+    if (Object.keys(inciertos).length) ls()?.setItem(PS.CLAVE_INCIERTOS, JSON.stringify(inciertos));
+    else ls()?.removeItem(PS.CLAVE_INCIERTOS);
+  } catch (_) { /* sin almacenamiento del aparato: queda el de la pestaña */ }
 }
 
 /* ============================================================================
@@ -115,7 +128,7 @@ export function html() {
   const cab = '<div class="card pg-supa-card"><div class="card-h"><h2>' + ico('i-nube') + ' ' +
     (base ? 'Cobros y abonos' : 'Registrar en Supabase') + '</h2></div><div class="card-b">' +
     (base
-      ? '<p class="hintnote nota-ok">Esto queda en la base y lo ven al momento los teléfonos de Dirección y Pagos. Un asiento no se ' +
+      ? '<p class="hintnote nota-ok">Esto queda en la base y lo ven al momento los teléfonos de Dirección y Pagos. Un registro no se ' +
         'borra: si algo quedó mal, se corrige con otro.</p>'
       : '<p class="hintnote nota-av">Esto escribe en <b>Supabase</b>, la base nueva, no en la hoja. La hoja sigue siendo la que manda: ' +
         'lo que registres aquí regístralo también allá.</p>');
@@ -171,13 +184,26 @@ export function cablear(el, o = {}) {
 /** Control se va: se olvida el contenedor (el estado y los borradores se quedan). */
 export function soltar() { _el = null; }
 
-/** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Ingreso» abre el de cobro). El borrador de
- *  cada formulario no se toca: solo cambia cuál está a la vista. */
-export function elegirFormulario(t) {
+/** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Cobro de una venta» abre el de cobro) y el «Ir a
+ *  corregir» del Cotizador, que trae además el V-### de la venta (auditoría 2026-10-25, CZ-2). El borrador de cada formulario no se
+ *  toca, salvo la venta elegida cuando llega una y el formulario no tiene un envío en duda. */
+export function elegirFormulario(t, ventaFolio = '') {
   if (!PS.FORMULARIOS.includes(t)) return;
   _form = t;
+  _ventaAlAbrir = /^V-\d+$/.test(String(ventaFolio || '')) ? String(ventaFolio) : '';
+  ponerVentaAlAbrir();
   guardar();
   if (_el) repintar();
+}
+/* La venta del pase se elige cuando las ventas de la base ya están leídas (si todavía no, al leerlas). Un formulario con un envío en
+   duda no cambia de venta: eso movería su huella y el reintento parecería otro registro (DN-1). */
+let _ventaAlAbrir = '';
+function ponerVentaAlAbrir() {
+  if (!_ventaAlAbrir || !_ventas) return;
+  const v = _ventas.find(x => x.folio === _ventaAlAbrir);
+  _ventaAlAbrir = '';
+  const b = borradores()[_form];
+  if (v && _form !== 'venta' && _form !== 'reparto' && !b.incierto) b.campos.proyecto = v.id;
 }
 
 /* ============================================================================
@@ -201,7 +227,7 @@ function cargar() {
 async function leerVentas(Supa) {
   const r = await PS.leerVentas(await Supa.cliente());
   _leidasEn = Date.now();
-  if (r.ok) { _ventas = r.ventas; _ventasMsg = ''; } else { _ventas = _ventas || []; _ventasMsg = r.mensaje; }
+  if (r.ok) { _ventas = r.ventas; _ventasMsg = ''; ponerVentaAlAbrir(); guardar(); } else { _ventas = _ventas || []; _ventasMsg = r.mensaje; }
 }
 
 /** Los saldos otra vez, sin volver a preguntar quién eres. */
@@ -270,22 +296,50 @@ function htmlFormularios() {
     '<div class="pf-acciones pg-pie"><button type="button" class="btn btn-gho" data-pg-act="recargar">Volver a leer las ventas</button></div>';
 }
 
-function selectVenta(t, campos, orden) {
-  const lista = (_ventas || []).slice().sort(orden);
-  const op = lista.map(v => '<option value="' + esc(v.id) + '"' + (v.id === campos.proyecto ? ' selected' : '') + '>' +
-    esc(v.folio + ' · ' + v.nombre + ' — ' + etiquetaVenta(t, v)) + '</option>').join('');
-  return '<div class="fld" data-pg-fld="proyecto"><label for="' + idDe(t, 'proyecto') + '">Venta</label>' +
-    '<select id="' + idDe(t, 'proyecto') + '" data-pg-campo="proyecto" aria-describedby="' + idDe(t, 'proyecto') + '-m">' +
-    '<option value="">' + (lista.length ? 'Elige la venta…' : 'No hay ventas en la base') + '</option>' + op + '</select>' +
+/* Elegir la venta (auditoría 2026-10-25, DN-2 y DN-6): con más de unas cuantas, un buscador encima del desplegable (cliente, V-### o
+   monto) que va dejando solo las que coinciden; y el desplegable por grupos —con algo por cobrar o por pagar primero, lo demás
+   después y las canceladas al final y marcadas—, con la cifra que importa pegada al folio: la rueda del iPhone corta lo que va al
+   final del renglón. La venta elegida se queda en la lista aunque lo buscado ya no la encuentre. */
+const BUSCADOR_DESDE = 7;
+function selectVenta(t, campos) {
+  const id = idDe(t, 'proyecto');
+  const conBuscador = (_ventas || []).length >= BUSCADOR_DESDE;
+  return '<div class="fld" data-pg-fld="proyecto"><label for="' + id + '">Venta</label>' +
+    (conBuscador ? '<input type="search" class="pg-buscar" id="' + idDe(t, 'buscar') + '" data-pg-campo="buscar" autocomplete="off"' +
+      ' enterkeyhint="search" placeholder="Buscar: cliente, V-### o monto" aria-label="Buscar la venta" aria-controls="' + id + '"' +
+      ' value="' + esc(campos.buscar || '') + '">' : '') +
+    '<select id="' + id + '" data-pg-campo="proyecto" aria-describedby="' + id + '-m ' + idDe(t, 'cuantas') + '">' + opcionesVenta(t, campos) + '</select>' +
+    '<p class="pf-nota pg-cuantas" id="' + idDe(t, 'cuantas') + '" role="status">' + esc(cuantasVentas(campos)) + '</p>' +
     msg(t, 'proyecto') + '<p class="pf-nota pg-venta" id="' + idDe(t, 'venta') + '">' + detalleVenta(t, venta(campos.proyecto)) + '</p></div>';
 }
+function opcionesVenta(t, campos) {
+  const todas = _ventas || [];
+  const lista = PS.filtrarVentas(todas, campos.buscar);
+  const sel = venta(campos.proyecto);
+  if (sel && !lista.includes(sel)) lista.unshift(sel);
+  const op = v => '<option value="' + esc(v.id) + '"' + (v.id === campos.proyecto ? ' selected' : '') + '>' + esc(etiquetaVenta(t, v)) + '</option>';
+  const vacio = !todas.length ? 'No hay ventas en la base' : (lista.length ? 'Elige la venta…' : 'Ninguna venta coincide con lo buscado');
+  return '<option value="">' + vacio + '</option>' +
+    PS.gruposDeVentas(t, lista).map(g => '<optgroup label="' + esc(g.titulo) + '">' + g.ventas.map(op).join('') + '</optgroup>').join('');
+}
+function cuantasVentas(campos) {
+  const q = String(campos.buscar || '').trim();
+  if (!q || !_ventas) return '';
+  const n = PS.filtrarVentas(_ventas, q).length;
+  return n ? n + (n === 1 ? ' venta coincide' : ' ventas coinciden') + ' con «' + q + '».' : 'Ninguna venta coincide con «' + q + '».';
+}
 function etiquetaVenta(t, v) {
-  return t === 'cobro' ? 'saldo ' + PS.pesosDe(v.saldo) : t === 'abono' ? 'comisión por pagar ' + PS.pesosDe(v.restante)
-    : t === 'datos' ? 'subtotal ' + PS.pesosDe(v.subtotal) + (v.cuenta ? ' · ' + v.cuenta : '')
+  const cifra = t === 'cobro' ? 'saldo ' + PS.pesosDe(v.saldo) : t === 'abono' ? 'por pagar ' + PS.pesosDe(v.restante)
+    : t === 'datos' ? 'subtotal ' + PS.pesosDe(v.subtotal)
     : 'saldo ' + PS.pesosDe(v.saldo) + ', comisión ' + PS.pesosDe(v.restante);
+  return v.folio + ' · ' + cifra + ' · ' + v.nombre + (t === 'datos' && v.cuenta ? ' · ' + v.cuenta : '') + (v.cancelada ? ' · cancelada' : '');
 }
 function detalleVenta(t, v) {
   if (!v) return '';
+  if (v.cancelada) return '<b class="pg-cancelada">Venta cancelada («No se dio»).</b> ' + detalleVivo(t, v);
+  return detalleVivo(t, v);
+}
+function detalleVivo(t, v) {
   /* Lo que la base tiene AHORA (se repinta cuando otro teléfono la cambia): contra esto se ve lo que se va a corregir. */
   if (t === 'datos') {
     return 'En la base: subtotal ' + PS.pesosDe(v.subtotal) + ' · ' + (v.iva ? 'con IVA' : 'sin IVA') + ' · neto ' + PS.pesosDe(v.neto) +
@@ -299,8 +353,6 @@ function detalleVenta(t, v) {
   const com = 'Comisión ' + PS.pesosDe(v.comision) + ' · abonado ' + PS.pesosDe(v.abonado) + ' · por pagar ' + PS.pesosDe(v.restante);
   return t === 'cobro' ? cobro : t === 'abono' ? com : cobro + '<br>' + com;
 }
-const conSaldo = (a, b) => (b.saldo > 0.004) - (a.saldo > 0.004);
-const conComision = (a, b) => (b.restante > 0.004) - (a.restante > 0.004);
 
 function campoTexto(t, k, etiqueta, valor, o = {}) {
   return '<div class="fld" data-pg-fld="' + k + '"><label for="' + idDe(t, k) + '">' + etiqueta + '</label>' +
@@ -312,20 +364,25 @@ function campoTexto(t, k, etiqueta, valor, o = {}) {
     (o.ayuda ? '<p class="pf-nota pg-ayuda" id="' + idDe(t, k) + '-a">' + o.ayuda + '</p>' : '') + msg(t, k) + '</div>';
 }
 
-function campoLista(t, k, etiqueta, opciones, valor, vacio) {
+function campoLista(t, k, etiqueta, opciones, valor, vacio, o = {}) {
   return '<div class="fld" data-pg-fld="' + k + '"><label for="' + idDe(t, k) + '">' + etiqueta + '</label>' +
-    '<select id="' + idDe(t, k) + '" data-pg-campo="' + k + '" aria-describedby="' + idDe(t, k) + '-m">' +
+    '<select id="' + idDe(t, k) + '" data-pg-campo="' + k + '" aria-describedby="' + idDe(t, k) + '-m"' + (o.apagado ? ' disabled' : '') + '>' +
     (vacio ? '<option value="">' + esc(vacio) + '</option>' : '') +
     opciones.map(o => '<option value="' + esc(o.v) + '"' + (o.v === valor ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('') +
     '</select>' + msg(t, k) + '</div>';
 }
 
+/* El aviso de cada formulario. Un envío que quedó sin respuesta trae su aviso aunque la pantalla se haya recargado o la app se haya
+   cerrado en medio (el borrador incierto sobrevive en el aparato; `_aviso` vive en memoria): sin él, el formulario volvía con los
+   datos tecleados y nada que dijera que el envío anterior pudo haber llegado (auditoría 2026-10-25, DN-7). */
 function htmlAviso(t) {
-  const a = _aviso[t];
+  const enDuda = !!borradores()[t].incierto;
+  const a = _aviso[t] || (enDuda ? { tono: 'av', incierto: true, texto: 'El último envío de este formulario se quedó sin respuesta de la base: puede que sí se ' +
+    'haya registrado. Antes de nada toca «Volver a leer las ventas» y revisa el saldo; «Reintentar con los mismos datos» no lo suma dos veces.' } : null);
   if (!a) return '<div class="pg-aviso" id="pg-' + t + '-aviso" tabindex="-1"></div>';
-  const extra = a.incierto && borradores()[t].incierto
+  const extra = a.incierto && enDuda
     ? '<div class="pf-acciones pg-incierto"><button type="submit" class="btn btn-pri">Reintentar con los mismos datos</button>' +
-      '<button type="button" class="btn btn-gho" data-pg-act="olvidar">' + (t === 'datos' ? 'Empezar otra corrección' : 'Empezar otro asiento') + '</button></div>' : '';
+      '<button type="button" class="btn btn-gho" data-pg-act="olvidar">' + (t === 'datos' ? 'Empezar otra corrección' : 'Empezar otro registro') + '</button></div>' : '';
   return '<div class="pg-aviso" id="pg-' + t + '-aviso" tabindex="-1"><p class="hintnote nota-' + a.tono + '"' +
     (a.tono === 'ok' ? ' role="status"' : ' role="alert"') + '>' + esc(a.texto) + '</p>' + extra + '</div>';
 }
@@ -341,22 +398,28 @@ function formCobro() {
   const t = 'cobro', c = borradores()[t].campos, modo = c.modo === 'anticipo' ? 'anticipo' : 'cobro';
   const v = venta(c.proyecto);
   const liquidar = c.liquidarTocado ? !!c.liquidar : PS.sugerirLiquidar(v, c.monto);
+  /* En palabras de quien cobra (auditoría 2026-10-25, DN-5): lo de todos los días es el pago que el cliente hace DESPUÉS del anticipo
+     (la base lo suma a la liquidación); fijar el anticipo es una corrección. El anticipo de una venta del Cotizador ya quedó registrado
+     al venderla: cobrarlo otra vez como pago lo contaría dos veces. */
   return '<form class="pg-form" data-pg-tipo="cobro" novalidate>' +
-    segmento([{ v: 'cobro', t: 'Cobro (se suma)' }, { v: 'anticipo', t: 'Anticipo (total)' }], modo, 'data-pg-modo', 'Qué es') +
-    selectVenta(t, c, conSaldo) +
-    campoTexto(t, 'monto', modo === 'anticipo' ? 'Anticipo total de la venta' : 'Monto cobrado', c.monto, {
-      decimal: true, ayuda: modo === 'anticipo' ? 'Es el anticipo COMPLETO, no lo que se agrega: reemplaza al de ahora.' : 'En pesos, con centavos si los hay. Se suma a la liquidación.' }) +
+    segmento([{ v: 'cobro', t: 'Pago del cliente' }, { v: 'anticipo', t: 'Corregir el anticipo' }], modo, 'data-pg-modo', 'Qué es') +
+    '<p class="pf-nota pg-modo-nota">' + (modo === 'anticipo'
+      ? 'Solo cuando el anticipo registrado está mal: se escribe el anticipo TOTAL correcto y reemplaza al de ahora.'
+      : 'Lo que el cliente paga después del anticipo. El anticipo de una venta del Cotizador ya quedó registrado al venderla: no se cobra aquí otra vez.') + '</p>' +
+    selectVenta(t, c) +
+    campoTexto(t, 'monto', modo === 'anticipo' ? 'Anticipo total de la venta' : 'Monto que pagó', c.monto, {
+      decimal: true, ayuda: modo === 'anticipo' ? 'Es el anticipo COMPLETO, no lo que se agrega: reemplaza al de ahora.' : 'En pesos, con centavos si los hay. Se suma a lo ya pagado después del anticipo.' }) +
     (modo === 'cobro'
-      ? campoTexto(t, 'fecha', 'Fecha del cobro', c.fecha, { tipo: 'date', max: hoy(), ayuda: 'Vacía es hoy.' }) +
+      ? campoTexto(t, 'fecha', 'Fecha del pago', c.fecha, { tipo: 'date', max: hoy(), ayuda: 'Vacía es hoy.' }) +
         '<div class="fld pg-check"><label><input type="checkbox" data-pg-campo="liquidar"' + (liquidar ? ' checked' : '') + '> ' +
-        'Marcar la venta como LIQUIDADA</label><p class="pf-nota">Se marca sola cuando con este cobro el saldo queda en ceros.</p></div>'
+        'Marcar la venta como LIQUIDADA</label><p class="pf-nota">Se marca sola cuando con este pago el saldo queda en ceros.</p></div>'
       : '') +
-    boton(t, modo === 'anticipo' ? 'Fijar anticipo…' : 'Registrar cobro…') + htmlAviso(t) + '</form>';
+    boton(t, modo === 'anticipo' ? 'Corregir el anticipo…' : 'Registrar el pago…') + htmlAviso(t) + '</form>';
 }
 
 function formAbono() {
   const t = 'abono', c = borradores()[t].campos;
-  return '<form class="pg-form" data-pg-tipo="abono" novalidate>' + selectVenta(t, c, conComision) +
+  return '<form class="pg-form" data-pg-tipo="abono" novalidate>' + selectVenta(t, c) +
     campoTexto(t, 'monto', 'Monto del abono', c.monto, { decimal: true, ayuda: 'En positivo y menos de $10,000,000.00.' }) +
     campoTexto(t, 'fecha', 'Fecha', c.fecha, { tipo: 'date', max: hoy(), ayuda: 'Vacía es hoy.' }) +
     campoTexto(t, 'nota', 'Nota (opcional)', c.nota, { largo: PS.TOPE_NOTA }) +
@@ -379,11 +442,21 @@ function htmlPrevia() {
   if (!_vp) return '';
   const filas = Array.isArray(_vp.filas) ? _vp.filas : [];
   if (!filas.length) return '<p class="hintnote nota-av">No hay comisiones pendientes que abonar.</p>';
+  const canc = filas.filter(x => x.cancelada);
   return '<div class="pg-tabla-caja" tabindex="0" role="region" aria-label="Reparto calculado"><table class="pg-tabla"><caption>Reparto de ' + PS.pesosDe(_vp.monto) + '</caption><thead><tr><th scope="col">Venta</th>' +
     '<th scope="col">Pendiente</th><th scope="col">Se abona</th><th scope="col">Queda</th></tr></thead><tbody>' +
-    filas.map(x => '<tr><th scope="row">' + esc(x.folio) + ' <small>' + esc(x.nombre || '') + '</small></th><td>' + PS.pesosDe(x.pend) +
+    filas.map(x => '<tr><th scope="row">' + esc(x.folio) + ' <small>' + esc(x.nombre || '') + '</small>' +
+      (x.cancelada ? ' <span class="pf-sem grave">cancelada</span>' : '') + '</th><td>' + PS.pesosDe(x.pend) +
       '</td><td><b>' + PS.pesosDe(x.abono) + '</b></td><td>' + PS.pesosDe(x.queda) + '</td></tr>').join('') +
-    '</tbody></table></div>' + (Number(_vp.sobrante) > 0.004 ? '<p class="pf-nota">Sobran ' + PS.pesosDe(_vp.sobrante) + ' que no se aplican.</p>' : '');
+    '</tbody></table></div>' + (Number(_vp.sobrante) > 0.004 ? '<p class="pf-nota">Sobran ' + PS.pesosDe(_vp.sobrante) + ' que no se aplican.</p>' : '') +
+    (canc.length ? '<p class="hintnote nota-mal" role="alert">OJO: ' + esc(canc.map(x => x.folio).join(', ')) +
+      (canc.length === 1 ? ' es una venta cancelada' : ' son ventas canceladas') + ' («No se dio»). Revisa antes de repartir: un reparto no se deshace.</p>' : '');
+}
+/* Cada renglón de la vista previa con su venta: la base lo da por folio y nombre; aquí se le pone si está cancelada (DN-2). */
+function conCanceladas(vp) {
+  if (!vp || !Array.isArray(vp.filas)) return vp;
+  const porFolio = new Map((_ventas || []).map(v => [v.folio, v]));
+  return { ...vp, filas: vp.filas.map(x => ({ ...x, cancelada: !!(porFolio.get(String(x.folio)) || {}).cancelada })) };
 }
 
 function formCorreccion() {
@@ -395,13 +468,13 @@ function formCorreccion() {
     '<p class="pf-nota">Nada se borra. Un abono se corrige con un renglón nuevo (en negativo para restar); la liquidación se ' +
     'corrige escribiendo el total correcto, y la base guarda el valor de antes en su bitácora.' +
     (esDir ? '' : ' Corregir abonos de comisión es solo de Dirección.') + '</p>' +
-    segmento(opciones, que, 'data-pg-que', 'Qué corregir') + selectVenta(t, c, conComision) +
+    segmento(opciones, que, 'data-pg-que', 'Qué corregir') + selectVenta(t, c) +
     (que === 'abono'
       ? campoTexto(t, 'monto', 'Importe de la corrección', c.monto, { decimal: true, ayuda: 'Con signo menos para restar, por ejemplo -500.' }) +
         campoTexto(t, 'fecha', 'Fecha', c.fecha, { tipo: 'date', max: hoy(), ayuda: 'Vacía es hoy.' }) +
         campoTexto(t, 'nota', 'Por qué se corrige', c.nota, { largo: PS.TOPE_NOTA })
       : campoTexto(t, 'monto', 'Liquidación total correcta', c.monto, { decimal: true, ayuda: 'El total cobrado después del anticipo, no la diferencia.' })) +
-    boton(t, que === 'abono' ? 'Asentar corrección…' : 'Corregir liquidación…') + htmlAviso(t) + '</form>';
+    boton(t, que === 'abono' ? 'Registrar la corrección…' : 'Corregir liquidación…') + htmlAviso(t) + '</form>';
 }
 
 /* Los datos de una venta (paso 6): solo Dirección, solo con la base mandando. Cada campo arranca con lo que la base tiene ahora
@@ -411,6 +484,10 @@ function formDatos() {
   const v = venta(c.proyecto);
   const ahora = PS.valoresDeLaVenta(v);
   const val = k => (c[k] !== undefined && c[k] !== null ? c[k] : (ahora[k] !== undefined ? ahora[k] : ''));
+  /* El IVA lo pone la cuenta mientras la venta no quede LIQUIDADA (la regla de la base, `normalizar_iva`): el desplegable enseña el que
+     va a poner y no se toca. Antes se quedaba en el de antes mientras la nota decía el nuevo (auditoría 2026-10-25, DN-8). */
+  const loPoneLaCuenta = !!val('cuenta') && val('estatus') !== 'LIQUIDADO';
+  const ivaVisto = loPoneLaCuenta ? (val('cuenta') === PS.CUENTA_SIN_IVA ? 'no' : 'si') : val('iva');
   const campos = !v ? '' :
     campoTexto(t, 'nombre', 'Nombre de la venta', val('nombre'), { largo: PS.TOPE_NOMBRE_VENTA }) +
     '<div class="pg-dos">' +
@@ -420,9 +497,10 @@ function formDatos() {
     '<p class="pf-nota" id="pg-datos-iva-nota">' + esc(notaIva(val('cuenta'))) + '</p>' +
     '<div class="pg-dos">' +
       campoLista(t, 'estatus', 'Estatus', PS.ESTATUS.map(x => ({ v: x, t: x })), val('estatus'), v.estatus ? '' : 'Sin estatus') +
-      campoLista(t, 'iva', 'IVA', [{ v: 'si', t: 'Con IVA (16 %)' }, { v: 'no', t: 'Sin IVA' }], val('iva')) +
+      campoLista(t, 'iva', 'IVA', [{ v: 'si', t: 'Con IVA (16 %)' }, { v: 'no', t: 'Sin IVA' }], ivaVisto, '', { apagado: loPoneLaCuenta }) +
     '</div>' +
-    '<p class="pf-nota">El IVA lo pone la cuenta; a mano, solo en una venta LIQUIDADA.</p>' +
+    '<p class="pf-nota">' + (loPoneLaCuenta ? 'El IVA lo pone la cuenta. A mano, solo en una venta LIQUIDADA.'
+      : 'Venta LIQUIDADA (o sin cuenta): el IVA se puede poner a mano.') + '</p>' +
     '<div class="pg-dos">' +
       campoTexto(t, 'fliq', 'Fecha de liquidación', val('fliq'), { tipo: 'date', max: hoy(), ayuda: 'Vacía: sin fecha.' }) +
       campoTexto(t, 'pct', '% de comisión pactado', val('pct'), { pista: '10', largo: 6,
@@ -431,8 +509,8 @@ function formDatos() {
   return '<form class="pg-form" data-pg-tipo="datos" novalidate>' +
     '<p class="pf-nota">Para lo que quedó mal en una venta: el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación o el % ' +
     'pactado. Cada campo trae lo que tiene la base; se manda solo lo que cambies, y antes se pregunta con lo de antes y lo de después. El anticipo ' +
-    'se fija en «Cobro o anticipo» y la liquidación en «Corregir».</p>' +
-    selectVenta(t, c, () => 0) + campos + msg(t, 'cambios') +
+    'se corrige en «Cobro de una venta» → «Corregir el anticipo» y la liquidación en «Corregir».</p>' +
+    selectVenta(t, c) + campos + msg(t, 'cambios') +
     boton(t, 'Corregir la venta…') + htmlAviso(t) + '</form>';
 }
 
@@ -489,9 +567,20 @@ function alEscribir(ev) {
   const t = ev.target, k = t && t.dataset && t.dataset.pgCampo, tipo = formDe(t);
   if (!k || !tipo) return;
   /* Otra venta en «Datos de la venta»: sus campos arrancan otra vez con lo que tiene la base (lo tecleado era de la otra). */
+  /* El buscador de la venta (DN-6): solo cambia qué opciones tiene el desplegable, en su lugar, sin repintar (no se le mueve el cursor). */
+  if (k === 'buscar') {
+    const cb = borradores()[tipo].campos;
+    cb.buscar = t.value;
+    const sel = _el && _el.querySelector('#' + idDe(tipo, 'proyecto'));
+    if (sel) sel.innerHTML = opcionesVenta(tipo, cb);
+    const n = _el && _el.querySelector('#' + idDe(tipo, 'cuantas'));
+    if (n) n.textContent = cuantasVentas(cb);
+    guardar();
+    return;
+  }
   if (tipo === 'datos' && k === 'proyecto') {
     if (borradores().datos.campos.proyecto === t.value) return;
-    borradores().datos.campos = { proyecto: t.value };
+    borradores().datos.campos = { proyecto: t.value, buscar: borradores().datos.campos.buscar };
     delete _aviso.datos;
     guardar(); repintar();
     return;
@@ -514,7 +603,14 @@ function alEscribir(ev) {
     if (ck) ck.checked = PS.sugerirLiquidar(venta(c.proyecto), c.monto);
   }
   if (tipo === 'venta' && k === 'cuenta') { const n = _el && _el.querySelector('#pg-venta-iva'); if (n) n.textContent = notaIva(c.cuenta); }
-  if (tipo === 'datos' && k === 'cuenta') { const n = _el && _el.querySelector('#pg-datos-iva-nota'); if (n) n.textContent = notaIva(c.cuenta); }
+  /* «Datos de la venta»: con otra cuenta o otro estatus, el IVA que se ve es el que pondrá la base; lo que se hubiera puesto a mano
+     se suelta mientras la venta no quede LIQUIDADA (la base no lo dejaría). */
+  if (tipo === 'datos' && (k === 'cuenta' || k === 'estatus')) {
+    const v = venta(c.proyecto), estatus = c.estatus != null ? c.estatus : (v && v.estatus);
+    if (estatus !== 'LIQUIDADO' && c.iva != null) delete c.iva;
+    guardar(); repintar();
+    return;
+  }
   guardar();
   /* La entrega decide qué se pide (dirección, destino o nada; la liga solo si se instala), como el diálogo de la hoja. */
   if (tipo === 'venta' && k === 'entrega' && antes !== c.entrega) repintar();
@@ -550,7 +646,7 @@ async function verPrevia() {
   const Supa = await import('../nucleo/supa.js');
   const r = await PS.vistaPrevia(await Supa.cliente(), c.monto);
   if (!r.ok) { marcarError(form, 'reparto', 'monto', r.mensaje, true); return; }
-  _vp = r.data;
+  _vp = conCanceladas(r.data);
   const p = _el && _el.querySelector('#pg-reparto-previa');
   if (p) p.innerHTML = htmlPrevia();
   const n = Array.isArray(_vp.filas) ? _vp.filas.length : 0;
@@ -559,10 +655,10 @@ async function verPrevia() {
 
 async function olvidar() {
   const datos = _form === 'datos';
-  const si = await confirmarPf({ titulo: datos ? '¿Empezar otra corrección?' : '¿Empezar otro asiento?', peligro: true, si: 'Empezar otro', no: 'Cancelar',
+  const si = await confirmarPf({ titulo: datos ? '¿Empezar otra corrección?' : '¿Empezar otro registro?', peligro: true, si: 'Empezar otro', no: 'Cancelar',
     texto: datos
       ? 'No sabemos si la corrección anterior llegó. Antes de empezar otra, revisa lo que tiene la venta en la base (Volver a leer las ventas).'
-      : 'No sabemos si el envío anterior llegó. Si llegó y vuelves a mandar lo mismo como asiento nuevo, quedará DOS veces. ' +
+      : 'No sabemos si el envío anterior llegó. Si llegó y vuelves a mandar lo mismo como registro nuevo, quedará DOS veces. ' +
         'Antes revisa el saldo de la venta (Volver a leer las ventas).' });
   if (!si) return;
   const proyecto = borradores()[_form].campos.proyecto;
@@ -574,6 +670,9 @@ async function olvidar() {
 
 function alEnviar(ev) {
   ev.preventDefault();
+  /* Enter en el buscador de la venta no manda el formulario: es para buscar. */
+  const a = typeof document !== 'undefined' ? document.activeElement : null;
+  if (a && a.dataset && a.dataset.pgCampo === 'buscar') return;
   const tipo = formDe(ev.target);
   if (tipo) enviarForm(tipo, ev.target);
 }
@@ -593,7 +692,7 @@ async function repartoAlDia(form, monto) {
   } finally { _preparando = false; }
   if (!r.ok) { marcarError(form, 'reparto', 'monto', r.mensaje, true); return false; }
   if (PS.mismoReparto(_vp, r.data)) return true;
-  _vp = r.data;
+  _vp = conCanceladas(r.data);
   _aviso.reparto = { tono: 'av', texto: 'El reparto cambió desde que lo viste (alguien registró un abono). Revisa el de ahora y vuelve a tocar «Repartir…». No se repartió nada.' };
   repintar();
   enfocar('#pg-reparto-aviso');
@@ -621,12 +720,17 @@ async function enviarForm(tipo, form) {
     if (campo) campo.focus(); else voz(p.errores[p.primero], true);
     return;
   }
+  /* Algo cambió después de un envío sin respuesta: se dice QUÉ (auditoría 2026-10-25, DN-1) y lo seguro es «Cancelar», que es
+     el botón con el foco al abrir la pregunta (Enter cancela). Lo que la pantalla calcula sola ya no cuenta como cambio: la casilla
+     LIQUIDADA se congeló con el valor que se mandó (`PS.despuesDeEnviar`). */
   if (PS.opIdPara(b, p).cambio) {
+    const cambios = PS.queCambio(b, p);
+    const que = cambios.length ? 'Cambiaste ' + cambios.join(', ') + '. ' : '';
     const si = await confirmarPf({ titulo: 'Cambiaste los datos de un envío que no sabemos si llegó', peligro: true,
-      si: tipo === 'datos' ? 'Mandar la corrección nueva' : 'Mandarlo como asiento nuevo', no: 'Cancelar',
-      texto: tipo === 'datos'
-        ? 'Si la corrección anterior sí llegó, la venta ya tiene aquellos datos y esto la vuelve a corregir con los nuevos. Antes revisa lo que tiene la venta.'
-        : 'Si el envío anterior sí llegó, esto registra OTRO asiento además de aquel. Antes revisa el saldo de la venta.' });
+      si: tipo === 'datos' ? 'Mandar la corrección nueva' : 'Mandarlo como registro nuevo', no: 'Cancelar',
+      texto: que + (tipo === 'datos'
+        ? 'Si la corrección anterior sí llegó, la venta ya tiene aquellos datos y esto la vuelve a corregir con los nuevos. Lo seguro es Cancelar y revisar lo que tiene la venta (Volver a leer las ventas).'
+        : 'Si el envío anterior sí llegó, esto registra OTRO además de aquel. Lo seguro es Cancelar, tocar «Volver a leer las ventas» y revisar el saldo de la venta.') });
     if (!si) return;
     PS.renovar(b); guardar();
     p = armar();
@@ -645,8 +749,20 @@ async function enviarForm(tipo, form) {
     if (!q) return;
     p = q;
   }
-  if (!await confirmarPf({ titulo: p.titulo, si: p.si, no: 'Cancelar', peligro: !!p.peligro,
-    texto: (reintento ? 'Es el REINTENTO del envío anterior, con el mismo número de operación: si ya había llegado, no se registra otra vez. ' : '') + p.texto })) return;
+  /* En el reintento de un pago: si el saldo de la venta ya no es el que se vio al mandarlo, lo más seguro es que el primero sí llegó. */
+  const m = b.mandado, vAhora = venta(c.proyecto);
+  const saldoMovio = reintento && tipo === 'cobro' && m && m.saldo != null && vAhora &&
+    Math.round(Number(vAhora.saldo || 0) * 100) !== Math.round(Number(m.saldo) * 100);
+  /* Y entonces las cifras del plan («la liquidación pasa de $2,000 a $4,000», «OJO: es más que el saldo») serían las de un pago
+     NUEVO sobre el saldo de ahora, que no es lo que pasa: el reintento con el mismo op_id no suma nada si el primero llegó. */
+  const pregunta = saldoMovio
+    ? { titulo: '¿Reintentar el envío de ' + PS.pesosDe(p.args.p_monto) + '?', si: 'Reintentar', peligro: false,
+        texto: (vAhora.folio + ' · ' + vAhora.nombre + '. ') + 'El saldo de esta venta ya cambió desde ese envío (' + PS.pesosDe(m.saldo) + ' → ' +
+          PS.pesosDe(vAhora.saldo) + '): lo más seguro es que el primero SÍ llegó. El reintento va con el mismo número de operación: si ya ' +
+          'había llegado, la base contesta lo de la primera vez y no lo suma otra vez.' }
+    : { titulo: p.titulo, si: p.si, peligro: !!p.peligro,
+        texto: (reintento ? 'Es el REINTENTO del envío anterior, con el mismo número de operación: si ya había llegado, no se registra otra vez. ' : '') + p.texto };
+  if (!await confirmarPf({ ...pregunta, no: 'Cancelar' })) return;
   if (_enviando) return;
   _enviando = true;
   const btn = form.querySelector('[data-pg-enviar]');

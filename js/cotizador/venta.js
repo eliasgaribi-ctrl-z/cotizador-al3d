@@ -7,7 +7,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   155 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -111,9 +111,12 @@ function revisarIvaDeLaCuenta(){
   const c=cuentaElegida();
   if(!c||cuentaCoincide(c,Q.iva)){ av.hidden=true; av.textContent=''; return; }
   const neto=money(precioFinal());
+  /* Con la base mandando quien realinea es la base: el IVA de la venta lo decide la cuenta, igual que en «Venta sin
+     cotización» y en «Datos de la venta» (0028; auditoría 2026-10-25, CZ-5). Lo que pasa con el dinero es lo mismo. */
+  const quien=laBaseManda()?'la base':'la hoja';
   const t=Q.iva
-    ? 'La cotización lleva IVA y '+c+' cobra sin factura: la hoja le quita el IVA y el neto registrado no será el del PDF ('+neto+').'
-    : 'La cotización va sin IVA y '+c+' cobra con factura: la hoja le suma el 16 % y el neto registrado no será el del PDF ('+neto+').';
+    ? 'La cotización lleva IVA y '+c+' cobra sin factura: '+quien+' le quita el IVA (lo decide la cuenta) y el neto registrado no será el del PDF ('+neto+').'
+    : 'La cotización va sin IVA y '+c+' cobra con factura: '+quien+' le suma el 16 % (lo decide la cuenta) y el neto registrado no será el del PDF ('+neto+').';
   if(av.textContent!==t){ av.textContent=t; voz(t); }
   av.hidden=false;
 }
@@ -160,7 +163,7 @@ function abrirRegistrarVenta(){
      aparato, así que un teléfono que alguna vez registró un 15 lo seguía enseñando. */
   const elPct=document.getElementById('rv-pct');
   elPct.value=COMISION_PCT; elPct.readOnly=true;
-  elPct.title='La comisión es '+COMISION_PCT+' % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas';
+  elPct.title='La comisión es '+COMISION_PCT+' % fijo del subtotal, sin IVA: la misma que '+(laBaseManda()?'registra la base':'calcula la hoja de finanzas');
   document.getElementById('rv-estatus').value='FABRICACION';
   /* La cuenta casi nunca cambia y se volvía a poner en cada venta: la preferencia guardada la
      elige, y pintarCuentas() ordena las cinco con la que corresponde al IVA de esta cotización
@@ -184,7 +187,15 @@ function abrirRegistrarVenta(){
   /* Y si el intento anterior se quedó en «No se registró · Reintentar», el botón vuelve a su
      rótulo: el modal se abre limpio, no a medio camino de una venta de hace media hora. */
   try{ Piezas.estadoBoton('rv-registrar').reiniciar(); }catch(_){}
-  document.getElementById('rv-modal-bg').classList.add('show');
+  /* Con la base mandando, Fabricación no da de alta ventas (la matriz de la base): se dice ANTES de tocar, y el botón no
+     deja constancia que la bandeja tendría que apartar después (auditoría 2026-10-25, CZ-1). */
+  const vetada=ventaVetadaAqui();
+  const avBase=document.getElementById('rv-base-av');
+  if(avBase){ avBase.textContent=vetada?RV_VETADA:''; avBase.hidden=!vetada; }
+  const btnReg=document.getElementById('rv-registrar'); if(btnReg) btnReg.disabled=vetada;
+  const fondo=document.getElementById('rv-modal-bg');
+  if(fondo.setAttribute) fondo.setAttribute('aria-label',laBaseManda()?'Registrar la venta':'Registrar la venta en la hoja de finanzas');
+  fondo.classList.add('show');
 }
 /* ----- El recibo verde del pie del modal -----
    `texto` null lo apaga (al abrir); con texto lo enciende y dibuja la palomita en ese momento
@@ -193,6 +204,7 @@ function abrirRegistrarVenta(){
    `html` es para el respaldo de copiar, que nombra dos columnas en negritas. */
 function rvListo(texto,html){
   const el=document.getElementById('rv-copied'); if(!el) return;
+  el.classList.remove('mal','av');
   if(texto==null&&html==null){
     el.classList.remove('show');
     const ico=el.querySelector('.rv-copied-ico'); if(ico) ico.innerHTML='';
@@ -203,6 +215,29 @@ function rvListo(texto,html){
   const ico=el.querySelector('.rv-copied-ico');
   if(ico) ico.innerHTML=Piezas.palomitaHTML({circulo:true});
   el.classList.add('show');
+  rvVerRecibo(el);
+}
+/* El recibo vive al pie del modal y en una pantalla de escritorio quedaba fuera de la vista: el resultado de la venta
+   pasaba sin que nadie lo viera (auditoría 2026-10-25, CZ-11). Se trae a la vista, sin animar con menos movimiento. */
+function rvVerRecibo(el){
+  try{
+    const quieto=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({block:'nearest',behavior:quieto?'auto':'smooth'});
+  }catch(_){}
+}
+/* El mismo hueco del recibo, para decir que la venta NO entró (`mal`) o que algo no se cambió desde aquí (`av`): sin
+   palomita y en su tono. */
+function rvNoEntro(texto,tono){
+  const el=document.getElementById('rv-copied'); if(!el) return;
+  const t=el.querySelector('span:not(.rv-copied-ico)'); if(t) t.textContent=texto;
+  const ico=el.querySelector('.rv-copied-ico'); if(ico) ico.innerHTML='';
+  el.classList.remove('mal','av');
+  el.classList.add('show',tono==='av'?'av':'mal');
+  rvVerRecibo(el);
+}
+/* El botón de «Registrar venta», si la pieza está (sin ella, el botón de siempre). */
+function rvBoton(){
+  try{ const h=Piezas.estadoBoton('rv-registrar'); return h&&typeof h.ok==='function'?h:null; }catch(_){ return null; }
 }
 function cerrarRegistrarVenta(){
   document.getElementById('rv-modal-bg').classList.remove('show');
@@ -411,6 +446,17 @@ function laBaseManda(){
            /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo')||'');
   }catch(_){ return false; }
 }
+/* El área de quien entró, según el pase que presta la plataforma (con la base mandando, el área de la base). '' sin la
+   plataforma alrededor: ahí no se sabe, y no se frena nada. identidadVerificada() es de notario.js. */
+function areaDeQuienEntro(){
+  try{ const i=typeof identidadVerificada==='function'?identidadVerificada():null; return i&&i.rol?String(i.rol):''; }
+  catch(_){ return ''; }
+}
+/* Con la base mandando, Fabricación no da de alta ventas: la matriz de la base se lo niega (`ganar_proyecto`), y la
+   constancia que dejara aquí la bandeja la apartaría para siempre. Dirección y Pagos sí (0028). */
+function ventaVetadaAqui(){ return laBaseManda()&&areaDeQuienEntro()==='fabricacion'; }
+const RV_VETADA='Una venta la dan de alta Dirección o Pagos: desde este teléfono no entra a la base. '+
+  'Avísales; la cotización ya está en el historial de la empresa.';
 /* ----- La ventanilla de la base (paso 4 de docs/BASE-MANDA.md) -----
    Con la base mandando, lo que el cotizador le pide a Supabase —los precios, el historial de la empresa— lo pide
    por la ventanilla `AL3D_NUBE` que pone la plataforma (js/datos/supa-enchufe.js), igual que las imágenes
@@ -449,38 +495,59 @@ function dispDeLaCotizacion(){
    plataforma alrededor (el cotizador suelto) no hay a quién preguntar, y el recibo lo dice. */
 const RV_FOLIO_CADA=2500, RV_FOLIO_HASTA=120000;
 let _rvFolioT=0, _rvFolioDe='';
-function _rvPreguntaFolio(){ const b=_al3d(); return b&&typeof b.folioDeVenta==='function'?b:null; }
+function _rvPreguntaFolio(){ const b=_al3d(); return b&&(typeof b.estadoDeVenta==='function'||typeof b.folioDeVenta==='function')?b:null; }
+/* {folio} si la base ya le dio su V-###, {apartada: motivo} si la bandeja de la plataforma la apartó (la base no la
+   aceptó: no llega sola, hay que hacer algo), {} mientras tanto. Una plataforma de antes solo sabe del folio. */
+async function _rvEstado(b,fg){
+  if(typeof b.estadoDeVenta==='function'){ const e=await b.estadoDeVenta(fg); return e&&typeof e==='object'?e:{}; }
+  const f=String(await b.folioDeVenta(fg)||'');
+  return /^V-\d+$/.test(f)?{folio:f}:{};
+}
 function esperarFolioDeVenta(fg){
   clearTimeout(_rvFolioT); _rvFolioDe=fg;
   const b=_rvPreguntaFolio();
   if(!b){ _rvFolioDe=''; rvListo('Registrada como proyecto ganado — su folio de venta lo da la base: se ve en la plataforma'); return; }
   rvListo('Registrada como proyecto ganado — esperando su folio de la base…');
+  const boton=rvBoton(); if(boton) boton.ok('Registrada · esperando folio',{volver:0});
   const hasta=Date.now()+RV_FOLIO_HASTA;
   const preguntar=async()=>{
     if(_rvFolioDe!==fg) return;
-    let f='';
-    try{ f=String(await b.folioDeVenta(fg)||''); }catch(_){}
+    let e={};
+    try{ e=await _rvEstado(b,fg); }catch(_){}
     if(_rvFolioDe!==fg) return;
+    const f=String(e.folio||'');
     if(/^V-\d+$/.test(f)){
       _rvFolioDe='';
       rvListo('Venta registrada en la base — '+f);
+      const bt=rvBoton(); if(bt) bt.ok('Registrada · '+f,{volver:0});
       toast('La base le dio su folio de venta: '+f,'ok',5600);
+      return;
+    }
+    /* Apartada: la base no la aceptó y la bandeja no la va a reintentar. Decir «llega sola» aquí era mentir. */
+    if(e.apartada){
+      _rvFolioDe='';
+      rvNoEntro('No entró a la base: '+e.apartada);
+      const bt=rvBoton(); if(bt&&typeof bt.mal==='function') bt.mal('No entró a la base',{reintentar:'Revisar'});
+      toast('La venta no entró a la base: '+e.apartada,'err',9000);
       return;
     }
     if(Date.now()<hasta){ _rvFolioT=setTimeout(preguntar,RV_FOLIO_CADA); return; }
     _rvFolioDe='';
-    rvListo('Registrada como proyecto ganado — la base todavía no le da su folio (sin señal o sin sesión en la base): llega solo y se ve en la plataforma');
+    rvListo('Registrada como proyecto ganado — la base todavía no le da su folio: llega solo en cuanto este teléfono tenga señal y sesión en la base (Ajustes → La base de datos), y se ve en la plataforma');
   };
   return preguntar();
 }
-/* Al abrir el modal de una cotización que ya se vendió, su folio de la base en el recibo. */
+/* Al abrir el modal de una cotización que ya se vendió, su folio de la base en el recibo; o que no entró. */
 async function rvMostrarSiYaVendida(){
   const b=_rvPreguntaFolio(); if(!b) return;
   const fg=Q.folio+'@'+dispDeLaCotizacion();
-  let f='';
-  try{ f=String(await b.folioDeVenta(fg)||''); }catch(_){}
+  let e={};
+  try{ e=await _rvEstado(b,fg); }catch(_){}
+  const f=String(e.folio||'');
   const m=document.getElementById('rv-modal-bg');
-  if(/^V-\d+$/.test(f)&&m&&m.classList.contains('show')&&!_rvFolioDe) rvListo('Ya está registrada en la base — '+f);
+  if(!(m&&m.classList.contains('show'))||_rvFolioDe) return;
+  if(/^V-\d+$/.test(f)) rvListo('Ya está registrada en la base — '+f);
+  else if(e.apartada) rvNoEntro('No entró a la base: '+e.apartada);
 }
 
 /* ----- Registrar la venta en la hoja -----
@@ -614,7 +681,76 @@ function registrarEnLaHoja(cierre){
     {verbo:'Registrando', tau:9000, ok:'Registrada', mal:'No se registró',
      hermanos:[document.getElementById('rv-copiar')].filter(Boolean), voz:false});
 }
+/* ----- Lo que cambió desde que se registró -----
+   Con la hoja, volver a tocar «Registrar venta» actualizaba la fila. Con la base mandando el segundo toque no manda
+   nada —la venta ya es de la base, y la base corrige con su pregunta y su bitácora—, y el vendedor que corrigió la
+   cuenta o el anticipo en el modal creía que había quedado (auditoría 2026-10-25, CZ-2). Se dice qué no se cambió y
+   dónde se cambia. */
+function rvCambiosDesde(antes,g){
+  if(!antes||typeof antes!=='object') return [];
+  /* Solo lo que se sabe de antes: la copia de la plataforma no trae la fecha de instalación (vive en la cita). */
+  const sabe=k=>Object.prototype.hasOwnProperty.call(antes,k)&&antes[k]!=null;
+  const out=[];
+  if(sabe('cuenta')&&String(antes.cuenta)!==String(g.cuenta||'')) out.push('la cuenta');
+  if(sabe('anti')&&Math.abs((Number(antes.anti)||0)-(Number(g.anti)||0))>=0.01) out.push('el anticipo');
+  if(sabe('fecha_anticipo')&&String(antes.fecha_anticipo)!==String(g.fecha_anticipo||'')) out.push('la fecha del anticipo');
+  if(sabe('estatus')&&String(antes.estatus)!==String(g.estatus||'')) out.push('el estatus');
+  if(sabe('fecha_instalacion')&&String(antes.fecha_instalacion)!==String(g.fecha_instalacion||'')) out.push('la fecha de instalación');
+  return out;
+}
+/* La constancia ya se la llevó la plataforma (el buzón se vacía al convertirla en proyecto), pero el paso «venta» está
+   marcado: con la base mandando se le pregunta a la plataforma qué tiene de esa venta antes de dejar otra constancia.
+   Si la conoce, es el segundo toque de siempre; si no, sigue el alta normal (la base no duplica: mismo folio global). */
+function rvAvisarRegistradaEnBase(g){
+  const sinFecha=!g.fecha_instalacion;
+  toast('Registrada como proyecto ganado — la plataforma la manda a la base, que le da su folio'+
+    (sinFecha?'. Le falta la fecha de instalación':''),'ok',5600,
+    {label:'Abrir plataforma',fn:()=>{ irAPlataforma(sinFecha?'agenda':'proyectos'); }});
+  esperarFolioDeVenta(g.folio+'@'+g.disp);
+}
+/* La constancia, cuando la plataforma no conocía la venta aunque el paso estuviera marcado. */
+function rvDejarConstancia(g){
+  try{
+    const arr=JSON.parse(localStorage.getItem('al3d_pf_ganadas')||'[]');
+    const lista=Array.isArray(arr)?arr:[];
+    lista.push(g);
+    localStorage.setItem('al3d_pf_ganadas',JSON.stringify(lista));
+  }catch(_){
+    toast('No hubo espacio para registrar el proyecto — respalda y borra cotizaciones viejas del historial, y vuelve a registrarla','err',7000);
+    return;
+  }
+  marcarHito('venta');
+  rvAvisarRegistradaEnBase(g);
+}
+async function rvYaRegistradaEnLaBase(g){
+  const fg=g.folio+'@'+g.disp, b=_rvPreguntaFolio();
+  let e={}; try{ if(b) e=await _rvEstado(b,fg); }catch(_){}
+  if(!e.folio&&!e.datos&&!e.apartada) return false;
+  const cambios=rvCambiosDesde(e.datos,g);
+  if(cambios.length){ rvYaEstabaConCambios(cambios,fg); return true; }
+  toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
+    {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
+  esperarFolioDeVenta(fg);
+  return true;
+}
+function rvYaEstabaConCambios(cambios,fg){
+  const lista=cambios.length===1?cambios[0]:cambios.slice(0,-1).join(', ')+' y '+cambios[cambios.length-1];
+  const soloFecha=cambios.length===1&&cambios[0]==='la fecha de instalación';
+  const donde=soloFecha?'se cambia en el Calendario o en la ficha del proyecto'
+    :'se corrige'+(cambios.length>1?'n':'')+' en Control → Cobros y abonos'+(cambios.includes('la fecha de instalación')?' (la fecha de instalación, en el Calendario)':'');
+  const texto='La venta ya está en la base: '+lista+' no se cambi'+(cambios.length>1?'an':'a')+' desde aquí, '+donde+'.';
+  rvNoEntro(texto,'av');
+  const ir=async()=>{
+    if(soloFecha){ irAPlataforma('agenda'); return; }
+    let venta=fg;
+    try{ const b=_rvPreguntaFolio(); if(b){ const e=await _rvEstado(b,fg); if(e.folio) venta=e.folio; } }catch(_){}
+    irAPlataforma('control',{tab:'asientos',form:areaDeQuienEntro()==='direccion'?'datos':'cobro',venta});
+  };
+  toast(texto,'',9000,{label:soloFecha?'Ir al Calendario':'Ir a corregir',fn:ir});
+}
 function registrarGanada(){
+  /* Fabricación con la base mandando: el modal ya lo dice y el botón está apagado; esto es por si llega por otro lado. */
+  if(ventaVetadaAqui()){ toast(RV_VETADA,'err',8000); return; }
   rvComprometerAnticipo();
   rvRecordarPreferencias();
   const t=desgloseFinal();
@@ -648,10 +784,13 @@ function registrarGanada(){
     const lista=Array.isArray(arr)?arr:[];
     /* Apretar dos veces no crea dos proyectos. La plataforma también deduplica por folio,
        pero decirlo aquí evita que el segundo toque parezca que no hizo nada. */
-    if(lista.some(x=>x&&x.folio===g.folio&&(x.disp||'')===g.disp)){
+    const previa=lista.find(x=>x&&x.folio===g.folio&&(x.disp||'')===g.disp);
+    if(previa){
       /* Ya estaba registrada: el hito puede faltar si se registró antes de que existieran
          —o si el respaldo trajo las ganadas y no los hitos—, y lo que manda es el hecho. */
       marcarHito('venta');
+      const cambios=laBaseManda()?rvCambiosDesde(previa,g):[];
+      if(cambios.length){ rvYaEstabaConCambios(cambios,g.folio+'@'+g.disp); return; }
       /* Se reintenta la hoja aunque la constancia ya existiera: el puente busca por folio
          antes de crear, así que no puede duplicar, y este es justo el camino de «se
          registró pero ese día no había señal». */
@@ -664,6 +803,11 @@ function registrarGanada(){
         {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
       /* Con la base mandando, su folio en el recibo en cuanto lo tenga (paso 4). */
       if(laBaseManda()) esperarFolioDeVenta(g.folio+'@'+g.disp);
+      return;
+    }
+    const yaVendida=laBaseManda()&&typeof hitosDe==='function'&&hitosDe(g.folio).venta>0;
+    if(yaVendida){
+      rvYaRegistradaEnLaBase(g).then(si=>{ if(!si) rvDejarConstancia(g); });
       return;
     }
     lista.push(g);
@@ -691,12 +835,7 @@ function registrarGanada(){
      la plataforma —de ahí salen el material, la agenda y el mapa— y escribir el renglón en
      la hoja, que es el libro mayor del dinero. Se avisa UNA vez: dos avisos seguidos se
      pisan y el segundo borra al primero antes de que nadie lo lea. */
-  if(laBaseManda()){
-    toast('Registrada como proyecto ganado — la plataforma la manda a la base, que le da su folio'+
-      (sinFecha?'. Le falta la fecha de instalación':''),'ok',5600,abrir);
-    esperarFolioDeVenta(g.folio+'@'+g.disp);
-    return;
-  }
+  if(laBaseManda()){ rvAvisarRegistradaEnBase(g); return; }
   if(puenteCfg()){
     registrarEnLaHoja({sufijo:' · registrada como proyecto ganado'+(sinFecha?', le falta la fecha de instalación':''),
       accion:abrir});
@@ -714,9 +853,9 @@ function registrarGanada(){
 
    El try/catch es por si `parent` es inalcanzable —no debería, es el mismo origen— y en ese
    caso se cae al comportamiento de siempre, que funciona. */
-function irAPlataforma(ruta){
-  try{ if(parent!==window){ parent.postMessage({al3d:'ir',ruta:ruta},location.origin); return; } }catch(_){}
-  location.href='./#/'+ruta;
+function irAPlataforma(ruta,pase){
+  try{ if(parent!==window){ parent.postMessage(pase?{al3d:'ir',ruta:ruta,pase:pase}:{al3d:'ir',ruta:ruta},location.origin); return; } }catch(_){}
+  location.href='./#/'+ruta+(pase&&pase.tab?'?tab='+encodeURIComponent(pase.tab):'');
 }
 
 /* Respaldo de copiado para navegadores sin API de portapapeles (o contextos no seguros) */

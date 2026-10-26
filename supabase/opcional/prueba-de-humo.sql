@@ -27,7 +27,9 @@
 -- (el error final lo deshace, como todo lo demás: la empresa sigue en el modo en que estaba) y el bloque 1 bis la regresa a 'hoja' para probarlo.
 -- El bloque 13 (F01–F08) es de la 0027 (el dinero disponible, los clientes fiscales y las dos facturas): sin ella, F01 sale en rojo y dice que falta.
 -- El bloque 14 (G01–G05) es de opcional/constancias.sql (el bucket de las constancias de situación fiscal): sin el bucket, un solo caso que dice que
--- no aplica. Los casos: 74 sin Storage, 90 con storage.sql, 94 con storage.sql y constancias.sql.
+-- no aplica.
+-- El bloque 15 (H01–H04) es de la 0028 (lo que arregló la auditoría del 2026-10-25): sin ella, H01 sale en rojo y dice que falta.
+-- Los casos: 78 sin Storage, 94 con storage.sql, 98 con storage.sql y constancias.sql.
 
 create function pg_temp.como(p_rol text, p_uid uuid, p_correo text) returns void language plpgsql as $f$
 begin
@@ -824,6 +826,61 @@ begin
     exception when others then t := t || ' / ' || sqlstate; end;
     execute 'reset role';
     inf := inf || jsonb_build_object('caso', 'G05 Dirección ve la constancia de la prueba (1) y la persona ajena ninguna (0)', 'ok', t = '1 / 0', 'det', t);
+  end if;
+
+  -- 15) Lo que arregló la auditoría del 2026-10-25 (0028): H01–H04. Pagos da de alta la venta que viene de una cotización, solo con la base
+  --     mandando (CZ-1: H01 con la hoja, H02 con la base; su IVA lo pone la cuenta); el reparto ya no le paga a una venta cancelada (DN-2: humo1
+  --     está cancelada desde C53 y debe su comisión); y la fecha de liquidación solo avanza (DN-3). La empresa está en 'hoja' desde el bloque 1 bis:
+  --     H02 la pone en 'base' dentro de esta transacción (el error final lo deshace). Pide folios de la hoja (V-9999801, V-9999802), así que no
+  --     gasta el contador V, que el bloque 8 dejó lleno. Sin la 0028, H01 sale en rojo y dice que falta.
+  if not coalesce((interno.matriz_permisos() -> 'pagos' -> 'alta' ->> 'ganar_proyecto')::boolean, false) then
+    inf := inf || jsonb_build_object('caso', 'H01 Pagos todavía no da de alta la venta de una cotización: falta aplicar supabase/migrations/0028_auditoria_base.sql',
+                                     'ok', false, 'det', 'falta 0028');
+  else
+    if con_modo then execute 'update public.empresas set modo = ''hoja'' where id = ''al3d'''; end if;
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      r := public.ganar_proyecto(jsonb_build_object('id', 'humo-h1', 'folio_global', 'COT-9401@HUMO', 'folio_local', 'COT-9401', 'dispositivo', 'HUMO',
+             'nombre', 'Humo - Pagos con la hoja', 'venta', jsonb_build_object('sub', 1000, 'anti', 0, 'cuenta', 'Elias BBVA', 'iva', true), 'folio_hoja', 'V-9999801'), null);
+      t := coalesce(r->>'codigo', 'ok') || case when (r->>'definitivo')::boolean then ' definitivo' else '' end;
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    execute 'reset role';
+    t := t || ' / ' || (select count(*) from public.proyectos x where x.id = 'humo-h1')::text;
+    inf := inf || jsonb_build_object('caso', 'H01 con la hoja mandando, Pagos NO da de alta la venta de una cotización y no escribe nada (DATO_INVALIDO definitivo / 0)',
+                                     'ok', t = 'DATO_INVALIDO definitivo / 0', 'det', t);
+    if con_modo then execute 'update public.empresas set modo = ''base'' where id = ''al3d'''; end if;
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      r := public.ganar_proyecto(jsonb_build_object('id', 'humo-h2', 'folio_global', 'COT-9402@HUMO', 'folio_local', 'COT-9402', 'dispositivo', 'HUMO',
+             'nombre', 'Humo - Pagos con la base', 'venta', jsonb_build_object('sub', 1000, 'anti', 0, 'cuenta', 'Elias BBVA', 'iva', true), 'folio_hoja', 'V-9999802'), null);
+      t := coalesce(r->>'folio_hoja', r->>'codigo', 'sin respuesta');
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    execute 'reset role';
+    t := t || ' / ' || coalesce((select x.iva::text from public.proyectos x where x.id = 'humo-h2'), 'no entró');
+    inf := inf || jsonb_build_object('caso', 'H02 con la base mandando, Pagos SÍ, con el V-### pedido, y el IVA lo pone la cuenta (Elias BBVA: sin IVA) (V-9999802 / false)',
+                                     'ok', t = 'V-9999802 / false', 'det', t);
+    select x.folio_hoja into t2 from public.proyectos x where x.id = 'humo1';
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      select concat_ws(' / ', (select count(*) from public.ventas_calculadas v where v.proyecto_id = 'humo1' and v.t_restante > 0.004),
+                       (select count(*) from public.comisiones_pendientes c where c.folio = t2),
+                       (select count(*) from public.comisiones_pendientes c where c.folio = 'V-9999802')) into t;
+    exception when others then t := sqlstate;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'H03 el reparto ya no le paga a la venta cancelada: humo1 debe su comisión (1) pero no entra (0); la viva sí (1)',
+                                     'ok', t = '1 / 0 / 1', 'det', t);
+    perform pg_temp.como('authenticated', u_pag, 'pag@humo.test');
+    begin
+      r := public.registrar_cobro('humo-h2', 100, '2026-10-20'::date, false, 'humo-h4a', null);
+      r := public.registrar_cobro('humo-h2', 50, '2026-09-01'::date, false, 'humo-h4b', null);
+      t := concat_ws(' / ', r->>'fecha_liquidacion', r->>'liquidacion');
+    exception when others then t := sqlstate || ' ' || sqlerrm;
+    end;
+    execute 'reset role';
+    inf := inf || jsonb_build_object('caso', 'H04 un cobro con fecha más vieja no regresa la fecha de liquidación (2026-10-20 / 150)', 'ok', t = '2026-10-20 / 150', 'det', t);
   end if;
 
   -- Informe: el error es a propósito (deshace los usuarios y las filas de prueba).

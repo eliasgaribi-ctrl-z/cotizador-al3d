@@ -64,8 +64,10 @@
      · si la empresa sigue en la hoja, la hoja decide como siempre (`confirmarDeVerdad`), y eso
        pide su propio permiso de Google: un toque más, hasta el día del cambio. La hoja no se toca
        (decisión de Elías): no va a aprender a leer el token de identidad;
-     · quien no está activo en la base no entra por ella: la hoja dice, con su «fuera» y su
-       segunda opinión, lo de siempre.
+     · quien no está activo en la base no entra por ella. Con la empresa en la hoja, la hoja dice,
+       con su «fuera» y su segunda opinión, lo de siempre; con la empresa en la base, una baja o una
+       cuenta que la base no conoce es «fuera» de la base, y no se le pregunta a la hoja (auditoría
+       2026-10-25, ES-1: dar de baja en la base no sacaba a nadie).
    Con la empresa en la hoja Y este aparato sabiéndolo (`laEmpresaSigueEnLaHoja`), la puerta pone el
    botón de siempre: el de Google costaría dos toques cada mañana en vez de uno. Si el guion o el
    botón de Google no cargan en unos segundos (sin señal, bloqueado, un navegador viejo), también
@@ -171,8 +173,11 @@ const MSG = {
   FUERA: correo => ({ fuera: true,
     html: 'Entraste como <b>' + esc(correo) + '</b>, pero ese correo no tiene acceso a la ' +
           'plataforma. Pídele a Dirección que te dé de alta.' }),
-  SIN_RED_PRIMERA: aviso('Para entrar por primera vez en este aparato hace falta señal: hay que ' +
-                         'preguntarle a la hoja qué te toca hacer. Conéctate y vuelve a intentar.'),
+  /* Con la base mandando, quién te toca lo dice la base y no la hoja (auditoría 2026-10-25, ES-9). */
+  get SIN_RED_PRIMERA() {
+    return aviso('Para entrar por primera vez en este aparato hace falta señal: hay que preguntarle a la ' +
+                 (laBaseManda() ? 'base' : 'hoja') + ' qué te toca hacer. Conéctate y vuelve a intentar.');
+  },
   NUEVO_DIA: correo => avisoH('La sesión de <b>' + esc(correo) + '</b> se cerró al terminar el día. ' +
                               'Cada día se vuelve a entrar con Google: así se sabe quién usa este aparato.'),
   SIN_RED_HOY: aviso('Para entrar hoy hace falta señal: cada día se confirma con Google quién usa este ' +
@@ -183,6 +188,9 @@ const MSG = {
      captcha.js: se dice, y se deja entrar. */
   CAPTCHA_COMPROBANDO: 'Comprobando que eres una persona… En un momento puedes entrar.',
   CAPTCHA_ESPERA: 'Un momento: se está comprobando que eres una persona. Cuando termine, toca «Entrar con Google» otra vez.',
+  /* Cloudflare a veces pide marcar su casilla en vez de comprobar solo: entonces no hay «momento» que esperar, hay una
+     casilla que tocar, y decirlo es lo único que destraba la puerta (auditoría 2026-10-25, ES-6). */
+  CAPTCHA_CASILLA: 'Marca la casilla de abajo para seguir: es la comprobación de que eres una persona.',
   /* Cabe en los tres renglones que la nota tiene apartados a 360 px (pub-1). */
   CAPTCHA_ABIERTO: 'No cargó la comprobación de «no soy un robot» (falta de señal o un bloqueador de anuncios). Puedes entrar igual.',
   CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
@@ -190,8 +198,13 @@ const MSG = {
   /* El botón de Google ya dijo quién eres, pero la empresa sigue en la hoja (o la base no lo pudo decir),
      y la hoja pide su propio permiso de Google: eso abre una ventana, y una ventana solo se abre con un
      toque reciente. Es ámbar y no rojo: no es un «no», es un paso que falta. */
-  FALTA_LA_HOJA: aviso('Google ya te reconoció. Mientras la empresa siga trabajando con la hoja, la hoja pide su ' +
-                       'propio permiso de Google: toca el botón otra vez y escoge la misma cuenta.'),
+  get FALTA_LA_HOJA() {
+    return laBaseManda()
+      ? aviso('Google ya te reconoció, pero la base no contestó a tiempo. Toca el botón otra vez: si la base sigue sin ' +
+              'contestar, se entra por la hoja, que pide su propio permiso de Google (escoge la misma cuenta).')
+      : aviso('Google ya te reconoció. Mientras la empresa siga trabajando con la hoja, la hoja pide su ' +
+              'propio permiso de Google: toca el botón otra vez y escoge la misma cuenta.');
+  },
 };
 
 /* El resultado de custodiar(), para que app.js no tenga que adivinar. */
@@ -396,7 +409,15 @@ async function confirmarDeVerdad(conPantalla, alPaso) {
        eres y qué te toca lo dice la sesión de Supabase, que se renueva sola. Sin esto, con la puerta
        entrando por el botón de Google —que no deja ese permiso— la vuelta de fondo terminaba siempre
        en `sin_red` y nunca preguntaba a la base. Si la base no lo dice, sigue lo de siempre. */
-    if (!conPantalla && laBaseManda()) { const vb = await preguntarALaBase(); if (vb) return vb; }
+    if (!conPantalla && laBaseManda()) {
+      let vb = await preguntarALaBase();
+      /* Un «fuera» de la base se pregunta dos veces, como el de la hoja (abajo): solo cuenta si se repite. */
+      if (vb && vb.estado === 'fuera') {
+        await new Promise(r => setTimeout(r, MS_SEGUNDA_OPINION));
+        vb = await preguntarALaBase();
+      }
+      if (vb) return vb;
+    }
     /* El detalle del renglón es corto a propósito: la frase entera de por qué no se pudo —la
        ventana que se cerró, la que el navegador bloqueó— sale en el aviso de la puerta, y
        repetirla aquí la cortaría a media palabra en un teléfono de 360 px. */
@@ -498,12 +519,15 @@ function laBaseManda() {
 
 /**
  * Quién dice la base que soy, para el pase. null cuando la base no lo puede decir —sin sesión en ella,
- * otra cuenta que la de la puerta, sin red, una respuesta que no es explícita, o un acceso retirado—:
- * entonces pregunta la hoja, como siempre. Ahí no se deja fuera a nadie: la bandeja de ese teléfono
- * espera a que entre a la base (js/datos/supa-relevo.js), y lo que vea lo bajó de ella.
- * «Fuera» lo sigue diciendo solo la hoja, con su código (pruebas/puerta.mjs). Un acceso retirado EN LA
- * BASE no se dice aquí: lo tapa la vigilancia de js/nucleo/supa.js, con sus dos respuestas explícitas
- * separadas, y el relevo no manda nada de esa cuenta.
+ * otra cuenta que la de la puerta, sin red, una respuesta que no es explícita—: entonces pregunta la hoja,
+ * como siempre. Ahí no se deja fuera a nadie: la bandeja de ese teléfono espera a que entre a la base
+ * (js/datos/supa-relevo.js), y lo que vea lo bajó de ella.
+ *
+ * El «fuera» de la base (auditoría 2026-10-25, ES-1): con la base mandando, una cuenta dada de baja o que
+ * nunca estuvo en ella, DICHO EXPLÍCITAMENTE por la base y de la misma persona que la puerta, es «fuera».
+ * Antes caía a la hoja y entraba con su renglón de «Accesos»: dar de baja en Ajustes → La base de datos no
+ * sacaba a nadie. Quien lo pregunta por detrás lo repite (`confirmarDeVerdad`, la segunda opinión). Con la
+ * hoja mandando, «fuera» lo sigue diciendo solo la hoja (pruebas/puerta.mjs).
  */
 async function preguntarALaBase() {
   const Supa = await cargarSupa();
@@ -525,6 +549,7 @@ async function cargarSupa() {
 /** El pase que da la base, o null. Lo mismo para la vuelta de fondo (`preguntarALaBase`) que para el botón
  *  de Google de la puerta (`entrarPorLaBase`): la misma persona que la de la puerta, la empresa en 'base'
  *  (o sin decirlo, cuando este aparato ya sabía que la base manda), la cuenta activa y un área que existe. */
+const FUERA_EN_LA_BASE = ['acceso_revocado', 'sin_acceso'];
 function paseDeLaBase(Supa, a, correo) {
   if (!a || !Supa.esLaMismaPersona(a.correo, correo)) return null;
   /* La base acaba de decir que la empresa volvió a la hoja: el rol, de la hoja. */
@@ -533,7 +558,21 @@ function paseDeLaBase(Supa, a, correo) {
     Prefs.setPase({ correo, rol: a.area, hasta: Date.now() + MS_PASE, visto: Date.now(), de: 'base' });
     return { estado: 'ok', correo, rol: a.area };
   }
+  /* Una baja o una cuenta que la base no conoce no traen el modo (no son de ninguna empresa): vale lo que este
+     aparato ya sabía de quién manda. */
+  if (FUERA_EN_LA_BASE.includes(a.estado) && laBaseManda()) return { estado: 'fuera', correo };
   return null;
+}
+
+/* La base le retiró el acceso a esta cuenta EN ESTE APARATO (js/nucleo/supa.js, `bloquear`) y ahora no lo
+   puede volver a decir —sin sesión, sin red—: no se entra por la hoja. Solo la base lo levanta, al decir
+   «activo». Se lee sin cargar supa.js. */
+function cuentaRetiradaAqui() {
+  try {
+    const f = JSON.parse(localStorage.getItem('al3d_pf_supa_fuera') || 'null');
+    const c = String(Ingreso.correo() || '').trim().toLowerCase();
+    return f && c && String(f.correo || '') === c ? c : '';
+  } catch (_) { return ''; }
 }
 
 /**
@@ -587,7 +626,9 @@ async function entrarConCredencialDeVerdad(cred, alPaso) {
   paso('google', 'ok', correo);
   paso('hoja', 'trabaja', '', 'La base · qué te toca');
   const v = await entrarPorLaBase(cred, correo);
-  if (v) { paso('hoja', 'ok', ''); return v; }
+  if (v && v.estado === 'ok') { paso('hoja', 'ok', ''); return v; }
+  /* La base dijo que esta cuenta no tiene acceso (ES-1): es la respuesta, no se le pregunta a la hoja. */
+  if (v) { paso('hoja', 'mal', 'tu cuenta no tiene acceso'); return v; }
   /* La empresa sigue en la hoja, o la base no lo pudo decir: el camino de siempre. */
   paso('hoja', 'espera', '', 'La hoja · qué te toca');
   if (Ingreso.hayGesto()) return await confirmarDeVerdad(true, alPaso);
@@ -601,6 +642,8 @@ async function preguntarALaHoja() {
   if (laBaseManda()) {
     const v = await preguntarALaBase();
     if (v) return v;
+    const retirada = cuentaRetiradaAqui();
+    if (retirada) return { estado: 'fuera', correo: retirada };
   }
   const relevo = Puente.desdePrefs();
   if (!relevo) return { estado: 'sin_red' };
@@ -872,7 +915,8 @@ function arrancarPasos(caja) {
   if (!P || !P.traza || !el) return null;
   el.hidden = false;
   const t = P.traza(el.querySelector('.puerta-traza'), { reloj: 's', plegar: false });
-  if (t) { t.limpiar(); for (const x of PASOS_PUERTA) t.paso(x.clave, x.texto, 'espera'); }
+  /* Con la base mandando, a quien se le pregunta qué te toca es a la base (ES-9). */
+  if (t) { t.limpiar(); for (const x of PASOS_PUERTA) t.paso(x.clave, x.clave === 'hoja' && laBaseManda() ? 'La base · qué te toca' : x.texto, 'espera'); }
   return t;
 }
 
@@ -1087,8 +1131,13 @@ function iniciarCaptcha(caja, pide) {
       /* El botón de Google esperaba el visto bueno (`montarGoogle`): ya puede salir. */
       if (_trasCaptcha) { const f = _trasCaptcha; _trasCaptcha = null; f(); }
     },
-    /* El recuadro solo ocupa sitio cuando Cloudflare pide un clic. */
-    alInteractivo: visible => { el.dataset.interactivo = visible ? '1' : '0'; },
+    /* El recuadro solo ocupa sitio cuando Cloudflare pide un clic, y entonces la nota dice que hay que darlo:
+       «en un momento puedes entrar» esperaba algo que no iba a pasar solo (ES-6). */
+    alInteractivo: visible => {
+      el.dataset.interactivo = visible ? '1' : '0';
+      if (visible) { clearTimeout(espera); espera = 0; decir(MSG.CAPTCHA_CASILLA); }
+      else if (nota && nota.textContent === MSG.CAPTCHA_CASILLA) decir('');
+    },
   });
 }
 
@@ -1096,7 +1145,8 @@ function iniciarCaptcha(caja, pide) {
 function captchaEnEspera(caja, btn) {
   if (!btn || btn.dataset.captcha !== 'espera') return false;
   const nota = caja.querySelector('.puerta-captcha-nota');
-  if (nota) { nota.textContent = MSG.CAPTCHA_ESPERA; nota.hidden = false; }
+  const casilla = caja.querySelector('.puerta-captcha[data-interactivo="1"]');
+  if (nota) { nota.textContent = casilla ? MSG.CAPTCHA_CASILLA : MSG.CAPTCHA_ESPERA; nota.hidden = false; }
   return true;
 }
 

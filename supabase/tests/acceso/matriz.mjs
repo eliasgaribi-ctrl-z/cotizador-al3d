@@ -41,7 +41,8 @@ const MATRIZ_DEL_DISENO = {
   },
   pagos: {
     proyecto_actualizar: ['notas', 'tel'], corregir_venta: ['nombre', 'subtotal', 'anticipo', 'liquidacion', 'cuenta', 'estatus', 'fecha_liquidacion', 'pct_comision'],
-    etapas: { origen: SIN_CANCELAR, destino: SIN_CANCELAR }, instalacion: null, alta: { ganar_proyecto: false, descartar_cotizacion: false, alta_venta: true }, ve_dinero: true,
+    // 0028 (CZ-1, auditoría del 2026-10-25): Pagos da de alta la venta que viene de una cotización, como ya daba la que no (`alta_venta`).
+    etapas: { origen: SIN_CANCELAR, destino: SIN_CANCELAR }, instalacion: null, alta: { ganar_proyecto: true, descartar_cotizacion: false, alta_venta: true }, ve_dinero: true,
   },
 };
 

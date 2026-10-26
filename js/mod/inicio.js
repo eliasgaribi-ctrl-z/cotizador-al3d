@@ -126,7 +126,8 @@ async function leer() {
       Agenda.listar({ desde: hoy, hasta: hoy, vivas: true, conProyecto: true }),
       Agenda.listar({ desde: hoy, hasta: masDias(hoy, 6), vivas: true }),
       Proyectos.listar({ sinFecha: true, vivos: true }),
-      Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR }),
+      /* Con la misma regla que el Calendario: sin las de una obra que ya está en «Instalado» o después (auditoría 2026-10-25, CM-1). */
+      Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true }),
       Stock.listaCompra({}),
       Stock.bajoMinimo(),
       Proyectos.listar({ etapa: 'instalado', conPendiente: true }),
@@ -227,7 +228,8 @@ function cuentas(d, rol, veDinero) {
       /* A la hoja «Agendar», que es la lista de esos proyectos y donde se les pone día. */
       aCal({ hoja: 'agendar' }, 'abrir el Calendario')));
   }
-  if (rol === 'direccion' || rol === 'fabricacion') {
+  /* Con Material en mantenimiento no se cuenta lo que hay que comprar: llevaría a una pantalla apagada (auditoría 2026-10-25, CM-2). */
+  if ((rol === 'direccion' || rol === 'fabricacion') && !Agenda.MATERIAL_EN_MANTENIMIENTO) {
     c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0, aMat));
   }
   if (rol === 'pagos') {
@@ -241,7 +243,7 @@ function cuentas(d, rol, veDinero) {
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
       c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>');
-    } else {
+    } else if (!Agenda.MATERIAL_EN_MANTENIMIENTO) {
       c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', false, aMat));
     }
   }
@@ -477,18 +479,22 @@ function tarjetaDispositivo(d) {
   const s = Sync.estado();
   const pend = Number(d.fres && d.fres.pendientes) || 0;
   const filas = [];
+  /* Con la base mandando el relevo enchufado es el de la base, y «El puente está puesto · base» era
+     jerga para decir eso (auditoría 2026-10-25, TR-6). */
+  const base = Reglas.laBaseManda();
 
   filas.push('<div class="pf-fila">' +
     '<span class="pf-fila-ico' + (s.configurado ? ' bien' : '') + '">' +
       ico(s.configurado ? 'i-nube' : 'i-nube-off') + '</span>' +
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + (s.configurado
-        ? 'El puente está puesto' + (s.adaptador ? ' · ' + esc(s.adaptador) : '')
+        ? (base ? 'Sincroniza con la base' : 'El puente está puesto' + (s.adaptador ? ' · ' + esc(s.adaptador) : ''))
         : 'Todavía no hay puente') + '</p>' +
       '<p class="pf-fila-d">' + (s.configurado
         ? (s.ultimo_error
             ? 'El último envío falló: ' + esc(s.ultimo_error)
-            : 'Los cambios de este dispositivo se van solos cuando hay señal.')
+            : base ? 'Los cambios de este dispositivo se van solos a la base cuando hay señal.'
+                   : 'Los cambios de este dispositivo se van solos cuando hay señal.')
         /* El puente existe —vive en la propia hoja de Google, como Apps Script— y lo que
            falta es enchufarlo en este dispositivo. «Cuando exista el Worker» describía el
            diseño anterior y contradice a la tarjeta de Ajustes, que ya explica los pasos. */
@@ -537,7 +543,7 @@ function publicarCuentas(d) {
   const ids = new Set();
   for (const f of d.porComprar) if (f.material_id) ids.add(f.material_id);
   for (const b of d.bajo) if (b.material_id || b.id) ids.add(b.material_id || b.id);
-  _ctx.ponerCuenta('material', ids.size);
+  _ctx.ponerCuenta('material', Agenda.MATERIAL_EN_MANTENIMIENTO ? 0 : ids.size);
 }
 
 /* ----- La barra fija del teléfono -----
@@ -701,7 +707,11 @@ async function ejecutar(ac) {
          prometía copiar. */
       if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
       else if (_ctx) _ctx.ir('proyectos');
-      toast('Usa «Copiar datos para la hoja» en la ficha', '', 5200);
+      /* Con la base mandando no se copia nada a la hoja: la venta espera su V-### de la base (un
+         aviso guardado de antes del cambio todavía puede traer esta acción). */
+      toast(Reglas.laBaseManda()
+        ? 'La venta espera su folio de la base: sale solo en cuanto el teléfono tenga señal. No la copies a la hoja.'
+        : 'Usa «Copiar datos para la hoja» en la ficha', '', 5200);
       return;
 
     /* ----- El estatus de una venta que YA está en la hoja -----
@@ -713,7 +723,9 @@ async function ejecutar(ac) {
     case 'estatus':
       if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
       else if (_ctx) _ctx.ir('proyectos');
-      toast('Pon «Estatus en la hoja» en ' + (dd.estatus || 'COBRANDO') + ' en la ficha. No copies la fila: la venta ya está en la hoja.', '', 6000);
+      toast(Reglas.laBaseManda()
+        ? 'Pon su estatus de cobro en ' + (dd.estatus || 'COBRANDO') + ' en la ficha: se guarda en la base.'
+        : 'Pon «Estatus en la hoja» en ' + (dd.estatus || 'COBRANDO') + ' en la ficha. No copies la fila: la venta ya está en la hoja.', '', 6000);
       return;
 
     /* ----- La venta y la hoja no cuadran (A15) -----

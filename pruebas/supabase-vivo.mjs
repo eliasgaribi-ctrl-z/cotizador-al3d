@@ -100,6 +100,36 @@ try {
     eq('una histórica lleva su fecha heredada', V.filaDeSupabase(PROY({ fecha_instalacion_hist: '2024-03-01' }), null, null)[P.fechaInst], '2024-03-01');
   }
 
+  console.log('\nLA CITA BAJA ENTERA (auditoría 2026-10-25, CM-1)');
+  {
+    const BASE = { ...INST, ventana: 'noche', duracion_min: 420, estado: 'propuesta', movida: 2, uid_ics: 'inst-inst-1@al3d.mx', notas: 'subir por atrás' };
+    const f = V.filaDeSupabase(PROY(), BASE, null);
+    eq('la fila trae la cita de la base con su ventana, duración, estado y notas', f[Pu.CITA_DE_LA_BASE],
+      { id: 'inst-1', fecha: '2026-11-02', hora: '10:00', ventana: 'noche', duracion_min: 420, estado: 'propuesta', movida: 2, uid_ics: 'inst-inst-1@al3d.mx', notas: 'subir por atrás' });
+    eq('sin cita viva, la llave va en null (no se agenda la fecha histórica)', V.filaDeSupabase(PROY({ fecha_instalacion_hist: '2026-12-01' }), null, null)[Pu.CITA_DE_LA_BASE], null);
+    const o = { hoy: '2026-10-25', ahora: 9000, nuevoId: () => 'inst-local', empresa: 'al3d' };
+    const proy = { id: 'p-local', empresa_id: 'al3d', etapa: 'cortado', tipo_trabajo: [] };
+    const nueva = Pu.citaDeHoja(f, proy, [], o);
+    eq('un teléfono sin la cita la crea TAL CUAL: la propuesta sigue siendo propuesta, de noche, 420 min, con su nota',
+      [nueva.id, nueva.proyecto_id, nueva.estado, nueva.ventana, nueva.duracion_min, nueva.notas, nueva.uid_ics, nueva.movida],
+      ['inst-1', 'p-local', 'propuesta', 'noche', 420, 'subir por atrás', 'inst-inst-1@al3d.mx', 2]);
+    const local = { id: 'inst-1', proyecto_id: 'p-local', fecha: '2026-11-02', hora: '10:00', ventana: 'dia', duracion_min: 180, estado: 'confirmada',
+      movida: 3, uid_ics: 'inst-inst-1@al3d.mx', notas: '', actualizado_en: 1000 };
+    const hecha = Pu.citaDeHoja(V.filaDeSupabase(PROY({ sellos: { instalacion: 5000 } }), { ...BASE, estado: 'hecha', ventana: 'dia', duracion_min: 180, notas: '' }, null), proy, [local], o);
+    eq('«Ya se instaló» en otro teléfono llega como hecha (misma fecha y hora), y `movida` no baja', [hecha && hecha.estado, hecha && hecha.movida], ['hecha', 3]);
+    eq('lo que ya es igual no se reescribe', Pu.citaDeHoja(V.filaDeSupabase(PROY({ sellos: { instalacion: 5000 } }),
+      { ...BASE, estado: 'confirmada', ventana: 'dia', duracion_min: 180, notas: '' }, null), proy, [local], o), null);
+    const cancelada = Pu.citaDeHoja(V.filaDeSupabase(PROY({ sellos: { instalacion: 5000 }, fecha_instalacion_hist: '2026-11-02' }), null, null), proy, [local], o);
+    eq('la base sin cita viva y con un sello más nuevo: se cancela aquí, aunque la venta tenga fecha histórica',
+      [cancelada && cancelada.estado, cancelada && cancelada.notas], ['cancelada', 'Cancelada en otro teléfono.']);
+    eq('sin sello, la fecha histórica no se agenda', Pu.instalacionDeHoja(V.filaDeSupabase(PROY({ sellos: {}, fecha_instalacion_hist: '2026-12-01' }), null, null), proy, [], o), null);
+    const viva = V.citasVivas([{ id: 'a', proyecto_id: 'p', fecha: '2026-09-01', estado: 'hecha', updated_at: '2026-09-02' },
+      { id: 'b', proyecto_id: 'p', fecha: '2026-12-01', estado: 'confirmada', updated_at: '2026-10-20' }]);
+    eq('con una hecha y una pendiente, la viva es la pendiente (no la más vieja)', viva.get('p').id, 'b');
+    const hoja = Pu.instalacionDeHoja({ [P.fechaInst]: '2026-11-05', [P.horaInst]: '' }, proy, [], o);
+    eq('con la hoja mandando (sin la llave), como siempre: confirmada y «Agendada desde la hoja.»', [hoja.estado, hoja.notas], ['confirmada', 'Agendada desde la hoja.']);
+  }
+
   console.log('\nR1: FABRICACIÓN JAMÁS RECIBE DINERO');
   {
     const f = V.filaDeSupabase(PROY(), INST, null);

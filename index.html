@@ -81,7 +81,8 @@
 <script src="js/tema.js"></script>
 <link rel="stylesheet" href="css/sistema.css">
 <link rel="stylesheet" href="css/plataforma.css">
-<link rel="stylesheet" href="vendor/leaflet.css">
+<!-- vendor/leaflet.css ya no va aquí: lo pide el Mapa al abrirse (js/mod/mapa.js, `hojaDeLeaflet`) y lo pone en este mismo
+     lugar, justo antes del vidrio, que pisa reglas `.leaflet-*` (auditoría 2026-10-25, TR-10). -->
 <!-- Y la capa de vidrio la última. Aquí el orden importa más que en las otras dos páginas:
      repinta `.pf-cab`, `.pf-panel` y `.pf-abajo`, que se declaran en plataforma.css con la
      misma especificidad, así que leerla antes sería no leerla. -->

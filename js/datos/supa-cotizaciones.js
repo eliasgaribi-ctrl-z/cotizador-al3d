@@ -213,8 +213,10 @@ export function planDeSubida(fuente, reg, { disp = '', ahora = Date.now() } = {}
  * @param {{historial:Array, hitos:Object}} local lo de este aparato (las claves del cotizador)
  * @param {Array<{folio_global, disp, datos, hitos, deleted_at}>} filas lo que dio `cotizaciones(desde)`
  * @param {string} disp el aparato de este teléfono
- * @returns {{historial:Array, hitos:Object|null, cambios:number, nuevas:number, reemplazadas:number, quitadas:number, choques:number}}
- *   `hitos` es null si no cambió. Una entrada que se reemplaza conserva la imagen de referencia de aquí (la base no la guarda).
+ * @returns {{historial:Array, hitos:Object|null, cambios:number, nuevas:number, reemplazadas:number, quitadas:number, choques:number,
+ *   choquesDe:Array<{folio_global:string, folio:string, disp:string}>}}
+ *   `hitos` es null si no cambió. `choquesDe` dice cuáles no entraron por un folio corto que aquí ya es de otra (para avisar de
+ *   cada una UNA vez, con su folio y su teléfono). Una entrada que se reemplaza conserva la imagen de referencia de aquí (la base no la guarda).
  */
 export function mezclar(local, filas, disp) {
   const l0 = objeto(local) || {};
@@ -228,6 +230,7 @@ export function mezclar(local, filas, disp) {
     if (!porFolio.has(e.folio)) porFolio.set(e.folio, k);
   }
   let nuevas = 0, reemplazadas = 0, quitadas = 0, choques = 0, hitosCambio = false;
+  const choquesDe = [];
   for (const f of (Array.isArray(filas) ? filas : [])) {
     if (!objeto(f) || !FOLIO_GLOBAL.test(String(f.folio_global || '')) || !esEntrada(f.datos)) continue;
     const k = f.folio_global;
@@ -248,7 +251,7 @@ export function mezclar(local, filas, disp) {
     }
     if (!actual) {
       const otra = porFolio.get(datos.folio);
-      if (otra && otra !== k) { choques++; continue; }
+      if (otra && otra !== k) { choques++; choquesDe.push({ folio_global: k, folio: String(datos.folio || ''), disp: String(datos.disp || '') }); continue; }
       const ts = Number(datos.ts) || 0;
       let i = lista.findIndex(e => (Number(e.ts) || 0) < ts);
       if (i < 0) i = lista.length;
@@ -271,7 +274,7 @@ export function mezclar(local, filas, disp) {
       if (movio) { hitos[datos.folio] = y; hitosCambio = true; }
     }
   }
-  return { historial: lista, hitos: hitosCambio ? hitos : null, cambios: nuevas + reemplazadas + quitadas, nuevas, reemplazadas, quitadas, choques };
+  return { historial: lista, hitos: hitosCambio ? hitos : null, cambios: nuevas + reemplazadas + quitadas, nuevas, reemplazadas, quitadas, choques, choquesDe };
 }
 
 /** Lo que contestó una función de la base, en tres casos: bien, definitivo (no se reintenta) o parar la vuelta. */

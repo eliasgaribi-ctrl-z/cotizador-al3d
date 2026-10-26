@@ -710,9 +710,12 @@ seccion('10. AJUSTES — la racha de la copia diaria, y apagado no cambia nada')
   const pinta = /async function pintarSupabase\(\) \{([\s\S]*?)\n\}/.exec(aj)[1];
   cierto('apagado (sin el interruptor de Supabase), pintarSupabase sale antes de cualquier cosa nueva', pinta.indexOf('if (!Supa.encendido())') > -1 &&
     pinta.indexOf('if (!Supa.encendido())') < pinta.indexOf('bloqueSombra()') && /if \(!Supa\.encendido\(\)\) \{[\s\S]*?return;\s*\}/.test(pinta));
-  cierto('el bloque que lee la copia diaria solo existe dentro de bloqueSombra, que solo se pinta a Dirección activa con sesión',
-    (aj.match(/E\.cuadreDiario\(\)/g) || []).length === 1 && /async function bloqueSombra\(\) \{[\s\S]*?E\.cuadreDiario\(\)[\s\S]*?\n\}/.test(aj) &&
-    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloquePantallas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
+  /* Desde la auditoría del 2026-10-25 (ES-10), con la base mandando la copia diaria se lee en `bloqueCopiaYCuadre` (sin la sombra);
+     con la hoja, en `bloqueSombra`. Los dos, solo para Dirección activa con sesión. */
+  cierto('el bloque que lee la copia diaria solo existe dentro de bloqueSombra y bloqueCopiaYCuadre, que solo se pintan a Dirección activa con sesión',
+    (aj.match(/E\.cuadreDiario\(\)/g) || []).length === 2 && /async function bloqueSombra\(\) \{[\s\S]*?E\.cuadreDiario\(\)[\s\S]*?\n\}/.test(aj) &&
+    /async function bloqueCopiaYCuadre\(\) \{[\s\S]*?E\.cuadreDiario\(\)[\s\S]*?\n\}/.test(aj) &&
+    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) \{\s*html \+= await bloquePersonas\(Supa, a\.correo\) \+ await bloquePantallas\(Supa\) \+ \(Supa\.laBaseManda\(\) \? await bloqueCopiaYCuadre\(\) : await bloqueSombra\(\)\);\s*\}/.test(aj));
   cierto('y un fallo al leerla no rompe la tarjeta (se atrapa y se dice)', /E\.cuadreDiario\(\)\.catch\(/.test(aj));
   const en = sinCom(leer('js/datos/supa-enchufe.js'));
   const cd = /export async function cuadreDiario\(\) \{([\s\S]*?)\n\}/.exec(en)[1];

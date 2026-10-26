@@ -17,7 +17,8 @@
  *   · con la empresa en 'base' y la persona activa, el token del botón de Google basta: Supabase con su
  *     nonce, el pase de la base, y ni /salud, ni la ventana del permiso de la hoja, ni otro aviso de
  *     Google —tampoco después: `entrarSinBoton` encuentra la sesión de la puerta—;
- *   · quien no está activo en la base no entra por ella, y la base nunca dice «fuera»;
+ *   · quien no está activo en la base no entra por ella; con la base mandando, una baja o una cuenta que la
+ *     base no conoce es «fuera» de la base (ES-1), y con la hoja mandando la base nunca dice «fuera»;
  *   · con la empresa en la hoja, la hoja decide como siempre: sin toque reciente, «falta un toque»; con
  *     él, una sola ventana de la hoja, y a la hoja le llega el token de ACCESO, nunca el de identidad;
  *   · un token con otro nonce, de otra app o vencido no llega a Supabase, y el token no se guarda en
@@ -226,14 +227,30 @@ const alPaso = (c, e, d, tx) => pasos.push([c, e, d || '', tx || '']);
 
 console.log('\nLA PUERTA CON EL BOTÓN DE GOOGLE: QUIEN NO ESTÁ ACTIVO NO ENTRA POR LA BASE');
 {
-  for (const estado of ['sin_acceso', 'acceso_revocado', 'correo_no_verificado']) {
+  /* Con la base mandando (este aparato ya lo sabe), una baja o una cuenta que la base no conoce es «fuera» de la base, sin
+     preguntarle a la hoja: dar de baja en la base no sacaba a nadie (auditoría 2026-10-25, ES-1). Un correo que Google no
+     confirma no es una baja: decide la hoja. */
+  for (const [estado, esperado] of [['sin_acceso', ['fuera', undefined, null, 0]], ['acceso_revocado', ['fuera', undefined, null, 0]],
+    ['correo_no_verificado', ['sin_red', true, null, 0]]]) {
     B.sesion = null; B.estado = estado; pasos.length = 0;
     localStorage.removeItem('al3d_pf_pase');
     const hoja = H.pedidas.length;
     const v = await P.confirmarConCredencial(credencialDe('elias@al3d.test', 'n-' + estado), alPaso);
-    eq(estado + ': no entra por la base; decide la hoja (falta su toque), y nunca es un «fuera» de la base',
+    eq(estado + (esperado[0] === 'fuera' ? ': con la base mandando es «fuera» de la base, sin pase ni hoja' : ': no entra por la base; decide la hoja (falta su toque)'),
+       [v.estado, v.toque, localStorage.getItem('al3d_pf_pase'), H.pedidas.length - hoja], esperado);
+  }
+  /* Con la empresa en la hoja (lo que este aparato oyó), lo de siempre: la base nunca dice «fuera». */
+  const modoAntes = localStorage.getItem('al3d_pf_supa_modo');
+  for (const estado of ['sin_acceso', 'acceso_revocado']) {
+    B.sesion = null; B.estado = estado; pasos.length = 0;
+    localStorage.removeItem('al3d_pf_pase');
+    localStorage.setItem('al3d_pf_supa_modo', JSON.stringify({ modo: 'hoja' }));
+    const hoja = H.pedidas.length;
+    const v = await P.confirmarConCredencial(credencialDe('elias@al3d.test', 'h-' + estado), alPaso);
+    eq(estado + ' con la hoja mandando: no entra por la base; decide la hoja (falta su toque), y nunca es un «fuera» de la base',
        [v.estado, v.toque, localStorage.getItem('al3d_pf_pase'), H.pedidas.length - hoja], ['sin_red', true, null, 0]);
   }
+  if (modoAntes === null) localStorage.removeItem('al3d_pf_supa_modo'); else localStorage.setItem('al3d_pf_supa_modo', modoAntes);
   B.estado = 'activo';
 }
 

@@ -113,12 +113,12 @@ export function porQueNo(a) {
   const estado = (a && a.estado) || 'desconocido';
   if (estado === 'sin_sesion') {
     return { codigo: 'ROL_SIN_PERMISO', codigo_base: 'SIN_SESION',
-      mensaje: 'Este teléfono no ha entrado a la base: la empresa ya trabaja con ella. Entra con tu cuenta de Google en Ajustes → Supabase y lo que está aquí se manda solo.' };
+      mensaje: 'Este teléfono no ha entrado a la base: la empresa ya trabaja con ella. Entra con tu cuenta de Google en Ajustes → La base de datos y lo que está aquí se manda solo.' };
   }
   if (estado === 'desconocido') return { codigo: 'SIN_RED', codigo_base: t(a && a.codigo), mensaje: t(a && a.mensaje) || 'La base no contestó.' };
   const frases = {
     acceso_revocado: 'A esta cuenta se le retiró el acceso a la base. Lo de este teléfono se queda aquí, sin perderse.',
-    sin_acceso: 'Esta cuenta no está dada de alta en la base: que Dirección la agregue en Ajustes → Supabase, con ese mismo correo.',
+    sin_acceso: 'Esta cuenta no está dada de alta en la base: que Dirección la agregue en Ajustes → La base de datos, con ese mismo correo.',
     correo_no_verificado: 'Google no confirma el correo de esta cuenta, y sin eso la base no da acceso.',
     invitacion_pendiente: 'Esta cuenta tiene una invitación que no se pudo reclamar: sal de Supabase y vuelve a entrar.',
   };
@@ -457,6 +457,9 @@ export function crearRelevo(deps) {
     espejos: Puente.ESPEJOS.slice(),
     /** Para Ajustes: la última cuenta que la base reconoció (sin red). */
     cuenta: () => (_cuenta ? { ..._cuenta } : null),
+    /** La sesión de la base se fue (js/nucleo/supa.js avisa `al3d-supa-salio`): lo recordado de esta cuenta ya no vale, y la
+     *  siguiente vuelta pregunta y dice «sin sesión» en vez de seguir mandando con lo de hace diez minutos (ES-5). */
+    olvidarCuenta() { _cuenta = null; _cuentaEn = 0; },
 
     async subir(ops) {
       const lista = Array.isArray(ops) ? ops.filter(Boolean) : [];

@@ -158,7 +158,9 @@ const GRUPOS = [
   { g: 'fabricacion', palabra: 'En fabricación',          corta: 'Fabricación', estatus: ['FABRICACION', 'REPARANDO'], glifo: () => DIBUJO_LLAVE },
   { g: 'cobrando',    palabra: 'Cobrando',                corta: 'Cobrando',    estatus: ['COBRANDO'],                 glifo: () => '$' },
   { g: 'liquidado',   palabra: 'Liquidado',               corta: 'Liquidado',   estatus: ['LIQUIDADO'],                glifo: () => DIBUJO_PALOMITA },
-  { g: 'sin',         palabra: 'Sin estatus en la hoja',  corta: 'Sin estatus', estatus: [],                           glifo: () => '?' },
+  /* «Sin estatus de cobro» y no «en la hoja»: con la base mandando el estatus ya no vive en la hoja (auditoría
+     2026-10-25, TR-6). */
+  { g: 'sin',         palabra: 'Sin estatus de cobro',    corta: 'Sin estatus', estatus: [],                           glifo: () => '?' },
 ];
 
 const GRUPO_DE = new Map();
@@ -243,7 +245,9 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
-  /* Sin texto de espera: deja puesto el esqueleto del router, que tiene la forma del mapa. */
+  /* Sin texto de espera: deja puesto el esqueleto del router, que tiene la forma del mapa. La hoja de Leaflet antes que nada:
+     el mapa mide su caja al nacer y sin ella la mediría mal. */
+  await hojaDeLeaflet();
   await cargar();
   if (pase && pase.proyecto_id && cont && PROYS.some(p => p.id === pase.proyecto_id)) {
     seleccionar(pase.proyecto_id, { volar: true });
@@ -308,7 +312,7 @@ function soltarRuta() {
 export async function contar() {
   if (CTX) return null;          // montado: la cuenta la publica la pantalla
   await leerDatos();
-  return { mapa: sinUbicar().length };
+  return { mapa: sinUbicarQueUrge().length };
 }
 
 async function cargar() {
@@ -401,6 +405,16 @@ function sinUbicar() {
   });
 }
 
+/* El globo de la barra no es «sin ubicar» entero: con las ventas importadas sin pin quedaba alto para
+   siempre (catorce en el Calendario con tres pendientes de agenda) y un globo que nunca baja deja de
+   leerse. Cuenta solo lo que URGE ubicar: lo que tiene cita viva de aquí a DIAS_GLOBO días, o ya
+   pasada y sin marcar. La lista completa sigue en el mapa, en «Sin ubicar» (auditoría 2026-10-25, CM-8). */
+const DIAS_GLOBO = 15;
+function sinUbicarQueUrge() {
+  const limite = masDias(HOY, DIAS_GLOBO);
+  return sinUbicar().filter(p => { const f = INST.get(p.id); return !!(f && f.viva && f.fecha <= limite); });
+}
+
 /* La ruta del día: solo lo que se instala. Un envío con pin —el destino en Vallarta— se pinta,
    pero la camioneta no va: meterlo a la ruta la mandaba a la costa. */
 /** Lo que sale del taller sin instalarse: paquetería y recolección, con fecha primero. */
@@ -467,7 +481,7 @@ function pintar() {
       _vigia.observe(app);
     }
   }
-  if (CTX && typeof CTX.ponerCuenta === 'function') CTX.ponerCuenta('mapa', sinUbicar().length);
+  if (CTX && typeof CTX.ponerCuenta === 'function') CTX.ponerCuenta('mapa', sinUbicarQueUrge().length);
 }
 
 function armazon() {
@@ -781,6 +795,25 @@ async function ponerFondo(m) {
 
 /* La hoja de MapLibre, una vez y solo cuando hace falta. Resuelve aunque falle: sin ella el mapa
    se dibuja igual (son los controles de MapLibre, que aquí no se usan), solo avisa en la consola. */
+/* La hoja de Leaflet se pide al entrar al Mapa y no al abrir la app: esta es la única pantalla que la usa (auditoría
+   2026-10-25, TR-10). Va justo ANTES de css/vidrio.css, donde estaba en index.html: plataforma.css y el vidrio pisan reglas
+   `.leaflet-*` con la misma especificidad, y gana la que se lee después. Una sola vez; las siguientes ya está. */
+function hojaDeLeaflet() {
+  const href = 'vendor/leaflet.css';
+  const ya = document.querySelector('link[href="' + href + '"]');
+  if (ya) {
+    if (ya.sheet) return Promise.resolve();
+    return new Promise(ok => { ya.addEventListener('load', ok, { once: true }); ya.addEventListener('error', ok, { once: true }); });
+  }
+  return new Promise(ok => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href;
+    l.onload = l.onerror = () => ok();
+    const vidrio = document.querySelector('link[href$="css/vidrio.css"]');
+    if (vidrio) vidrio.before(l); else document.head.appendChild(l);
+  });
+}
+
 function cargarHoja(href) {
   if (document.querySelector('link[href="' + href + '"]')) return Promise.resolve();
   return new Promise(ok => {
@@ -2006,6 +2039,7 @@ function pintarTira() {
     tira.hidden = true; tira.innerHTML = '';
     if (caja) caja.classList.remove('con-tira');
     if (mapa) { try { mapa.invalidateSize({ animate: false }); } catch (_) {} }
+    try { medirHoja(); } catch (_) {}
     return;
   }
 
@@ -2029,6 +2063,10 @@ function pintarTira() {
   tira.hidden = false;
   if (caja) caja.classList.add('con-tira');
   if (mapa) { try { mapa.invalidateSize({ animate: false }); } catch (_) {} }
+  /* La altura del asistente se publicó con la tira todavía escondida: sin volver a medir, el botón se
+     quedaba a la altura de la hoja y le tapaba la orilla derecha a la tarjeta, el «Cómo llegar»
+     (auditoría 2026-10-25, CM-11). */
+  try { medirHoja(); } catch (_) {}
 
   if (!_tira) {
     _tira = P.paginas(tira, {

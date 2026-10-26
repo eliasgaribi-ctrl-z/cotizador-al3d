@@ -61,6 +61,7 @@ let ESPACIO = null;      // DB.espacio() o null si el navegador no lo dice
 let PEND = 0;            // operaciones en la bandeja de salida
 let APARTADAS = 0;       // las que este puente no sabe llevar. Ni se mandan ni se pierden
 let RECHAZ = [];         // las que se intentaron y no se pudieron escribir: se reintentan a mano
+let NOMBRES = new Map(); // id de proyecto → nombre, para decir de qué venta era cada apartado (ES-8)
 /* Cuántas constantes del taller vuelven a sembrarse al borrar. Se CUENTA y no se escribe: la
    pantalla decía «las 18» cuando ya eran 20 —las 18 de §6.1 más las dos de plazo que usa la
    ventana de taller—, y un número escrito a mano se queda viejo la siguiente vez que entra
@@ -129,6 +130,7 @@ export async function montar(c, ctx) {
   ESPACIO = esp;
   PEND = cola.length;
   APARTADAS = sinDest.length;
+  await leerNombres();
 
   pintar();
   on(cont, 'click', clic);
@@ -326,11 +328,14 @@ function pintar() {
 
     cardQuienEres() +
     cardApariencia() +
+    /* Con la base mandando la base es el libro: va antes que todo lo demás, y la hoja se queda abajo, plegada,
+       para lo que todavía vive en ella (auditoría 2026-10-25, TR-3). */
+    (laBaseManda() ? cardSupabase() : '') +
     cardRespaldo(e.ok) +
     cardMapa() +
     cardGcal() +
     cardPuente() +
-    cardSupabase() +
+    (laBaseManda() ? '' : cardSupabase()) +
     cardVerdades() +
     cardDocumento() +
     cardCordon(e.ok);
@@ -359,12 +364,30 @@ function pintar() {
    Mientras se lee una de esas dos de lectura, la marcada es la última de la lista que pasó:
    «Puente». Es lo más cercano a la verdad que cabe sin inventar una octava entrada para dos
    párrafos, y la tira no se queda sin nada marcado. */
-const SECCIONES = [
+/* Con la base mandando, «Base de datos» entra al índice en su lugar —Control y la bandeja mandan a «Ajustes → La base
+   de datos», y antes había que llegar desplazándose a ciegas— y «Puente» se llama «Hoja», que es lo que queda de ella
+   (TR-3). El orden es el de las tarjetas: la marcada es la última que pasó bajo la tira. */
+const SECCIONES_HOJA = [
   ['aj-s-quien', 'Quién eres'], ['aj-s-tema', 'Tema'], ['aj-s-respaldo', 'Respaldo'], ['aj-s-mapa', 'Mapa'],
   ['aj-s-gcal', 'Calendar'], ['aj-s-puente', 'Puente'], ['aj-s-borrar', 'Borrar'],
 ];
+const SECCIONES_BASE = [
+  ['aj-s-quien', 'Quién eres'], ['aj-s-tema', 'Tema'], ['aj-s-supa', 'Base de datos'], ['aj-s-respaldo', 'Respaldo'],
+  ['aj-s-mapa', 'Mapa'], ['aj-s-gcal', 'Calendar'], ['aj-s-puente', 'Hoja'], ['aj-s-borrar', 'Borrar'],
+];
+let SECCIONES = SECCIONES_HOJA;
+
+/* ¿La base manda en este aparato? La misma regla que js/app.js y js/nucleo/supa.js (`laBaseManda`), leída sin
+   cargar supa.js: Ajustes se pinta de un jalón y no puede esperar un módulo para decidir el orden. */
+function laBaseManda() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
 
 function indiceHTML() {
+  SECCIONES = laBaseManda() ? SECCIONES_BASE : SECCIONES_HOJA;
   return '<div class="aj-indice" id="aj-indice-caja">' +
     '<nav class="aj-indice-tira" id="aj-indice" aria-label="Secciones de Ajustes" data-ficha-clave="aj-indice">' +
     SECCIONES.map(([id, t]) => '<button type="button" class="aj-ir" data-aj-ir="' + id + '">' + esc(t) + '</button>').join('') +
@@ -715,6 +738,64 @@ function cardGcal() {
     notas + '</details>', 'aj-s-gcal');
 }
 
+/* ----- Lo apartado: lo que se intentó y el otro lado rechazó para siempre -----
+   Cada uno dice de QUÉ venta era y QUÉ cambio, además de por qué no entró, y se puede tirar uno por uno (auditoría
+   2026-10-25, ES-8). Antes salía solo el texto del error —«Este teléfono no puede dar de alta la venta en la base…» sin
+   el nombre del cliente— y la única salida era «Volver a intentarlos», que con un rechazo de la base rebota igual. */
+const QUE_ERA = { proyectos: 'cambio de la venta', instalaciones: 'cita de instalación', gastos: 'gasto',
+  movimientos: 'movimiento del almacén', requerimientos: 'lista de compra', materiales: 'material del catálogo' };
+function queEra(o) {
+  if (o.almacen === 'proyectos' && o.tipo === 'crear') return 'alta de la venta';
+  if (o.almacen === 'proyectos' && Array.isArray(o.campos) && o.campos.length) return 'cambio de ' + o.campos.join(', ');
+  return QUE_ERA[o.almacen] || String(o.almacen || 'cambio');
+}
+function deQuienEra(o) {
+  const d = o.datos || {};
+  const pid = o.almacen === 'proyectos' ? (o.registro_id || d.id) : d.proyecto_id;
+  return (pid && NOMBRES.get(pid)) || d.nombre || d.concepto || '';
+}
+function bloqueRechazadas() {
+  const nR = RECHAZ.length;
+  if (!nR) return '';
+  const fecha = ts => ts ? new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  return '<p class="pf-nota"><b>' + (nR === 1 ? '1 cambio no se pudo' : nR + ' cambios no se pudieron') +
+    ' guardar</b> y ' + (nR === 1 ? 'quedó apartado' : 'quedaron apartados') + ' para no trabar lo demás:</p>' +
+    '<ul class="aj-apartados">' + RECHAZ.slice(-8).map(o => {
+      const quien = deQuienEra(o);
+      return '<li class="aj-apartado"><div><b>' + esc(quien || 'Sin nombre') + '</b> · ' + esc(queEra(o)) +
+        (o.ts ? ' · <span class="pf-nota">' + esc(fecha(o.ts)) + '</span>' : '') +
+        '<br><span class="pf-nota">' + esc(o.ultimo_error || o.codigo_rechazo || 'sin razón') + '</span></div>' +
+        '<button type="button" class="btn btn-gho" data-act="puente-descartar" data-id="' + esc(o.id) + '" data-quien="' + esc(quien) + '">Descartar</button></li>';
+    }).join('') + '</ul>' +
+    (nR > 8 ? '<p class="pf-nota">…y ' + (nR - 8) + ' más.</p>' : '') +
+    '<p class="pf-nota">Arregla la causa —dar de alta la venta desde Dirección, entrar con la cuenta de otro rol' +
+    (laBaseManda() ? '' : ', corregir la fila en la hoja') + '— y vuelve a intentarlos; lo que rebote otra vez se vuelve a apartar. ' +
+    'Lo que ya no va, descártalo: se tira solo de este teléfono.</p>' +
+    '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="puente-reintentar">' +
+    ico('i-nube') + ' Volver a intentarlos</button></div>';
+}
+
+/* La bandeja con la base mandando: lo que espera, lo apartado y las dos acciones de todos los días, en la tarjeta de la
+   base (TR-3 y ES-8). Lo que «no viaja» con la base son solo las constantes, los avisos y la caché de ubicaciones. */
+function bloqueBandeja() {
+  const s = Sync.estado();
+  if (!s.configurado) return '';
+  const nR = RECHAZ.length;
+  const cuentaPend = PEND
+    ? 'En este teléfono hay ' + PEND + (PEND === 1 ? ' cambio esperando' : ' cambios esperando') + ' para mandarse a la base.'
+    : nR ? 'Nada más espera para mandarse a la base; lo de abajo no entró.'
+    : 'Nada espera en este teléfono: todo lo de aquí ya está en la base.';
+  const cuentaApart = APARTADAS
+    ? ' Además hay ' + APARTADAS + (APARTADAS === 1 ? ' cambio que no viaja' : ' cambios que no viajan') +
+      ' (las constantes del taller, los avisos y la caché de ubicaciones se quedan en este dispositivo). No se pierden.'
+    : '';
+  return nota(ico(nR ? 'i-aviso' : 'i-check') + ' ' + cuentaPend + cuentaApart, nR ? 'av' : 'ok') +
+    bloqueRechazadas() +
+    '<div class="pf-acciones">' +
+    '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') + ' Mandar lo que está pendiente</button>' +
+    '<button type="button" class="btn btn-gho" data-act="puente-jalar">' + ico('i-bajar') + ' Traer de la base</button></div>';
+}
+
 /* ----- 5. Fase 3, el puente a la hoja de finanzas ----- */
 
 function cardPuente() {
@@ -748,15 +829,7 @@ function cardPuente() {
      está vacía» mientras la banda del Tablero contaba esos cambios para siempre, y no había
      botón en ninguna parte para volver a mandarlos. */
   const nR = RECHAZ.length;
-  const cuentaRech = nR
-    ? '<p class="pf-nota"><b>' + (nR === 1 ? '1 cambio no se pudo' : nR + ' cambios no se pudieron') +
-      ' mandar</b> y ' + (nR === 1 ? 'quedó apartado' : 'quedaron apartados') + ' para no trabar lo demás:</p>' +
-      '<ul class="aj-faltan">' + RECHAZ.slice(-5).map(o => '<li>' + esc(o.ultimo_error || o.codigo_rechazo || 'sin razón') + '</li>').join('') + '</ul>' +
-      (nR > 5 ? '<p class="pf-nota">…y ' + (nR - 5) + ' más.</p>' : '') +
-      '<p class="pf-nota">Arregla la causa —dar de alta la venta desde Dirección, entrar con la cuenta de otro rol, corregir la fila en la hoja— y vuelve a intentarlos. Lo que rebote otra vez se vuelve a apartar.</p>' +
-      '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="puente-reintentar">' +
-      ico('i-nube') + ' Volver a intentarlos</button></div>'
-    : '';
+  const cuentaRech = bloqueRechazadas();
   const estado = s.configurado
     ? nota(ico(nR ? 'i-aviso' : 'i-check') + ' Puente enchufado' + (s.adaptador ? ' (' + esc(s.adaptador) + ')' : '') +
       '. ' + cuentaPend + cuentaApart, nR ? 'av' : 'ok') + cuentaRech
@@ -776,7 +849,10 @@ function cardPuente() {
             ? ' Con ese token puede escribir en la hoja: ' +
               SALUD.escribibles.map(x => '<b>' + esc(x.trim()) + '</b>').join(', ') + '.'
             : ''), 'ok')
-      : nota(ico('i-aviso') + ' ' + esc(SALUD.mensaje || 'El puente no contestó.'), 'mal');
+      : nota(ico('i-aviso') + ' ' + esc(SALUD.mensaje || 'El puente no contestó.') +
+          /* La pista de quien instala el puente vive aquí y no en el aviso de todos los días (TR-7). */
+          (SALUD.codigo === 'SIN_RED' ? ' Si hay señal y aun así no llega, la implementación del Apps Script tiene que ' +
+            'estar publicada con acceso «Cualquier usuario».' : ''), 'mal');
     /* Que el rol del puente y el de este teléfono no coincidan NO es un error: el rol de
        aquí decide qué pantallas ves y el del token decide qué puedes escribir. Pero si no
        se dice, el día que una escritura rebote nadie va a saber por dónde empezar. */
@@ -826,12 +902,21 @@ function cardPuente() {
   /* Lo del día a día a la vista: cómo está, con quién entraste, mandar lo pendiente y traer el
      dinero. Lo de instalar, el token de emergencia y las revisiones técnicas, plegado en
      «Avanzado» —abierto mientras este aparato no tenga puente, o cuando acaba de probarse algo
-     de ahí y hay que ver el resultado—. */
+     de ahí y hay que ver el resultado—.
+
+     Con la base mandando, la hoja ya no es el libro (TR-3): la bandeja, lo apartado y «Traer» se van a la tarjeta
+     de la base (`bloqueBandeja`), y aquí queda lo que todavía vive en la hoja —Drive, la IA, los links de Maps y el
+     sello—, con su permiso de Google y, plegado, lo de instalar. */
+  const base = laBaseManda();
   const abierto = !s.configurado || !!SALUD || !!ESQ;
-  return tarjeta('i-nube-off', 'La hoja de finanzas',
-    estado +
+  return tarjeta('i-nube-off', base ? 'Hoja (solo lectura: Drive, IA, Maps y el sello)' : 'La hoja de finanzas',
+    (base
+      ? '<p class="aj-p">La empresa trabaja con la base: la hoja ya no es el libro del dinero ni de las ventas, y nada de lo que ' +
+        'hagas en este teléfono se escribe en ella. De la hoja siguen saliendo las carpetas de Drive, la IA, los links cortos de ' +
+        'Maps y el sello de las cotizaciones; para eso pide su propio permiso de Google, aquí abajo.</p>'
+      : estado) +
     bloqueIngreso() +
-    (s.configurado
+    (s.configurado && !base
       ? '<div class="pf-acciones">' +
         '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') +
         ' Mandar lo que está pendiente</button>' +
@@ -917,7 +1002,26 @@ function cardPuente() {
 /* ----- 6. Lo que esta pantalla tiene que decir ----- */
 
 function cardVerdades() {
-  const filas = [
+  /* Con la base mandando, dos de las cuatro ya no son ciertas: el libro es la base y los datos tienen copia en la nube
+     (TR-3). Las otras dos siguen igual. */
+  const base = laBaseManda();
+  const filas = base ? [
+    ['i-reloj', 'Los avisos se calculan al abrir la plataforma',
+      'No hay servidor que despierte a nadie: una app estática no puede sonar sola. Si nadie ' +
+      'abre la plataforma en cinco días, nadie ve sus avisos, y siguen aquí esperando el día ' +
+      'que alguien entre.'],
+    ['i-agenda', 'Las alarmas de instalación sí llegan al teléfono',
+      'Y llegan porque las dispara el calendario del teléfono, no la app. Por eso el archivo ' +
+      '.ics se descarga una vez por instalación: al agregarlo, las alarmas de tres días, un ' +
+      'día y media hora antes quedan dentro del calendario y suenan aunque nadie abra nada.'],
+    ['i-nube', 'La base de datos es el libro mayor del dinero y de las ventas',
+      'Lo que se registra en un teléfono se guarda en la base y lo ven los demás al momento. La hoja de finanzas se ' +
+      'quedó de solo lectura: de ella siguen saliendo Drive, la IA, los links de Maps y el sello de las cotizaciones.'],
+    ['i-nube-off', 'Lo que no ha subido vive solo en ESTE teléfono',
+      'Lo que se hace sin señal, o sin haber entrado a la base, espera aquí y se manda solo en cuanto se pueda. ' +
+      'Lo que ya está en la base no se pierde aunque se pierda el teléfono. El respaldo sigue sirviendo para lo que ' +
+      'solo vive aquí: las preferencias, los borradores del cotizador y la imagen de referencia.'],
+  ] : [
     ['i-reloj', 'Los avisos se calculan al abrir la plataforma',
       'No hay servidor que despierte a nadie: una app estática no puede sonar sola. Si nadie ' +
       'abre la plataforma en cinco días, nadie ve sus avisos, y siguen aquí esperando el día ' +
@@ -1014,6 +1118,7 @@ async function clic(ev) {
   if (acc('puente-quitar')) { quitarPuente(); return; }
   if ((b = acc('puente-bombear'))) { bombear(b); return; }
   if ((b = acc('puente-reintentar'))) { reintentarApartadas(b); return; }
+  if ((b = acc('puente-descartar'))) { descartarApartado(b); return; }
   if ((b = acc('puente-probar'))) { probarPuente(b); return; }
   if ((b = acc('puente-esquema'))) { revisarEsquema(b); return; }
   if ((b = acc('puente-jalar'))) { jalar(b); return; }
@@ -1271,7 +1376,9 @@ const ESTADO_NOMBRE = { activo: 'activo', invitado: 'invitado (todavía no entra
 
 function cardSupabase() {
   if (!Prefs.ROLES.includes(Prefs.rol())) return '';
-  return tarjeta('i-nube', 'Supabase', '<div id="aj-supa" aria-live="polite">' +
+  /* «La base de datos» y no «Supabase»: es lo que la gente reconoce (TR-14). Con la base mandando la bandeja de este
+     teléfono —lo que espera, lo apartado, «Traer de la base»— vive aquí (TR-3, ES-8). */
+  return tarjeta('i-nube', 'La base de datos', (laBaseManda() ? bloqueBandeja() : '') + '<div id="aj-supa" aria-live="polite">' +
     nota('Leyendo…') + '</div>', 'aj-s-supa');
 }
 
@@ -1282,24 +1389,31 @@ async function pintarSupabase() {
   const turno = ++_supaTurno;                        // un repintado viejo no pisa uno nuevo
   const Supa = await import('../nucleo/supa.js');
   const listo = html => { if (turno === _supaTurno && $('aj-supa')) $('aj-supa').innerHTML = html; };
-  const apagar = '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
+  /* Con la base mandando, apagar deja a este teléfono escribiendo en una hoja de solo lectura y sin el botón de Google en
+     la puerta: solo Dirección lo tiene a la mano (ES-7). */
+  const apagar = laBaseManda() && Prefs.rol() !== 'direccion' ? ''
+    : '<button type="button" class="btn btn-gho" data-act="supa-apagar">Apagar en este aparato</button>';
   if (!Supa.encendido()) {
     /* Desde la entrada única (app.js, `conectarLaNube`) un aparato que entró con Google se enciende solo:
        apagado quiere decir que alguien lo apagó aquí, o que se entró con el token de emergencia. */
-    listo('<p class="aj-p">La nube (Supabase) está <b>apagada en este aparato</b>. Normalmente se enciende sola al entrar a la app con tu cuenta de Google; ' +
-      'si se apagó aquí, ya no se vuelve a encender sola. Apagada no cambia nada mientras la empresa trabaje con la hoja; ' +
-      'el día que Dirección pase la empresa a la base, este teléfono la necesita encendida para mandar y recibir.</p>' +
+    listo('<p class="aj-p">La base de datos está <b>apagada en este aparato</b>. Normalmente se enciende sola al entrar a la app con tu cuenta de Google; ' +
+      'si se apagó aquí, ya no se vuelve a encender sola. ' +
+      /* Con la base mandando esto ya no es «no cambia nada»: el teléfono escribe en una hoja de solo lectura (TR-3). */
+      (laBaseManda() || (Supa.modoGuardado() || {}).modo === 'base'
+        ? '<b>La empresa ya trabaja con la base:</b> apagada, lo que hagas en este teléfono no lo verán los demás. Enciéndela.'
+        : 'Apagada no cambia nada mientras la empresa trabaje con la hoja; el día que Dirección pase la empresa a la base, este teléfono la necesita encendida para mandar y recibir.') +
+      '</p>' +
       '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-encender">Encender en este aparato</button></div>');
     return;
   }
-  listo(nota('Conectando con Supabase…'));
+  listo(nota('Conectando con la base…'));
   if (!await Supa.haySesion()) {
     listo('<p class="aj-p">Encendido en este aparato. Entra con tu cuenta de Google para que la base te reconozca.</p>' +
-      '<div id="aj-supa-google" class="aj-supa-google"></div><div class="pf-acciones">' + apagar + '</div>');
+      '<div id="aj-supa-google" class="aj-supa-google"></div>' + (apagar ? '<div class="pf-acciones">' + apagar + '</div>' : ''));
     const g = $('aj-supa-google');
     if (g && turno === _supaTurno) {
       Supa.botonDeGoogle(g, r => {
-        if (r.ok) toast('Dentro de Supabase', 'ok', 2500); else toast(r.mensaje, 'err', 6000);
+        if (r.ok) toast('Dentro de la base', 'ok', 2500); else toast(r.mensaje, 'err', 6000);
         /* Con la base mandando, lo que esperaba la sesión en la bandeja sale ya. */
         if (r.ok && Supa.laBaseManda() && CTX && CTX.sincronizar) CTX.sincronizar();
         pintarSupabase();
@@ -1319,8 +1433,12 @@ async function pintarSupabase() {
   if (a.contratoViejo) html += nota('La base pide una versión más nueva de la app.', 'av');
   html += notaDelModo(a);
   if (a.estado === 'activo' && a.modo === 'base' && Supa.laBaseManda()) html += await notaDelCotizador();
-  html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de Supabase</button>' + apagar + '</div>';
-  if (a.estado === 'activo' && a.area === 'direccion') html += await bloquePersonas(Supa) + await bloquePantallas(Supa) + await bloqueSombra();
+  html += '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supa-salir">Salir de la base</button>' + apagar + '</div>';
+  /* Con la base mandando la sombra no copia nada y su bloque solo confundía («La hoja sigue mandando», con un botón que no
+     hacía nada): queda la copia de la hoja y el cuadre (ES-10). */
+  if (a.estado === 'activo' && a.area === 'direccion') {
+    html += await bloquePersonas(Supa, a.correo) + await bloquePantallas(Supa) + (Supa.laBaseManda() ? await bloqueCopiaYCuadre() : await bloqueSombra());
+  }
   listo(html);
 }
 
@@ -1352,26 +1470,34 @@ async function notaDelCotizador() {
   if (st.apartadas) partes.push(st.apartadas + ' que la base no aceptó');
   if (st.ajenas) partes.push(st.ajenas + ' de otra persona (no se suben desde aquí)');
   if (im) partes.push('imágenes: ' + im.subidas + ' subidas' + (im.porSubir ? ', ' + im.porSubir + ' por subir' : ''));
+  /* «p.m.» ya trae su punto: no se le pone otro (H-3). */
+  const cuando = su ? sbFecha(su.ts) : '';
   return nota('<b>Cotizador:</b> ' + esc(partes.join(' · ')) + '. ' +
-    (su ? 'La subida del historial de este aparato terminó el ' + esc(sbFecha(su.ts)) + '.'
+    (su ? 'La subida del historial de este aparato terminó el ' + esc(cuando) + (/\.$/.test(cuando) ? '' : '.')
         : 'La subida del historial de este aparato todavía no termina: sigue sola mientras la app esté abierta.') +
     (st.ultimo_error ? ' Último error: ' + esc(st.ultimo_error) : ''), st.apartadas || st.ultimo_error ? 'av' : 'ok');
 }
 
-async function bloquePersonas(Supa) {
+async function bloquePersonas(Supa, yo = '') {
   let lista;
   try { lista = await Supa.personas(); }
   catch (e) { return nota('No se pudo leer la lista de personas: ' + esc(Supa.mensajeDe(e)), 'av'); }
   const opciones = sel => Object.entries(AREA_NOMBRE).map(([v, t]) => '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + t + '</option>').join('');
-  const filas = lista.map(m => '<li class="aj-supa-persona"><div><b>' + esc(m.correo) + '</b><br><span class="pf-nota">' +
-      esc(AREA_NOMBRE[m.area] || m.area) + ' · ' + esc(ESTADO_NOMBRE[m.estado] || m.estado) + '</span></div>' +
-      (m.estado === 'baja'
-        ? '<button type="button" class="btn btn-gho" data-act="supa-reactivar" data-correo="' + esc(m.correo) + '" data-area="' + esc(m.area) + '" data-nota="' + esc(m.nota || '') + '">Reactivar</button>'
-        : '<label class="sr-only" for="aj-supa-a-' + esc(m.correo) + '">Área de ' + esc(m.correo) + '</label>' +
-          '<select id="aj-supa-a-' + esc(m.correo) + '" data-supa-area="' + esc(m.correo) + '">' + opciones(m.area) + '</select>' +
+  /* Una fila por persona: el correo y su estado a la izquierda, y a la derecha el área (cambiarla ya pregunta) y «Dar de
+     baja» en rojo. En la fila propia no hay acciones: darse de baja o cambiarse el área desde aquí era quedarse fuera
+     con un toque (ES-10). */
+  const filas = lista.map(m => {
+    const tu = Supa.esLaMismaPersona(m.correo, yo);
+    return '<li class="aj-supa-persona aj-persona"><div class="aj-persona-q"><b>' + esc(m.correo) + '</b>' + (tu ? ' <span class="pf-nota">(tú)</span>' : '') +
+      '<br><span class="pf-nota">' + esc(AREA_NOMBRE[m.area] || m.area) + ' · ' + esc(ESTADO_NOMBRE[m.estado] || m.estado) + '</span></div>' +
+      (tu ? '' : m.estado === 'baja'
+        ? '<div class="aj-persona-acc"><button type="button" class="btn btn-gho" data-act="supa-reactivar" data-correo="' + esc(m.correo) + '" data-area="' + esc(m.area) + '" data-nota="' + esc(m.nota || '') + '">Reactivar</button></div>'
+        : '<div class="aj-persona-acc"><label class="sr-only" for="aj-supa-a-' + esc(m.correo) + '">Área de ' + esc(m.correo) + '</label>' +
+          '<select id="aj-supa-a-' + esc(m.correo) + '" data-supa-area="' + esc(m.correo) + '" data-antes="' + esc(m.area) + '">' + opciones(m.area) + '</select>' +
           '<button type="button" class="btn btn-gho" data-act="supa-area" data-correo="' + esc(m.correo) + '">Cambiar área</button>' +
-          '<button type="button" class="btn btn-gho" data-act="supa-baja" data-correo="' + esc(m.correo) + '">Dar de baja</button>') +
-      '</li>').join('');
+          '<button type="button" class="btn btn-dgr" data-act="supa-baja" data-correo="' + esc(m.correo) + '">Dar de baja</button></div>') +
+      '</li>';
+  }).join('');
   return '<h3 class="aj-sub">Personas</h3>' +
     '<p class="pf-nota">Quién puede entrar a la base y con qué área. Quien todavía no entra aparece como invitado: queda activo ' +
     'la primera vez que entra con Google con ese correo. Dar de baja le cierra la base en su siguiente consulta.</p>' +
@@ -1420,7 +1546,15 @@ async function accionSupabase(b) {
       }
       await Supa.salir(); Supa.encender(false); toast('Apagado en este aparato', 'ok', 2500); await reenchufar();
     }
-    else if (a === 'supa-salir') { await Supa.salir(); toast('Saliste de Supabase', 'ok', 2500); }
+    else if (a === 'supa-salir') {
+      /* Con la base mandando, salir deja a este teléfono sin mandar ni recibir nada hasta que vuelva a entrar: se pregunta (ES-5). */
+      if (Supa.laBaseManda()) {
+        const si = await confirmarPf({ titulo: '¿Salir de la base en este teléfono?', peligro: true, si: 'Salir', no: 'Cancelar',
+          texto: 'Mientras no vuelvas a entrar, lo que hagas aquí se queda solo en este teléfono y lo que hagan los demás no llega.' });
+        if (!si) return;
+      }
+      await Supa.salir(); toast('Saliste de la base', 'ok', 2500);
+    }
     else if (a === 'supa-alta') {
       const c = String(($('aj-supa-correo') || {}).value || '').trim().toLowerCase();
       const area = ($('aj-supa-area') || {}).value || 'fabricacion';
@@ -1429,14 +1563,27 @@ async function accionSupabase(b) {
       toast('Alta de ' + c + ' como ' + AREA_NOMBRE[area], 'ok', 3000);
     } else if (a === 'supa-area') {
       const sel = cont && cont.querySelector('[data-supa-area="' + CSS.escape(correo) + '"]');
-      await Supa.cambiarArea(correo, sel ? sel.value : '');
+      const nueva = sel ? sel.value : '';
+      if (sel && nueva === sel.dataset.antes) { toast('Esa ya es su área', '', 2500); return; }
+      /* Hacia Dirección o Pagos es darle el dinero (cobros, saldos, facturas): se pregunta (ES-10). */
+      if (nueva === 'direccion' || nueva === 'pagos') {
+        const si = await confirmarPf({ titulo: '¿Pasar a ' + correo + ' a ' + AREA_NOMBRE[nueva] + '?', peligro: true, si: 'Cambiar área', no: 'Cancelar',
+          texto: AREA_NOMBRE[nueva] + ' ve el dinero: ventas, saldos, cobros y facturas' +
+            (nueva === 'direccion' ? ', y puede dar de alta, cambiar y dar de baja a las personas.' : ', y registra cobros y abonos.') +
+            ' Se aplica la próxima vez que abra la app.' });
+        if (!si) return;
+      }
+      await Supa.cambiarArea(correo, nueva);
       toast('Área cambiada', 'ok', 2500);
     } else if (a === 'supa-reactivar') {
       await Supa.darDeAlta(correo, b.dataset.area || 'fabricacion', b.dataset.nota || '');
       toast('Reactivado ' + correo, 'ok', 2500);
     } else if (a === 'supa-baja') {
+      /* Mientras exista la pestaña «Accesos» de la hoja, alguien que siga ahí puede entrar por ella en un teléfono que no
+         sepa que la empresa ya trabaja con la base: se dice (ES-1). */
       const si = await confirmarPf({ titulo: '¿Dar de baja a ' + correo + '?', peligro: true, si: 'Dar de baja', no: 'Cancelar',
-        texto: 'Deja de poder entrar a la base en su siguiente consulta. Su registro se queda como evidencia y se puede reactivar.' });
+        texto: 'Deja de poder entrar a la base en su siguiente consulta. Su registro se queda como evidencia y se puede reactivar. ' +
+          'Quítalo también de la pestaña «Accesos» de la hoja, para que tampoco entre por ella.' });
       if (!si) return;
       await Supa.darDeBaja(correo);
       toast('Baja de ' + correo, 'ok', 2500);
@@ -1558,6 +1705,16 @@ async function bloqueSombra() {
   return h;
 }
 
+/* Con la base mandando, de este bloque queda lo que todavía dice algo: cómo terminó la última copia de la hoja a la base y
+   «Cuadrar», para el día del cambio (ES-10). La sombra y la lectura en vivo de pruebas no se enseñan: con la base mandando
+   no hacen nada. */
+async function bloqueCopiaYCuadre() {
+  const E = await import('../datos/supa-enchufe.js');
+  const nube = await E.cuadreDiario().catch(e => ({ error: (e && e.message) || 'sin respuesta' }));
+  return '<h3 class="aj-sub">La copia de la hoja y el cuadre</h3>' + bloqueCopiaDiaria(nube) +
+    '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="supasb-cuadrar">Cuadrar ahora</button></div>';
+}
+
 /* La copia diaria hoja → nube, como la deja `resumenCopiaDiaria` (js/datos/supa-cuadre.js). Solo cuentas: ni nombres ni importes. */
 function bloqueCopiaDiaria(nube) {
   if (nube && nube.error) return nota('No se pudo leer la copia diaria de la nube: ' + esc(nube.error), 'av');
@@ -1613,24 +1770,32 @@ function bloqueIngreso() {
   const dentro = Ingreso.dentro();
   if (!correo) {
     return '<div class="aj-bloque">' +
-      '<p class="aj-p"><b>Entra con tu cuenta de Google.</b> No hay nada que pegar: el puente ' +
-      'reconoce tu correo y la hoja decide qué te toca hacer. Si tu correo no está en la ' +
-      'pestaña <b>Accesos</b> de la hoja, el puente lo dice con esas palabras.</p>' +
+      (laBaseManda()
+        /* Con la base mandando quién eres y qué te toca lo dice la base; esto es solo el permiso de la hoja (TR-3). */
+        ? '<p class="aj-p"><b>Entra con tu cuenta de Google</b> para darle a la hoja su permiso: lo necesitan las carpetas de ' +
+          'Drive, la IA, los links de Maps y el sello. Qué te toca hacer lo dice la base, no la hoja.</p>'
+        : '<p class="aj-p"><b>Entra con tu cuenta de Google.</b> No hay nada que pegar: el puente ' +
+          'reconoce tu correo y la hoja decide qué te toca hacer. Si tu correo no está en la ' +
+          'pestaña <b>Accesos</b> de la hoja, el puente lo dice con esas palabras.</p>') +
       '<div class="pf-acciones"><button type="button" class="btn btn-pri" ' +
       'data-act="ingreso-entrar">' + ico('i-nube') + ' Entrar con Google</button></div></div>';
   }
   return '<div class="aj-bloque">' +
     nota('Dentro como <b>' + esc(correo) + '</b>' +
-      (dentro ? '.' : ' — la sesión de Google caducó y se renueva sola al abrir la app, o ' +
-                      'aquí con «Entrar con Google».'), dentro ? 'ok' : 'av') +
+      (dentro ? '.'
+        /* Con la base mandando, sin el permiso de la hoja se trabaja igual: solo hace falta para Drive, la IA y el sello. */
+        : laBaseManda() ? ' — el permiso de la hoja no está activo. Solo hace falta para Drive, la IA, los links de Maps y el sello: ' +
+                          'pídelo con «Entrar con Google».'
+        : ' — la sesión de Google caducó y se renueva sola al abrir la app, o ' +
+          'aquí con «Entrar con Google».'), dentro ? 'ok' : 'av') +
     /* Lo del interruptor apagado solo se dice cuando de verdad lo está. Se puede estar dentro
        con Google y SIN pase —la hoja no contestó todavía, o este aparato lleva días sin
        señal— y ahí el interruptor sigue vivo. Decirlo al revés sería mandar a alguien a
        buscar un candado que no está. */
     /* Con la base mandando (docs/BASE-MANDA.md), el pase lo dio la base: el rol es tu área allá. */
     (Manda.rolDeLaBase()
-      ? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base</b> (Supabase), y por eso el ' +
-        'interruptor de arriba está apagado. Para cambiarlo, Dirección cambia tu área en Ajustes → Supabase → Personas.</p>'
+      ? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base de datos</b>, y por eso el ' +
+        'interruptor de arriba está apagado. Para cambiarlo, Dirección cambia tu área en Ajustes → La base de datos → Personas.</p>'
       : '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
     'pestaña <b>Accesos</b> de la hoja' +
     (Prefs.rolDeLaHoja()
@@ -1692,7 +1857,17 @@ async function repintar() {
   PEND = cola.length;
   APARTADAS = sinDest.length;
   RECHAZ = rech || [];
+  await leerNombres();
+  if (!cont) return;
   pintar();
+}
+
+/* Los nombres de los proyectos de lo apartado. Solo se leen si hay algo apartado: es la lista entera de proyectos. */
+async function leerNombres() {
+  NOMBRES = new Map();
+  if (!RECHAZ.length) return;
+  try { for (const p of await DB.listar('proyectos')) NOMBRES.set(p.id, p.nombre || ''); }
+  catch (_) { /* sin base: cada apartado dice su razón, sin nombre */ }
 }
 
 /* Un solo botón del puente a la vez. Todos tocan la red y ninguno es instantáneo: sin
@@ -1871,6 +2046,20 @@ async function reintentarApartadas(btn) {
   await bombear(btn);
 }
 
+/* Tirar UN apartado (ES-8). Pregunta antes, con el botón de peligro: es algo que alguien capturó, y no vuelve. */
+async function descartarApartado(btn) {
+  if (_ocupado) { decirOcupado(); return; }
+  const quien = btn.dataset.quien || 'este cambio';
+  const si = await confirmarPf({ titulo: '¿Descartar ' + (btn.dataset.quien ? 'el cambio de ' + quien : quien) + '?', peligro: true,
+    si: 'Descartar', no: 'Cancelar',
+    texto: 'Se tira de este teléfono y ya no se vuelve a intentar. Si todavía hace falta, hazlo otra vez desde el teléfono que sí puede (por ejemplo, el de Dirección).' });
+  if (!si) return;
+  const r = await Sync.descartarRechazada(btn.dataset.id || '');
+  toast(r && r.ok && r.valor.descartada ? 'Descartado' : 'Ya no estaba apartado', r && r.ok && r.valor.descartada ? 'ok' : '', 2600);
+  await repintar();
+  if (CTX && CTX.sincronizar) CTX.sincronizar();
+}
+
 async function bombear(btn) {
   if (_ocupado) { decirOcupado(); return; }
   await correr(btn, 'Mandando lo pendiente', async () => {
@@ -1911,7 +2100,9 @@ async function bombear(btn) {
  */
 async function jalar(btn) {
   if (_ocupado) { decirOcupado(); return; }
-  await correr(btn, 'Trayendo la hoja', async h => {
+  /* Con la base mandando, lo que se trae es de la base (TR-3). */
+  const de = laBaseManda() ? 'la base' : 'la hoja';
+  await correr(btn, 'Trayendo ' + (laBaseManda() ? 'de la base' : 'la hoja'), async h => {
     let nuevos = 0, actualizados = 0, borrados = 0, vueltas = 0, error = null;
     const desde = Date.now();
     const P = window.Piezas;
@@ -1931,15 +2122,15 @@ async function jalar(btn) {
       /* Nadie sabe cuántas páginas son hasta que se acaban, así que el relleno no finge un
          porcentaje: sigue la curva que se acerca al 90 % con el tiempo (la de la pieza), y lo que
          sí se sabe —en qué vuelta va— se dice en el rótulo. */
-      if (h) h.avance(P && P.avance ? P.avance(Date.now() - desde, 9000) : 0.5, 'Trayendo la hoja · vuelta ' + (vueltas + 1));
+      if (h) h.avance(P && P.avance ? P.avance(Date.now() - desde, 9000) : 0.5, 'Trayendo ' + (de === 'la base' ? 'de la base' : 'la hoja') + ' · vuelta ' + (vueltas + 1));
     }
     const n = nuevos + actualizados;
     if (error) toast(error, 'err', 5200);
     else toast(n || borrados
-      ? 'La hoja trajo ' + n + (n === 1 ? ' cambio' : ' cambios') +
+      ? (de === 'la base' ? 'La base' : 'La hoja') + ' trajo ' + n + (n === 1 ? ' cambio' : ' cambios') +
         (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '') +
         '. El récord de ventas de Control ya está al día.'
-      : 'No había nada nuevo en la hoja: el récord de ventas ya estaba al día', 'ok', 4600);
+      : 'No había nada nuevo en ' + de + ': el récord de ventas ya estaba al día', 'ok', 4600);
     return error ? { ok: false, motivo: 'No se pudo traer' } : { ok: true, texto: n || borrados ? 'Traído' : 'Al día' };
   }, { tau: 9000 });
 }

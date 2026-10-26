@@ -31,7 +31,7 @@
    deja de bajar de la hoja y queda de respaldo cada 5 minutos (js/datos/supa-enchufe.js).
    ============================================================================ */
 
-import { P, ETAPA_A_NOTION, ENTREGA_A_HOJA, COLUMNA_DEL_SELLO, plazoAHoja } from './puente.js';
+import { P, ETAPA_A_NOTION, ENTREGA_A_HOJA, COLUMNA_DEL_SELLO, plazoAHoja, CITA_DE_LA_BASE } from './puente.js';
 
 /** Las columnas de dinero de la fila, las mismas que la hoja le quita a Fabricación
  *  (`CAMPOS_DE_DINERO` de puente/hoja-apps-script.gs). */
@@ -48,6 +48,30 @@ export function tablasDe(area, o = {}) {
   const obra = ['proyectos', 'instalaciones', 'materiales', 'requerimientos', 'almacen_movimientos'];
   if (!veDinero(area)) return obra;
   return obra.concat(['ventas_dinero', 'abonos', 'almacen_costos'], o && o.gastos ? ['gastos'] : []);
+}
+
+/** La instalación de la base en la forma que lee `citaDeLaBase`. PURA. */
+export function citaDe(i) {
+  if (!i || typeof i !== 'object' || !i.id) return null;
+  return { id: String(i.id), fecha: fecha(i.fecha), hora: i.hora ? String(i.hora) : null, ventana: i.ventana || 'dia',
+    duracion_min: num(i.duracion_min), estado: String(i.estado || ''), movida: num(i.movida) || 0,
+    uid_ics: i.uid_ics ? String(i.uid_ics) : '', notas: String(i.notas || '') };
+}
+
+/** La cita viva de cada proyecto. La base deja UNA no cancelada por proyecto (`instalaciones_una_viva`, 0003); si
+ *  llegaran dos (una lectura a la mitad de un cambio), gana la pendiente sobre la hecha y, entre iguales, la más
+ *  reciente: nunca la más vieja, que dejaría fuera la visita nueva. PURA. */
+export function citasVivas(insts) {
+  const viva = new Map();
+  const peso = i => (i.estado === 'hecha' ? 0 : 1);
+  for (const i of Array.isArray(insts) ? insts : []) {
+    if (!i || !i.proyecto_id || i.estado === 'cancelada') continue;
+    const y = viva.get(i.proyecto_id);
+    if (!y || peso(i) > peso(y) || (peso(i) === peso(y) && String(i.updated_at || i.fecha) > String(y.updated_at || y.fecha))) {
+      viva.set(i.proyecto_id, i);
+    }
+  }
+  return viva;
 }
 
 const num = v => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : Number(v);
@@ -87,6 +111,9 @@ export function filaDeSupabase(p, inst, din) {
     [P.notas]: String(p.notas || ''),
     [P.plazo]: plazoAHoja(p.plazo_k),
     [P.sellos]: sellos,
+    /* La cita entera (ventana, duración, estado, notas): la bajada la pone tal cual, sin adivinar «De día» ni
+       «confirmada» como con la fila de la hoja (`citaDeLaBase` en puente.js). `null`: la base no tiene una viva. */
+    [CITA_DE_LA_BASE]: inst ? citaDe(inst) : null,
   };
   if (din && typeof din === 'object') {
     /* Un importe que la hoja tenía VACÍO entra a la base como 0 y la copia dice cuál (`vacias` de
@@ -157,6 +184,7 @@ export async function todas(armar) {
 
 const COLS_PROYECTO = 'id, folio_hoja, folio_global, nombre, estatus, iva, tipo_trabajo, etapa, fecha_anticipo, ' +
   'fecha_instalacion_hist, dir_texto, lat, lng, maps_url, tel, entrega, notas, plazo_k, sellos, etapa_vacia:procedencia->etapa_vacia';
+const COLS_CITA = 'id, proyecto_id, fecha, hora, ventana, duracion_min, estado, movida, uid_ics, notas, updated_at';
 const COLS_DINERO = 'proyecto_id, d_cuenta, g_subtotal, h_neto, i_anticipo, j_liquidacion, k_saldo, r_comision, ' +
   's_abonado, t_restante, pct_comision, n_fecha_liquidacion';
 const COLS_GASTO = 'id, fecha, concepto, categoria, monto, cuenta, folio, registro_por, registrado_en, anulado, anulo, anulado_en';
@@ -178,10 +206,9 @@ export function crearFuente(deps) {
     }
     const proyectos = await todas(() => c.from('proyectos').select(COLS_PROYECTO).eq('empresa_id', empresa)
       .not('folio_hoja', 'is', null).is('deleted_at', null).order('id'));
-    const insts = await todas(() => c.from('instalaciones').select('id, proyecto_id, fecha, hora, estado')
+    const insts = await todas(() => c.from('instalaciones').select(COLS_CITA)
       .eq('empresa_id', empresa).neq('estado', 'cancelada').is('deleted_at', null).order('id'));
-    const viva = new Map();
-    for (const i of insts) if (!viva.has(i.proyecto_id) || String(i.fecha) < String(viva.get(i.proyecto_id).fecha)) viva.set(i.proyecto_id, i);
+    const viva = citasVivas(insts);
     let dinero = null;
     if (veDinero(a)) {
       dinero = new Map();

@@ -235,7 +235,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
   /* ---- los globos: «Más» suma, y salta solo si sube ---- */
   console.log('\nLOS GLOBOS DE LA BARRA');
   {
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 3); a.ponerCuenta('control', 2); a.ponerCuenta('agenda', 1); a.ponerCuenta('mapa', 4); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 3); a.ponerCuenta('control', 2); a.ponerCuenta('agenda', 1); a.ponerCuenta('mapa', 4); });
     await p.waitForTimeout(700);
     const g = await ev(() => {
       const mas = document.querySelector('#pf-abajo [data-cta-mas]');
@@ -243,11 +243,11 @@ async function rondaTelefono({ ancho, tema, reducido }) {
       return { mas: mas.textContent, visible: !mas.hidden, etiqueta: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-label'), ariaOculto: mas.getAttribute('aria-hidden'),
         cal: cal && !cal.hidden ? cal.textContent : null };
     });
-    cierto(g.visible && g.mas === '5', '«Más» suma lo que esconde: Material 3 (en Herramientas) + Control 2 = 5', g);
+    cierto(g.visible && g.mas === '5', '«Más» suma lo que esconde: Publicaciones 3 (en Herramientas) + Control 2 = 5', g);
     cierto(/5 cosas que atender/.test(g.etiqueta) && g.ariaOculto === 'true', '  y el botón lo dice con palabras, porque el globo es adorno', g);
     cierto(g.cal === '5', 'el Calendario suma lo de sus pestañas: Calendario 1 + Mapa 4 = 5 (meter el Mapa dentro no esconde sus doce obras)', g);
     await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('agenda', 0); a.ponerCuenta('mapa', 0); });
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 4); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 4); });
     await p.waitForTimeout(60);
     const sube = await ev(() => { const e = document.querySelector('#pf-abajo [data-cta-mas]'); return { clase: e.classList.contains('sube'), anim: getComputedStyle(e).animationName, txt: e.textContent }; });
     cierto(sube.txt === '6', 'al subir, la suma sigue: 6', sube);
@@ -255,12 +255,12 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     else cierto(sube.clase && /globo-sube/.test(sube.anim), 'y el globo salta una vez (' + sube.anim + ')', sube);
     await p.waitForTimeout(700);
     cierto(await ev(() => !document.querySelector('.cta.sube')), 'y el salto se quita solo: la clase no se queda pegada');
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 1); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 1); });
     await p.waitForTimeout(60);
     cierto(await ev(() => !document.querySelector('.cta.sube')), 'cuando la cuenta BAJA no salta nada');
     const cont = await contraste(p, '#pf-abajo [data-cta-mas]');
     cierto(cont && cont.ratio >= 4.5, 'el número del globo lee a ' + (cont && cont.ratio) + ':1 (mínimo 4,5)', cont);
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 0); a.ponerCuenta('control', 0); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 0); a.ponerCuenta('control', 0); });
   }
 
   /* ---- la marca se desliza: la barra se pinta UNA vez ---- */
@@ -344,7 +344,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
   /* ---------------- «Más» ---------------- */
   console.log('\n«MÁS»: LA HOJA CON LO DEMÁS');
   {
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 3); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 3); });
     await toque(p, '#pf-abajo [data-mas]');
     await p.waitForTimeout(600);
     const h = await ev(() => {
@@ -356,13 +356,13 @@ async function rondaTelefono({ ancho, tema, reducido }) {
         foco: document.activeElement && document.activeElement.closest('#pf-mas') ? 'dentro' : 'fuera' };
     });
     cierto(h.abierta && h.expandido === 'true', 'tocar «Más» abre la hoja, con aria-expanded', h);
-    cierto(h.filas.map(f => f.n).join() === 'Control,Mesa de corte,Vectorizador,Publicaciones,Material', 'lleva lo que NO está abajo, por grupo y con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
+    cierto(h.filas.map(f => f.n).join() === 'Control,Mesa de corte,Vectorizador,Publicaciones', 'lleva lo que NO está abajo, por grupo y con los nombres de RUTAS: ' + h.filas.map(f => f.n).join(' · '), h.filas);
     cierto(h.grupos.length === 1 && h.grupos[0].t === 'Herramientas' && h.grupos[0].lista, '  las herramientas bajo su encabezado, «Herramientas», que nombra su lista; Control va suelto', h.grupos);
     cierto(!h.filas.some(f => f.ruta === 'mapa'), '  y el Mapa no: se llega con la pestaña del Calendario', h.filas);
     cierto(h.filas.every(f => f.h >= 44), 'cada fila mide al menos 44 px', h.filas.map(f => f.h));
-    const mat = h.filas.find(f => f.ruta === 'material') || {};
-    cierto(mat.cta === '3', 'Material trae su globo: 3', mat);
-    cierto(h.foco === 'dentro' && /Más módulos/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más módulos»', h);
+    const mat = h.filas.find(f => f.ruta === 'publicaciones') || {};
+    cierto(mat.cta === '3', 'Publicaciones trae su globo: 3', mat);
+    cierto(h.foco === 'dentro' && /Más pantallas/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más pantallas»', h);
     cierto(await sinDesborde(p), 'sin desborde de lado con la hoja abierta');
     const c1 = await contraste(p, '.pf-mas-op .cta'), c2 = await contraste(p, '.pf-mas-d');
     cierto(c1 && c1.ratio >= 4.5, 'el globo de la fila lee a ' + (c1 && c1.ratio) + ':1', c1);
@@ -386,18 +386,18 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     /* Elegir una. */
     await toque(p, '#pf-abajo [data-mas]');
     await p.waitForTimeout(500);
-    await toque(p, '#pf-mas [data-ruta="material"]');
+    await toque(p, '#pf-mas [data-ruta="publicaciones"]');
     await p.waitForTimeout(1200);
     const el = await ev(() => ({ hash: location.hash, abierta: document.getElementById('pf-mas').classList.contains('show'),
-      material: !document.getElementById('mod-material').hidden, masOn: document.querySelector('#pf-abajo [data-mas]').classList.contains('on'),
+      material: !document.getElementById('mod-publicaciones').hidden, masOn: document.querySelector('#pf-abajo [data-mas]').classList.contains('on'),
       masActual: document.querySelector('#pf-abajo [data-mas]').getAttribute('aria-current'), otros: document.querySelectorAll('#pf-abajo > button.on:not([data-mas])').length,
       titulo: document.getElementById('pf-sub').textContent,
       pest: [...document.querySelectorAll('#pf-pest-tira a')].map(a => a.textContent.replace(/\d+/g, '').trim()),
       pestActual: [...document.querySelectorAll('#pf-pest-tira a[aria-current="page"]')].map(a => a.dataset.ruta) }));
-    cierto(el.hash === '#/material' && el.material && !el.abierta, 'elegir «Material» cierra la hoja y navega a #/material: la navegación no se pierde', el);
+    cierto(el.hash === '#/publicaciones' && el.material && !el.abierta, 'elegir «Publicaciones» cierra la hoja y navega a #/publicaciones: la navegación no se pierde', el);
     cierto(el.masOn && el.masActual === 'true' && el.otros === 0, 'y «Más» queda encendido, porque Herramientas vive ahí: la barra no se queda entera apagada', el);
-    cierto(el.titulo === 'Herramientas' && el.pest.join() === 'Mesa de corte,Vectorizador,Publicaciones,Material' && el.pestActual.join() === 'material',
-      'el encabezado dice «Herramientas» y la tira trae sus cuatro pantallas, con Material elegido', el);
+    cierto(el.titulo === 'Herramientas' && el.pest.join() === 'Mesa de corte,Vectorizador,Publicaciones' && el.pestActual.join() === 'publicaciones',
+      'el encabezado dice «Herramientas» y la tira trae sus tres pantallas (Material va oculto mientras está en mantenimiento), con Publicaciones elegida', el);
     const corre = await ev(() => { const t = document.getElementById('pf-pest-tira'), a = t.querySelector('[aria-current="page"]'), r = t.getBoundingClientRect(), q = a.getBoundingClientRect();
       return { desborda: t.scrollWidth > t.clientWidth, aLaVista: q.left >= r.left - 1 && q.right <= r.right + 1, corre: t.dataset.corre || '' }; });
     cierto(corre.aLaVista && (!corre.desborda || /izq|der/.test(corre.corre)),
@@ -406,15 +406,15 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     /* Elegir la que ya estás mirando solo cierra. */
     await toque(p, '#pf-abajo [data-mas]');
     await p.waitForTimeout(500);
-    await ev(() => { window.__matNodo = document.getElementById('mod-material').firstElementChild; });
-    await toque(p, '#pf-mas [data-ruta="material"]');
+    await ev(() => { window.__matNodo = document.getElementById('mod-publicaciones').firstElementChild; });
+    await toque(p, '#pf-mas [data-ruta="publicaciones"]');
     await p.waitForTimeout(900);
-    cierto(await ev(() => !document.getElementById('pf-mas').classList.contains('show') && document.getElementById('mod-material').firstElementChild === window.__matNodo),
+    cierto(await ev(() => !document.getElementById('pf-mas').classList.contains('show') && document.getElementById('mod-publicaciones').firstElementChild === window.__matNodo),
       'elegir la pantalla en que ya estás solo cierra la hoja: no la vuelve a montar');
     await toque(p, '#pf-abajo [data-ruta="hoy"]');
     await p.waitForTimeout(800);
     cierto(await ev(() => !document.querySelector('#pf-abajo [data-mas]').classList.contains('on')), 'al volver al Tablero «Más» se apaga');
-    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 0); });
+    await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('publicaciones', 0); });
   }
 
   /* ---------------- la búsqueda ---------------- */
@@ -636,7 +636,7 @@ console.log('\n══ LA BARRA SEGÚN EL ROL ══');
   await fa.p.tap('#pf-abajo [data-mas]');
   await fa.p.waitForTimeout(500);
   const f = await fa.p.evaluate(() => [...document.querySelectorAll('#pf-mas .pf-mas-n')].map(x => x.textContent));
-  cierto(f.join() === 'Mesa de corte,Vectorizador,Material', 'fabricación: «Más» trae sus herramientas y no Control, que no ve importes: ' + f.join(' · '), f);
+  cierto(f.join() === 'Mesa de corte,Vectorizador', 'fabricación: «Más» trae sus herramientas (Material va oculto mientras está en mantenimiento) y no Control, que no ve importes: ' + f.join(' · '), f);
   await fa.p.keyboard.press('Escape');
   await fa.p.waitForTimeout(400);
   await fa.p.tap('#pf-cab-buscar');
@@ -725,15 +725,15 @@ for (const tema of ['claro', 'oscuro']) {
   });
   cierto(herr.hash === '#/anidador' && herr.titulo === 'Herramientas' && herr.on.join() === 'herramientas',
     '«Herramientas» lleva a la Mesa de corte la primera vez, se enciende y el encabezado dice «Herramientas»', herr);
-  cierto(herr.enCab && herr.tira === 'none' && herr.nombres.join() === 'Mesa de corte,Vectorizador,Publicaciones,Material' && herr.actual.join() === 'anidador',
-    '  las cuatro pestañas van en el encabezado, junto al título, con la Mesa de corte elegida', herr);
+  cierto(herr.enCab && herr.tira === 'none' && herr.nombres.join() === 'Mesa de corte,Vectorizador,Publicaciones' && herr.actual.join() === 'anidador',
+    '  las tres pestañas van en el encabezado, junto al título, con la Mesa de corte elegida', herr);
   cierto(herr.altoCab === 64, '  y el encabezado sigue midiendo 64 px: a las pantallas de marco no se les quita alto', herr);
-  await p.click('#pf-pest a[data-ruta="material"]');
+  await p.click('#pf-pest a[data-ruta="publicaciones"]');
   await p.waitForTimeout(900);
   const mat = await ev(() => ({ hash: location.hash, actual: [...document.querySelectorAll('#pf-pest a[aria-current="page"]')].map(a => a.dataset.ruta),
     on: [...document.querySelectorAll('#pf-nav .pf-tab.on')].map(b => b.dataset.grupo), href: document.querySelector('#pf-nav [data-grupo="herramientas"]').getAttribute('href') }));
-  cierto(mat.hash === '#/material' && mat.actual.join() === 'material' && mat.on.join() === 'herramientas' && mat.href === '#/material',
-    'la pestaña «Material» lleva a #/material; Herramientas sigue encendido y ya apunta ahí', mat);
+  cierto(mat.hash === '#/publicaciones' && mat.actual.join() === 'publicaciones' && mat.on.join() === 'herramientas' && mat.href === '#/publicaciones',
+    'la pestaña «Publicaciones» lleva a #/publicaciones; Herramientas sigue encendido y ya apunta ahí', mat);
   await p.click('#pf-nav .pf-tab[data-ruta="hoy"]');
   await p.waitForTimeout(700);
   cierto(await ev(() => document.getElementById('pf-pest').hidden), 'en el Tablero no hay pestañas');
@@ -741,7 +741,7 @@ for (const tema of ['claro', 'oscuro']) {
   await ev(() => document.activeElement && document.activeElement.blur());
   await p.keyboard.press('6');
   await p.waitForTimeout(900);
-  cierto(await ev(() => location.hash === '#/material'), 'la tecla 6 es Herramientas, y lleva a la última que se usó: Material');
+  cierto(await ev(() => location.hash === '#/publicaciones'), 'la tecla 6 es Herramientas, y lleva a la última que se usó: Publicaciones');
   await p.click('#pf-nav .pf-tab[data-ruta="hoy"]');
   await p.waitForTimeout(700);
   /* «/» abre la búsqueda. */
@@ -793,7 +793,7 @@ for (const tema of ['claro', 'oscuro']) {
   cierto(await sinDesborde(p), 'sin desborde de lado');
   cierto(!(await infinitas(p)).length, 'nada se mueve en reposo', await infinitas(p));
   /* Cambiar de rol reescribe la barra, y el globo no salta por eso. */
-  await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('material', 2); });
+  await ev(async () => { const a = await import('/js/app.js'); a.ponerCuenta('vectorizar', 2); });
   await p.waitForTimeout(600);
   /* El rol va plegado: primero se abre, y al elegir se vuelve a plegar. */
   await p.click('#pf-rol > summary');
@@ -804,7 +804,7 @@ for (const tema of ['claro', 'oscuro']) {
   const rol = await ev(() => ({ n: document.querySelectorAll('#pf-nav .pf-tab').length, sube: !!document.querySelector('.cta.sube'),
     herr: (document.querySelector('#pf-nav [data-cta="herramientas"]') || {}).textContent, plegado: !document.getElementById('pf-rol').open, dice: document.getElementById('pf-rol-n').textContent }));
   cierto(rol.n === 5 && !rol.sube, 'al cambiar de rol la barra se reescribe (5 botones para fabricación) y ningún globo salta como si hubiera subido', rol);
-  cierto(rol.herr === '2', '  y el globo de Material sigue en el botón de Herramientas', rol);
+  cierto(rol.herr === '2', '  y el globo del Vectorizador sigue en el botón de Herramientas', rol);
   cierto(rol.plegado && rol.dice === 'Fabricación', '  el rol se vuelve a plegar y ya dice «Fabricación»', rol);
   cierto(errores.length === 0, 'cero errores de página', errores);
   await ctx.close();

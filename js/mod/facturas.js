@@ -36,7 +36,7 @@ import * as Prefs from '../datos/prefs.js';
 import * as F from '../datos/facturas.js';
 import { queMostrar } from '../datos/pagos-supa.js';
 import { laBaseManda } from '../nucleo/supa.js';
-import { $, esc, ico, money, toast, voz, segmento, confirmarPf, abrirCapa, cerrarCapa, hoyISO, vacio } from '../nucleo/ui.js';
+import { $, esc, ico, money, toast, voz, segmento, confirmarPf, abrirCapa, cerrarCapa, hoyISO, vacio, fmtFecha } from '../nucleo/ui.js';
 
 let _el = null;
 let _vista = 'esperando';       // esperando | entrar | sin_permiso | lista (lo que dice queMostrar)
@@ -58,6 +58,12 @@ const MS_RELEER = 3000;
 const AREA = { direccion: 'Dirección', pagos: 'Pagos', fabricacion: 'Fabricación' };
 const PER = [{ v: 'mes', t: 'Este mes' }, { v: '3m', t: '3 meses' }, { v: '12m', t: '12 meses' }, { v: 'todo', t: 'Todo' }];
 const nVentas = n => n + (n === 1 ? ' venta' : ' ventas');
+/* El estatus de la venta en palabras y con su ficha de color, no el código de la base («FABRICACION»); y las fechas como en el resto
+   de Control («22 oct 2026»), no unas «09/09/2026» junto a otras «22 oct 2026» (auditoría 2026-10-25, H-5). */
+const ESTATUS = { FABRICACION: ['En fabricación', 'nada'], REPARANDO: ['Reparando', 'nada'], COBRANDO: ['Cobrando', 'falta'], LIQUIDADO: ['Liquidada', 'ok'] };
+const chipEstatus = e => { const x = ESTATUS[e]; return x ? '<span class="pf-sem ' + x[1] + ' fx-sem">' + esc(x[0]) + '</span>' : (e ? esc(e) : ''); };
+/* `F.diaDe` da el día de México de una marca de tiempo como «DD/MM/AAAA»; aquí, con el mes en letras. */
+const diaCorto = iso => { const d = F.diaDe(iso), m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d); return m ? fmtFecha(m[3] + '-' + m[2] + '-' + m[1]) : d; };
 const empresa = () => (_acceso && _acceso.empresa) || 'al3d';
 const hoy = () => { try { return hoyISO(); } catch (_) { return ''; } };
 
@@ -73,7 +79,7 @@ export function html() {
     'con su cliente fiscal, su constancia de situación fiscal y las dos facturas. Lo ven Dirección y Pagos; se guarda en la base.</p>';
   let cuerpo;
   if (_vista === 'esperando') cuerpo = '<p class="pf-nota" role="status">Preguntando a la base quién eres…</p>';
-  else if (_vista === 'entrar') cuerpo = '<p class="hintnote nota-av">Entra a la base con tu cuenta de Google (Ajustes → Supabase) para ver las facturas.</p>' +
+  else if (_vista === 'entrar') cuerpo = '<p class="hintnote nota-av">Entra a la base con tu cuenta de Google (Ajustes → La base de datos) para ver las facturas.</p>' +
     '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-fx-act="recargar">Volver a preguntar</button></div>';
   else if (_vista === 'sin_permiso') {
     const a = _acceso || {};
@@ -210,7 +216,7 @@ function filaVenta(v) {
     : '<span class="pf-sem falta fx-sem">Sin cliente fiscal</span> <button type="button" class="fx-link" data-fx-panel="venta" data-fx-id="' + esc(v.id) + '">Asignar RFC</button>';
   return '<li class="fx-venta">' +
     '<div class="fx-cab"><span class="fx-nom">' + esc(v.nombre || 'Sin nombre') + '</span> <span class="folio">' + esc(v.folio) + '</span></div>' +
-    '<p class="fx-meta">' + esc(v.cuenta) + (v.deQuien ? ' (' + esc(v.deQuien) + ')' : '') + (v.estatus ? ' · ' + esc(v.estatus) : '') +
+    '<p class="fx-meta">' + (v.estatus ? chipEstatus(v.estatus) + ' ' : '') + esc(v.cuenta) + (v.deQuien ? ' (' + esc(v.deQuien) + ')' : '') +
       ' · neto ' + esc(money(v.neto)) + '</p>' +
     '<p class="fx-cliente">' + cliente + '</p>' +
     '<div class="fx-casillas">' + casilla(v, 'anticipo') + casilla(v, 'liquidacion') + '</div>' +
@@ -225,8 +231,8 @@ function casilla(v, cual) {
   const marcada = va ? _enviando.get(v.id + '|' + cual) : c.marcada;
   const id = 'fx-c-' + cual + '-' + v.id.replace(/[^A-Za-z0-9_-]/g, '_');
   const falta = !marcada && monto > 0;
-  const det = c.marcada ? 'hecha' + (c.por ? ' · ' + c.por : '') + (c.en ? ' · ' + F.diaDe(c.en) : '')
-    : (monto > 0 ? 'cobrado ' + money(monto) + (fecha ? ' · ' + fecha.split('-').reverse().join('/') : '') : 'sin cobrar todavía');
+  const det = c.marcada ? 'hecha' + (c.por ? ' · ' + c.por : '') + (c.en ? ' · ' + diaCorto(c.en) : '')
+    : (monto > 0 ? 'cobrado ' + money(monto) + (fecha ? ' · ' + fmtFecha(fecha) : '') : 'sin cobrar todavía');
   return '<label class="fx-casilla' + (marcada ? ' hecha' : '') + (falta ? ' falta' : '') + '" for="' + esc(id) + '">' +
     '<input type="checkbox" id="' + esc(id) + '" data-fx-marcar="' + cual + '" data-fx-id="' + esc(v.id) + '"' + (marcada ? ' checked' : '') + (va ? ' disabled aria-busy="true"' : '') + '>' +
     '<span class="fx-casilla-t">' + (cual === 'anticipo' ? 'Factura del anticipo' : 'Factura de la liquidación') + '<small>' + esc(va ? 'guardando…' : det) + '</small></span></label>';
@@ -246,7 +252,7 @@ function htmlClientes() {
     '<div class="fx-cab"><span class="fx-nom">' + esc(c.razon || 'Sin razón social') + '</span> <span class="fx-rfc">' + esc(c.rfc) + '</span></div>' +
     '<p class="fx-meta">' + (c.nVentas ? esc(nVentas(c.nVentas)) + ': ' + esc(c.ventas.slice(0, 6).join(', ')) + (c.ventas.length > 6 ? '…' : '') : 'sin ventas ligadas') + '</p>' +
     '<p class="fx-cliente">' + (c.csf
-      ? '<span class="pf-sem ok fx-sem">Constancia</span> subida ' + esc(F.diaDe(c.csf.subida)) + (c.csf.subio ? ' por ' + esc(c.csf.subio) : '') +
+      ? '<span class="pf-sem ok fx-sem">Constancia</span> subida ' + esc(diaCorto(c.csf.subida)) + (c.csf.subio ? ' por ' + esc(c.csf.subio) : '') +
         ' <button type="button" class="fx-link" data-fx-ver="' + esc(c.csf.ruta) + '">Ver</button>' + enlace(c.csf.ruta)
       : '<span class="pf-sem falta fx-sem">Sin constancia</span>') +
       ' <button type="button" class="fx-link" data-fx-panel="cliente" data-fx-rfc="' + esc(c.rfc) + '">' + (c.csf ? 'Cambiar' : 'Subir constancia') + '</button></p>' +
@@ -387,7 +393,7 @@ function notaRazon(rfcEscrito) {
 function htmlConstancia(cli) {
   const s = _panel.subida;
   const estado = cli.csf
-    ? '<p class="fx-csf-t"><span class="pf-sem ok fx-sem">Constancia</span> subida ' + esc(F.diaDe(cli.csf.subida)) + (cli.csf.subio ? ' por ' + esc(cli.csf.subio) : '') +
+    ? '<p class="fx-csf-t"><span class="pf-sem ok fx-sem">Constancia</span> subida ' + esc(diaCorto(cli.csf.subida)) + (cli.csf.subio ? ' por ' + esc(cli.csf.subio) : '') +
       ' <button type="button" class="fx-link" data-fx="ver" data-fx-ruta="' + esc(cli.csf.ruta) + '">Ver</button>' + enlace(cli.csf.ruta) + '</p>'
     : '<p class="fx-csf-t"><span class="pf-sem falta fx-sem">Sin constancia</span> de ' + esc(cli.rfc) + '</p>';
   const reintento = s && s.incierto ? '<p class="hintnote nota-av" role="status">' + esc(s.mensaje) + '</p>' +

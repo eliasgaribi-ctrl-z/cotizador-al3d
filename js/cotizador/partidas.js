@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y las
-   154 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
+   155 acciones que el marcado nombra (data-acc…, ver nucleo.js) se buscan por su nombre
    en ese ámbito. Portarlo a módulos ES las dejaría mudas en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -508,7 +508,13 @@ function ojoPdfHTML(){
 function tituloOjoPdf(visible){
   return visible?'Sale en el PDF — toca para ocultarla (sigue sumando al total)':'Oculta del PDF — toca para mostrarla';
 }
-function toggleEditMode(){
+async function toggleEditMode(){
+  /* Con la base mandando el historial trae las de toda la empresa, y editar aquí la de otro teléfono la cambia también en
+     el teléfono de quien la hizo (gana la editada al último). Se dice antes, en un renglón (auditoría 2026-10-25, CZ-7).
+     Sin eso, todo sigue en el mismo paso: el `await` solo se alcanza con una ajena. */
+  const h=typeof _histAjena==='function'?getHistorial().find(x=>x.folio===Q.folio):null;
+  if(h&&_histAjena(h)&&!await confirmar({titulo:'Es una cotización de '+_histQuien(h),
+    texto:'Si la cambias aquí, también cambia en su teléfono.',si:'Editarla',no:'Dejarla así'})) return;
   Q.editMode=true;
   renderItems();renderAuth();
   /* La condición tiene que ser LA MISMA que decide soltar, y no lo era: `soltarAuthSiCambio`
