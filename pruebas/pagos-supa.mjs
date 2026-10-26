@@ -714,7 +714,7 @@ console.log('\nAPAGADO NO CAMBIA NADA');
     [correr(ls, pagos), correr(ls, dir), correr(ls, fab)], [SEIS.concat(DINERO), SEIS.concat(DINERO), SEIS]);
   ls.removeItem('al3d_pf_supa_modo');
   cierto('la pestaña se llama «Cobros y abonos» con la base mandando y «Registrar (Supabase)» con la hoja',
-    /t: laBaseManda\(\) \? 'Cobros y abonos' : 'Registrar \(Supabase\)'/.test(sinC) && PS.nombreDeLaPestana(true) === 'Cobros y abonos' && PS.nombreDeLaPestana(false) === 'Registrar (Supabase)');
+    /if \(laBaseManda\(\)\) opciones\.splice\(1, 0, \{ v: 'asientos', t: 'Cobros y abonos' \}\);\s*else opciones\.push\(\{ v: 'asientos', t: 'Registrar \(Supabase\)' \}\);/.test(sinC) && PS.nombreDeLaPestana(true) === 'Cobros y abonos' && PS.nombreDeLaPestana(false) === 'Registrar (Supabase)');
   cierto('y le pasa a la pestaña la sincronización de la app (una venta nueva baja en el acto)', /_PS\.cablear\(el, o\)/.test(sinC) && /m\.cablear\(ahora, o\)/.test(sinC) &&
     /sincronizar: CTX && typeof CTX\.sincronizar === 'function' \? CTX\.sincronizar : null/.test(sinC));
   cierto('la clave que mira Control es la del interruptor de supa.js', /'al3d_pf_supa'/.test(cuerpo('supaEncendido')) &&
@@ -739,7 +739,8 @@ console.log('\nDOBLE ENVÍO Y CONFIRMACIÓN (la pantalla)');
   const t = f ? f[0] : '';
   cierto('un envío a la vez: sale si ya hay uno en curso, antes y después de preguntar', (t.match(/if \(_enviando\) return;/g) || []).length === 2);
   const i = (s) => t.indexOf(s);
-  cierto('pregunta (confirmarPf con el título del plan) ANTES de llamar a la base', i('confirmarPf({ titulo: p.titulo') > 0 && i('confirmarPf({ titulo: p.titulo') < i('PS.enviar('));
+  cierto('pregunta (confirmarPf con el título del plan) ANTES de llamar a la base', i("confirmarPf({ ...pregunta, no: 'Cancelar' })") > 0 &&
+    i("confirmarPf({ ...pregunta, no: 'Cancelar' })") < i('PS.enviar(') && /titulo: p\.titulo, si: p\.si, peligro: !!p\.peligro/.test(t));
   cierto('el op_id es el del borrador, y uno nuevo solo tras confirmar el cambio de un envío incierto', /opId: b\.opId/.test(t) && i('PS.opIdPara(b, p).cambio') < i('PS.renovar(b)'));
   cierto('el botón se apaga mientras va', /btn\.disabled = true/.test(t));
   cierto('tras la respuesta el borrador decide: nuevo si se confirmó, el mismo op_id si no', /PS\.despuesDeEnviar\(b, p, r\)/.test(t));
@@ -749,7 +750,7 @@ console.log('\nDOBLE ENVÍO Y CONFIRMACIÓN (la pantalla)');
   cierto('tampoco mientras se recalcula el reparto (un segundo toque no pide otra vista previa)', /if \(_preparando\) return;/.test(t));
   cierto('lo raro se pregunta con el botón de peligro del plan', /peligro: !!p\.peligro/.test(t));
   cierto('el reparto se recalcula ANTES de preguntar, y solo en un envío nuevo (el reintento va con el mismo op_id)',
-    i("if (tipo === 'reparto' && !reintento)") > 0 && i('repartoAlDia(form, c.monto)') < i('confirmarPf({ titulo: p.titulo') && /const reintento = !!b\.incierto;/.test(t));
+    i("if (tipo === 'reparto' && !reintento)") > 0 && i('repartoAlDia(form, c.monto)') < i("confirmarPf({ ...pregunta, no: 'Cancelar' })") && /const reintento = !!b\.incierto;/.test(t));
   const ra = /async function repartoAlDia[\s\S]*?\n\}/.exec(m);
   cierto('si el reparto cambió, se enseña el nuevo y NO se manda', !!ra && /if \(PS\.mismoReparto\(_vp, r\.data\)\) return true;/.test(ra[0]) &&
     /_vp = conCanceladas\(r\.data\);/.test(ra[0]) && /return false;\n\}$/.test(ra[0]) && !/PS\.enviar/.test(ra[0]));
@@ -765,7 +766,7 @@ console.log('\nDOBLE ENVÍO Y CONFIRMACIÓN (la pantalla)');
     /addEventListener\('focusout', \(\) => \{ if \(_releer\) setTimeout\(alCambiarLaBase, 0\); \}\)/.test(m));
   /* Paso 6: «Datos de la venta». */
   cierto('la corrección de una venta se revisa contra la base JUSTO antes de preguntar (también en el reintento), y la de ahora es la que se manda',
-    i("if (tipo === 'datos') {") > i('repartoAlDia(form, c.monto)') && i('const q = await datosAlDia(c, p);') < i('confirmarPf({ titulo: p.titulo') &&
+    i("if (tipo === 'datos') {") > i('repartoAlDia(form, c.monto)') && i('const q = await datosAlDia(c, p);') < i("confirmarPf({ ...pregunta, no: 'Cancelar' })") &&
     /if \(!q\) return;\n\s*p = q;/.test(t));
   const da = /async function datosAlDia[\s\S]*?\n\}/.exec(m);
   cierto('datosAlDia relee las ventas, decide con PS.correccionAlDia y NUNCA manda: sin poder leer, no se pregunta', !!da &&
@@ -800,6 +801,26 @@ console.log('\nLOS TEXTOS QUE DECÍAN «LA HOJA» CON LA BASE MANDANDO (paso 5)'
   cierto('con la base, «Falta actualizar el puente» no sale (lo apartado sale solo en el siguiente bombeo)', /if \(base\) \{ pend \+= apart; apart = 0; \}/.test(ctl) &&
     /if \(!base && \(D\.hojaGastos === false \|\| apart\)\)/.test(ctl));
   cierto('y la lista de comisiones lleva a «Cobros y abonos»', /data-tab="asientos">Ir a Cobros y abonos</.test(ctl));
+  /* La auditoría del 2026-10-25 (TR-5, TR-8, TR-9, DN-4, DN-5, CM-2), con la hoja mandando iguales. */
+  const ctlC = sinComentarios(ctl);
+  for (const f of ["'Venta de la hoja'", "'según ' + laFuente()", "'la columna «Tipo de trabajo» de la hoja.'", "'Estatus en la hoja'",
+    "'Esta venta solo está en la hoja de finanzas: no tiene ficha en la plataforma.'", "'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con lo que le falta.'",
+    "'Escrito en la hoja'", "' · saldo de ' + laFuente()"]) {
+    cierto('con la hoja sigue: «' + f.replace(/'/g, '') + '»', ctl.includes(f));
+  }
+  for (const f of ["'Venta de la base'", "'la ficha del proyecto.'", "'Estatus de cobro'", "'Esta venta solo está en el récord de la base: no tiene ficha en la plataforma.'",
+    "'Cuando una venta pase a COBRANDO, aparece aquí con lo que le falta.'", "'Capturado en la hoja, antes del cambio'", "en «Cobros y abonos» o en la ficha del proyecto"]) {
+    cierto('con la base: «' + f.replace(/'/g, '') + '»', ctl.includes(f));
+  }
+  cierto('la fuente del récord es una sola función (la base o la hoja)', /const laFuente = \(\) => \(enBase\(\) \? 'la base' : 'la hoja'\);/.test(ctlC));
+  cierto('con la base, «Cobros y abonos» es la segunda pestaña', /if \(laBaseManda\(\)\) opciones\.splice\(1, 0,/.test(ctlC));
+  cierto('sin el récord de la base, el Resumen dice «—» (no $0.00 ni «ya está cobrado»)', /const sinDatosDeLaBase = \(\) => enBase\(\) && !\(D && D\.bajada && D\.bajada\.completa\);/.test(ctlC) &&
+    /if \(sinDatosDeLaBase\(\)\) return htmlClaveSinDatos\(\);/.test(ctlC) && /sd \? SIN_DATO : money\(d\.saldo\)/.test(ctlC));
+  cierto('la cuenta de un gasto se elige con la base mandando (no viene en «Efectivo»)', /if \(enBase\(\) && !datos\.cuenta\) \{/.test(ctlC) &&
+    /if \(datos\.cuenta === EFECTIVO\) datos\.cuenta = '';/.test(ctlC) && /'<option value="">Elige la cuenta…<\/option><option value="' \+ EFECTIVO \+ '">Efectivo u otra<\/option>'/.test(ctlC));
+  cierto('«+ Cobro de una venta», no «+ Ingreso»', / Cobro de una venta<\/button>/.test(ctlC) && !/ Ingreso<\/button>/.test(ctlC));
+  cierto('con Material en mantenimiento no hay tarjeta del almacén', /if \(D\.almacen && !MATERIAL_EN_MANTENIMIENTO\) partes\.push\(filaAlmacen\(\)\);/.test(ctlC) &&
+    /const MATERIAL_EN_MANTENIMIENTO = true;/.test(ctlC) && /EN_MANTENIMIENTO = true;/.test(leer('js/mod/material.js')));
   const aj = leer('js/mod/ajustes.js'), app = leer('js/app.js');
   cierto('el candado del rol dice quién lo manda (js/datos/quien-manda.js), en Ajustes las dos veces',
     (aj.match(/' lo manda ' \+ Manda\.rolLoManda\(\) \+ '<\/span>'/g) || []).length === 2 && !/lo manda la hoja<\/span>/.test(aj));

@@ -352,5 +352,23 @@ eq('y ningún candidato trae una llave', cadenaIA(null).some(c => 'key' in c), f
   eq('ni sale directo a un proveedor: todo va por la hoja', /dashscope|api\.deepseek|generativelanguage/.test(fuenteAsis), false);
 }
 
+/* Con la base mandando el asistente no manda a registrar en la hoja, que ya nadie lee (auditoría 2026-10-25, TR-2). */
+{
+  const conBase = { ...R, base_manda: true };
+  const ps = promptSistema(conBase);
+  eq('sin decir quién manda (node, sin almacenamiento), la hoja', R.base_manda, false);
+  eq('quien llama lo puede decir', armarResumen({ hoy: '2026-10-25', rol: 'Pagos', veDinero: true, proyectos: P, baseManda: true }).base_manda, true);
+  eq('con la base: los abonos y cobros se registran en Cobros y abonos', /Control → Cobros y abonos/.test(ps) && /NUNCA en la hoja/.test(ps), true);
+  eq('con la base: ni «la plataforma solo la espeja», ni «LIQUIDADO en la hoja», ni «saldo que calcula la hoja»',
+    /solo la espeja|LIQUIDADO en la hoja|saldo que calcula la hoja/.test(ps), false);
+  eq('con la hoja: lo de siempre', /la plataforma solo la espeja/.test(promptSistema(R)) && /LIQUIDADO en la hoja/.test(promptSistema(R)), true);
+  const ac = respuestaLocal('comisiones', conBase);
+  eq('con la base, el botón lleva a Cobros y abonos y no a la hoja', [ac.acciones[0].label, ac.acciones[0].dato && ac.acciones[0].dato.tab,
+    ac.acciones.some(a => a.tipo === 'link')], ['Ir a Cobros y abonos', 'asientos', false]);
+  eq('y el texto no dice «en la hoja»', /en la hoja|solo lo espeja/.test(ac.texto), false);
+  eq('con la hoja, el botón de siempre', respuestaLocal('comisiones', R).acciones[0].label, 'Comisiones en la hoja');
+  eq('la cartera, de dónde sale el saldo', /calcula la hoja/.test(responderLocal('cobranza', conBase) || ''), false);
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

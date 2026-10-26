@@ -740,10 +740,16 @@ async function enviarForm(tipo, form) {
   const m = b.mandado, vAhora = venta(c.proyecto);
   const saldoMovio = reintento && tipo === 'cobro' && m && m.saldo != null && vAhora &&
     Math.round(Number(vAhora.saldo || 0) * 100) !== Math.round(Number(m.saldo) * 100);
-  if (!await confirmarPf({ titulo: p.titulo, si: p.si, no: 'Cancelar', peligro: !!p.peligro,
-    texto: (reintento ? 'Es el REINTENTO del envío anterior, con el mismo número de operación: si ya había llegado, no se registra otra vez. ' : '') +
-      (saldoMovio ? 'El saldo de esta venta cambió desde ese envío (' + PS.pesosDe(m.saldo) + ' → ' + PS.pesosDe(vAhora.saldo) +
-        '): lo más seguro es que el primero SÍ llegó. ' : '') + p.texto })) return;
+  /* Y entonces las cifras del plan («la liquidación pasa de $2,000 a $4,000», «OJO: es más que el saldo») serían las de un pago
+     NUEVO sobre el saldo de ahora, que no es lo que pasa: el reintento con el mismo op_id no suma nada si el primero llegó. */
+  const pregunta = saldoMovio
+    ? { titulo: '¿Reintentar el envío de ' + PS.pesosDe(p.args.p_monto) + '?', si: 'Reintentar', peligro: false,
+        texto: (vAhora.folio + ' · ' + vAhora.nombre + '. ') + 'El saldo de esta venta ya cambió desde ese envío (' + PS.pesosDe(m.saldo) + ' → ' +
+          PS.pesosDe(vAhora.saldo) + '): lo más seguro es que el primero SÍ llegó. El reintento va con el mismo número de operación: si ya ' +
+          'había llegado, la base contesta lo de la primera vez y no lo suma otra vez.' }
+    : { titulo: p.titulo, si: p.si, peligro: !!p.peligro,
+        texto: (reintento ? 'Es el REINTENTO del envío anterior, con el mismo número de operación: si ya había llegado, no se registra otra vez. ' : '') + p.texto };
+  if (!await confirmarPf({ ...pregunta, no: 'Cancelar' })) return;
   if (_enviando) return;
   _enviando = true;
   const btn = form.querySelector('[data-pg-enviar]');

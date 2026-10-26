@@ -191,6 +191,17 @@ function laBaseManda() {
   } catch (_) { return false; }
 }
 const enBase = () => laBaseManda();
+/* La fuente del récord en las frases (auditoría 2026-10-25, TR-5): con la base mandando, lo que esta pantalla decía de «la hoja» lo
+   dice de la base; con la hoja mandando, letra por letra lo de siempre. */
+const laFuente = () => (enBase() ? 'la base' : 'la hoja');
+/* Material sigue en mantenimiento (`EN_MANTENIMIENTO` de js/mod/material.js, que no se exporta): mientras lo esté, el Resumen no
+   enseña la tarjeta del almacén, que llevaba a una pantalla apagada con «bajo mínimo» en rojo (auditoría 2026-10-25, CM-2). Cuando
+   se encienda Material, las dos en false. */
+const MATERIAL_EN_MANTENIMIENTO = true;
+/* Con la base mandando y su récord todavía sin bajar (sin señal, sin sesión), las cifras del Resumen no son ceros: son «no sé». Antes
+   decía «Disponible $0.00» y «ya está cobrado» delante del cliente (auditoría 2026-10-25, TR-9). Con la hoja mandando, lo de siempre. */
+const sinDatosDeLaBase = () => enBase() && !(D && D.bajada && D.bajada.completa);
+const SIN_DATO = '—';
 
 export async function montar(contenedor, ctx) {
   cont = contenedor;
@@ -238,7 +249,7 @@ export async function montar(contenedor, ctx) {
     /* Y uno para el renglón de una venta que solo está en la hoja: no tiene ficha en Proyectos,
        pero tocarlo tiene que dar algo —sus cifras, su estatus y de dónde sale el saldo—, o el
        renglón con su flechita sería una puerta pintada. */
-    _vzFin = P.vistazo(cont, { delegar: '.ct-fin-ver', titulo: 'Venta de la hoja', alinear: 'fin',
+    _vzFin = P.vistazo(cont, { delegar: '.ct-fin-ver', titulo: enBase() ? 'Venta de la base' : 'Venta de la hoja', alinear: 'fin',
       contenido: ancla => vistazoVenta(ancla && ancla.dataset ? ancla.dataset.fin : '') });
   }
 
@@ -335,9 +346,9 @@ async function leer() {
   const finanzas = Ventas.finanzasVivas(ventas);
   const bajada = await Sync.estadoBajada();
 
-  /* El almacén, solo para dirección: fabricación no entra aquí y pagos no compra. */
+  /* El almacén, solo para dirección: fabricación no entra aquí y pagos no compra. Con Material en mantenimiento, ni se lee. */
   let almacen = null;
-  if (Prefs.esDireccion()) {
+  if (Prefs.esDireccion() && !MATERIAL_EN_MANTENIMIENTO) {
     try {
       const Stock = await import('../datos/stock.js');
       const [valor, minimo] = await Promise.all([Stock.valorInventario(), Stock.bajoMinimo()]);
@@ -640,7 +651,12 @@ function htmlPantalla() {
     { v: 'gastos', t: 'Gastos' },
     { v: 'bitacora', t: 'Bitácora' },
   ];
-  if (tabs().includes('asientos')) opciones.push({ v: 'asientos', t: laBaseManda() ? 'Cobros y abonos' : 'Registrar (Supabase)' });
+  /* Con la base mandando, «Cobros y abonos» es donde se trabaja todos los días: va segunda, junto al Resumen, y no séptima en la
+     tercera fila de la rejilla del teléfono (auditoría 2026-10-25, TR-8). Con la hoja, la prueba de siempre, al final. */
+  if (tabs().includes('asientos')) {
+    if (laBaseManda()) opciones.splice(1, 0, { v: 'asientos', t: 'Cobros y abonos' });
+    else opciones.push({ v: 'asientos', t: 'Registrar (Supabase)' });
+  }
   if (tabs().includes('cuentas')) opciones.push({ v: 'cuentas', t: 'Cuentas' });
   if (tabs().includes('facturas')) opciones.push({ v: 'facturas', t: 'Facturas' });
   const pestanas = segmento(opciones, TAB, 'data-tab', 'Qué ver');
@@ -664,9 +680,9 @@ function htmlPantalla() {
 function etiquetaCobrar() {
   const conSaldo = D.cartera.length;
   const deHoja = D.cartera.filter(x => x.deNotion).length;
-  if (!conSaldo || deHoja === conSaldo) return { t: 'Por cobrar', em: conSaldo ? 'según la hoja' : '' };
+  if (!conSaldo || deHoja === conSaldo) return { t: 'Por cobrar', em: conSaldo ? 'según ' + laFuente() : '' };
   if (!deHoja) return { t: 'Por cobrar (estimado)', em: 'total menos anticipo' };
-  return { t: 'Por cobrar (parte estimado)', em: deHoja + ' de ' + conSaldo + ' con saldo de la hoja' };
+  return { t: 'Por cobrar (parte estimado)', em: deHoja + ' de ' + conSaldo + ' con saldo de ' + laFuente() };
 }
 
 /* ============================================================================
@@ -706,7 +722,7 @@ function htmlPorTipo() {
   const avisos = [];
   if (sinTipo && sinTipo.n) {
     avisos.push(nVentas(sinTipo.n) + ' de este periodo no ' + (sinTipo.n === 1 ? 'tiene' : 'tienen') +
-      ' tipo de trabajo capturado: se corrige en la columna «Tipo de trabajo» de la hoja.');
+      ' tipo de trabajo capturado: se corrige en ' + (enBase() ? 'la ficha del proyecto.' : 'la columna «Tipo de trabajo» de la hoja.'));
   }
   if (r.sinFecha) avisos.push(nVentas(r.sinFecha) + ' sin fecha de anticipo no ' + (r.sinFecha === 1 ? 'cae' : 'caen') + ' en ningún periodo.');
 
@@ -719,7 +735,7 @@ function htmlPorTipo() {
       (avisos.length ? '<p class="pf-nota ct-tt-aviso">' + avisos.map(esc).join(' ') + '</p>' : '') +
       graficaPorTipo(dinero) +
       '<p class="pf-nota">Una venta con varios tipos —letras y bastidor, por ejemplo— cuenta como un trabajo en ' +
-        'cada tipo que lleva' + (dinero ? ', y su importe entero aparece en cada uno de esos tipos: la hoja no dice ' +
+        'cada tipo que lleva' + (dinero ? ', y su importe entero aparece en cada uno de esos tipos: ' + laFuente() + ' no dice ' +
         'cuánto fue de cada parte. Por eso las tarjetas pueden sumar más que el total, que cuenta cada venta una sola vez.' : '.') +
         ' Son las mismas ventas de la pestaña Ventas: sin las que no se dieron, por la fecha de su anticipo.' +
         (TT_PER === 'anio' ? ' «Este año» se compara con el año anterior hasta el mismo día.' : '') + '</p>' +
@@ -765,7 +781,7 @@ function graficaPorTipo(dinero) {
   const serie = TT_VISTA === 'anio' ? D.porTipo.anio : D.porTipo.mes;
   if (!serie.length) {
     return '<div class="ct-tt-graf"><div class="ag-barra ct-tt-barra">' + vista + '</div>' +
-      '<p class="pf-nota">Todavía no hay ventas con fecha que graficar. Cuando baje el récord de la hoja, o se gane una ' +
+      '<p class="pf-nota">Todavía no hay ventas con fecha que graficar. Cuando baje el récord de ' + laFuente() + ', o se gane una ' +
       'cotización, aparecen aquí por tipo.</p></div>';
   }
   const tipos = PorTipo.tiposVisibles(D.ventas);
@@ -860,19 +876,19 @@ function ubicarMesesTipo() {
    ============================================================================ */
 
 function pintarVentas() {
-  const partes = [lineaHoja(), htmlDisponibleDelMes(), htmlClave(), htmlFinanzas(), htmlEsteMes(), graficaMeses()];
-  if (D.almacen) partes.push(filaAlmacen());
+  const partes = [lineaHoja(), htmlDisponibleDelMes(), htmlClave(), htmlFinanzas(), htmlEsteMes(), sinDatosDeLaBase() ? '' : graficaMeses()];
+  if (D.almacen && !MATERIAL_EN_MANTENIMIENTO) partes.push(filaAlmacen());
   const disp = D.ajuste && _DC ? ['«Disponible» (arriba, con la base mandando) es lo que entró este mes a las cuentas de AL3D (' + D.ajuste.cuentas.join(', ') +
     ') —anticipos y liquidaciones— menos los gastos que salieron de esas mismas cuentas. El detalle, por cuenta y por periodo, está en la pestaña Cuentas.'] : [];
   partes.push(comoSeCuenta([...disp,
     '«Falta cobrar» suma el saldo de los proyectos en fabricación y de los que ya se entregaron y se están cobrando. ' +
-    'Se reparte por el estatus de la hoja: FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se entregó; ' +
+    'Se reparte por el estatus ' + (enBase() ? 'de cobro de cada venta' : 'de la hoja') + ': FABRICACION y REPARANDO son trabajo del taller; COBRANDO ya se entregó; ' +
     'LIQUIDADO ya no aparece. «Ya cobrado» es lo vendido menos lo que falta.',
-    'Lo que falta es el saldo de la hoja. Si la hoja todavía no lo trae, es el total menos el anticipo pactado: ' +
+    'Lo que falta es el saldo de ' + laFuente() + '. Si ' + laFuente() + ' todavía no lo trae, es el total menos el anticipo pactado: ' +
     'se marca con «≈» y su barra va rayada.',
     'Las dos listas van de lo que más falta cobrar a lo que menos, para que arriba quede el dinero que más pesa. ' +
     'Si dos deben lo mismo, primero la más antigua.',
-    '«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la venta está allá, y el ' +
+    '«Vendido» suma el importe de cada venta por la fecha de su anticipo: ' + (enBase() ? 'el de la base cuando la venta ya llegó allá' : 'el de la hoja cuando la venta está allá') + ', y el ' +
     'que se firmó aquí cuando todavía no ha salido de este dispositivo. «Gastado» suma los gastos del mes por el día en ' +
     'que se pagaron, sin los anulados (pestaña Gastos), y la utilidad aproximada es lo vendido menos eso: no es la del ' +
     'contador —lo vendido no es lo cobrado, y solo cuenta lo que alguien capturó—, pero dice hacia dónde va el mes.',
@@ -922,6 +938,7 @@ function htmlClave() {
   const cobrado = red2(F.fabricacion.cobrado + F.cobrando.cobrado);
   const n = F.fabricacion.n + F.cobrando.n;
   const pc = vendido > 0 ? Math.floor(cobrado / vendido * 100) : 0;
+  if (sinDatosDeLaBase()) return htmlClaveSinDatos();
   const frase = !n ? 'No hay proyectos en fabricación ni cobrándose.'
     : !(falta > 0) ? 'Todo lo que está en fabricación y en cobranza ya está cobrado.'
     : 'De ' + money(vendido) + ' vendidos en ' + nProy(n) + ', ya entró el ' + pc + ' %.';
@@ -933,7 +950,7 @@ function htmlClave() {
   const nOtras = D.kpi.porCobrar.n - F.fabricacion.lista.concat(F.cobrando.lista).filter(x => x.saldo > 0).length;
   const aparte = otras > 0.005 && nOtras > 0
     ? '<p class="ct-clave-aparte">Además hay ' + esc(money(otras)) + ' por cobrar de ' + esc(nVentas(nOtras)) +
-      ' con otro estatus en la hoja. Están en Por cobrar.</p>'
+      (enBase() ? ' con otro estatus de cobro. Están en Por cobrar.</p>' : ' con otro estatus en la hoja. Están en Por cobrar.</p>')
     : '';
   const barra = vendido > 0
     ? '<div class="ct-clave-barra" aria-hidden="true">' +
@@ -955,6 +972,20 @@ function htmlClave() {
           F.fabricacion.n ? { dest: 'fin:fabricacion', que: 'ir a la lista de En fabricación' } : null, 'fab', 'i-taller') +
         clave('cob', 'Cobrando · ya entregados', money(F.cobrando.saldo), nProy(F.cobrando.n) + ' por terminar de pagar',
           F.cobrando.n ? { dest: 'fin:cobrando', que: 'ir a la lista de Cobrando' } : null, 'cob', 'i-reloj') +
+      '</div>' +
+    '</div></section>';
+}
+
+/* Las mismas tres cifras sin el récord de la base (TR-9): «—» y por qué, en vez de ceros que parecen la verdad. */
+function htmlClaveSinDatos() {
+  const que = 'Sin datos de la base todavía: arriba dice por qué y cómo traerlos.';
+  return '<section class="card ct-clave-card" id="ct-clave" aria-labelledby="ct-clave-h">' +
+    '<h2 id="ct-clave-h" class="solo-voz">Lo que falta cobrar</h2>' +
+    '<div class="ct-clave-rej">' +
+      '<div class="ct-clave-pri">' + clave('falta', 'Falta cobrar', SIN_DATO, que, null, 'principal') + '</div>' +
+      '<div class="ct-clave-sec">' +
+        clave('fab', 'En fabricación', SIN_DATO, 'sin datos todavía', null, 'fab', 'i-taller') +
+        clave('cob', 'Cobrando · ya entregados', SIN_DATO, 'sin datos todavía', null, 'cob', 'i-reloj') +
       '</div>' +
     '</div></section>';
 }
@@ -984,11 +1015,19 @@ function clave(k, etiqueta, valor, detalle, va, cls, icono) {
    renglón: lo dice UN aviso arriba de la lista, y el renglón lleva «≈» y su barra rayada. */
 function htmlFinanzas() {
   const F = D.finanzas;
+  if (sinDatosDeLaBase()) {
+    return '<div class="ct-fin" id="ct-fin">' +
+      listaFinanzas('fabricacion', 'En fabricación', 'i-taller', F.fabricacion, 'Sin datos de la base todavía', 'Cuando baje su récord, aparece aquí lo que está en el taller.') +
+      listaFinanzas('cobrando', 'Cobrando', 'i-reloj', F.cobrando, 'Sin datos de la base todavía', 'Cuando baje su récord, aparece aquí lo que falta cobrar.') +
+    '</div>';
+  }
   return '<div class="ct-fin" id="ct-fin">' +
     listaFinanzas('fabricacion', 'En fabricación', 'i-taller', F.fabricacion,
-      'Nada en fabricación', 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
+      'Nada en fabricación', enBase() ? 'Cuando una venta tenga estatus FABRICACION o REPARANDO, aparece aquí.'
+        : 'Cuando una venta tenga estatus FABRICACION o REPARANDO en la hoja, aparece aquí.') +
     listaFinanzas('cobrando', 'Cobrando', 'i-reloj', F.cobrando,
-      'Nada cobrándose', 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con lo que le falta.') +
+      'Nada cobrándose', enBase() ? 'Cuando una venta pase a COBRANDO, aparece aquí con lo que le falta.'
+        : 'Cuando una venta pase a COBRANDO en la hoja, aparece aquí con lo que le falta.') +
   '</div>';
 }
 
@@ -1011,8 +1050,8 @@ function listaFinanzas(g, titulo, icono, b, vacioT, vacioD) {
   const nota = orden.length > 1 || est
     ? '<p class="ct-fin-nota">' + (orden.length > 1 ? 'De lo que más falta cobrar a lo que menos.' : '') +
       (est ? ' <span class="ct-fin-est"><b aria-hidden="true">≈</b> ' + esc(est === 1
-        ? 'Un saldo es estimado: la hoja todavía no lo trae.'
-        : est + ' saldos son estimados: la hoja todavía no los trae.') + '</span>' : '') + '</p>'
+        ? 'Un saldo es estimado: ' + laFuente() + ' todavía no lo trae.'
+        : est + ' saldos son estimados: ' + laFuente() + ' todavía no los trae.') + '</span>' : '') + '</p>'
     : '';
   const mas = orden.length > FIN_TOPE
     ? '<button type="button" class="ct-fin-mas" data-fin-todos="' + g + '" aria-expanded="' + (todos ? 'true' : 'false') +
@@ -1147,13 +1186,14 @@ function vistazoVenta(id) {
       (p.anti_pactado ? fila('Anticipo pactado', money(p.anti_pactado)) : '') +
       fila('Folio', foliosDe(p) || 'sin folio') +
       (p.fecha_ganado ? fila('Entró', fmtFecha(p.fecha_ganado)) : '') +
-      (p.estatus_notion ? fila('Estatus en la hoja', p.estatus_notion) : '') +
+      (p.estatus_notion ? fila(enBase() ? 'Estatus de cobro' : 'Estatus en la hoja', p.estatus_notion) : '') +
       (p.cuenta ? fila('Cuenta', p.cuenta) : '') +
     '</dl>' +
     (p.nombre && p.nombre !== nombreCliente(p) ? '<p class="ct-vz-nota">' + esc(p.nombre) + '</p>' : '') +
     '<p class="ct-vz-nota">' + (!cancelado && saldo > 0
-      ? (Ventas.saldoEsDeHoja(p) ? 'El saldo es el de la hoja. ' : 'Saldo estimado: el total menos el anticipo pactado; la hoja todavía no lo trae. ')
-      : '') + 'Esta venta solo está en la hoja de finanzas: no tiene ficha en la plataforma.</p>';
+      ? (Ventas.saldoEsDeHoja(p) ? 'El saldo es el de ' + laFuente() + '. ' : 'Saldo estimado: el total menos el anticipo pactado; ' + laFuente() + ' todavía no lo trae. ')
+      : '') + (enBase() ? 'Esta venta solo está en el récord de la base: no tiene ficha en la plataforma.'
+        : 'Esta venta solo está en la hoja de finanzas: no tiene ficha en la plataforma.') + '</p>';
 }
 
 /* ----- 3 · Este mes -----
@@ -1168,6 +1208,13 @@ function vistazoVenta(id) {
 function htmlEsteMes() {
   const k = D.kpi, G = D.resGastos;
   const ymHoy = D.meses[D.meses.length - 1].mes;
+  if (sinDatosDeLaBase()) {
+    const nada = ['Vendido', 'Cotizaciones por cerrar', 'Gastado', 'Utilidad aproximada', 'Perdido']
+      .map((t, i) => [SIN_DATO, t, { clave: 'sd' + i, em: 'sin datos de la base todavía' }]);
+    return '<section class="ct-sec" id="ct-este-mes" aria-labelledby="ct-este-mes-h">' +
+      '<h2 class="ct-sec-t" id="ct-este-mes-h">Este mes <span>' + esc(mesLargo(ymHoy)) + '</span></h2>' +
+      filaCuentas(nada, 'ct-cinco') + '</section>';
+  }
   const aProyectos = Prefs.esDireccion() && CTX && typeof CTX.tieneRuta === 'function' && CTX.tieneRuta('proyectos');
   const util = Gastos.utilidad(k.mes.total, G.mes.total);
   const c = [
@@ -1384,13 +1431,15 @@ function pintarLista() {
   ];
   return lineaHoja() + filaCuentas(c, 'ct-tres') + listaProyectos() + htmlPorTipo() +
     comoSeCuenta([
-      '«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la venta está allá, y el ' +
+      '«Vendido» suma el importe de cada venta por la fecha de su anticipo: ' + (enBase() ? 'el de la base cuando la venta ya llegó allá' : 'el de la hoja cuando la venta está allá') + ', y el ' +
       'que se firmó aquí cuando todavía no ha salido de este dispositivo. El ticket promedio es lo vendido en los últimos ' +
       'doce meses entre el número de ventas.',
       '«Cotizaciones ganadas» cuenta las cotizaciones de este dispositivo que ya se decidieron: las ganadas entre las ganadas ' +
       'y las perdidas. Las que nadie ha contestado todavía no cuentan.',
-      'Un renglón de la hoja abre su detalle; uno de aquí abre la ficha del proyecto. «Solo aquí» es una venta que todavía ' +
-      'no sale de este dispositivo hacia la hoja.',
+      (enBase() ? 'Un renglón que solo está en el récord de la base abre su detalle; uno con ficha abre la ficha del proyecto. «Solo aquí» es una venta que todavía ' +
+        'no sale de este dispositivo hacia la base.'
+        : 'Un renglón de la hoja abre su detalle; uno de aquí abre la ficha del proyecto. «Solo aquí» es una venta que todavía ' +
+        'no sale de este dispositivo hacia la hoja.'),
     ]);
 }
 function proyectosDelPeriodo() {
@@ -1417,7 +1466,7 @@ function listaProyectos() {
   ], PERIODO, 'data-periodo', 'Periodo');
   const filas = lista.length
     ? '<ul class="ct-fin-lista">' + lista.map(p => '<li>' + filaProyecto(p) + '</li>').join('') + '</ul>'
-    : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de la hoja, aparece aquí con su importe.');
+    : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de ' + laFuente() + ', aparece aquí con su importe.');
   /* En el teléfono el «Bajar CSV de ventas» del encabezado no existe —el hueco de acciones va
      en `display:none` abajo de 760 px, y app.js pide que lo que va ahí exista también dentro de
      la pantalla—: sin esto, desde el celular no había cómo bajarlo. Va en esta tarjeta, que es
@@ -1494,14 +1543,18 @@ function pintarCobrar() {
   ];
   const filas = D.cartera.length
     ? D.cartera.map(filaCobro).join('')
-    : vacio('No hay saldos pendientes', 'Cada venta viva tiene su anticipo igual al total, o la hoja ya la marcó como liquidada.');
+    : vacio('No hay saldos pendientes', 'Cada venta viva tiene su anticipo igual al total, o ' + laFuente() + ' ya la marcó como liquidada.');
   return lineaHoja() + filaCuentas(c) +
     '<div class="card" id="ct-cartera"><div class="card-h"><h2>' + ico('i-venta') + ' Cartera' +
       ' <span class="folio">' + D.cartera.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + '</div></div>' +
-    comoSeCuenta('Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
-    'que calcula la hoja cuando la venta está allá y bajó («saldo de la hoja»); si no, el total vendido menos el anticipo ' +
-    'pactado. Marcar LIQUIDADO —en la hoja o en la ficha del proyecto— lo saca de esta lista.');
+    comoSeCuenta(enBase()
+      ? 'Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
+        'que calcula la base cuando la venta ya llegó allá («saldo de la base»); si no, el total vendido menos el anticipo ' +
+        'pactado. Marcar LIQUIDADO —en «Cobros y abonos» o en la ficha del proyecto— lo saca de esta lista.'
+      : 'Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
+        'que calcula la hoja cuando la venta está allá y bajó («saldo de la hoja»); si no, el total vendido menos el anticipo ' +
+        'pactado. Marcar LIQUIDADO —en la hoja o en la ficha del proyecto— lo saca de esta lista.');
 }
 
 /* P30 · Cuánto va cobrado de lo vendido, en una barra fina debajo del texto (pieza 20, el medidor
@@ -1547,7 +1600,7 @@ function filaCobro(x) {
         (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
         ' · vendido ' + esc(money(Ventas.vendidoDe(p))) + ' · anticipo ' + esc(money(p.anti_pactado)) +
         (p.cuenta ? ' · ' + esc(p.cuenta) : '') + (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
-        (x.deNotion ? ' · saldo de la hoja' : ' · saldo estimado') +
+        (x.deNotion ? ' · saldo de ' + laFuente() : ' · saldo estimado') +
       '</p>' +
       medidorCobro(x) +
     '</div>' +
@@ -1860,7 +1913,7 @@ function filaGasto(g) {
     '<div class="pf-fila-tx">' +
       '<p class="pf-fila-t">' + esc(g.concepto || 'Sin concepto') + etiqueta + '</p>' +
       '<p class="pf-fila-d">' + det.map(esc).join(' · ') + '</p>' +
-      '<p class="pf-fila-d ct-quien">' + (g.registro_por ? 'Registró <b>' + esc(g.registro_por) + '</b>' : 'Escrito en la hoja') +
+      '<p class="pf-fila-d ct-quien">' + (g.registro_por ? 'Registró <b>' + esc(g.registro_por) + '</b>' : (enBase() ? 'Capturado en la hoja, antes del cambio' : 'Escrito en la hoja')) +
         (g.anulado ? ' · anuló <b>' + esc(g.anulo || 'alguien') + '</b>' + (g.anulado_en ? ' el ' + esc(fmtFecha(isoDeMs(g.anulado_en))) : '') : '') + '</p>' +
       (e.estado === 'rechazada' && e.error ? '<p class="pf-fila-d ct-gas-error">' + esc(e.error) + '</p>' : '') +
     '</div>' +
@@ -1914,8 +1967,9 @@ function abrirGasto() {
       '<div class="ct-gas-dos">' +
         '<div class="fld"><label for="ct-gas-monto">Monto</label>' +
           '<input type="text" id="ct-gas-monto" inputmode="decimal" autocomplete="off" placeholder="$0.00" required></div>' +
-        '<div class="fld"><label for="ct-gas-cuenta">Cuenta de la que salió</label><select id="ct-gas-cuenta">' +
-          '<option value="">Efectivo u otra</option>' + opcionesDeCuenta() + '</select></div>' +
+        '<div class="fld"><label for="ct-gas-cuenta">Cuenta de la que salió</label><select id="ct-gas-cuenta"' + (enBase() ? ' required' : '') + '>' +
+          (enBase() ? '<option value="">Elige la cuenta…</option><option value="' + EFECTIVO + '">Efectivo u otra</option>'
+            : '<option value="">Efectivo u otra</option>') + opcionesDeCuenta() + '</select></div>' +
       '</div>' +
       notaDeCuenta() +
       '<div class="fld"><label for="ct-gas-folio">Folio del proyecto <small>(opcional)</small></label>' +
@@ -1934,6 +1988,10 @@ function abrirGasto() {
 /* La cuenta de la que salió el gasto, con los MISMOS nombres que la cuenta de cobro de una venta (`CUENTAS` de puente.js): así un
    gasto de «Elias BBVA» se resta del dinero disponible (0027). Con la base mandando, cada opción dice si es dinero disponible y abajo se
    dice para qué sirve elegirla; el valor es siempre el nombre de la cuenta. Con la hoja mandando, el desplegable de siempre. */
+/* Con la base mandando la cuenta del gasto se ELIGE: antes venía puesta en «Efectivo u otra», que no resta del disponible, y un gasto
+   de Elias BBVA capturado sin cambiarla inflaba el disponible sin que nadie lo notara (auditoría 2026-10-25, DN-4). Efectivo es una
+   opción más, con su propio valor; al guardar vuelve a ser la cuenta vacía de siempre. */
+const EFECTIVO = 'efectivo';
 function opcionesDeCuenta() {
   const disp = enBase() && D && D.ajuste ? D.ajuste.cuentas : null;
   if (!disp) return CUENTAS.map(c => '<option>' + esc(c) + '</option>').join('');
@@ -1996,6 +2054,11 @@ async function guardarGasto() {
     fecha: val('ct-gas-fecha'), concepto: val('ct-gas-concepto'), categoria: val('ct-gas-cat'),
     monto: Gastos.montoDe(val('ct-gas-monto')), cuenta: val('ct-gas-cuenta'), folio: val('ct-gas-folio'),
   };
+  if (enBase() && !datos.cuenta) {
+    const m = 'Elige de qué cuenta salió el gasto (o «Efectivo u otra»): de eso depende si se resta del disponible.';
+    avisarCampo('cuenta', m); voz(m, true); return;
+  }
+  if (datos.cuenta === EFECTIVO) datos.cuenta = '';
   /* Primero aquí, para decirlo junto al campo sin pasar por la base. `registrar` vuelve a validar. */
   const malo = Gastos.validar(datos);
   if (malo) { avisarCampo(malo.campo, malo.mensaje); voz(malo.mensaje, true); return; }
@@ -2064,13 +2127,14 @@ function bajarCSVGastos() {
    (js/datos/dinero-cuentas.js) y sale de lo mismo que el resto de Control: las ventas y los gastos que bajaron de la base. */
 
 /* ----- Los botones rápidos del dinero (Elías, 2026-10-25: «botones de fácil acceso para gastos e ingresos») -----
-   Debajo del disponible, en el Resumen y en Cuentas: registrar lo que entra y lo que sale sin buscar la pestaña. «+ Ingreso» abre
-   «Cobros y abonos» con el formulario de cobro a la vista (el dinero de AL3D entra cobrando una venta); «+ Gasto» abre el mismo
+   Debajo del disponible, en el Resumen y en Cuentas: registrar lo que entra y lo que sale sin buscar la pestaña. «+ Cobro de una venta»
+   (antes «+ Ingreso», que hacía pensar en cualquier dinero que entra: auditoría 2026-10-25, DN-5) abre «Cobros y abonos» con el
+   formulario de cobro a la vista (el dinero de AL3D entra cobrando una venta); «+ Gasto» abre el mismo
    formulario de siempre; «Ver gastos» lleva a la lista, que es donde se anula uno. Solo con la base mandando, como las pestañas. */
 let _formAlAbrir = '';
 function botonesDinero() {
   return '<div class="ct-gas-acc ct-dinero-acc">' +
-    '<button type="button" class="btn btn-pri pf-btn-corto" data-act="ingreso-nuevo">' + ico('i-mas') + ' Ingreso</button>' +
+    '<button type="button" class="btn btn-pri pf-btn-corto" data-act="ingreso-nuevo">' + ico('i-mas') + ' Cobro de una venta</button>' +
     '<button type="button" class="btn btn-pri pf-btn-corto" data-act="gasto-nuevo">' + ico('i-mas') + ' Gasto</button>' +
     '<button type="button" class="btn btn-gho pf-btn-corto" data-va="tab:gastos">Ver gastos</button>' +
   '</div>';
@@ -2086,13 +2150,19 @@ function htmlDisponibleDelMes() {
   if (!D.ajuste || !_DC || !tabs().includes('cuentas')) return '';
   const M = _DC.dineroPorCuenta(D.ventas, D.gastos, { periodo: 'mes', hoy: D.hoy, disponibles: D.ajuste.cuentas });
   const d = M.disponible;
-  const frase = 'Este mes entró ' + money(d.ingresos) + ' a ' + d.cuentas.join(', ') + ' y ' +
+  const sd = sinDatosDeLaBase();
+  const frase = sd ? 'Sin datos de la base todavía: el disponible se calcula cuando baje su récord.'
+    : 'Este mes entró ' + money(d.ingresos) + ' a ' + d.cuentas.join(', ') + ' y ' +
     (d.nGastos ? 'salieron ' + money(d.gastos) + ' en ' + nGastos(d.nGastos) + ' pagados desde ahí.' : 'no se ha capturado ningún gasto pagado desde ahí.') +
     (M.otras.ingresos > 0 ? ' Aparte, ' + money(M.otras.ingresos) + ' entraron a cuentas que no son de AL3D.' : '');
+  /* La liquidación es UNA cifra por venta, con la fecha del último pago: un cliente que pagó en partes cuenta entero en el mes de su
+     último pago. Se dice junto a la cifra cuando este mes entró alguna liquidación (auditoría 2026-10-25, DN-3). */
+  const liq = M.cuentas.filter(x => x.disponible).reduce((s, x) => s + x.liquidaciones, 0);
   return '<section class="card ct-clave-card ct-cta-res" id="ct-disp-mes" aria-labelledby="ct-disp-mes-h">' +
     '<h2 id="ct-disp-mes-h" class="solo-voz">Dinero disponible</h2>' +
-    clave('disp', 'Disponible · ' + mesLargo(D.hoy.slice(0, 7)), money(d.saldo), frase, { dest: 'tab:cuentas', que: 'abrir Cuentas' },
-      'principal' + (d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+    clave('disp', 'Disponible · ' + mesLargo(D.hoy.slice(0, 7)), sd ? SIN_DATO : money(d.saldo), frase, sd ? null : { dest: 'tab:cuentas', que: 'abrir Cuentas' },
+      'principal' + (!sd && d.saldo < 0 ? ' neg' : ''), 'i-venta') +
+    (!sd && liq > 0 ? '<p class="pf-nota ct-disp-nota">Un cliente que pagó en partes cuenta entero en el mes de su último pago.</p>' : '') +
     botonesDinero() +
   '</section>';
 }

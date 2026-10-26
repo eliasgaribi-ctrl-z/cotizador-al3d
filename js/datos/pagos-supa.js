@@ -864,7 +864,7 @@ export function resumen(p, data, venta) {
   const rep = d.repetida ? ' Ya estaba registrado: no se sumó otra vez.' : '';
   if (p.rpc === 'registrar_cobro') {
     return 'Cobro registrado en ' + f + '. Liquidación ' + pesosDe(d.liquidacion) + ', saldo ' + pesosDe(d.saldo) +
-      (d.en_ceros ? ' (en ceros)' : '') + '; estatus ' + (d.estatus || '—') + '.';
+      (d.en_ceros ? ' (en ceros)' : '') + '; estatus ' + (d.estatus || '—') + '.' + rep;
   }
   if (p.rpc === 'corregir_venta' && p.tipo === 'datos') {
     /* Lo que la base escribió, con el valor que quedó; lo que no aceptó, con su porqué (corregir_venta no aborta el resto). */
