@@ -19,9 +19,10 @@ import { SUSTITUTO_STORAGE, TEXTO_STORAGE, TEXTO_CONSTANCIAS } from '../comun/st
 const HUMO = readFileSync(fileURLToPath(new URL('../../opcional/prueba-de-humo.sql', import.meta.url)), 'utf8');
 /** Casos sin el bloque de Storage (C01…C57 y el C58 que dice «no aplica») y con él (C01…C74; C70–C74 son de Q-02 bis, Fabricación y las obras
  *  ganadas), más los cinco de cuadre_diario (D01…D05, 0018), los dos de la venta sin cotización con la hoja mandando (E01–E02, 0026) y los ocho del
- *  dinero disponible y las facturas (F01–F08, 0027) en los dos; y el bloque 14, las constancias en Storage: un caso que dice «no aplica» (G01) sin
- *  opcional/constancias.sql, cinco (G01–G05) con él. Los documentos dicen estas cifras. */
-const SIN_STORAGE = 74, CON_STORAGE = 90, CON_CONSTANCIAS = 94;
+ *  dinero disponible y las facturas (F01–F08, 0027) y los cuatro de lo que arregló la auditoría del 2026-10-25 (H01–H04, 0028) en los dos; y el
+ *  bloque 14, las constancias en Storage: un caso que dice «no aplica» (G01) sin opcional/constancias.sql, cinco (G01–G05) con él. Los documentos
+ *  dicen estas cifras. */
+const SIN_STORAGE = 78, CON_STORAGE = 94, CON_CONSTANCIAS = 98;
 
 /** Corre la prueba de humo y devuelve su informe (el JSON del error «HUMO_RESULTADO …»). */
 async function humo(db) {
@@ -247,6 +248,33 @@ describir('el bloque 1 bis (la venta sin cotización con la hoja mandando, 0026)
       const ini = t.indexOf('create or replace function public.alta_venta'), fin = t.indexOf('end $$;', ini) + 'end $$;'.length;
       await sql(db, t.slice(ini, fin));
       igual(rojos(await humo(db)).map(r => r.slice(0, 3)), ['E01', 'E02']);
+    } finally { await db.close(); }
+  });
+});
+
+describir('el bloque 15 (lo que arregló la auditoría del 2026-10-25, 0028): H01–H04', () => {
+  prueba('con datos y la empresa en «hoja»: H01–H04 en verde (Pagos no con la hoja y sí con la base, la cancelada fuera del reparto, la fecha que solo avanza), y la empresa sigue en «hoja»', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      await conDatos(db);
+      const antes = await foto(db);
+      const inf = await humo(db);
+      igual(rojos(inf), []);
+      igual(inf.casos.filter(c => /^H0[1-4] /.test(c.caso)).map(c => c.caso.slice(0, 3) + ':' + c.det),
+        ['H01:DATO_INVALIDO definitivo / 0', 'H02:V-9999802 / false', 'H03:1 / 0 / 1', 'H04:2026-10-20 / 150']);
+      igual((await sql(db, "select modo from public.empresas where id = 'al3d'"))[0].modo, 'hoja');
+      igual(await foto(db), antes, 'no dejó nada');
+    } finally { await db.close(); }
+  });
+  prueba('SIN la 0028 (la matriz de 0017, donde Pagos no gana): H01 sale en rojo diciendo que falta, y nada más', async () => {
+    const db = await crearBaseDePruebas();
+    try {
+      const t = readFileSync(fileURLToPath(new URL('../../migrations/0017_decisiones_elias.sql', import.meta.url)), 'utf8');
+      const ini = t.indexOf('create or replace function interno.matriz_permisos'), fin = t.indexOf('$$;', t.indexOf("'::jsonb", ini)) + '$$;'.length;
+      await sql(db, t.slice(ini, fin));
+      const inf = await humo(db);
+      igual(rojos(inf).map(r => r.slice(0, 3)), ['H01']);
+      cierto(inf.casos.some(c => /^H01 Pagos todavía no da de alta .*falta aplicar/.test(c.caso)));
     } finally { await db.close(); }
   });
 });

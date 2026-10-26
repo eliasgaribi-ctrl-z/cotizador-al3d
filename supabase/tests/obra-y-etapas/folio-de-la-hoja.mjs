@@ -71,8 +71,12 @@ describir('ganar_proyecto con el folio de la hoja', () => {
     igual([otro.ok, otro.ya_existia, otro.folio_hoja, otro.folio_hoja_pedido], [true, true, 'V-042', 'V-077']);
     igual([await folioDe(db, 'g100'), await contadorV(db)], ['V-042', 42]);
   }));
-  prueba('sigue siendo SOLO de Dirección: Pagos y Fabricación con folio_hoja → ROL_SIN_PERMISO', () => conCopia(plantilla, async db => {
-    for (const quien of ['pag', 'fab']) igual((await rpc(db, quien, 'ganar_proyecto', GANAR(100, { folio_hoja: 'V-042' }))).codigo, 'ROL_SIN_PERMISO');
+  prueba('Fabricación con folio_hoja → ROL_SIN_PERMISO; Pagos (0028, CZ-1): con la hoja mandando DATO_INVALIDO definitivo, con la base mandando entra con ESE folio', () => conCopia(plantilla, async db => {
+    igual((await rpc(db, 'fab', 'ganar_proyecto', GANAR(100, { folio_hoja: 'V-042' }))).codigo, 'ROL_SIN_PERMISO');
+    const hoja = await rpc(db, 'pag', 'ganar_proyecto', GANAR(100, { folio_hoja: 'V-042' }));
+    igual([hoja.codigo, hoja.definitivo], ['DATO_INVALIDO', true]);
+    await conLaBaseMandando(db);
+    igual((await rpc(db, 'pag', 'ganar_proyecto', GANAR(100, { folio_hoja: 'V-042' }))).folio_hoja, 'V-042');
   }));
 });
 

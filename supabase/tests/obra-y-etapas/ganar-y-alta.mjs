@@ -1,7 +1,8 @@
 // «Se ganó», «No se dio» y «Registrar nueva venta» — A.md §5.5 y casos PG-26, PG-27, PG-28, MT-01, MT-02, MT-06, MT-07, R1-11.
 //
-//   · `ganar_proyecto` y `descartar_cotizacion`: SOLO Dirección (los botones solo los pinta Dirección, pero el buzón los ejecuta en cualquier
-//     teléfono: ahora decide la base); idempotentes por `id` y por `folio_global`; la entrada se PARTE (obra / dinero) en la base;
+//   · `descartar_cotizacion`: SOLO Dirección (el botón solo lo pinta Dirección, pero el buzón lo ejecuta en cualquier teléfono: decide la base);
+//     `ganar_proyecto`: Dirección, y desde 0028 también Pagos con la base mandando (CZ-1; lo de Pagos está en pagos/auditoria-0028.mjs);
+//     idempotentes por `id` y por `folio_global`; la entrada se PARTE (obra / dinero) en la base;
 //   · `alta_venta`: Dirección y Pagos (el menú «Registrar nueva venta» de la hoja);
 //   · el folio `V-###` sale de un contador que NUNCA reparte un número dos veces y que la lápida no consume.
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
@@ -129,13 +130,15 @@ describir('ganar_proyecto: crea el proyecto, la venta y el folio', () => {
 });
 
 describir('R1-11, MT-01, MT-02, MT-06, MT-07 quién puede ganar y de qué empresa', () => {
-  prueba('R1-11 Fabricación y Pagos: ganar_proyecto y descartar_cotizacion → ROL_SIN_PERMISO', async () => {
+  prueba('R1-11 Fabricación: ganar_proyecto y descartar_cotizacion → ROL_SIN_PERMISO; Pagos: descartar_cotizacion → ROL_SIN_PERMISO y, desde 0028, ganar_proyecto sí (con la base mandando)', async () => {
     const db = await plantilla();
     for (const quien of ['fab', 'pag']) {
       const S = sesionDe(db, db.u[quien]);
-      igual((await S.rpc('ganar_proyecto', GANAR()))[0].ganar_proyecto.codigo, 'ROL_SIN_PERMISO', quien);
       igual((await S.rpc('descartar_cotizacion', { p_op: { id: 'l1', folio_global: 'COT-0300@K7QM' } }))[0].descartar_cotizacion.codigo, 'ROL_SIN_PERMISO', quien);
     }
+    igual((await sesionDe(db, db.u.fab).rpc('ganar_proyecto', GANAR()))[0].ganar_proyecto.codigo, 'ROL_SIN_PERMISO', 'fab');
+    const pag = await sesionDe(db, db.u.pag).transaccion(t => rpcT(t, 'ganar_proyecto', GANAR()));
+    igual([pag.ok, pag.proyecto_id], [true, 'g1'], 'pag (0028)');
   });
   prueba('MT-01 u_otra (Dirección en otra) con p_empresa = al3d: SIN_ACCESO; y sin p_empresa sus proyectos son de SU empresa', async () => {
     const db = await plantilla(), O = sesionDe(db, db.u.otra);
