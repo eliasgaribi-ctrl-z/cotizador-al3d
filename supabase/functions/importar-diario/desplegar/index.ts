@@ -6,15 +6,15 @@
 // Cómo se despliega y qué secretos lleva: supabase/README.md, «La copia diaria (importar-diario)».
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/supabase-importar-diario.mjs falla si una cambió:
 //   998974899ffa11bc  datos/semilla.json
-//   217bbd02795cbecf  js/datos/agenda.js
+//   e77af4afd7f5ddf0  js/datos/agenda.js
 //   d8b415f4d8dcf1ed  js/datos/catalogo-precios.js
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
-//   eaf5bb4c2a840916  js/datos/geo.js
+//   121a081376026fad  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
-//   043b51568d102586  js/datos/proyectos.js
-//   51362cdf06d05909  js/datos/puente.js
+//   cfd0119724bf4a0e  js/datos/proyectos.js
+//   4c17a0a8e1003a4e  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   5be48180438525b2  js/nucleo/ingreso.js

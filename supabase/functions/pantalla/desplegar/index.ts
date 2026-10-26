@@ -9,9 +9,9 @@
 //   64c4eb181e3d381f  js/datos/cotizador.js
 //   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
-//   eaf5bb4c2a840916  js/datos/geo.js
+//   121a081376026fad  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
-//   043b51568d102586  js/datos/proyectos.js
+//   cfd0119724bf4a0e  js/datos/proyectos.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   182f2f140a2e13d6  js/nucleo/ui.js
