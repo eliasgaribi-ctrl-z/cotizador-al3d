@@ -362,7 +362,7 @@ async function rondaTelefono({ ancho, tema, reducido }) {
     cierto(h.filas.every(f => f.h >= 44), 'cada fila mide al menos 44 px', h.filas.map(f => f.h));
     const mat = h.filas.find(f => f.ruta === 'material') || {};
     cierto(mat.cta === '3', 'Material trae su globo: 3', mat);
-    cierto(h.foco === 'dentro' && /Más módulos/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más módulos»', h);
+    cierto(h.foco === 'dentro' && /Más pantallas/.test(h.titulo || ''), 'el foco entra a la hoja, que se llama «Más pantallas»', h);
     cierto(await sinDesborde(p), 'sin desborde de lado con la hoja abierta');
     const c1 = await contraste(p, '.pf-mas-op .cta'), c2 = await contraste(p, '.pf-mas-d');
     cierto(c1 && c1.ratio >= 4.5, 'el globo de la fila lee a ' + (c1 && c1.ratio) + ':1', c1);

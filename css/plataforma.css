@@ -5024,3 +5024,22 @@ small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align
 .ct-cta-casilla input{width:20px;height:20px;flex:0 0 auto;margin:0}
 /* H-5: los tres indicadores de Facturas en el teléfono: dos arriba y el tercero a lo ancho, sin medio renglón vacío. */
 @media(max-width:400px){ .pf-cuentas.fx-cuentas > .pf-cuenta:last-child:nth-child(odd){grid-column:1 / -1} }
+
+/* Auditoría 2026-10-25 · Entrada y Ajustes
+   Lo apartado: cada cambio con su venta, qué era y por qué no entró, y su «Descartar» a la derecha (ES-8). Las personas
+   de la base en una fila: quién a la izquierda, el área y las acciones a la derecha, y en el teléfono debajo (ES-10). */
+.aj-apartados{list-style:none;margin:var(--e3) 0 0;padding:0;display:grid;gap:var(--e2)}
+.aj-apartado{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e3);padding:var(--e2) var(--e3);
+  border-radius:var(--rr2);background:var(--n1);font-size:var(--t2);line-height:1.5;color:var(--n7)}
+.aj-apartado>div{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}
+.aj-apartado b{color:var(--ink)}
+.aj-apartado .btn{min-height:44px;width:auto;flex:0 0 auto}
+.aj-persona{align-items:flex-start}
+.aj-persona-q{flex:1 1 14rem}
+.aj-persona-acc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);flex:0 1 auto}
+.aj-persona-acc select{min-height:44px;max-width:11rem}
+.aj-persona-acc .btn{min-height:44px;width:auto;flex:0 0 auto}
+@media (max-width:640px){
+  .aj-persona-acc{flex:1 1 100%}
+  .aj-persona-acc select{flex:1 1 8rem;max-width:none;min-width:0}
+}

@@ -164,6 +164,10 @@ export function sePuedeBorrar({ habilitado = BORRADO_HABILITADO, bandejaVacia, t
   return habilitado === true && bandejaVacia === true && todoConAcuse === true;
 }
 
+/* La cuenta a la que la base le retiró el acceso en este aparato (con la base mandando). La lee la puerta
+   con una expresión regular, sin cargar este módulo. Fuera de Prefs.CLAVES: no viaja en el respaldo. */
+export const CLAVE_FUERA = 'al3d_pf_supa_fuera';
+
 /* Candado 3 y la lista de §3.6: lo que se borra y lo que NO. Las preferencias del aparato (tema,
    capa del mapa…) se quedan; el id del aparato y su contador de folios, también. */
 export const SE_CONSERVAN = ['al3d_pf_disp', 'al3d_folio'];
@@ -211,15 +215,38 @@ export function cargarLibreria() {
   return _lib;
 }
 
-export async function cliente() {
+/* Se guarda la PROMESA del cliente, no el cliente: las llamadas que llegaban juntas mientras cargaba la
+   librería creaban cada una el suyo —de 2 a 4 por carga (auditoría 2026-10-25, H-1)—, varias sesiones
+   iguales renovando la llave cada una por su cuenta. Si la librería no carga, se olvida y se reintenta. */
+export function cliente() {
   if (_cliente) return _cliente;
-  if (!SUPABASE.url || !SUPABASE.llave) throw new Error('Falta la dirección o la llave pública de Supabase (js/datos/supabase-config.js).');
-  const lib = await cargarLibreria();
-  _cliente = lib.createClient(SUPABASE.url, SUPABASE.llave, {
-    auth: { persistSession: true, storageKey: CLAVE_SESION, autoRefreshToken: true, detectSessionInUrl: false },
-    global: { headers: { 'x-al3d-contrato': CONTRATO } },
+  if (!SUPABASE.url || !SUPABASE.llave) return Promise.reject(new Error('Falta la dirección o la llave pública de Supabase (js/datos/supabase-config.js).'));
+  const p = cargarLibreria().then(lib => {
+    const c = lib.createClient(SUPABASE.url, SUPABASE.llave, {
+      auth: { persistSession: true, storageKey: CLAVE_SESION, autoRefreshToken: true, detectSessionInUrl: false },
+      global: { headers: { 'x-al3d-contrato': CONTRATO } },
+    });
+    escucharSalida(c);
+    return c;
   });
-  return _cliente;
+  _cliente = p;
+  p.catch(() => { if (_cliente === p) _cliente = null; });
+  return p;
+}
+
+/* La sesión se fue —«Salir de Supabase», o un refresco que falló solo—: la app se entera (`al3d-supa-salio`,
+   lo oye js/app.js) para olvidar la cuenta del relevo, poner la cruz en el glifo y volver a ofrecer la
+   entrada. Sin esto el glifo seguía diciendo «al día» con el teléfono fuera de la base (auditoría
+   2026-10-25, ES-5). */
+function escucharSalida(c) {
+  try {
+    if (!c || !c.auth || typeof c.auth.onAuthStateChange !== 'function') return;
+    c.auth.onAuthStateChange(ev => {
+      if (ev !== 'SIGNED_OUT') return;
+      _accesoEnVuelo = null;
+      try { globalThis.dispatchEvent(new CustomEvent('al3d-supa-salio')); } catch (_) { /* sin ventana: las pruebas */ }
+    });
+  } catch (_) { /* una librería sin el oyente: la app se entera en su siguiente vuelta */ }
 }
 
 /** Una función de la base; devuelve su jsonb o lanza con {codigo, mensaje}. */
@@ -272,6 +299,7 @@ async function cambiarPorSesion(credencial, crudo, correoPuerta) {
        área) en este aparato, y lo de una cuenta ajena no tiene por qué quedarse. */
     const deLaSesion = (data && data.user && typeof data.user.email === 'string') ? data.user.email : '';
     if (correoPuerta && deLaSesion && !esLaMismaPersona(deLaSesion, correoPuerta)) return await otra();
+    _accesoEnVuelo = null;                         // una pregunta de antes de entrar contestaría «sin sesión»
     const a = await acceso();
     if (correoPuerta && !deLaSesion && a.correo && !esLaMismaPersona(a.correo, correoPuerta)) return await otra();
     vigilar();                                    // desde ya, no hasta la siguiente vez que se abra la app
@@ -343,8 +371,19 @@ export async function entrarSinBoton(correoPuerta, opc = {}) {
   });
 }
 
-/** Quién eres según la base. Una invitación pendiente se reclama aquí mismo. */
-export async function acceso() {
+/** Quién eres según la base. Una invitación pendiente se reclama aquí mismo. Las preguntas que llegan
+ *  juntas —la puerta, el relevo, Ajustes y la entrada única, al abrir— comparten la que va en vuelo: eran
+ *  de 4 a 6 `mi_acceso` por carga (auditoría 2026-10-25, ES-11). Una que llega después pregunta de nuevo. */
+let _accesoEnVuelo = null;
+export function acceso() {
+  if (_accesoEnVuelo) return _accesoEnVuelo;
+  const p = accesoDeVerdad();
+  _accesoEnVuelo = p;
+  const fin = () => { if (_accesoEnVuelo === p) _accesoEnVuelo = null; };
+  p.then(fin, fin);
+  return p;
+}
+async function accesoDeVerdad() {
   let a = leerAcceso(await rpc('mi_acceso').catch(e => ({ ok: false, codigo: e.codigo || '', mensaje: mensajeDe(e) })));
   if (a.estado === 'invitacion_pendiente') {
     a = leerAcceso(await rpc('reclamar_acceso').catch(e => ({ ok: false, codigo: e.codigo || '', mensaje: mensajeDe(e) })));
@@ -353,6 +392,13 @@ export async function acceso() {
      incluido); si cambió, la app vuelve a enchufar la bandeja. */
   if (guardarModo(a)) {
     try { globalThis.dispatchEvent(new CustomEvent('al3d-modo', { detail: { modo: a.modo } })); } catch (_) { /* sin ventana: las pruebas */ }
+  }
+  /* Reactivada en la base: lo que este aparato recordaba de su baja ya no vale. */
+  if (a.estado === 'activo') {
+    try {
+      const f = JSON.parse(ls()?.getItem(CLAVE_FUERA) || 'null');
+      if (f && esLaMismaPersona(f.correo, a.correo)) ls()?.removeItem(CLAVE_FUERA);
+    } catch (_) { /* dañado o sin almacenamiento: nada que levantar */ }
   }
   return a;
 }
@@ -366,6 +412,7 @@ async function sesion() {
 export async function haySesion() { return !!(await sesion()); }
 
 export async function salir() {
+  _accesoEnVuelo = null;
   try { const c = await cliente(); await c.auth.signOut(); } catch (_) { /* sin red: la sesión local se va igual abajo */ }
   try { ls()?.removeItem(CLAVE_SESION); } catch (_) { /* nada */ }
 }
@@ -477,7 +524,7 @@ export function vigilar(deps = {}) {
         todoConAcuse: deps.todoConAcuse ? await deps.todoConAcuse().catch(() => false) : false,
       });
       if (puede) await borrarLocal();
-      bloquear(puede);
+      bloquear(puede, b.correo || a.correo);
     } finally { _enCurso = false; }
   };
   setInterval(() => { revisar().catch(() => {}); }, MS_VIGILAR);
@@ -485,27 +532,50 @@ export function vigilar(deps = {}) {
   revisar().catch(() => {});
 }
 
-/** La pantalla que tapa todo cuando el acceso se retiró. No tiene botón de cerrar. */
-export function bloquear(borrado) {
+/** La pantalla que tapa todo cuando el acceso se retiró. No tiene botón de cerrar.
+ *
+ *  Los colores son los de la app (`--sup` y `--tinta` de css/sistema.css, que cambian con el tema): pedía
+ *  `--tx`, que no existe, y en tema claro quedaba texto blanco sobre gris claro (auditoría 2026-10-25, ES-2).
+ *
+ *  Con la base mandando la base ES la que dice quién entra: el pase que ella dio se va en el acto, y la
+ *  salida ya no es «Apagar Supabase» —apagado, el teléfono volvía a abrir Control con lo guardado y a
+ *  escribir en la hoja (ES-1)— sino entrar con otra cuenta: la puerta vuelve a preguntar y a esta cuenta
+ *  la base le dice que no. Con la hoja mandando, la salida de siempre. */
+export function bloquear(borrado, correo) {
   if (document.getElementById('pf-sin-acceso')) return;
+  const manda = laBaseManda();
+  if (manda) {
+    try {
+      ls()?.removeItem('al3d_pf_pase');
+      /* Y se recuerda en ESTE aparato a quién se le retiró: si mañana entra sin sesión en la base, la puerta
+         no le pregunta a la hoja (js/nucleo/puerta.js, `cuentaRetiradaAqui`). Lo levanta la base al decir «activo». */
+      if (correo) ls()?.setItem(CLAVE_FUERA, JSON.stringify({ correo: String(correo).trim().toLowerCase(), ts: Date.now() }));
+    } catch (_) { /* sin almacenamiento */ }
+  }
   const d = document.createElement('div');
   d.id = 'pf-sin-acceso';
   d.setAttribute('role', 'alertdialog');
   d.setAttribute('aria-modal', 'true');
+  d.setAttribute('aria-labelledby', 'pf-sin-acceso-t');
   d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;' +
-    'background:var(--bg,#0b0d12);color:var(--tx,#f2f4f8);text-align:center;font:16px/1.5 system-ui,sans-serif';
-  d.innerHTML = '<div style="max-width:28rem"><h2 style="margin:0 0 .5rem">Tu acceso a AL3D se retiró</h2>' +
+    'background:var(--sup,#ffffff);color:var(--tinta,#1a1d33);text-align:center;font:16px/1.5 system-ui,sans-serif';
+  const salida = manda
+    ? 'Entrar con otra cuenta'
+    /* La salida: mientras la empresa siga con la hoja, apagar en este aparato quita la pantalla (y la
+       puerta de siempre vuelve a decidir). Sin esto, un error de prueba dejaba el teléfono tapado. */
+    : 'Apagar Supabase en este aparato';
+  d.innerHTML = '<div style="max-width:28rem"><h2 id="pf-sin-acceso-t" style="margin:0 0 .5rem">Tu acceso a AL3D se retiró</h2>' +
     '<p style="margin:0">Dirección dio de baja esta cuenta. ' +
     (borrado ? 'Los datos de AL3D de este aparato se borraron.' : 'Los datos de este aparato no se borraron: siguen aquí, pero ya no se pueden abrir.') +
     ' Si es un error, habla con Dirección.</p>' +
-    /* La salida: mientras esto sea una prueba con interruptor, apagarlo en este aparato quita la pantalla
-       (y la puerta de siempre vuelve a decidir). Sin esto, un error de prueba dejaba el teléfono tapado. */
-    '<p style="margin:1.25rem 0 0"><button type="button" id="pf-sin-acceso-apagar" style="font:inherit;padding:.6rem 1rem;' +
-    'border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit">Apagar Supabase en este aparato</button></p></div>';
+    '<p style="margin:1.25rem 0 0"><button type="button" id="pf-sin-acceso-apagar" style="font:inherit;min-height:44px;padding:.6rem 1rem;' +
+    'border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit">' + salida + '</button></p></div>';
   for (const el of document.body.children) if (el !== d) el.setAttribute('inert', '');
   document.body.appendChild(d);
   d.querySelector('#pf-sin-acceso-apagar').addEventListener('click', async () => {
-    await salir(); encender(false); location.reload();
+    await salir();
+    if (!manda) encender(false);
+    location.reload();
   });
 }
 

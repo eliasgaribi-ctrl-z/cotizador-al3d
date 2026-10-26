@@ -1021,9 +1021,26 @@ const MS_RENOVAR = 5000;
 const MS_ENTRE_RENOVACIONES = 60000;
 let _renovadoEn = 0;
 
-async function tokenDeGoogle() {
+/* ── Con la base mandando, lo de fondo nunca abre la ventana de Google ──────────────────
+   Quien entra por el botón de Google de la puerta no trae el permiso de la hoja, y lo que sigue en
+   el Apps Script de fondo —las carpetas de Drive cada cinco minutos, los links cortos de Maps— lo
+   pedía si en ese segundo había un toque reciente: la ventana de Google se abría sola en medio del
+   trabajo, en el teléfono de Fabricación una vez cada cinco minutos (auditoría 2026-10-25, ES-3). Con
+   la base mandando, la ventana solo la abre una pregunta que alguien pidió con un botón (`hablar`: el
+   sello, la IA) o el «Entrar con Google» de Ajustes. La misma regla que js/app.js, leída sin cargar nada
+   (en una función de Supabase, sin localStorage, es la hoja: no cambia nada). */
+function laBaseManda() {
+  try {
+    const ls = globalThis.localStorage;
+    return !!ls && /"encendido":true/.test(ls.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(ls.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+
+async function tokenDeGoogle(conVentana) {
   if (Ingreso.dentro()) return Ingreso.token();
   if (!Ingreso.configurado() || !Ingreso.correo()) return '';
+  if (!conVentana && laBaseManda()) return '';
   if (!Ingreso.hayGesto()) return '';
   if (Date.now() - _renovadoEn < MS_ENTRE_RENOVACIONES) return '';
   _renovadoEn = Date.now();
@@ -1044,7 +1061,7 @@ async function tokenDeGoogle() {
  */
 async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
   /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
-  const g = await tokenDeGoogle();
+  const g = await tokenDeGoogle(opciones.conVentana === true);
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
      de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
@@ -1100,9 +1117,11 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
     /* El CORS mal puesto se ve igual que «no hay señal» desde JavaScript —la
        especificación no deja distinguirlos— así que el mensaje nombra las dos
        posibilidades en vez de mentir con una. */
+    /* La frase es para quien está en la obra, no para quien instala el puente (TR-7): la otra posibilidad —el
+       Apps Script publicado sin acceso «Cualquier usuario»— la dice Ajustes al probar el puente. */
     throw falla('SIN_RED', (e && e.name === 'AbortError')
       ? 'El puente no contestó en ' + Math.round(espera / 1000) + ' segundos. Lo que hiciste está guardado aquí y se manda solo.'
-      : 'No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso «Cualquier usuario».');
+      : 'Sin señal: no se pudo llegar a la hoja. Lo que hiciste se queda guardado aquí, y lo de Drive se ve en cuanto vuelva.');
   } finally { if (t && !r) clearTimeout(t); }
 
   /* El reloj sigue corriendo mientras se lee el cuerpo: los encabezados pueden llegar y el
@@ -1152,7 +1171,9 @@ export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA) {
   const p = Prefs.puente();
   const cfg = { url: normalizarUrl(p.url), token: String(p.token || '') };
   if (!cfg.url) throw falla('DATO_INVALIDO', 'Este aparato no tiene la dirección del puente.');
-  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo) }, espera);
+  /* Una pregunta que alguien pidió con un botón: con la base mandando, es la que sí puede pedir el permiso de
+     Google de la hoja (ver `tokenDeGoogle`). */
+  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo), conVentana: true }, espera);
   return r.cuerpo;
 }
 
@@ -1710,6 +1731,12 @@ export function crear(cfg0) {
         if (c.ok) return { ok: true, raiz: String(c.raiz || ''), carpetas: Array.isArray(c.carpetas) ? c.carpetas : [] };
         if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {
           return { ok: false, codigo: 'HOJA_VIEJA', mensaje: 'La hoja todavía no lee la carpeta de Drive: falta pegarle el Apps Script puente-sheets-10.' };
+        }
+        /* Con la base mandando, Drive es lo único que pide el permiso de la hoja, y de fondo ya no se pide solo (ES-3): sin él la hoja
+           contesta que no sabe quién pregunta. Eso no es un error, es un permiso que falta, y se dice qué tocar. */
+        if (c.codigo === 'ROL_SIN_PERMISO' && !Ingreso.dentro() && laBaseManda()) {
+          return { ok: false, codigo: 'SIN_PERMISO_DRIVE',
+                   mensaje: 'Para ver aquí las carpetas de Drive, este teléfono necesita el permiso de Google de la hoja: toca «Conectar Drive».' };
         }
         return { ok: false, codigo: c.codigo || 'DESCONOCIDO', mensaje: (c.mensaje || 'La hoja no pudo leer la carpeta de Drive.') + (c.detalle ? ' Google dijo: ' + c.detalle : '') };
       } catch (e) {

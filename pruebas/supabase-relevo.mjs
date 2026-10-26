@@ -303,8 +303,8 @@ try {
   console.log('\nLA ELECCIÓN: LA BASE MANDA SOLO CON EL INTERRUPTOR Y EL ÚLTIMO MODO OÍDO EN «base»');
   {
     const copias = { 'js/app.js': reglaDe('js/app.js'), 'js/nucleo/puerta.js': reglaDe('js/nucleo/puerta.js'), 'js/cotizador/venta.js': reglaDe('js/cotizador/venta.js'),
-      'js/mod/control.js': reglaDe('js/mod/control.js') };
-    eq('las cuatro copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function', 'function']);
+      'js/mod/control.js': reglaDe('js/mod/control.js'), 'js/mod/ajustes.js': reglaDe('js/mod/ajustes.js') };
+    eq('las cinco copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function', 'function', 'function']);
     const ON = JSON.stringify({ encendido: true, desde: 1 });
     const casos = [
       ['apagado, sin modo', {}, false],
@@ -323,10 +323,10 @@ try {
       const dice = [Supa.laBaseManda(), ...Object.values(copias).map(f => f(m))];
       for (const k of Object.keys(ls)) delete ls[k];
       Object.assign(ls, guardado);
-      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js, venta.js y control.js)', dice, [esperado, esperado, esperado, esperado, esperado]);
+      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js, venta.js, control.js y ajustes.js)', dice, [esperado, esperado, esperado, esperado, esperado, esperado]);
     }
     const sinAlmacen = { getItem: () => { throw new Error('bloqueado'); } };
-    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false, false]);
+    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false, false, false]);
 
     /* Lo que dice la base se guarda, y solo si lo dice de verdad. */
     crearClienteFalso();
@@ -337,6 +337,13 @@ try {
     eq('la primera vez se guarda y se avisa (la app vuelve a enchufar)', [Supa.modoGuardado().modo, avisos], ['hoja', ['al3d-modo:{"modo":"hoja"}']]);
     await Supa.acceso();
     eq('el mismo modo otra vez: no se avisa de nuevo', avisos.length, 1);
+    /* Al abrir preguntan a la vez la puerta, el relevo, Ajustes y la entrada única: comparten la pregunta en vuelo (ES-11). */
+    const accesosAntes = base.llamadas.filter(([n]) => n === 'mi_acceso').length;
+    const juntas = await Promise.all([Supa.acceso(), Supa.acceso(), Supa.acceso()]);
+    eq('tres preguntas juntas son UNA pregunta a la base, con la misma respuesta',
+      [base.llamadas.filter(([n]) => n === 'mi_acceso').length - accesosAntes, juntas.every(x => x === juntas[0])], [1, true]);
+    await Supa.acceso();
+    eq('  y una que llega después pregunta de nuevo', base.llamadas.filter(([n]) => n === 'mi_acceso').length - accesosAntes, 2);
     eq('encendido pero la empresa en la hoja: la hoja', Supa.laBaseManda(), false);
     base.cuenta.modo = 'base';
     await Supa.acceso();
@@ -586,7 +593,7 @@ try {
     base.llamadas.length = 0;
     const rs = await S.bombear();
     eq('sin sesión: no se llama a NINGUNA función, y la operación espera', [llamadasDe().length, rs.valor.subidas, (await S.pendientes()).length, (await S.rechazadas()).length], [0, 0, 1, 0]);
-    cierto('y la razón dice qué hacer', /Ajustes → Supabase/.test(S.estado().ultimo_error));
+    cierto('y la razón dice qué hacer', /Ajustes → La base de datos/.test(S.estado().ultimo_error));
     base.cuenta.sesion = true;
     await relevo.salud();
     eq('al entrar, sale sola', (await S.bombear()).valor.subidas, 1);

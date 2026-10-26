@@ -69,7 +69,10 @@ console.log('\nAPAGADO NO HACE NADA');
   cierto('Ajustes lo carga con import() y pinta la tarjeta a los tres roles (paso 2 de «la base manda»)',
     /import\('\.\.\/nucleo\/supa\.js'\)/.test(aj) && /function cardSupabase\(\) \{\n  if \(!Prefs\.ROLES\.includes\(Prefs\.rol\(\)\)\) return '';/.test(aj));
   cierto('y lo de Dirección (personas, pantallas, la sombra) sigue solo para Dirección activa',
-    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\)/.test(aj));
+    /if \(a\.estado === 'activo' && a\.area === 'direccion'\) \{\s*html \+= await bloquePersonas\(Supa, a\.correo\)/.test(aj));
+  /* Con la base mandando, la sombra de pruebas no se enseña: queda la copia de la hoja y el cuadre (ES-10). */
+  cierto('  con la base mandando, sin el bloque de la sombra (la copia de la hoja y el cuadre, nada más)',
+    /\(Supa\.laBaseManda\(\) \? await bloqueCopiaYCuadre\(\) : await bloqueSombra\(\)\)/.test(aj));
   cierto('ningún módulo lo importa de forma estática',
     !/^import[^;]*supa\.js/m.test(aj) && !/^import[^;]*supa\.js/m.test(app));
   cierto('su interruptor y su sesión no viajan en los respaldos (no están en Prefs.CLAVES)',
@@ -106,7 +109,15 @@ console.log('\nSOLO SE TAPA LA APP DE LA MISMA PERSONA, Y SIEMPRE CON SALIDA');
   cierto('después de la segunda opinión vuelve a mirar el interruptor y la persona',
     /if \(!encendido\(\) \|\| !esLaMismaPersona\(b\.correo \|\| a\.correo, correoDeLaPuerta\(\)\)\) return;/.test(v));
   cierto('una revisión a la vez', /if \(_enCurso\) return;/.test(v));
-  cierto('la pantalla de «acceso retirado» trae su botón para apagar en este aparato', /id="pf-sin-acceso-apagar"/.test(v) && /encender\(false\); location\.reload\(\);/.test(v));
+  /* Con la hoja mandando trae su botón para apagar en este aparato; con la base mandando, no: apagado, el teléfono volvía a
+     abrir Control con lo guardado. Ahí la salida es entrar con otra cuenta, y el pase de la base se va (ES-1). */
+  const bloq = (v.match(/export function bloquear\([^)]*\) \{[\s\S]*?\n\}/) || [''])[0];
+  cierto('la pantalla de «acceso retirado» trae su botón: apagar con la hoja mandando, otra cuenta con la base',
+    /id="pf-sin-acceso-apagar"/.test(bloq) && /if \(!manda\) encender\(false\);\s*location\.reload\(\);/.test(bloq) &&
+    /const salida = manda\s*\? 'Entrar con otra cuenta'/.test(bloq));
+  cierto('  con la base mandando borra el pase y recuerda la cuenta en este aparato',
+    /if \(manda\) \{[\s\S]*?removeItem\('al3d_pf_pase'\)[\s\S]*?setItem\(CLAVE_FUERA/.test(bloq));
+  cierto('  y con los colores de la app (no --tx, que no existe)', /var\(--sup,#ffffff\)/.test(bloq) && /var\(--tinta,#1a1d33\)/.test(bloq) && !/--tx/.test(bloq));
   /* Los tres botones entran por `cambiarPorSesion`, y ahí se vigila en cuanto la cuenta es la buena. */
   const cambio = (v.match(/async function cambiarPorSesion\([^)]*\) \{[\s\S]*?\n\}/) || [''])[0];
   cierto('al entrar empieza a vigilar sin esperar a la siguiente vez que se abra la app',
