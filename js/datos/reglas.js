@@ -48,6 +48,21 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 
 async function mod(archivo) { try { return await import('./' + archivo + '.js'); } catch (_) { return null; } }
 
+/* ----- ¿Quién manda: la hoja o la base? (docs/BASE-MANDA.md) -----
+   Con la base mandando, A11 y A15 ya no mandan a la hoja: una venta nueva espera su V-### de la
+   base (no se copia su fila a ningún lado), y la venta que «ya no está» es la que la base ya no
+   trae. Es la regla de `laBaseManda()` de js/nucleo/supa.js —el interruptor de Supabase encendido
+   aquí Y el último modo oído en 'base'—, leída sin cargar supa.js, como en js/app.js y
+   js/mod/control.js (pruebas/proyectos.mjs la corre contra la de supa.js). La exportan Proyectos,
+   el Tablero y «Qué atender», para no tener una copia por pantalla. `evaluar` sigue siendo pura:
+   el modo le llega en `estado.base`, y lo pone `refrescar`. */
+export function laBaseManda() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+
 /* ============================================================================
    Las diez reglas, con su peso y su razón
    ============================================================================ */
@@ -196,6 +211,8 @@ function normalizar(e) {
     rol: E.rol || null,
     veDinero: E.veDinero === undefined ? E.rol !== 'fabricacion' : !!E.veDinero,
     dispositivo: E.dispositivo || '',
+    /* La base manda (ver `laBaseManda`, arriba). Sin decirlo, la hoja: lo de siempre. */
+    base: E.base === true,
   };
 }
 
@@ -555,10 +572,19 @@ function a11(E, out) {
        queda para la venta que de verdad no está en la hoja. */
     const enHoja = !!p.notion_page_id;
 
+    /* Con la base mandando no hay fila que copiar: el V-### lo da la base en cuanto la venta le
+       llega, y el estatus se cambia en la ficha y sube solo. Sin V-### todavía, la venta espera su
+       folio; copiarla a la hoja la dejaría donde ya nadie la lee (auditoría 2026-10-25, TR-1). */
+    const detalleBase = enHoja
+      ? (est === 'COBRANDO'
+        ? 'Ya está en COBRANDO: falta cobrarlo. Mándale el mensaje.'
+        : 'Pon su estatus de cobro en COBRANDO en la ficha del proyecto y mándale el mensaje.')
+      : 'Espera su folio de la base (sale solo en cuanto el teléfono tenga señal). Mientras, mándale el mensaje.';
+
     out.push(aviso('A11', p.id, {
       tono: 'av',
       titulo: (p.nombre || p.folio_local || 'Proyecto') + ' se instaló ' + frase(-dias) + ' y tiene saldo',
-      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') + (enHoja
+      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') + (E.base ? detalleBase : enHoja
         ? (est === 'COBRANDO'
           ? 'Ya está en COBRANDO en la hoja: falta cobrarlo. Mándale el mensaje.'
           : 'La venta ya está en la hoja: pon su Estatus en COBRANDO en la ficha del proyecto —no copies la fila, sería una venta repetida— y mándale el mensaje.')
@@ -575,7 +601,10 @@ function a11(E, out) {
         enHoja
           ? (est === 'COBRANDO' ? null
             : { label: 'Abrir para poner COBRANDO', tipo: 'estatus', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } })
-          : { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
+          /* Con la base, sin folio todavía: la ficha dice si espera o si se apartó, y por qué. */
+          : E.base
+            ? { label: 'Abrir la ficha', tipo: 'abrir_proyecto', datos: { proyecto_id: p.id } }
+            : { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },
@@ -698,13 +727,19 @@ function a15(E, out) {
     const dia = isoDeSello(marca.desde);
     const dias = dia ? diasEntre(dia, E.hoy) : null;
 
+    /* Con la base mandando las marcas las pone la misma revisión, pero contra lo que bajó de la
+       base: «ya no está» es que la base ya no trae ese V-###. Lo que se le pide a la persona no
+       puede ser editar la hoja, que ya es de solo lectura (auditoría 2026-10-25, TP-3). */
+    const fuente = E.base ? 'la base' : 'la hoja';
     let titulo, detalle;
     if (dob) {
       const [suya, ...otras] = dob.folios.map(String);
-      titulo = 'La venta de ' + nombre + ' está dos veces en la hoja';
-      detalle = 'Las filas ' + [suya, ...otras].join(' y ') + ' traen la misma venta. Este teléfono le manda sus cambios a ' + suya +
+      titulo = 'La venta de ' + nombre + ' está dos veces en ' + fuente;
+      detalle = (E.base ? 'Los folios ' : 'Las filas ') + [suya, ...otras].join(' y ') + ' traen la misma venta. Este teléfono le manda sus cambios a ' + suya +
         ' y de ella saca el dinero; ' + (otras.length === 1 ? 'la otra no recibe' : 'las otras no reciben') + ' nada. ' +
-        'Nada se borró solo: en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada el aviso se va.';
+        (E.base
+          ? 'Nada se borró solo: cuál sobra lo corrige Dirección en la base —revisa antes cuál tiene los cobros— y con la siguiente bajada el aviso se va.'
+          : 'Nada se borró solo: en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada el aviso se va.');
     } else if (d) {
       titulo = nombre + ' está dos veces en el tablero';
       /* Con la identidad por confirmar (la fila solo coincide en el folio de la hoja) se dice
@@ -712,20 +747,20 @@ function a15(E, out) {
       const parece = Array.isArray(d.claves) && d.claves.includes('identidad');
       detalle = 'La tarjeta importada de la fila ' + (d.folio_hoja || p.folio_hoja || '') + (parece ? ' parece la misma venta que ' : ' es la misma venta que ') +
         (d.nombre ? '«' + d.nombre + '»' : 'otro proyecto') + ' de este teléfono' +
-        (parece ? ': o son dos tarjetas para una sola venta, o dos ventas con el mismo folio de la hoja. '
+        (parece ? ': o son dos tarjetas para una sola venta, o dos ventas con el mismo folio de ' + fuente + '. '
                 : ': dos tarjetas para una sola venta. ') +
         'No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + d.por.join('; ') : '') + '.';
     } else if (imp) {
-      titulo = nombre + ' ya no está en la hoja';
-      detalle = 'Se importó de la fila ' + (h.folio || p.folio_hoja || '') + ' y la hoja ya no la trae. ' +
+      titulo = nombre + ' ya no está en ' + fuente;
+      detalle = 'Se importó de la fila ' + (h.folio || p.folio_hoja || '') + ' y ' + fuente + ' ya no la trae. ' +
         'No se quitó sola: en su ficha decides si se quita del tablero o se queda.';
     } else {
-      titulo = 'La venta de ' + nombre + ' ya no está en la hoja';
+      titulo = 'La venta de ' + nombre + ' ya no está en ' + fuente;
       detalle = (h.motivo === 'de_otra'
-        ? 'Su fila ' + (h.folio || '') + ' ya es de otra venta'
-        : 'Alguien borró su fila ' + (h.folio || '')) +
+        ? (E.base ? 'Su folio ' : 'Su fila ') + (h.folio || '') + ' ya es de otra venta'
+        : (E.base ? 'La base ya no trae su folio ' : 'Alguien borró su fila ') + (h.folio || '')) +
         ', y los cambios de este proyecto se quedan apartados en este teléfono. ' +
-        'En su ficha decides si se vuelve a dar de alta o se queda fuera de la hoja.';
+        'En su ficha decides si se vuelve a dar de alta o se queda fuera de ' + fuente + '.';
     }
     out.push(aviso('A15', p.id, {
       tono: 'av',
@@ -778,7 +813,7 @@ export async function refrescar(opts = {}) {
       historial: Cot.historial(), cola: Cot.cola(),
       avisos: guardados, calibracion,
       hoy, rol: Prefs.rol(), veDinero: Prefs.veDinero(),
-      dispositivo: Prefs.dispositivo(),
+      dispositivo: Prefs.dispositivo(), base: laBaseManda(),
     });
 
     await persistir(lista, guardados);
