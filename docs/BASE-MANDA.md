@@ -360,3 +360,9 @@ con la auditoría) y correr `supabase/opcional/prueba-de-humo.sql`: verde con **
 venta de Pagos se sigue apartando como hoy; con ella, el teléfono de Pagos se entera en su siguiente `mi_acceso` (al abrir la app o Ajustes, o a
 los 10 minutos) y la bandeja manda las ventas nuevas. Una que ya se apartó antes de `0028` no sale sola: en el teléfono de Pagos, Ajustes →
 «Volver a intentarlos» (o Dirección la registra desde su Cotizador).
+
+**Aplicada el 2026-10-25** (con permiso de Elías, desde su Chrome): el archivo tomado del commit `4997dbe` con su huella sha256 comprobada
+(`c4457cfa…59849`), primero en `al3d-pruebas` (empresa en `'hoja'`) y después en `al3d-produccion` (empresa en `'base'`); las dos contestaron
+«Success» con la auditoría limpia. Prueba de humo en las dos: **98 de 98, 0 fallos** (H01–H04 en verde). En producción, después: la empresa
+sigue en `'base'`, `ganar_proyecto` y `registrar_cobro` llevan el cambio «0028:», la matriz dice `pagos.alta.ganar_proyecto = true` y no quedó
+ninguna fila de la prueba.

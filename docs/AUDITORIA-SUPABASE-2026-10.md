@@ -11,12 +11,12 @@ Revisión visual y funcional de toda la plataforma el día que la empresa pasó 
 
 ## Avance (25 de octubre de 2026, noche)
 
-64 arreglados y 3 a medias, de 67. Todo quedó aplicado en una sola rama y un solo PR, con las decisiones recomendadas. Siete agentes trabajaron en paralelo, cada uno en su copia, y se juntaron con las pruebas en verde. Faltan dos cosas que solo pasan en producción: aplicar la migración 0028 en la base y publicar la app al fusionar.
+64 arreglados y 3 a medias, de 67. Todo quedó aplicado en una sola rama y un solo PR, con las decisiones recomendadas. Siete agentes trabajaron en paralelo, cada uno en su copia, y se juntaron con las pruebas en verde. La migración 0028 ya está aplicada en las dos bases; solo falta fusionar el PR para publicar la app.
 
 Para que llegue a producción:
 
-1. Fusionar el PR (la app se publica sola con la versión 154).
-2. Aplicar supabase/migrations/0028_auditoria_base.sql completo en el Editor SQL, primero en al3d-pruebas y después en al3d-produccion, y correr la prueba de humo: verde con 78 casos (94 con Storage, 98 con las constancias).
+1. Fusionar el PR #179 (la app se publica sola con la versión 154).
+2. Hecho el 25 de octubre: la 0028 está aplicada en al3d-pruebas y en al3d-produccion, y la prueba de humo salió en verde en las dos, con 98 de 98 casos.
 3. En el teléfono de Pagos, si hay una venta apartada: Ajustes → La base de datos → «Volver a intentarlos» (con la 0028 ya entra).
 4. No hay que volver a desplegar ninguna función de Supabase ni tocar el Apps Script.
 
