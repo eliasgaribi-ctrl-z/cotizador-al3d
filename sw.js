@@ -91,6 +91,9 @@ const APP_FILES = [
   /* El cotizador: la página y sus catorce guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
   './cotizador.html',
+  /* Y su hoja propia: lo de sistema.css que solo usa el cotizador (auditoría 2026-10-25, TR-10). Sin ella el cotizador
+     abriría sin el estilo de sus partidas y sus modales. */
+  './css/cotizador.css',
   './js/cotizador/catalogo.js',
   './js/cotizador/nucleo.js',
   './js/cotizador/partidas.js',
