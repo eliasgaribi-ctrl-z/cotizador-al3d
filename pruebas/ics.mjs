@@ -90,6 +90,10 @@ if (!/RRULE:FREQ=WEEKLY/.test(r)) mal('el ritmo no trae RRULE semanal'); else bi
 if (!/RRULE:FREQ=MONTHLY/.test(r)) mal('el ritmo no trae RRULE mensual'); else bien('ritmo mensual con RRULE');
 if (/BYDAY=MO,TU,WE,TH,FR/.test(r)) mal('BYDAY=MO..FR en UTC suena martes a sábado en México');
 else bien('BYDAY corrido para que en México caiga lunes a viernes');
+// Con Material en mantenimiento, el ritmo no trae el conteo del almacén (auditoría 2026-10-25, CM-2).
+const rSin = ICS.ritmo({ conteo: false }).replace(/\r\n[ \t]/g, '');
+if (/FREQ=MONTHLY|Conteo f/.test(rSin) || !/FREQ=WEEKLY/.test(rSin) || (rSin.match(/BEGIN:VEVENT/g) || []).length !== 1) mal('el ritmo sin conteo todavía trae el conteo del almacén, o perdió «Comparte el día»');
+else bien('sin el conteo: solo «Comparte el día»');
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nTodo pasa. ' + lineas.length + ' líneas.');
 process.exit(fallos ? 1 : 0);

@@ -730,7 +730,63 @@ export function ventaDeHoja(fila) {
    - Una hora que no se entiende se ignora y se queda la que había; una hora ausente (la fila
      no trae la llave) también. Una hora VACÍA sí manda: es «sin hora».
    Puro: sin red, sin base y sin reloj (`o.hoy`, `o.ahora`, `o.nuevoId`).
+
+   Con la base mandando (docs/BASE-MANDA.md) la fila la arma la lectura en vivo (js/datos/supa-vivo.js)
+   y trae, además de la fecha y la hora, LA CITA ENTERA de la base en `CITA_DE_LA_BASE`: su id, la
+   ventana, la duración, el estado y las notas. Entonces no se adivina nada —ni «De día», ni la
+   duración sugerida, ni «confirmada»— y la cita de este teléfono queda igual que la de la base: la
+   propuesta de Fabricación llega como propuesta, «Ya se instaló» llega como hecha y la nota «subir por
+   atrás» llega a todos (auditoría 2026-10-25, CM-1). La llave con `null` dice «la base no tiene cita
+   viva». Sin la llave —la hoja mandando—, todo como arriba.
    ============================================================================ */
+
+/** La llave de la fila con la cita de la base (`citaDeLaBase`). La pone `filaDeSupabase`. */
+export const CITA_DE_LA_BASE = '_cita_base';
+
+/**
+ * La cita de la base sobre la de este teléfono. Cae sobre la instalación con el mismo id o, si no, sobre
+ * la viva de este proyecto (conserva su id y su UID: el .ics que ya está en el teléfono del instalador es
+ * ése). `movida` nunca baja. PURA.
+ * @param {Object} c la instalación de la base ({id, fecha, hora, ventana, duracion_min, estado, movida, uid_ics, notas})
+ * @returns {Object|null} la instalación a escribir, o null si no hay nada que cambiar
+ */
+export function citaDeLaBase(c, proyecto, insts, o = {}) {
+  if (!c || typeof c !== 'object' || !proyecto || !esISO(String(c.fecha || '').slice(0, 10))) return null;
+  if (!ESTADOS_DE_CITA.includes(c.estado) || c.estado === 'cancelada') return null;
+  const lista = (Array.isArray(insts) ? insts : []).filter(Boolean);
+  const local = lista.find(i => i.id === c.id) ||
+    lista.filter(i => i.estado !== 'cancelada' && esISO(i.fecha))
+      .sort((a, b) => (Number(b.actualizado_en) || 0) - (Number(a.actualizado_en) || 0))[0] || null;
+  const hora = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(c.hora || '')) ? String(c.hora) : null;
+  const nueva = {
+    fecha: String(c.fecha).slice(0, 10),
+    hora,
+    ventana: VENTANAS_DE_CITA.includes(c.ventana) ? c.ventana : 'dia',
+    duracion_min: Number(c.duracion_min) > 0 ? Math.round(Number(c.duracion_min)) : duracionSugerida(proyecto.tipo_trabajo),
+    estado: c.estado,
+    notas: String(c.notas || ''),
+  };
+  if (local && Object.keys(nueva).every(k => (local[k] ?? null) === (nueva[k] ?? null))) return null;
+  const ahora = Number(o.ahora) || 0;
+  if (local) {
+    return { ...local, ...nueva, movida: Math.max(Number(local.movida) || 0, Number(c.movida) || 0),
+      uid_ics: local.uid_ics || ('inst-' + local.id + '@al3d.mx'), actualizado_en: ahora };
+  }
+  const id = String(c.id || '') || (typeof o.nuevoId === 'function' ? o.nuevoId() : '');
+  if (!id) return null;
+  return {
+    id,
+    empresa_id: proyecto.empresa_id || o.empresa || '',
+    proyecto_id: proyecto.id,
+    ...nueva,
+    movida: Number(c.movida) || 0,
+    uid_ics: c.uid_ics || ('inst-' + id + '@al3d.mx'),
+    gcal_event_id: null,
+    creado_en: ahora, actualizado_en: ahora,
+  };
+}
+const ESTADOS_DE_CITA = ['propuesta', 'confirmada', 'reagendada', 'hecha', 'cancelada'];
+const VENTANAS_DE_CITA = ['dia', 'noche', 'madrugada'];
 
 /**
  * @param {Object} fila   la fila de la hoja (`datos` de /jalar)
@@ -741,6 +797,10 @@ export function ventaDeHoja(fila) {
  */
 export function instalacionDeHoja(fila, proyecto, insts, o = {}) {
   if (!fila || typeof fila !== 'object' || !proyecto) return null;
+  if (Object.prototype.hasOwnProperty.call(fila, CITA_DE_LA_BASE)) {
+    /* La base manda: su cita tal cual, o nada si no tiene una viva (la fecha histórica de la venta no se agenda). */
+    return fila[CITA_DE_LA_BASE] && proyecto.etapa !== 'cancelado' ? citaDeLaBase(fila[CITA_DE_LA_BASE], proyecto, insts, o) : null;
+  }
   const fecha = String(fila[P.fechaInst] || '');
   if (!esISO(fecha)) return null;
   if (proyecto.etapa === 'cancelado') return null;
@@ -816,8 +876,11 @@ export function citaDeHoja(fila, proyecto, insts, o = {}) {
   if (!(hs > ls)) return null;
   const ahora = Number(o.ahora) || 0;
   const marca = x => (x ? { ...x, sello_hoja: hs, sello_hoja_en: x.actualizado_en } : null);
+  /* La base manda: su cita, o `null` si no tiene una viva (la cancelaron), aunque la fila traiga la fecha
+     histórica de la venta. */
+  const deLaBase = Object.prototype.hasOwnProperty.call(fila, CITA_DE_LA_BASE);
 
-  if (esISO(String(fila[P.fechaInst] || ''))) return marca(instalacionDeHoja(fila, proyecto, lista, o));
+  if (deLaBase ? !!fila[CITA_DE_LA_BASE] : esISO(String(fila[P.fechaInst] || ''))) return marca(instalacionDeHoja(fila, proyecto, lista, o));
 
   const viva = lista.filter(i => i && i.estado !== 'cancelada' && esISO(i.fecha))
     .sort((a, b) => (Number(b.actualizado_en) || 0) - (Number(a.actualizado_en) || 0))[0];
@@ -829,7 +892,8 @@ export function citaDeHoja(fila, proyecto, insts, o = {}) {
        en el calendario del instalador en vez de dejarla viva. */
     movida: (Number(viva.movida) || 0) + 1,
     uid_ics: viva.uid_ics || ('inst-' + viva.id + '@al3d.mx'),
-    notas: [String(viva.notas || '').trim(), 'Cancelada en otro dispositivo: así quedó en la hoja.'].filter(Boolean).join('\n'),
+    notas: [String(viva.notas || '').trim(),
+            deLaBase ? 'Cancelada en otro teléfono.' : 'Cancelada en otro dispositivo: así quedó en la hoja.'].filter(Boolean).join('\n'),
     actualizado_en: ahora,
   });
 }

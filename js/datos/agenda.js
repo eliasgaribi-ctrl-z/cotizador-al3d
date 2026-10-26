@@ -461,9 +461,19 @@ export async function cancelar(instId, motivo = '') {
    LEER
    ============================================================================ */
 
+/** Material está en mantenimiento (octubre de 2026): su cálculo todavía no está bien definido. Mientras sea
+ *  `true`, nadie enseña el semáforo de material —ni el Calendario, ni el Tablero, ni Control—, la pantalla
+ *  de Material está apagada (js/mod/material.js) y sin botón en la barra, y el ritmo del teléfono no trae
+ *  el conteo del almacén. Es el único interruptor: para volver, `false` aquí y quitar `oculto` de su ruta en
+ *  js/app.js. Vive aquí porque aquí se calcula el semáforo y todos los que lo enseñan ya leen este archivo. */
+export const MATERIAL_EN_MANTENIMIENTO = true;
+
+/** Las etapas en las que la obra ya se instaló: una cita suya sin marcar no es pendiente. */
+export const OBRA_YA_INSTALADA = ['instalado', 'garantia'];
+
 /**
  * @param {{desde?:string, hasta?:string, estado?:string, estados?:string[],
- *          proyecto_id?:string, vivas?:boolean, conProyecto?:boolean}} [filtro]
+ *          proyecto_id?:string, vivas?:boolean, conProyecto?:boolean, sinObraInstalada?:boolean}} [filtro]
  * @returns {Promise<Object[]>} vacío si la base no abrió. NUNCA lanza.
  */
 export async function listar(filtro = {}) {
@@ -484,6 +494,14 @@ export async function listar(filtro = {}) {
   if (f.vivas) filas = filas.filter(i => VIVAS.has(i.estado));
   if (esISO(f.desde)) filas = filas.filter(i => String(i.fecha || '') >= f.desde);
   if (esISO(f.hasta)) filas = filas.filter(i => String(i.fecha || '') <= f.hasta);
+  /* «Ya pasó y nadie la marcó» no cuenta una obra que ya está en Instalado o En garantía: la cita se quedó
+     sin marcar, pero el trabajo ya se hizo (auditoría 2026-10-25, CM-1). Es la misma guarda que A10 de
+     «Qué atender» (js/datos/reglas.js). */
+  if (f.sinObraInstalada && filas.length) {
+    const yaInstalados = new Set((await DB.listar('proyectos') || [])
+      .filter(p => p && OBRA_YA_INSTALADA.includes(p.etapa)).map(p => p.id));
+    if (yaInstalados.size) filas = filas.filter(i => !yaInstalados.has(i.proyecto_id));
+  }
 
   filas.sort(ordenDia);
   if (f.conProyecto) return await conProyectos(filas);
@@ -699,8 +717,10 @@ export function dictamen(instalaciones, ctx, hoy) {
     return {
       estado: dias !== null && dias <= DIAS_GRAVE ? 'grave' : 'falta',
       codigo: 'sin_partidas', faltantes, dias, instalaciones: insts.length,
+      /* «No salió del cotizador» y no «vino de la hoja»: con la base mandando, una venta sin cotización
+         tampoco trae partidas, y la hoja ya no es de donde vienen (auditoría 2026-10-25, TR-6). */
       texto: sinPartidas[0] + (sinPartidas.length > 1 ? ' y ' + (sinPartidas.length - 1) + ' más' : '') +
-        (sinPartidas.length > 1 ? ' vinieron' : ' vino') + ' de la hoja y no ' +
+        ' no ' + (sinPartidas.length > 1 ? 'salieron' : 'salió') + ' del cotizador y no ' +
         (sinPartidas.length > 1 ? 'traen' : 'trae') + ' partidas, así que no hay de dónde ' +
         'calcular el material: hay que ver qué lleva y apuntarlo a mano.',
     };
