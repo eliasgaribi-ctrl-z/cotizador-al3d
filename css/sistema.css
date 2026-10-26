@@ -137,12 +137,27 @@
      tiene las cifras más estrechas y más verticales, y una columna de importes escrita así se
      lee de un barrido; Figtree es más ancha de ojo que Inter en tamaños chicos, que es donde
      vive el 80 % de esta app. */
-  --t1:11px; --t2:12.5px; --t3:14px; --t4:15px; --t5:20px; --t6:24px; --t7:28px;
+  --t1:12px; --t2:12.5px; --t3:14px; --t4:15px; --t5:20px; --t6:24px; --t7:28px;
   --f-texto:'Figtree','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
   --f-cifra:'Outfit','Figtree','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
 
   /* ----- Espacio ----- múltiplos de 4. */
   --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
+
+  /* ----- Capas ----- quién tapa a quién, de abajo arriba. Eran números sueltos repartidos en
+     dos hojas (30, 40, 45, 50, 60, 90, 100, 200, 300…) y una pieza nueva no tenía de dónde saber
+     qué número le tocaba (auditoría 2026-10-25, TR-12). Lo que vive DENTRO de una pieza (1–9) sigue
+     con su número: solo compite con sus hermanas. */
+  --z-encabezado:30;   /* la barra de arriba de la pantalla, pegada al desplazarse */
+  --z-barra:40;        /* la barra de abajo del teléfono */
+  --z-flotante:45;     /* el botón del asistente y la barra fija del cotizador */
+  --z-lateral:50;      /* la barra lateral de la computadora */
+  --z-hoja:60;         /* las hojas y los paneles, con su velo */
+  --z-visor:80;        /* la imagen a pantalla completa */
+  --z-confirma:90;     /* la pregunta de confirmación: va encima de la hoja que la abrió */
+  --z-aviso:100;       /* los avisos de abajo: encima de todo lo que se trabaja */
+  --z-salto:200;       /* «Ir al contenido», el primer Tab */
+  --z-puerta:300;      /* la puerta de entrada tapa la app entera */
 
   /* ----- Iconos ----- cuatro tamaños, y de aquí salen todos.
      Faltaba la escala y se notaba. `.svgi` mide 1em, así que hasta ahora el tamaño del
@@ -464,11 +479,12 @@
   --ease-io:cubic-bezier(.77,0,.175,1);
   --ease-hoja:cubic-bezier(.32,.72,0,1);
 }
-/* En el teléfono el escalón más chico es 12 px y no 11: las etiquetas de las cifras, los folios,
-   las fechas de las tarjetas y la ayuda de Ajustes —lo que dice QUÉ cuenta cada número— iban en
-   11 px gris, y en el taller, con luz fuerte y el brazo estirado, no se leían (auditoría completa
-   2026-10, tab-6 y P19). La computadora se queda en 11: ahí se lee de cerca. */
-@media(max-width:759px){:root{--t1:12px}}
+/* El escalón más chico, --t1, es 12 px en el teléfono y en la computadora. En el teléfono subió
+   primero (auditoría completa 2026-10, tab-6 y P19): las etiquetas de las cifras, los folios y las
+   fechas iban en 11 px gris y en el taller, con luz fuerte, no se leían. La computadora se había
+   quedado en 11 «porque ahí se lee de cerca», pero ahí viven las tablas de Control, Cuentas y
+   Facturas, que se leen enteras y de corrido: 12 en las dos (auditoría con la base mandando,
+   2026-10-25, TR-12). */
 *{box-sizing:border-box;margin:0;padding:0}
 /* ----- `hidden` tiene que ganar -----
    La regla del navegador es `[hidden]{display:none}`, y CUALQUIER regla de autor que ponga
@@ -980,7 +996,7 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary,[role=
    abajo con el mismo total—, que es el mismo número dos veces y 84 px de página menos. */
 @media(max-width:759px){
   .mbar{
-    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;gap:10px;align-items:center;
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:var(--z-flotante);gap:10px;align-items:center;
     background:var(--sup);
     border-top:1px solid var(--linea);box-shadow:none;
     padding:9px 14px;padding-bottom:calc(9px + env(safe-area-inset-bottom,0px));
@@ -1126,7 +1142,7 @@ textarea{resize:vertical;min-height:46px}
    regla base porque una media query no gana por sí sola cuando la especificidad empata.) */
 @media(max-width:760px){
   .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
-  .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:44px}
+  .tipo-seg button{padding:10px 5px;font-size:12px;line-height:1.25;text-align:center;min-height:44px}
 }
 .del{border:none;background:none;color:var(--n5);font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px}
 @media(hover:hover){.del:hover{color:var(--red);background:var(--red-bg)}}
@@ -1450,7 +1466,7 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    abajo (la falla 2 del brief). Qué se ve y en qué orden lo decide P.aviso() en js/piezas.js.
    El contenedor no se mueve ni atrapa toques: se mueve cada aviso, y solo con transform y
    opacity —entra desde 8 px en 240 ms y se va desvaneciéndose en 150, que es lo que ya hacía—. */
-.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:100;display:grid;gap:8px;justify-items:center;
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:var(--z-aviso);display:grid;gap:8px;justify-items:center;
   width:max-content;max-width:min(92vw,540px);pointer-events:none}
 .toast-uno{pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;max-width:100%;
   background:var(--nav);color:#fff;padding:13px 20px 14px;border-radius:13px;font-size:14px;font-weight:600;text-align:left;
@@ -1545,14 +1561,14 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    botón neutro; el color se reserva para la acción principal de la pantalla. */
 .ai-btn{width:100%;padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;margin-bottom:var(--e4);display:flex;align-items:center;justify-content:center;gap:var(--e2);transition:border-color .12s,background .12s}
 @media(hover:hover){.ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(var(--a-rgb),.35)}}
-.modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+.modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:var(--z-hoja);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px))}
 .modal-bg.show{display:flex}
 /* La imagen a pantalla completa se abre DESDE el historial, así que tiene que quedar
    por encima de él: los dos son .modal-bg y con el z-index empatado en 60 ganaba el
    panel por ir después en el documento — la pantalla se oscurecía y no se veía nada.
    El 80 está libre (modales 60, vectorizador 56, escalador 55, aviso 100). */
-#lightbox{z-index:80}
+#lightbox{z-index:var(--z-visor)}
 .modal{background:var(--sup);border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;
   display:flex;flex-direction:column;max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--sup);flex-shrink:0}
@@ -2283,7 +2299,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
    de aquí abajo. El texto se queda en su contraste completo. */
 .items-cand .partida{background:var(--n1)}
 /* ----- Registrar Venta modal ----- */
-.rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:var(--z-hoja);align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .rv-modal-bg.show{display:flex}
 .rv-modal{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:min(520px,92vw);overflow-y:auto;-webkit-overflow-scrolling:touch;
   max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));box-shadow:0 24px 80px rgba(0,0,0,.45),0 6px 20px rgba(0,0,0,.3)}
@@ -2564,7 +2580,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .optgrp-h{margin-bottom:7px;gap:7px}
   .fld{margin-bottom:10px}
   label,.fld-lab,.switch{margin-bottom:3px}
-  .hintnote{font-size:11px;line-height:1.45;padding:5px 9px;border-radius:0 6px 6px 0}
+  .hintnote{font-size:12px;line-height:1.45;padding:5px 9px;border-radius:0 6px 6px 0}
   .optgrp .hintnote{margin-top:6px}
   .psum{gap:5px;margin-bottom:11px}
   .empty{padding:22px 10px}
@@ -2761,7 +2777,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
    que el min-width:0 de .wrap está evitando.
    Superficie y tinta del acento de cada tema, no blanco fijo: en oscuro `--brand-strong` es un azul
    pálido y sobre blanco daba 2,4:1 (auditoría completa 2026-10, pub-5). */
-.salto{position:fixed;top:8px;left:8px;z-index:200;min-height:44px;display:inline-flex;align-items:center;background:var(--sup);color:var(--a-tx);
+.salto{position:fixed;top:8px;left:8px;z-index:var(--z-salto);min-height:44px;display:inline-flex;align-items:center;background:var(--sup);color:var(--a-tx);
   padding:10px 16px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;
   transform:translateY(calc(-100% - 16px));transition:transform .15s}
 /* La sombra solo al aparecer. Escondido, el enlace queda a 8 px del borde de arriba y su
@@ -3603,7 +3619,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 /* La pregunta de la app (confirmar() en nucleo.js, confirmarPf() en ui.js). Por encima de todas
    las capas —se abre sobre el historial o el escalador— y por debajo del aviso, que es el que
    trae el Deshacer. El texto respeta sus saltos de línea: son párrafos. */
-#confmodal,#pf-confirma{z-index:90}
+#confmodal,#pf-confirma{z-index:var(--z-confirma)}
 .modal-conf{max-width:420px}
 .conf-texto{white-space:pre-line;color:var(--tinta2);font-size:var(--t3);line-height:1.55;margin:0 0 var(--e4)}
 /* Con menos movimiento late en vez de girar (ver «Menos movimiento no es ninguno»). */
@@ -5186,7 +5202,7 @@ input.lavado-quieto,textarea.lavado-quieto{background-color:var(--ok-bg);border-
 .partida.hidden-pdf>.desliza-partida>:last-child,.items-cand .partida>.desliza-partida>:last-child{background:var(--sup2)}
 /* El aviso de «mantén presionado para borrar»: la × mide 38 px y la pista no cabe en ella. Es solo
    para la vista (la pieza ya la dice en voz alta) y se borra sola. Va donde los avisos. */
-.del-pista{position:fixed;left:24px;bottom:26px;z-index:99;max-width:min(320px,calc(100vw - 32px));padding:8px 14px;
+.del-pista{position:fixed;left:24px;bottom:26px;z-index:calc(var(--z-aviso) - 1);max-width:min(320px,calc(100vw - 32px));padding:8px 14px;
   border-radius:var(--rr2);background:var(--tinta);color:var(--sup);font:700 var(--t2)/1.25 var(--f-texto);
   pointer-events:none;box-shadow:var(--sombra-alta)}
 .del-pista:empty{display:none}
@@ -6162,8 +6178,8 @@ body.precios-ocultos:not(.precios-a-la-vista) .desglose-total dd{filter:blur(7px
      elegido salía del mismo tamaño que el encabezado del grupo que lo contiene. */
   .optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}
   .optgrp .chip small{font-size:10.5px}
-  .tipo-seg button{font-size:11.5px}
-  .hintnote{font-size:11px;line-height:1.45}
+  .tipo-seg button{font-size:12px}
+  .hintnote{font-size:12px;line-height:1.45}
 }
 @media(max-width:1000px){
   /* Un deslizador de 733 a 860 px de largo para elegir entre tres valores. */
@@ -7524,7 +7540,7 @@ html.arrancando .card,html.arrancando .pasos,html.arrancando .p1-cierre,html.arr
    va con sus cuatro colores de marca — ver G_GOOGLE en js/nucleo/puerta.js.
    ============================================================================ */
 html.con-puerta,html.con-puerta body{overflow:hidden}
-.pf-puerta{position:fixed;inset:0;z-index:300;background:var(--fondo);
+.pf-puerta{position:fixed;inset:0;z-index:var(--z-puerta);background:var(--fondo);
   display:flex;align-items:center;justify-content:center;
   /* La muesca del iPhone y la barra de gestos: el panel es lo único en pantalla, así que si
      algo se mete debajo del redondeo no hay nada más a lo que echarle la culpa. */
@@ -7542,7 +7558,7 @@ html.antepuerta body>:not(#pf-puerta):not([role="alert"]){visibility:hidden}
 /* `inset:-12%`, la MISMA caja que la aurora que ocupa este `::after` después: con `inset:0`, al
    quitarse la antepuerta el pseudoelemento cambiaba de tamaño y Chrome lo contaba como un salto de
    0,12 en escritorio (auditoría completa 2026-10, pub-7). El logo va centrado, así que no se mueve. */
-html.antepuerta body::after{content:'';position:fixed;inset:-12%;z-index:299;pointer-events:none;
+html.antepuerta body::after{content:'';position:fixed;inset:-12%;z-index:calc(var(--z-puerta) - 1);pointer-events:none;
   background:var(--fondo) url(../logo-al3d.svg) center/120px auto no-repeat;
   animation:antepuerta 1.6s ease-in-out infinite alternate}
 html.antepuerta[data-tema="oscuro"] body::after{background-image:url(../logo-al3d-oscuro.svg)}
