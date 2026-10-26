@@ -65,6 +65,7 @@ import * as Agenda from '../datos/agenda.js';
 import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
+import { laBaseManda } from '../datos/reglas.js';
 import { entregaDe } from '../datos/entrega.js';
 import * as DD from '../datos/datos-de-entrega.js';
 import * as DE from './datos-entrega.js';
@@ -286,8 +287,15 @@ async function leer() {
     hoy, V, vivos, porId, instDe, mat, fres, enTaller, pendientes, semDe,
     /* Las que YA PASARON Y NADIE MARCÓ: dejan el almacén sin descontar y la cobranza sin
        arrancar, y son invisibles en cualquier otra pantalla. */
-    vencidas: (insts || []).filter(i => i && i.fecha && i.fecha < hoy &&
-                                        VIVAS_SIN_MARCAR.includes(i.estado))
+    /* Sin las de un proyecto que ya está en «Instalado» o «En garantía» (o que no se dio): ahí la
+       obra ya se dijo hecha, y pedir otra vez «Ya se instaló» es el aviso que A10 de «Qué
+       atender» ya no da (js/datos/reglas.js). Pasaba con las ventas que bajan de la base con su
+       etapa y la cita en «confirmada» (auditoría 2026-10-25, TP-10). */
+    vencidas: (insts || []).filter(i => {
+      if (!(i && i.fecha && i.fecha < hoy && VIVAS_SIN_MARCAR.includes(i.estado))) return false;
+      const p = porId.get(i.proyecto_id);
+      return !!p && p.etapa !== 'instalado' && p.etapa !== 'garantia';
+    })
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))),
     /* «Faltan datos» (js/datos/datos-de-entrega.js): los del taller sin teléfono, sin forma de
        entrega o, si se instalan, sin dirección o sin pin. Por la fecha de entrega más cercana;
@@ -418,6 +426,13 @@ function atajos() {
   const out = [];
   if (puedeIr('cotizador')) out.push(atajo('Cotizar', 'i-mas', 'tb-atajo pri', { tipo: 'ir', ruta: 'cotizador' }));
   out.push(atajo('Buscar', 'i-buscar', 'tb-atajo', { tipo: 'buscar' }));
+  /* Con la base mandando el dinero se mueve en «Cobros y abonos», y en el teléfono de Dirección
+     Control vive en «Más», con esa pestaña en la séptima casilla: dos toques y una búsqueda para el
+     trabajo de todos los días. Aquí queda a uno (auditoría 2026-10-25, TR-8). Solo con la base:
+     con la hoja esa pestaña es la prueba de Supabase y no se cobra ahí. */
+  if (puedeIr('control') && laBaseManda()) {
+    out.push(atajo('Cobros y abonos', 'i-venta', 'tb-atajo', { tipo: 'pasar', ruta: 'control', dato: { tab: 'asientos' } }));
+  }
   if (puedeIr('control')) out.push(atajo('Control', 'i-control', 'tb-atajo', { tipo: 'ir', ruta: 'control' }));
   return '<div class="tb-atajos">' + out.join('') + '</div>';
 }

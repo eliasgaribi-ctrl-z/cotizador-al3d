@@ -167,6 +167,46 @@ cierto(!!yaCobrando && !yaCobrando.acciones.some(x => x.tipo === 'estatus') && y
   !/pon su Estatus/.test(yaCobrando.detalle),
   'con COBRANDO ya puesto, A11 solo ofrece el mensaje: ' + (yaCobrando && yaCobrando.acciones.map(x => x.tipo).join(', ')));
 
+/* ---- 6b bis. A11 con la base mandando (auditoría 2026-10-25, TR-1) ----
+   La hoja es de solo lectura: una venta sin V-### espera su folio de la base y NO se copia a la
+   hoja (quedaría donde nadie la lee). Con V-###, el estatus se cambia en la ficha y va a la base. */
+const conCobroBase = p => evaluar({ ...estado, base: true, proyectos: [p],
+  instalaciones: [{ id: 'i9', proyecto_id: p.id, fecha: '2026-08-15', estado: 'hecha' }] })
+  .find(a => a.regla === 'A11_cobro');
+const baseSinFolio = conCobroBase(instalado({ notion_page_id: null }));
+cierto(!!baseSinFolio && /folio de la base/.test(baseSinFolio.detalle) && !/hoja/.test(baseSinFolio.detalle) &&
+  !baseSinFolio.acciones.some(x => x.tipo === 'tsv') && baseSinFolio.acciones[0].tipo === 'abrir_proyecto',
+  'con la base mandando y sin folio, A11 espera el folio de la base y no ofrece copiar la fila: ' + (baseSinFolio && baseSinFolio.detalle));
+const baseConFolio = conCobroBase(instalado({ notion_page_id: 'V-150' }));
+cierto(!!baseConFolio && !/hoja/.test(baseConFolio.detalle) && baseConFolio.acciones[0].tipo === 'estatus',
+  'con la base y su V-###, A11 manda a poner COBRANDO en la ficha y no nombra la hoja: ' + (baseConFolio && baseConFolio.detalle));
+cierto(!/hoja/.test((conCobroBase(instalado({ notion_page_id: 'V-150', estatus_notion: 'COBRANDO' })) || {}).detalle || 'hoja'),
+  'con la base y COBRANDO ya puesto, el detalle tampoco nombra la hoja');
+
+/* ---- 6b ter. La regla «¿manda la base?» de reglas.js es la de supa.js ----
+   Proyectos, el Tablero y «Qué atender» la importan de aquí (sin cargar supa.js). */
+{
+  const { laBaseManda } = await import('../js/datos/reglas.js');
+  const Supa = await import('../js/nucleo/supa.js');
+  const ON = JSON.stringify({ encendido: true, desde: 1 });
+  const casos = [
+    [{}, false], [{ al3d_pf_supa_modo: JSON.stringify({ modo: 'base' }) }, false], [{ al3d_pf_supa: ON }, false],
+    [{ al3d_pf_supa: ON, al3d_pf_supa_modo: JSON.stringify({ modo: 'hoja' }) }, false],
+    [{ al3d_pf_supa: ON, al3d_pf_supa_modo: JSON.stringify({ modo: 'base', area: 'pagos' }) }, true],
+    [{ al3d_pf_supa: ON, al3d_pf_supa_modo: 'basura{' }, false],
+  ];
+  const antes = globalThis.localStorage;
+  let iguales = true;
+  for (const [claves, esperado] of casos) {
+    globalThis.localStorage = { getItem: k => (k in claves ? claves[k] : null), setItem() {}, removeItem() {} };
+    if (laBaseManda() !== esperado || Supa.laBaseManda() !== esperado) iguales = false;
+  }
+  globalThis.localStorage = { getItem: () => { throw new Error('bloqueado'); } };
+  const bloqueado = laBaseManda();
+  globalThis.localStorage = antes;
+  cierto(iguales && bloqueado === false, 'reglas.laBaseManda contesta lo mismo que supa.js en los seis casos, y sin almacenamiento dice la hoja');
+}
+
 /* ---- 6c. A12: una huella vieja, sin ordenar, no es una edición ----
    Las huellas selladas antes del 15 de septiembre de 2026 están en el orden de las partidas;
    la de hoy va ordenada. Compararlas con `===` hacía que todo proyecto viejo saliera como
@@ -250,6 +290,19 @@ cierto(!a15.concat(a15Fab).some(a => /\$|\d{1,3},\d{3}/.test(a.titulo + a.detall
 const todas = [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas];
 cierto(todas.every(p => ['perdida', 'repetida', 'doble'].includes(avisoDeHoja(p)) === a15.some(a => a.entidad_id === p.id)),
   'A15 y `avisoDeHoja` dicen lo mismo de cada proyecto');
+
+/* Con la base mandando, las mismas cinco marcas hablan de la base y nunca piden editar la hoja,
+   que ya es de solo lectura (auditoría 2026-10-25, TP-3). */
+{
+  const a15b = evaluar({ ...estado, base: true, rol: 'direccion', instalaciones: [], historial: [], existencias: [], faltantes: [],
+    proyectos: [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas] }).filter(a => a.regla === 'A15_hoja');
+  cierto(a15b.length === 5 && a15b.every(a => !/la hoja/.test(a.titulo + ' ' + a.detalle)),
+    'con la base mandando, A15 sale igual (cinco) y ninguna frase dice «la hoja»: ' +
+      a15b.map(a => a.titulo).join(' | '));
+  const dobB = a15b.find(a => a.entidad_id === 'p24') || { titulo: '', detalle: '' };
+  cierto(/dos veces en la base/.test(dobB.titulo) && /lo corrige Dirección en la base/.test(dobB.detalle) && !/borra la que sobra/.test(dobB.detalle),
+    'la venta en dos folios de la base pide que Dirección la corrija en la base, no borrar una fila: ' + dobB.detalle);
+}
 
 /* ---- 7. Los mensajes de WhatsApp ---- */
 

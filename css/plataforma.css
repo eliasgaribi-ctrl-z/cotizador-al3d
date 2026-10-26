@@ -4978,3 +4978,28 @@ small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align
 .fx-subir input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .fx-subir.apagado{opacity:.55;pointer-events:none}
 .fx-quitar{margin-right:auto}
+
+/* Auditoría 2026-10-25 · Proyectos y Tablero
+   TP-12 · «Enseñar al cliente» tapa también lo vendido y lo que resta de las DEMÁS tarjetas: con la
+   ficha cerrada delante del cliente, la lista y el tablero de Proyectos enseñaban los importes de
+   otros clientes. Mismo difuminado que `.pf-interno` (el texto, no un rectángulo: nada se mueve) y
+   el mismo «Ver importes» que destapa todo. */
+body.pf-cliente .pj-tarj-monto,
+body.pf-cliente .pj-fila-dinero{filter:blur(7px);user-select:none;-webkit-user-select:none}
+body.pf-cliente.pf-cliente-ve .pj-tarj-monto,
+body.pf-cliente.pf-cliente-ve .pj-fila-dinero{filter:none}
+@media (prefers-reduced-motion:no-preference){
+  body.pf-cliente .pj-tarj-monto,body.pf-cliente .pj-fila-dinero{transition:filter .16s}
+}
+/* TR-12 · Lo que se toca en Proyectos y en la ficha mide 44 px: el filtro de etapa, los segmentos
+   de la ficha (entrega, estatus), los chips de la cuenta —cinco pegados, donde un roce cambiaba la
+   cuenta (TP-1)— y el cerrar. Y la letra de las tarjetas no baja de 12 px en el escritorio. */
+#pj-filtros .tipo-seg button,
+#pf-ficha .tipo-seg button,
+#pf-ficha .pj-cuentas-cobro .chip{min-height:44px}
+#pf-ficha .pj-cuentas-cobro{gap:8px}
+#pf-ficha .pf-cerrar{width:44px;height:44px}
+.pj-tarj-folio,.pj-tarj-inst,small.pj-resta-mini{font-size:max(12px,var(--t1))}
+/* TR-1 · La venta que espera su folio de la base (en lugar de «Copiar datos para la hoja»). */
+.pj-espera-folio{display:flex;align-items:flex-start;gap:6px}
+.pj-espera-folio .svgi{flex:none;width:14px;height:14px;margin-top:3px}
