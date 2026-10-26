@@ -151,9 +151,10 @@ function refrescarTarifas(avisar){
     let r=null;
     if(enBase){
       const nube=await esperarVentanillaBase('tarifas',avisar?4000:20000);
-      if(!nube) return false;
+      if(!nube){ _tarSinBaseEs(true); return false; }
       try{ r=await nube.tarifas(); }catch(_){ return false; }
       if(!r||!r.ok||!r.tabla) return false;
+      _tarSinBaseEs(false);
     } else {
       try{ r=await hablarHoja('tarifas',{},12000); }catch(_){ return false; }
       if(!r||!r.ok||!r.tabla){ if(r&&r.codigo==='NO_ENCONTRADO') TARIFAS_INFO.sinRuta=true; return false; }
@@ -161,7 +162,7 @@ function refrescarTarifas(avisar){
     }
     const antes=_tarFirma();
     if(!_tarAplicarCuidando(r.tabla,enBase?'base':'hoja')) return false;
-    try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(r.tabla)); }catch(_){}
+    try{ localStorage.setItem(TARIFAS_LS,JSON.stringify(r.tabla)); localStorage.setItem(TARIFAS_LEIDA,String(Date.now())); }catch(_){}
     const cambio=_tarFirma()!==antes;
     if(cambio){
       try{ renderItems(); renderSummary(); }catch(_){}
@@ -209,7 +210,60 @@ async function _tarEspejoSiHaceFalta(tabla,noCuadro){
   }
   if(_tarEspejoPendiente()) await _tarEspejoHoja(tabla);
 }
-window.addEventListener('load',()=>{ setTimeout(()=>{ refrescarTarifas(false); },1200); });
+window.addEventListener('load',()=>{ setTimeout(()=>{ _tarVueltaEn=Date.now(); refrescarTarifas(false); },1200); });
+
+/* ----- Precios de este teléfono, sin entrar a la base (auditoría 2026-10-25, CZ-3) -----
+   Con la base mandando, un teléfono que no ha entrado a Supabase —Safari sin la tarjeta de Google, «Ahora no», uno
+   nuevo— no tiene a quién pedirle los precios: cotiza con los que guardó la última vez, o con los de fábrica. Eso no
+   se decía, y el vendedor le daba al cliente un precio que la hoja después no sellaba («no cuadra»), en un ciclo sin
+   salida. Ahora el paso de Precio lo dice con la fecha de esos precios y la salida (Ajustes, entrar a Supabase), y en
+   cuanto la plataforma entra a la base se traen solos. `al3d_tarifas_leida` es cuándo se trajeron por última vez. */
+const TARIFAS_LEIDA='al3d_tarifas_leida';
+let _tarSinBase=false, _tarSinBaseT=0;
+function _tarSinBaseEs(si){
+  _tarSinBase=!!si;
+  clearTimeout(_tarSinBaseT); _tarSinBaseT=0;
+  /* Mientras no haya ventanilla se mira cada 30 s si ya llegó (mirar es local: no sale a la red). */
+  if(_tarSinBase) _tarSinBaseT=setTimeout(()=>{ _tarSinBaseT=0; if(laBaseManda()&&ventanillaBase('tarifas')) refrescarTarifas(false); else _tarSinBaseEs(laBaseManda()); },30000);
+  pintarAvisoTarifas();
+}
+function _tarDeCuando(){
+  let t=0;
+  try{ t=Number(localStorage.getItem(TARIFAS_LEIDA))||0; }catch(_){}
+  if(!t&&TARIFAS_INFO.actualizado) t=Date.parse(TARIFAS_INFO.actualizado)||0;
+  if(!t) return '';
+  try{ return new Date(t).toLocaleDateString('es-MX',{day:'numeric',month:'short'}); }catch(_){ return ''; }
+}
+/* La frase, la misma en el letrero y cuando la hoja rebota la autorización por precios. */
+function mensajeTarifasSinBase(sufijo){
+  const c=_tarDeCuando();
+  const de=TARIFAS_INFO.desde==='fabrica'?'Precios de fábrica de este teléfono':'Precios de este teléfono'+(c?' del '+c:'');
+  return de+': entra a Supabase para traer los de hoy'+(sufijo||'')+'.';
+}
+function pintarAvisoTarifas(){
+  const caja=$('s-tar-aviso'); if(!caja) return;
+  const si=laBaseManda()&&_tarSinBase;
+  if(si){
+    const t=$('s-tar-aviso-txt'), m=mensajeTarifasSinBase();
+    if(t&&t.textContent!==m){ t.textContent=m; if(caja.hidden&&typeof voz==='function') voz(m); }
+  }
+  caja.hidden=!si;
+}
+function entrarALaBaseParaPrecios(){ irAPlataforma('ajustes'); }
+
+/* ----- Al volver a la app (CZ-6) -----
+   El cotizador es una pantalla que se conserva: no se recarga al cambiar de pantalla, y en un iPhone con la app viva
+   se cotizaba con los precios de ayer hasta que la autorización rebotaba. Al volver a la app se piden otra vez, una
+   vez cada 5 minutos como mucho; sin ventanilla todavía, siempre (mirarla es local). */
+let _tarVueltaEn=0;
+if(typeof document!=='undefined'&&document.addEventListener){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState!=='visible') return;
+    if(!_tarSinBase&&Date.now()-_tarVueltaEn<5*60*1000) return;
+    _tarVueltaEn=Date.now();
+    refrescarTarifas(false);
+  });
+}
 
 /* ===================== La pantalla: Precios y materiales =====================
    Solo para Dirección (puedeAutorizar, la misma puerta que autorizar): el engrane de la barra de
@@ -260,7 +314,11 @@ function pintarTarifas(){
   const body=$('tar-body'); if(!body||!_tarEdit) return;
   const I=TARIFAS_INFO;
   const ay=$('tar-ayuda');
-  if(ay) ay.innerHTML=(I.sinRuta
+  /* Con la base mandando y sin entrar a ella, «de fábrica» no es verdad: la base sí tiene lista, este teléfono no la ha
+     podido traer (CZ-3). */
+  if(ay) ay.innerHTML=(laBaseManda()&&_tarSinBase
+      ? '<b>Este teléfono no ha entrado a la base</b>: lo de abajo es lo que tiene guardado'+(I.desde==='fabrica'?' (los de fábrica)':'')+', no la lista de hoy. Entra a Supabase en Ajustes para verla y guardarla. '
+      : I.sinRuta
       ? '<b>La hoja todavía no tiene esta función.</b> Hay que publicar la versión nueva del Apps Script para poder guardar. '
       : I.desde!=='fabrica'&&I.actualizado
         ? 'Última vez que se cambió: <b>'+esc(_tarFecha(I.actualizado))+'</b>'+(I.por?' por '+esc(I.por):'')+'. '
@@ -365,7 +423,7 @@ async function guardarTarifas(){
   cerrarTarifas();
   try{ renderItems(); renderSummary(); }catch(_){}
   const n=res.valor&&res.valor.cambios;
-  toast('Precios guardados'+(enBase?' en la base':'')+(n?' · '+n+(n===1?' cambio':' cambios'):'')+'. Los demás teléfonos los toman al abrir el cotizador.','ok',6000);
+  toast('Precios guardados'+(enBase?' en la base':'')+(n?' · '+n+(n===1?' cambio':' cambios'):'')+'. Los demás teléfonos los toman al abrir el cotizador o al volver a la app.','ok',6000);
   if(enBase&&res.valor&&!res.valor.espejo){
     toast('La hoja, que sella las autorizaciones, no recibió los precios nuevos: se le vuelven a mandar solos. Hasta entonces, autorizar puede decir que el precio no cuadra.','err',9000);
   }
@@ -373,7 +431,7 @@ async function guardarTarifas(){
 
 /* ----- Lo que el marcado puede pedirle a este archivo -----
    Ver «Los botones del marcado» en nucleo.js. */
-accionesDirectas(['abrirTarifas','cerrarTarifas','guardarTarifas','agregarTarifa','tarVisible']);
+accionesDirectas(['abrirTarifas','cerrarTarifas','guardarTarifas','agregarTarifa','tarVisible','entrarALaBaseParaPrecios']);
 Object.assign(ACC,{
   tarNombre:(el,ev,i)=>tarNombre(i,el.value),
   tarPrecio:(el,ev,i)=>{ if(el.validity.badInput) return; tarPrecio(i,el.value); },

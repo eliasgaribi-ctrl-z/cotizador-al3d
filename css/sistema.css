@@ -7661,3 +7661,28 @@ html.antepuerta[data-tema="oscuro"] body::after{background-image:url(../logo-al3
   .partida .partida-top>.lt{font-size:15px}
   .partida .partida-top>.tipo-seg{order:9}
 }
+
+/* Auditoría 2026-10-25 · Cotizador ---------------------------------------------------------------
+   Lo que dejó la auditoría con la base mandando (docs/AUDITORIA-SUPABASE-2026-10.md, CZ-1 a CZ-11). */
+
+/* El recibo de «Registrar venta» también dice lo que NO salió: que la venta no entró a la base (rojo) o que un cambio
+   no se hace desde aquí (ámbar). Sin palomita: no hay nada que celebrar. */
+.rv-copied.mal{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal)}
+.rv-copied.av{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+.rv-copied.mal .rv-copied-ico,.rv-copied.av .rv-copied-ico{display:none}
+
+/* Los precios de este teléfono, con la base mandando y sin entrar a ella: ámbar como el aviso del IVA, con su salida. */
+.tar-aviso-base{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 10px;padding:10px 12px;
+  border:1px solid var(--av-borde);border-radius:var(--r-sm);background:var(--av-bg);color:var(--av);
+  font-size:var(--t2);font-weight:600;line-height:1.45}
+.tar-aviso-base[hidden]{display:none}
+.tar-aviso-base span{flex:1 1 180px;min-width:0}
+.tar-aviso-base .key-btn{min-height:36px;padding:6px 12px}
+
+/* De quién es una cotización de otro teléfono, junto a su folio (el folio va en mayúsculas; esto no). */
+.hentry-de{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;vertical-align:1px;
+  background:var(--sup2);border:1px solid var(--linea);color:var(--tinta2);
+  font-size:var(--t1);font-weight:700;letter-spacing:0;text-transform:none;white-space:nowrap}
+
+/* La referencia que se quedó en el teléfono que cotizó: el hueco de la imagen, apagado y punteado. */
+.hentry-img-ph.hentry-img-fuera{border-style:dashed;opacity:.7}
