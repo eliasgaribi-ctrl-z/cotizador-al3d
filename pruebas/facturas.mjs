@@ -299,7 +299,10 @@ console.log('\nLA PESTAÑA, PINTADA (con la base mandando)');
   cierto('arranca en «Pendientes de factura» (3 meses): V-102 con su RFC, su constancia y las dos casillas', /aria-pressed="true" data-fx-filtro="pendientes"/.test(r.html) &&
     /V-102/.test(r.html) && /ABC010203XY1/.test(r.html) && /data-fx-ver="al3d\/ABC010203XY1\/csf-11111111\.pdf"/.test(r.html) &&
     /data-fx-marcar="anticipo" data-fx-id="p2" checked/.test(r.html) && /data-fx-marcar="liquidacion" data-fx-id="p2">/.test(r.html));
-  cierto('quién y cuándo marcó la del anticipo; la de la liquidación dice lo cobrado', /hecha · dir@al3d\.test · 02\/09\/2026/.test(r.html) && /cobrado \$6,600\.00 · 20\/10\/2026/.test(r.html));
+  /* Las fechas como en el resto de Control, con el mes en letras (auditoría 2026-10-25, H-5); y el estatus con su nombre y su ficha. */
+  cierto('quién y cuándo marcó la del anticipo; la de la liquidación dice lo cobrado', /hecha · dir@al3d\.test · 0?2 sep 2026/.test(r.html) && /cobrado \$6,600\.00 · 20 oct 2026/.test(r.html));
+  cierto('el estatus con su nombre y su ficha, no el código de la base', !/· (FABRICACION|COBRANDO|LIQUIDADO|REPARANDO) ·/.test(r.html) &&
+    /class="pf-sem (ok|falta|nada) fx-sem">(En fabricación|Reparando|Cobrando|Liquidada)</.test(r.html));
   cierto('V-101 no está (no debe nada) y V-106 tampoco (es de 2025: fuera de 3 meses)', !/V-101/.test(r.html) && !/V-106/.test(r.html));
   cierto('las cuentas de arriba (del periodo)', /<b>1<\/b><span class="pf-cuenta-t">Pendientes de factura/.test(r.html));
   r = await pestana('fab', { rolLocal: 'pagos', sesion: true, area: 'fabricacion' });

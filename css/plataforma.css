@@ -4997,3 +4997,30 @@ small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align
   .cal-cab .tipo-seg button{min-height:44px}
   .cal-fila .pf-fila-acc .btn{min-height:44px}
 }
+
+/* Auditoría 2026-10-25 · Control
+   TR-11: los botones rápidos del dinero en un renglón. `.btn+.btn` le pone margen arriba a los hermanos, y en una fila flexible el
+   primero se estiraba esos 8 px: «+ Cobro de una venta» medía 54 y «+ Gasto» 46. */
+.ct-gas-acc{align-items:center}
+.ct-gas-acc .btn+.btn{margin-top:0}
+/* DN-9: en la computadora el pie de «Cobros y abonos» no va de lado a lado (~1000 px): del ancho del formulario, con botones de su
+   tamaño; y la nota de la casilla LIQUIDADA pegada a ella. */
+@media(min-width:760px){
+  .pg-supa-card .pf-acciones,#ct-cta-ajuste .pf-acciones{flex-direction:row;flex-wrap:wrap;max-width:40rem}
+  .pg-supa-card .pf-acciones>*,#ct-cta-ajuste .pf-acciones>*{width:auto;min-width:14rem}
+}
+.pg-check .pf-nota{margin-top:0}
+/* DN-5 y DN-6: la nota de qué es cada modo del cobro; el buscador de la venta pegado a su desplegable; la cuenta de lo encontrado. */
+.pg-modo-nota{margin:0 0 var(--e3)}
+.pg-buscar{width:100%;margin-bottom:var(--e2)}
+.pg-cuantas{margin-top:var(--e1)}
+.pg-cuantas:empty{display:none}
+.pg-cancelada{color:var(--mal)}
+/* DN-3: la letra chica del disponible. */
+.ct-disp-nota{margin:var(--e2) 0 0}
+/* H-2: cada casilla de «Qué cuentas son dinero disponible» en su renglón, con el nombre al lado (la regla de `.pg-check label`
+   busca un label DENTRO de `.pg-check`, y aquí el label es él mismo). */
+.ct-cta-casilla{display:flex;align-items:center;gap:var(--e2);min-height:44px;font-weight:600;color:var(--tinta)}
+.ct-cta-casilla input{width:20px;height:20px;flex:0 0 auto;margin:0}
+/* H-5: los tres indicadores de Facturas en el teléfono: dos arriba y el tercero a lo ancho, sin medio renglón vacío. */
+@media(max-width:400px){ .pf-cuentas.fx-cuentas > .pf-cuenta:last-child:nth-child(odd){grid-column:1 / -1} }

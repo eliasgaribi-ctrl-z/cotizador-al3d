@@ -46,6 +46,10 @@ export const TOPE_ABONO = 1e7;        // registrar_abono_comision y corregir_abo
 export const TOPE_NOTA = 400;         // abonos.nota <= 500 (0012, M-3); el reparto le agrega «· Reparto P-### de $…»
 /* Los borradores de la pantalla viven en el almacenamiento de la PESTAÑA (mueren con ella). */
 export const CLAVE_BORRADOR = 'al3d_pf_pagos_borrador';
+/* Menos los que quedaron INCIERTOS (se mandaron y no hubo respuesta): esos también en el del aparato, para que cerrar la app en el
+   iPhone —que se lleva el de la pestaña— no deje un cobro en duda sin su aviso ni su «Reintentar» con el mismo op_id (auditoría
+   2026-10-25, DN-7). Se borran solos cuando la base confirma o cuando se empieza otro registro. */
+export const CLAVE_INCIERTOS = 'al3d_pf_pagos_inciertos';
 
 /** Las áreas (de la BASE, no de este aparato) que ven estas pantallas. */
 export const AREAS = ['direccion', 'pagos'];
@@ -260,11 +264,65 @@ export function opIdPara(b, plan) {
 }
 export function renovar(b) { b.opId = nuevoOpId(); b.incierto = null; return b; }
 
-/** Después de la respuesta: confirmado → formulario nuevo; incierto → se recuerda qué se mandó. */
+/**
+ * Después de la respuesta: confirmado → formulario nuevo; incierto → se recuerda qué se mandó (la huella, para el op_id, y los
+ * argumentos, para decir QUÉ cambió si alguien los cambia).
+ *
+ * Y lo que la pantalla calcula sola se CONGELA con el valor que se mandó (auditoría 2026-10-25, DN-1): la casilla «Marcar la venta
+ * como LIQUIDADA» se marca sola cuando el cobro deja el saldo en ceros. Si el primer envío sí llegó, el saldo ya bajó, la casilla
+ * se volvía a calcular con el saldo nuevo, cambiaba la huella, y «Reintentar con los mismos datos» decía que se habían cambiado los
+ * datos y ofrecía mandarlo como registro NUEVO: el cobro quedaba dos veces y la venta LIQUIDADA. Congelada, el reintento es el mismo
+ * envío con el mismo op_id y la base contesta lo de la primera vez.
+ */
 export function despuesDeEnviar(b, plan, r) {
   if (r.ok) return borradorNuevo(b.tipo);
-  if (r.incierto) b.incierto = huella(plan);
+  if (r.incierto) {
+    b.incierto = huella(plan);
+    const a = { ...plan.args }; delete a.p_op_id;
+    b.mandado = { rpc: plan.rpc, args: a, saldo: plan.saldo === undefined ? null : plan.saldo };
+    if (plan.rpc === 'registrar_cobro' && b.campos && typeof b.campos === 'object') {
+      b.campos.liquidar = !!plan.args.p_liquidar;
+      b.campos.liquidarTocado = true;
+    }
+  }
   return b;
+}
+
+/* Cómo se llama cada argumento para quien cobra, para decir QUÉ cambió después de un envío incierto. */
+const NOMBRE_DEL_ARG = { p_proyecto: 'la venta', p_monto: 'el monto', p_fecha: 'la fecha', p_liquidar: 'la casilla «Marcar la venta como LIQUIDADA»',
+  p_nota: 'la nota' };
+const NOMBRE_EN_ALTA = { nombre: 'el nombre', cuenta: 'la cuenta', estatus: 'el estatus', tipo_trabajo: 'los tipos de trabajo', subtotal: 'el subtotal',
+  anticipo: 'el anticipo', fecha_anticipo: 'la fecha del anticipo', fecha_instalacion: 'la fecha de instalación', tel: 'el teléfono',
+  entrega: 'cómo se entrega', dir_texto: 'la dirección', maps_url: 'la liga de Maps' };
+const valorDelArg = (k, v) => (k === 'p_monto' ? pesosDe(v) : k === 'p_liquidar' ? (v ? 'marcada' : 'sin marcar')
+  : k === 'p_fecha' ? (v || 'hoy') : (v == null || v === '' ? 'vacío' : String(v)));
+const igualJSON = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * QUÉ cambió entre lo que se mandó sin respuesta (`b.mandado`) y lo que se va a mandar ahora (`plan`), en palabras: «el monto
+ * ($1,600.00 → $1,500.00)». Vacío si no se sabe (un borrador de antes de esto) o si no cambió nada. PURA.
+ * @returns {string[]}
+ */
+export function queCambio(b, plan) {
+  const m = b && b.mandado;
+  if (!m || !plan || !plan.args) return [];
+  if (m.rpc !== plan.rpc) return ['qué se registra (' + (plan.rpc === 'corregir_venta' ? 'ahora es una corrección del anticipo' : 'ahora es otro tipo de registro') + ')'];
+  const ahora = { ...plan.args }; delete ahora.p_op_id;
+  const out = [];
+  for (const k of new Set([...Object.keys(m.args || {}), ...Object.keys(ahora)])) {
+    const a = (m.args || {})[k], d = ahora[k];
+    if (igualJSON(a, d)) continue;
+    if (k === 'p_cambios' || k === 'p_op') {
+      const x = a && typeof a === 'object' ? a : {}, y = d && typeof d === 'object' ? d : {};
+      for (const j of new Set([...Object.keys(x), ...Object.keys(y)])) {
+        if (j === 'sellos' || j === 'id' || igualJSON(x[j], y[j])) continue;
+        out.push((k === 'p_op' ? NOMBRE_EN_ALTA[j] : NOMBRE_DEL_CAMPO[j]) || j);
+      }
+      continue;
+    }
+    out.push((NOMBRE_DEL_ARG[k] || k) + ' (' + valorDelArg(k, a) + ' → ' + valorDelArg(k, d) + ')');
+  }
+  return out;
 }
 
 /* ============================================================================
@@ -312,16 +370,19 @@ export function plan(tipo, c = {}, o = {}) {
     return {
       ok: true, rpc: 'registrar_cobro',
       args: { p_proyecto: c.proyecto, p_monto: n, p_fecha: f, p_liquidar: liquidar, p_op_id: o.opId },
-      titulo: '¿Registrar un cobro de ' + pesosDe(n) + '?',
-      texto: v.folio + ' · ' + v.nombre + '. Se suma a la liquidación (' + pesosDe(v.liquidacion) + ' → ' +
+      /* El saldo que se vio al mandarlo: si el envío queda sin respuesta y al reintentar el saldo ya es otro, el primero llegó. */
+      saldo: Number(v.saldo || 0),
+      titulo: '¿Registrar un pago de ' + pesosDe(n) + '?',
+      texto: v.folio + ' · ' + v.nombre + '. Se suma a lo que el cliente ha pagado después del anticipo (la liquidación: ' + pesosDe(v.liquidacion) + ' → ' +
         pesosDe((Math.round(Number(v.liquidacion || 0) * 100) + nC) / 100) + ')' +
         (f ? ', con fecha ' + f : ', con fecha de hoy') + '. ' +
         (liquidar ? 'La venta queda LIQUIDADA.' : 'El estatus de la venta no cambia.') +
         (demas ? ' OJO: es más que el saldo (' + pesosDe(Math.max(saldoC, 0) / 100) + '): quedaría cobrada de más por ' + pesosDe(demas / 100) + '.' : '') +
         (yaLiq ? ' OJO: la venta ya está LIQUIDADA.' : '') +
-        ' Un cobro no se borra: si te equivocas, se corrige con otro asiento.',
-      si: 'Registrar cobro',
-      peligro: !!(demas || yaLiq),
+        (v.cancelada ? ' OJO: la venta está cancelada («No se dio»).' : '') +
+        ' Un pago no se borra: si te equivocas, se corrige con otro registro.',
+      si: 'Registrar pago',
+      peligro: !!(demas || yaLiq || v.cancelada),
     };
   }
 
@@ -352,12 +413,17 @@ export function plan(tipo, c = {}, o = {}) {
     if (!vp || Math.round(Number(vp.monto) * 100) !== Math.round(n * 100)) return fallo({ monto: 'Primero toca «Ver el reparto» con este monto.' });
     const filas = Array.isArray(vp.filas) ? vp.filas : [];
     if (!filas.length) return fallo({ monto: 'No hay comisiones pendientes que abonar.' });
+    /* Las canceladas (`cancelada`, que la pantalla le pone a cada renglón con las ventas que leyó): desde 0028 la base las salta; si
+       todavía aparece una, se dice con su nombre antes de repartir, que no se deshace. */
+    const canc = filas.filter(x => x && x.cancelada);
     return {
       ok: true, rpc: 'repartir_abono_fifo',
       args: { p_monto: n, p_fecha: f, p_nota: nota, p_op_id: o.opId },
       titulo: '¿Repartir ' + pesosDe(n) + ' entre ' + filas.length + (filas.length === 1 ? ' comisión?' : ' comisiones?'),
-      texto: 'De la más antigua a la más nueva: ' + filas.slice(0, 4).map(x => x.folio + ' ' + pesosDe(x.abono)).join(', ') +
+      texto: 'De la más antigua a la más nueva: ' + filas.slice(0, 4).map(x => x.folio + (x.nombre ? ' (' + x.nombre + ')' : '') + ' ' + pesosDe(x.abono)).join(', ') +
         (filas.length > 4 ? ' y ' + (filas.length - 4) + ' más' : '') + '.' +
+        (canc.length ? ' OJO: ' + canc.map(x => x.folio).join(', ') + (canc.length === 1 ? ' es una venta cancelada' : ' son ventas canceladas') +
+          ' («No se dio»): revisa antes de repartir.' : '') +
         (Number(vp.sobrante) > 0.004 ? ' Sobran ' + pesosDe(vp.sobrante) + ', que NO se aplican.' : '') +
         ' Todos los renglones llevan el mismo número de pago y NO se pueden deshacer: un error se corrige con otro ' +
         'renglón, uno por venta, y eso solo lo hace Dirección.',
@@ -694,8 +760,9 @@ export async function vistaPrevia(cliente, montoTexto) {
 }
 
 /* Desde el paso 6, también lo que corrige «Datos de la venta»: la cuenta, el IVA, el subtotal, la fecha de liquidación y el % pactado. */
+/* Y la etapa (auditoría 2026-10-25, DN-2): una venta cancelada («No se dio») se marca en el selector y va aparte, al final. */
 const COLUMNAS = 'proyecto_id,a_folio,b_proyecto,c_estatus,d_cuenta,f_iva,g_subtotal,h_neto,i_anticipo,j_liquidacion,k_saldo,n_fecha_liquidacion,' +
-  'r_comision,s_abonado,t_restante,pct_comision';
+  'r_comision,s_abonado,t_restante,pct_comision,etapa';
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const numFolio = f => { const m = /(\d+)$/.exec(String(f || '')); return m ? Number(m[1]) : -1; };
 /* Una fecha de la base: PostgREST la da como «AAAA-MM-DD»; un cliente que la convierta en Date, como el día UTC de ese Date. */
@@ -718,7 +785,58 @@ export function normalizarVentas(filas) {
     comision: num(x.r_comision), abonado: num(x.s_abonado), restante: num(x.t_restante),
     cuenta: x.d_cuenta == null ? '' : String(x.d_cuenta), iva: x.f_iva !== false, subtotal: num(x.g_subtotal),
     fechaLiquidacion: fechaDe(x.n_fecha_liquidacion), pct: x.pct_comision == null || x.pct_comision === '' ? null : num(x.pct_comision),
+    cancelada: x.etapa === 'cancelado',
   })).sort((a, b) => numFolio(b.folio) - numFolio(a.folio));
+}
+
+/* ============================================================================
+   Elegir la venta (auditoría 2026-10-25, DN-6): buscar y agrupar
+   ============================================================================
+   En producción son más de doscientas ventas en un solo desplegable; en el iPhone la rueda corta el texto y no se puede buscar.
+   La pantalla pone un buscador encima del desplegable (nombre, V-### o monto) y agrupa las opciones: lo que tiene algo por cobrar o
+   por pagar primero, lo demás después y las canceladas al final, marcadas. */
+
+const sinAcentos = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const soloDigitos = s => String(s || '').replace(/[^\d]/g, '');
+
+/** Las ventas que coinciden con lo buscado: por nombre, por folio («215» encuentra «V-215») o por monto («3200», «3,200»). PURA. */
+export function filtrarVentas(ventas, q) {
+  const lista = Array.isArray(ventas) ? ventas : [];
+  const t = sinAcentos(q).trim();
+  if (!t) return lista.slice();
+  const palabras = t.split(/\s+/).filter(Boolean);
+  return lista.filter(v => {
+    const montos = [v.saldo, v.neto, v.subtotal, v.restante, v.anticipo].map(n => Math.round(Number(n) || 0)).filter(n => n > 0);
+    const pajar = sinAcentos(v.folio + ' ' + v.nombre + ' ' + (v.cuenta || '')) + ' ' + montos.join(' ');
+    return palabras.every(p => {
+      if (pajar.includes(p)) return true;
+      const dig = soloDigitos(p);
+      if (!dig || dig !== p.replace(/[$,.\s]/g, '')) return false;
+      return soloDigitos(v.folio) === dig || montos.some(n => String(n) === dig || String(n).startsWith(dig));
+    });
+  });
+}
+
+/**
+ * Los grupos del desplegable de cada formulario. `t`: 'cobro' agrupa por saldo; 'abono' y 'correccion', por comisión por pagar;
+ * 'datos', todas juntas por folio (la más nueva arriba). Las canceladas, al final y aparte. Dentro de cada grupo, el orden en
+ * que llegan (folio, la más nueva arriba). PURA.
+ * @returns {{titulo:string, ventas:Object[]}[]}  sin grupos vacíos
+ */
+export function gruposDeVentas(t, ventas) {
+  const vivas = (Array.isArray(ventas) ? ventas : []).filter(v => !v.cancelada);
+  const canceladas = (Array.isArray(ventas) ? ventas : []).filter(v => v.cancelada);
+  let grupos;
+  if (t === 'datos') grupos = [{ titulo: 'Ventas', ventas: vivas }];
+  else if (t === 'abono' || t === 'correccion') {
+    grupos = [{ titulo: 'Con comisión por pagar', ventas: vivas.filter(v => v.restante > 0.004) },
+      { titulo: 'Sin comisión por pagar', ventas: vivas.filter(v => !(v.restante > 0.004)) }];
+  } else {
+    grupos = [{ titulo: 'Con saldo por cobrar', ventas: vivas.filter(v => v.saldo > 0.004) },
+      { titulo: 'Sin saldo (liquidadas o en ceros)', ventas: vivas.filter(v => !(v.saldo > 0.004)) }];
+  }
+  grupos.push({ titulo: 'Canceladas («No se dio»)', ventas: canceladas });
+  return grupos.filter(g => g.ventas.length);
 }
 
 /* ============================================================================
@@ -746,7 +864,7 @@ export function resumen(p, data, venta) {
   const rep = d.repetida ? ' Ya estaba registrado: no se sumó otra vez.' : '';
   if (p.rpc === 'registrar_cobro') {
     return 'Cobro registrado en ' + f + '. Liquidación ' + pesosDe(d.liquidacion) + ', saldo ' + pesosDe(d.saldo) +
-      (d.en_ceros ? ' (en ceros)' : '') + '; estatus ' + (d.estatus || '—') + '.';
+      (d.en_ceros ? ' (en ceros)' : '') + '; estatus ' + (d.estatus || '—') + '.' + rep;
   }
   if (p.rpc === 'corregir_venta' && p.tipo === 'datos') {
     /* Lo que la base escribió, con el valor que quedó; lo que no aceptó, con su porqué (corregir_venta no aborta el resto). */

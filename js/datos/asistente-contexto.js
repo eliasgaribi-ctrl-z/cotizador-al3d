@@ -281,7 +281,19 @@ export function armarResumen(d) {
     out.cotizaciones_autorizadas_sin_decidir = (d.sinDecidir || []).length;
   }
   out.esperando_precio = (d.cola || []).length;
+  /* Quién manda el dinero: la hoja o la base. Con la base, el asistente no puede mandar a registrar abonos en la hoja, que ya nadie
+     lee (auditoría 2026-10-25, TR-2). `d.baseManda` lo puede decir quien llama; si no, se lee aquí como en js/mod/control.js. */
+  out.base_manda = typeof d.baseManda === 'boolean' ? d.baseManda : laBaseMandaAqui();
   return out;
+}
+
+/* La regla de `laBaseManda()` de js/nucleo/supa.js —el interruptor de Supabase encendido en este aparato Y el último modo oído en
+   'base'—, leída sin cargar supa.js, como en js/app.js y js/mod/control.js. Sin almacenamiento (node, las pruebas), la hoja. */
+function laBaseMandaAqui() {
+  try {
+    const ls = globalThis.localStorage;
+    return !!ls && /"encendido":true/.test(ls.getItem('al3d_pf_supa') || '') && /"modo":"base"/.test(ls.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
 }
 
 function fechaHora(ts) {
@@ -295,6 +307,9 @@ function fechaHora(ts) {
 export function promptSistema(resumen) {
   const hoy = resumen.hoy || hoyISO();
   const dinero = resumen.ve_dinero !== false;
+  const base = resumen.base_manda === true;
+  /* Con la base mandando, lo que las reglas 5 y 6 decían de «la hoja» es de la base. */
+  const fuente = t => (base ? t.replace(/la hoja/g, 'la base') : t);
   return [
     'Eres el asistente del taller de AL3D (Anuncios Luminosos 3D, Guadalajara): un negocio que fabrica e instala letras 3D, recorte de acrílico, bastidores y cajas de luz. Tres personas lo trabajan: dirección vende y autoriza precios, fabricación compra material y arma, pagos cobra anticipos y liquidaciones.',
     'Hoy es ' + hoy + '. Te habla ' + (resumen.quien ? resumen.quien + ', ' : '') + 'con el rol de ' + (resumen.rol || 'dirección') + '.',
@@ -303,10 +318,13 @@ export function promptSistema(resumen) {
     '1. Contesta SOLO con los datos del bloque DATOS. Si algo no está ahí, dilo con claridad («eso no está en la plataforma») en vez de suponerlo. Nunca inventes importes, fechas ni nombres.',
     '2. Responde en español de México, corto y directo. Si hay varios renglones (proyectos, saldos, comisiones), usa una lista con viñetas y pon el importe al final de cada renglón. Termina con una sola recomendación concreta cuando aplique.',
     '3. Los importes van en pesos mexicanos con formato $12,345.00.',
-    '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.',
-    dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. La lista `comisiones` es la del récord entero de la hoja: puede traer ventas que no están en `proyectos` (capturadas en otro teléfono o en la hoja), y esas también se deben. No las recalcules.'
+    '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. ' +
+      (base
+        ? 'Los cobros, los abonos de comisión y las correcciones de una venta se registran en Control → Cobros y abonos (Dirección y Pagos), NUNCA en la hoja de finanzas, que ya no se lee; la base de datos es el libro mayor, y el récord de ventas que ves en DATOS es el de la base más lo que solo está en este dispositivo.'
+        : 'Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.'),
+    dinero ? fuente('5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. La lista `comisiones` es la del récord entero de la hoja: puede traer ventas que no están en `proyectos` (capturadas en otro teléfono o en la hoja), y esas también se deben. No las recalcules.')
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
-    dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»). La lista `cobranza` es la cartera del récord entero, la misma de Control → Por cobrar: puede traer ventas que no están en `proyectos`, y para «¿quién nos debe?» manda su `total_por_cobrar`; `fuera_de_la_lista` cuenta las que no cupieron en `saldos`, y `saldos_de_la_hoja` cuenta, sobre toda la cartera y no solo sobre la lista, cuántos saldos son los de la hoja: si es menor que `ventas_con_saldo`, parte del total es estimado aunque todos los renglones de `saldos` digan `saldo_de_la_hoja`. Un proyecto con `fuera_del_record` no cuenta como venta (su fila ya no está en la hoja, o es la copia repetida de otra): no trae importes y no se los supongas.' : '',
+    dinero ? fuente('6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»). La lista `cobranza` es la cartera del récord entero, la misma de Control → Por cobrar: puede traer ventas que no están en `proyectos`, y para «¿quién nos debe?» manda su `total_por_cobrar`; `fuera_de_la_lista` cuenta las que no cupieron en `saldos`, y `saldos_de_la_hoja` cuenta, sobre toda la cartera y no solo sobre la lista, cuántos saldos son los de la hoja: si es menor que `ventas_con_saldo`, parte del total es estimado aunque todos los renglones de `saldos` digan `saldo_de_la_hoja`. Un proyecto con `fuera_del_record` no cuenta como venta (su fila ya no está en la hoja, o es la copia repetida de otra): no trae importes y no se los supongas.') : '',
     '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó. Si un proyecto trae `entrega` («Paquetería» o «Recolección en taller») NO se instala: su fecha es el día que sale del taller (envío o recolección), no necesita dirección ni pin, y no hables de instalarlo.',
     '8. Si la pregunta es ambigua, contesta lo más probable y ofrece la otra lectura en una línea. No repitas la pregunta ni saludes; ve al dato.',
     '',
@@ -489,7 +507,9 @@ function accionesDe(intent, r) {
     case 'comisiones': {
       if (!dinero) return [];
       const c = r.comisiones || { abonables_ya: [], pendientes_de_liquidar: [] };
-      return [{ tipo: 'link', href: HOJA_FINANZAS, label: 'Comisiones en la hoja' },
+      /* Con la base mandando el abono se registra en «Cobros y abonos»: la hoja ya no es a donde ir. */
+      return [r.base_manda === true ? { tipo: 'pasar', ruta: 'control', dato: { tab: 'asientos' }, label: 'Ir a Cobros y abonos' }
+        : { tipo: 'link', href: HOJA_FINANZAS, label: 'Comisiones en la hoja' },
         ...accProyectos(c.abonables_ya.concat(c.pendientes_de_liquidar), 5)];
     }
     case 'cobranza': {
@@ -528,6 +548,7 @@ function accionesDe(intent, r) {
 export function responderLocal(intent, r) {
   if (!r || !INTENCIONES[intent]) return null;
   const dinero = r.ve_dinero !== false;
+  const base = r.base_manda === true;
   const P = r.proyectos || [];
   switch (intent) {
     case 'comisiones': {
@@ -540,7 +561,7 @@ export function responderLocal(intent, r) {
         out.push('**Se pueden abonar ya: ' + pesos(c.total_abonable_ya) + '** en ' + cuenta(c.abonables_ya.length, 'venta liquidada', 'ventas liquidadas') + '.');
         for (const x of c.abonables_ya) out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + x.pct + ' % · **' + pesos(x.comision) + '**');
       } else {
-        out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO en la hoja, y ninguno con comisión lo está.');
+        out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO' + (base ? '' : ' en la hoja') + ', y ninguno con comisión lo está.');
       }
       if (c.pendientes_de_liquidar.length) {
         out.push('');
@@ -552,14 +573,15 @@ export function responderLocal(intent, r) {
       }
       out.push('');
       out.push(c.abonables_ya.length
-        ? 'Registra el abono con ⚡ AL3D → Registrar abono de comisión en la hoja. La plataforma solo lo espeja.'
+        ? (base ? 'Registra el abono en **Control → Cobros y abonos** → «Abono de comisión» (o «Repartir un depósito» si es un pago para varias).'
+          : 'Registra el abono con ⚡ AL3D → Registrar abono de comisión en la hoja. La plataforma solo lo espeja.')
         : 'Cuando un cliente liquide, marca LIQUIDADO en la ficha del proyecto y aquí aparece como abonable.');
       return out.join('\n');
     }
     case 'cobranza': {
       if (!dinero) return sinDinero;
       const c = carteraDe(r);
-      if (!c.ventas_con_saldo) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados en la hoja.';
+      if (!c.ventas_con_saldo) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados' + (base ? '.' : ' en la hoja.');
       /* «Ventas», no «proyectos»: la cartera es la del récord y trae las que solo están en la
          hoja, sin ficha aquí. Control dice «N ventas» sobre la misma lista. */
       const out = ['**Por cobrar: ' + pesos(c.total_por_cobrar) + '** en ' + cuenta(c.ventas_con_saldo, 'venta', 'ventas') +
@@ -576,8 +598,9 @@ export function responderLocal(intent, r) {
          liquidación): llamarlos estimados era decir menos de lo que se sabe.
          Se compara con la cartera entera, no con la lista: el pie habla del total de arriba. */
       const deHoja = c.saldos_de_la_hoja;
-      out.push((deHoja === c.ventas_con_saldo ? 'Los saldos son los que calcula la hoja.'
-        : deHoja ? 'El saldo es el que calcula la hoja cuando la venta está allá; si no, el total menos el anticipo pactado (estimado; no sabe de abonos intermedios).'
+      const f = base ? 'la base' : 'la hoja';
+      out.push((deHoja === c.ventas_con_saldo ? 'Los saldos son los que calcula ' + f + '.'
+        : deHoja ? 'El saldo es el que calcula ' + f + ' cuando la venta está allá; si no, el total menos el anticipo pactado (estimado; no sabe de abonos intermedios).'
         : 'El saldo es el total menos el anticipo pactado (estimado; no sabe de abonos intermedios).') +
         ' En **Control → Por cobrar** cada renglón trae el WhatsApp de cobro ya escrito.');
       return out.join('\n');
