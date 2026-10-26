@@ -96,14 +96,15 @@ console.log('\nLA BARRA SON SEIS BOTONES COMO MUCHO, Y LOS QUE JUNTAN LLEVAN SUS
     ['hoy', 'calendario', 'proyectos', 'cotizador', 'control', 'herramientas']);
   eq('  sus nombres en la barra', di.map(g => g.nombre), ['Tablero', 'Calendario', 'Proyectos', 'Cotizador', 'Control', 'Herramientas']);
   eq('  el Calendario lleva el Mapa dentro', pantallas(di[1]), ['agenda', 'mapa']);
-  eq('  y Herramientas, la mesa, el vectorizador, las publicaciones y el material, en ese orden', pantallas(di[5]),
-    ['anidador', 'vectorizar', 'publicaciones', 'material']);
+  /* Material va `oculto` mientras esté en mantenimiento (auditoría 2026-10-25, CM-2): sin pestaña en la tira. */
+  eq('  y Herramientas, la mesa, el vectorizador y las publicaciones, en ese orden (Material, en mantenimiento, sin pestaña)', pantallas(di[5]),
+    ['anidador', 'vectorizar', 'publicaciones']);
   eq('  con su caja de herramientas por icono', di[5].icono, 'i-herramientas');
 
   const fa = grupos('fabricacion');
   eq('fabricación: cinco, sin Control, que no ve importes', ids(fa), ['hoy', 'calendario', 'proyectos', 'cotizador', 'herramientas']);
   eq('  su Calendario también lleva el Mapa', pantallas(fa[1]), ['agenda', 'mapa']);
-  eq('  y sus herramientas son tres: sin Publicaciones, que es de Dirección', pantallas(fa[4]), ['anidador', 'vectorizar', 'material']);
+  eq('  y sus herramientas son dos: sin Publicaciones, que es de Dirección, ni Material, en mantenimiento', pantallas(fa[4]), ['anidador', 'vectorizar']);
 
   const pa = grupos('pagos');
   eq('pagos: cinco, con Control', ids(pa), ['hoy', 'calendario', 'proyectos', 'cotizador', 'control']);
@@ -181,8 +182,8 @@ console.log('\nLA PANTALLA ENTRA POR DONDE ESTÁ EN LA BARRA');
     L('agenda') < L('mapa') && L('mapa') < L('proyectos'));
   eq('  y entre hermanas se entra de lado: del Calendario al Mapa, por la derecha; de vuelta, por la izquierda',
     [direccionDeEntrada(L('agenda'), L('mapa')), direccionDeEntrada(L('mapa'), L('agenda'))], ['adelante', 'atras']);
-  eq('  de la Mesa de corte al Material, adelante; de Herramientas al Tablero, atrás',
-    [direccionDeEntrada(L('anidador'), L('material')), direccionDeEntrada(L('material'), L('hoy'))], ['adelante', 'atras']);
+  eq('  de la Mesa de corte a Publicaciones, adelante; de Herramientas al Tablero, atrás',
+    [direccionDeEntrada(L('anidador'), L('publicaciones')), direccionDeEntrada(L('publicaciones'), L('hoy'))], ['adelante', 'atras']);
   cierto('  los lugares son enteros —`direccionDeEntrada` no acepta otra cosa—',
     ['hoy', 'agenda', 'mapa', 'control', 'publicaciones', 'material'].every(r => Number.isInteger(L(r))));
   eq('  las ocultas no tienen lugar, y una ruta que el rol no tiene tampoco', [L('atender'), L('ajustes'), lugar('pagos', 'mapa')], [-1, -1, -1]);

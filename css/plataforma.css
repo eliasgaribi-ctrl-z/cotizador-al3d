@@ -4978,3 +4978,18 @@ small.pj-resta-mini{display:block;font-size:var(--t1);font-weight:500;text-align
 .fx-subir input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .fx-subir.apagado{opacity:.55;pointer-events:none}
 .fx-quitar{margin-right:auto}
+
+/* Auditoría 2026-10-25 · Calendario y Mapa
+   CM-10: la mayúscula del mes la pone `tituloPeriodo()` (js/mod/fabricacion.js): `capitalize` subía también
+   cada palabra de «Lo que viene» y «Toda la agenda».
+   CM-4: en el teléfono todo lo que se toca en el Calendario mide al menos 44 px —las flechas, Mes/Semana/
+   Lista y los botones del renglón— y «Cómo llegar» es un botón con su pin, no el enlace de 16 px que era. */
+.cal-mes{text-transform:none}
+.cal-llegar{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+.cal-llegar .svgi{width:var(--ico1);height:var(--ico1)}
+@media(max-width:759px){
+  .cal-nav{width:44px;height:44px;min-width:44px;min-height:44px}
+  .cal-nav.cal-hoy{width:auto}
+  .cal-cab .tipo-seg button{min-height:44px}
+  .cal-fila .pf-fila-acc .btn{min-height:44px}
+}

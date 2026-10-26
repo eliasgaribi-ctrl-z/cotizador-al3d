@@ -591,7 +591,15 @@ html[data-tema="oscuro"]{
 :is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).cortado{--ev-bg:var(--et-cortado-bg);--ev-tx:var(--et-cortado-tx);--ev-pt:var(--et-cortado-pt)}
 :is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).armado{--ev-bg:var(--et-armado-bg);--ev-tx:var(--et-armado-tx);--ev-pt:var(--et-armado-pt)}
 :is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).listo{--ev-bg:var(--et-listo-bg);--ev-tx:var(--et-listo-tx);--ev-pt:var(--et-listo-pt)}
-:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).instalado{--ev-bg:var(--ok-bg);--ev-tx:var(--ok);--ev-pt:var(--green-ico)}
+/* Instalado ya no es otro verde: junto al menta de «Listo para instalar» los dos verdes no se distinguían
+   (rgb 31,157,97 contra 21,160,106), y en el teléfono la etapa es solo un punto. Lo instalado es lo HECHO:
+   pastel apagado, barra verde y una palomita delante, que se lee aunque no se distingan los colores
+   (auditoría 2026-10-25, CM-6). */
+:is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev,.cal-ley>span).instalado{--ev-bg:var(--sup2);--ev-tx:var(--tinta2);--ev-pt:var(--green-ico)}
+:is(.cal-ev,.cal-tarj,.cal-prox-ev).instalado::before,.cal-fila.instalado .pf-fila-t::before{content:'✓ ';font-weight:800;color:var(--ok)}
+/* En el teléfono el mes es de puntos: el de lo instalado va hueco (un aro), y la leyenda igual. */
+.cal-ley>span.instalado::before{background:transparent;box-shadow:inset 0 0 0 2px var(--ev-pt)}
+@media(max-width:559px){ .cal-ev.instalado:not(.envio){background:transparent;box-shadow:inset 0 0 0 1.5px var(--ev-pt)} }
 /* Cancelada: gris y tachada, que se lee igual sin distinguir colores. */
 :is(.cal-ev,.cal-tarj,.cal-fila,.cal-prox-ev).off{--ev-bg:var(--sup2);--ev-tx:var(--tinta2);--ev-pt:var(--borde-control)}
 .cal-ev.off{color:var(--tinta2)}

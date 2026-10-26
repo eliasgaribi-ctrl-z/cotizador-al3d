@@ -85,6 +85,7 @@ let _ctx = null;
    taller no le dice nada que pueda accionar y un segmentado de una opción es un control mudo. */
 let _lente = null;           // taller|instalaciones|todo — se decide en montar() por el rol
 let _vista = 'mes';          // mes|semana|lista
+let _vistaTocada = false;    // la persona eligió la vista: desde entonces manda ella (CM-3)
 let _ancla = hoyISO();       // el mes o la semana que se está viendo
 let _dia = null;             // el día abierto debajo de la rejilla
 let _d = null;               // lo último que se leyó
@@ -166,6 +167,11 @@ export async function montar(contenedor, ctx) {
       '<button type="button" class="btn btn-pri" data-recargar>Recargar</button>');
     return;
   }
+
+  /* En el teléfono, Fabricación abre en «Lista»: la pregunta de la mañana es qué se instala hoy, y con el
+     mes arriba lo de hoy quedaba debajo del pliegue, tapado por la barra (auditoría 2026-10-25, CM-3). En
+     cuanto toca Mes o Semana manda lo que eligió, como siempre. */
+  if (!_vistaTocada && Prefs.rol() === 'fabricacion' && typeof matchMedia === 'function' && matchMedia(MQ_TEL).matches) _vista = 'lista';
 
   /* Lo que dejó el módulo anterior, ANTES de leer, para que la lectura ya salga con el mes
      correcto en vez de leer dos veces. */
@@ -324,7 +330,7 @@ async function leer() {
      mes obligaría a cambiar de vista para enterarse. */
   const [sinFecha, vencidas] = await Promise.all([
     Proyectos.listar({ sinFecha: true, vivos: true }),
-    Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true }),
+    Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true }),
   ]);
 
   const d = { hoy, sinFecha: sinFecha || [], vencidas: vencidas || [],
@@ -660,8 +666,10 @@ const puedeAgendar = () => Prefs.rol() !== 'pagos';
 const soloPropone  = () => Prefs.rol() === 'fabricacion';
 /* El semáforo es la pregunta de fabricación mirando el mes: ¿llego o no llego? Pagos no la
    tiene, porque para él la agenda contesta «qué día entra dinero», y un punto de color que
-   no puede accionar es ruido. */
-const veSemaforo   = () => Prefs.rol() !== 'pagos';
+   no puede accionar es ruido. Y mientras Material esté en mantenimiento nadie la tiene: con el cálculo
+   apagado casi cada cita salía en rojo («Falta y es ya»), y tanto rojo hacía que nadie lo viera
+   (auditoría 2026-10-25, CM-2). */
+const veSemaforo   = () => !Agenda.MATERIAL_EN_MANTENIMIENTO && Prefs.rol() !== 'pagos';
 const veWa         = () => Prefs.rol() !== 'pagos';
 
 /** El filtro de PAGOS: solo los días con cobro. */
@@ -716,8 +724,10 @@ function pintar() {
 }
 
 /** El nombre del periodo que se mira: el mes, la semana o lo que la lista enseña. */
+/* La mayúscula del mes se pone aquí y no con `text-transform:capitalize`, que también subía cada palabra de
+   «Lo Que Viene» y «Toda La Agenda» (auditoría 2026-10-25, CM-10). */
 function tituloPeriodo(d) {
-  if (_vista === 'mes' && d.mes) return etiquetaMes(d.mes.desde);
+  if (_vista === 'mes' && d.mes) { const t = etiquetaMes(d.mes.desde); return t.charAt(0).toUpperCase() + t.slice(1); }
   if (_vista === 'semana' && d.rango) return etiquetaSemana(d.rango.ini, d.rango.fin);
   return _pasadas ? 'Toda la agenda' : 'Lo que viene';
 }
@@ -1474,11 +1484,23 @@ function fila(i, sem) {
      mismo botón que la ficha ya llama así a un toque de distancia, y el mismo nombre para la
      misma acción vale más que dos palabras de ancho. El renglón lo acomoda solo: sus botones
      miden lo que mide su rótulo y la fila envuelve. */
-  const acc = ['<button type="button" class="btn btn-gho" data-acc="ics" data-id="' +
-    esc(i.id) + '">Al calendario del teléfono</button>'];
+  /* Hoy y lo atrasado: lo que se hace con esa cita es marcarla, no bajarla al calendario del teléfono
+     (para hoy ya es tarde). «Ya se instaló» va en el renglón, con «Deshacer» en el aviso: antes eran
+     tres pasos —bajar, «Abrir», «Ya se instaló»— (auditoría 2026-10-25, CM-5). El .ics sigue en la ficha. */
+  const porMarcar = !cancelada && i.estado !== 'hecha' && puedeAgendar() && String(i.fecha || '') <= hoyISO();
+  const acc = [porMarcar
+    ? '<button type="button" class="btn btn-ok" data-acc="hecha-fila" data-id="' + esc(i.id) + '">' +
+      (instala ? 'Ya se instaló' : ent === 'paqueteria' ? 'Ya se envió' : 'Ya lo recogieron') + '</button>'
+    : '<button type="button" class="btn btn-gho" data-acc="ics" data-id="' + esc(i.id) + '">Al calendario del teléfono</button>'];
+  /* «Cómo llegar» es un botón del tamaño de un dedo, como en la tira del Mapa, y no el enlace de 16 px
+     pegado a la dirección que era (CM-4). */
+  if (mapa && !cancelada) {
+    acc.push('<a class="btn btn-gho cal-llegar" href="' + esc(mapa) + '" target="_blank" rel="noopener">' +
+      ico('i-pin') + 'Cómo llegar</a>');
+  }
   if (veWa() && !cancelada) {
     acc.push('<button type="button" class="btn btn-gho" data-acc="orden" data-id="' +
-      esc(i.id) + '">' + (instala ? 'Instalador' : 'Orden') + '</button>');
+      esc(i.id) + '">' + (instala ? 'Orden al instalador' : 'Orden del taller') + '</button>');
   }
   acc.push('<button type="button" class="btn btn-gho" data-acc="ficha" data-id="' +
     esc(i.id) + '">Abrir</button>');
@@ -1499,7 +1521,6 @@ function fila(i, sem) {
             (detalle.length ? ' · ' : '') : '') +
           esc(detalle.join(' · ')) +
           (dir ? '<br>' + esc(dir) : '') +
-          (mapa ? ' <a href="' + esc(mapa) + '" target="_blank" rel="noopener">Ver en Maps</a>' : '') +
           saldo +
         '</div>' +
       '</div>' +
@@ -1589,7 +1610,9 @@ function contenidoTelefono(d) {
     '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-recalibrar') + '</div>' +
       '<div class="pf-fila-tx"><div class="pf-fila-t">El ritmo, que se repite solo</div>' +
-      '<div class="pf-fila-d">«Comparte el día» de lunes a viernes a las 6 de la tarde, y el conteo del almacén el día 1 de cada mes. Se importa una vez y sigue sonando en 2029.</div></div>' +
+      '<div class="pf-fila-d">«Comparte el día» de lunes a viernes a las 6 de la tarde' +
+        (Agenda.MATERIAL_EN_MANTENIMIENTO ? '' : ', y el conteo del almacén el día 1 de cada mes') +
+        '. Se importa una vez y sigue sonando en 2029.</div></div>' +
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ics-ritmo">Bajar</button></div>' +
     '</div>' +
     gcalHtml +
@@ -1697,7 +1720,7 @@ async function alTocar(ev) {
   }
 
   const vista = ev.target.closest('[data-vista]');
-  if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }
+  if (vista) { _vista = vista.dataset.vista; _vistaTocada = true; _dia = null; await recargar(); return; }
 
   const mueve = ev.target.closest('[data-mueve]');
   if (mueve) { await irAlPeriodo(anclaTrasPasos(Number(mueve.dataset.mueve) || 0)); return; }
@@ -1882,7 +1905,7 @@ function irDesdeLaHoja(ruta) {
 
 async function ejecutar(acc, id, boton) {
   if (acc === 'ajustes') { irDesdeLaHoja('ajustes'); return; }
-  if (acc === 'ics-ritmo') { await compartirIcs(Ics.ritmo(), 'al3d-ritmo.ics', 'el ritmo'); return; }
+  if (acc === 'ics-ritmo') { await compartirIcs(Ics.ritmo({ conteo: !Agenda.MATERIAL_EN_MANTENIMIENTO }), 'al3d-ritmo.ics', 'el ritmo'); return; }
   if (acc === 'ics-mes') { await bajarVarias(); return; }
 
   const i = instDe(id);
@@ -1919,6 +1942,29 @@ async function ejecutar(acc, id, boton) {
         ? 'Marcada como hecha, y el proyecto queda en «Instalado»'
         : 'Marcada como hecha. «Instalado» en el proyecto lo marca Dirección.');
       if (r.ok) { cerrarPide(); await recargar(); }
+      return;
+    }
+
+    /* El mismo «Ya se instaló», desde el renglón de hoy o de lo atrasado, y con «Deshacer»: un toque en
+       la lista es más fácil de dar sin querer que uno dentro de la ficha. Deshacer regresa la cita a como
+       estaba y, si el proyecto pasó a «Instalado» por este toque, también la etapa. */
+    case 'hecha-fila': {
+      const antes = i.estado;
+      const etapaAntes = p.etapa;
+      const r = await Agenda.marcar(i.id, 'hecha');
+      if (!avisarResultado(r)) return;
+      const ahora = await Proyectos.obtener(i.proyecto_id);
+      const movio = !!(ahora && etapaAntes && ahora.etapa !== etapaAntes);
+      await recargar();
+      toast(movio ? 'Marcada como hecha, y el proyecto queda en «Instalado»' : 'Marcada como hecha', 'ok', 8000, {
+        label: 'Deshacer',
+        fn: async () => {
+          const r1 = await Agenda.marcar(i.id, antes);
+          if (r1.ok && movio) await Proyectos.avanzarEtapa(i.proyecto_id, etapaAntes);
+          avisarResultado(r1, 'Listo: quedó como estaba.');
+          await recargar();
+        },
+      });
       return;
     }
 
@@ -2168,6 +2214,11 @@ async function pintarPaso2(pid, o = {}) {
       (_hoja.volver
         ? '<p class="pf-volver"><button type="button" class="btn btn-gho pf-btn-corto" data-h="otro">‹ Otro proyecto</button></p>'
         : '') +
+      /* Arriba y no al pie: Fabricación propone, y eso se lee ANTES de llenar el formulario, no debajo del
+         pliegue después de tocar un botón verde que decía «Agendar» (auditoría 2026-10-25, CM-7). */
+      (soloPropone()
+        ? '<p class="hintnote nota-av">Lo que guardes queda como <b>propuesta</b> y dirección la confirma. La fecha que el cliente escuchó la dijo una sola persona: si dos la mueven, ya no hay forma de saber cuál fue la que se prometió.</p>'
+        : '') +
       '<dl class="pf-dato"><dt>Proyecto</dt><dd>' + esc(p.nombre || p.folio_local) + '</dd></dl>' +
       (p.compromiso_texto
         ? '<dl class="pf-dato"><dt>Lo que se le prometió al cliente</dt><dd>' +
@@ -2203,14 +2254,10 @@ async function pintarPaso2(pid, o = {}) {
 
       '<div class="fld"><label for="pf-ag-notas">Algo que haya que saber</label>' +
         '<textarea id="pf-ag-notas" rows="2" placeholder="Hay que subir por atrás, no hay elevador…"></textarea></div>' +
-
-      (soloPropone()
-        ? '<p class="hintnote nota-av">Lo que guardes queda como <b>propuesta</b> y dirección la confirma. La fecha que el cliente escuchó la dijo una sola persona: si dos la mueven, ya no hay forma de saber cuál fue la que se prometió.</p>'
-        : '') +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-h="cerrar">Cancelar</button>' +
-      '<button type="button" class="btn btn-ok" data-h="guardar">Agendar</button>' +
+      '<button type="button" class="btn btn-ok" data-h="guardar">' + (soloPropone() ? 'Proponer' : 'Agendar') + '</button>' +
     '</div>');
 }
 
@@ -2407,7 +2454,7 @@ function abrirFicha(i) {
         '<dl class="pf-dato"><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></dl>').join('') +
       '</div>' +
       (mapa ? '<p><a class="btn btn-gho pf-btn-corto" href="' + esc(mapa) +
-        '" target="_blank" rel="noopener">' + ico('i-pin') + 'Ver en Maps</a></p>' : '') +
+        '" target="_blank" rel="noopener">' + ico('i-pin') + 'Cómo llegar</a></p>' : '') +
       '<div class="pf-acciones">' + acc.join('') + '</div>' +
     '</div>' +
     '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
@@ -2937,8 +2984,10 @@ async function alTocarPide(ev) {
     const r = await Proyectos.ganar(e, extra);
     if (!avisarResultado(r)) { if (b.isConnected) { b.disabled = false; b.textContent = rotulo; } return; }
     cerrarPide();
-    toast((fecha ? 'Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
-                 : 'Ya es proyecto, con su material calculado. Falta la fecha.') +
+    /* Con Material en mantenimiento no se dice «con material calculado»: nadie lo va a ver. */
+    const conMat = Agenda.MATERIAL_EN_MANTENIMIENTO ? '' : ', con material calculado';
+    toast((fecha ? 'Ya es proyecto' + conMat + ' y con fecha del ' + fmtFecha(fecha)
+                 : 'Ya es proyecto' + (conMat ? ', con su material calculado' : '') + '. Falta la fecha.') +
           (u.aviso ? '. ' + u.aviso : ''), 'ok', u.aviso ? 7000 : 4600);
     if (fecha) { _ancla = fecha; _dia = fecha; }
     await recargar();

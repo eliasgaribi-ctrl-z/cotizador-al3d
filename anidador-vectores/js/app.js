@@ -159,6 +159,11 @@
   var R = [];     // los retazos guardados
   var QUIETO = false;
   try { QUIETO = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+  /* Con el dedo no hay arrastre ni Ctrl+V: en el teléfono la caja dice solo lo que se puede hacer, tocar
+     para elegir el archivo (auditoría 2026-10-25, CM-12). */
+  var DEDO = false;
+  try { DEDO = window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches; } catch (_) {}
+  if (DEDO && $('an-drop-t')) $('an-drop-t').textContent = 'Toca aquí para elegir el SVG o el DXF';
 
   /* ---------- Utilidades de interfaz ---------- */
   /* El aviso es la misma pieza del cotizador y la plataforma (js/piezas.js, P.aviso): la pila de
@@ -1109,7 +1114,8 @@
     if (!A) return;
     $('an-nombre').textContent = A.nombre;
     $('an-peso').textContent = peso(A.peso);
-    $('an-drop-t').textContent = 'Cambiar de archivo: arrastra otro SVG o DXF, pégalo o toca aquí';
+    $('an-drop-t').textContent = DEDO ? 'Cambiar de archivo: toca aquí para elegir otro'
+      : 'Cambiar de archivo: arrastra otro SVG o DXF, pégalo o toca aquí';
     $('an-st-piezas').textContent = A.piezas;
     $('an-avisos').innerHTML = A.avisos.map(function (a, i) {
       /* «Ver cuáles» solo sale si en la vista previa queda algo que señalar (A15). */

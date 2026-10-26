@@ -195,8 +195,9 @@ const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
    Montaje
    ============================================================================ */
 
-/** Apaga la pantalla de Material mientras se define cómo se calcula. */
-const EN_MANTENIMIENTO = true;
+/** Apaga la pantalla de Material mientras se define cómo se calcula. El interruptor es uno solo, el de
+ *  js/datos/agenda.js: con él se apagan también los avisos de material del Calendario y del Tablero. */
+const EN_MANTENIMIENTO = Agenda.MATERIAL_EN_MANTENIMIENTO;
 
 export async function montar(c, ctx) {
   cont = c;

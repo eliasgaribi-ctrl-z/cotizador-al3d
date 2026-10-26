@@ -124,8 +124,11 @@ const RUTAS = [
   { ruta: 'publicaciones', mod: 'herramientas', seccion: 'mod-publicaciones', icono: 'i-publicar', nombre: 'Publicaciones', sub: 'plantillas de marca para redes',              grupo: 'herramientas', roles: ['direccion'], conservar: true },
   /* El almacén va con las herramientas y al final de ellas: no es una herramienta de marco, pero
      es de los mismos dos roles y de la misma mesa de trabajo —qué hay, qué falta, qué se compra—.
-     A Material se sigue llegando derecho desde el Tablero («Ver material»): es la misma ruta. */
-  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         grupo: 'herramientas', roles: ['direccion', 'fabricacion'] },
+     A Material se sigue llegando derecho desde el Tablero («Ver material»): es la misma ruta.
+     Mientras esté en mantenimiento (`MATERIAL_EN_MANTENIMIENTO`, js/datos/agenda.js) va `oculto`: sin
+     botón en la tira de Herramientas ni en «Más», porque llevaba a una pantalla que no hace nada
+     (auditoría 2026-10-25, CM-2). Para volver, quitar `oculto`. */
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'en mantenimiento',                         grupo: 'herramientas', roles: ['direccion', 'fabricacion'], oculto: true },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
   { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
