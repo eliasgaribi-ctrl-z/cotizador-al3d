@@ -412,6 +412,9 @@ async function sesion() {
   catch (_) { return null; }
 }
 export async function haySesion() { return !!(await sesion()); }
+/** El token de esa sesión, o ''. Lo pide el Apps Script para Drive y Maps (puente-sheets-16), que se lo
+ *  pregunta a la base: nunca se guarda ni se escribe en ninguna parte. */
+export async function tokenDeSesion() { const s = await sesion(); return (s && s.access_token) || ''; }
 
 export async function salir() {
   _accesoEnVuelo = null;

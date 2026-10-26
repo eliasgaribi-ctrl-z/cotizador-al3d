@@ -103,7 +103,7 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/empujar_gastos` | dirección y pagos | Hasta 25 gastos en un viaje, bajo el candado (desde `puente-sheets-15`): da de alta cada uno en la pestaña «Gastos» —la crea con sus encabezados si no existe— o, si su ID ya está, le pone la anulación. Un ID repetido contesta «ya estaba» (un reintento no duplica). Valida fecha, concepto, categoría, monto y cuenta otra vez, venga de quien venga. Fabricación recibe `ROL_SIN_PERMISO` gasto por gasto. Ver «`puente-sheets-15` — los gastos», abajo |
 | `/jalar_gastos` | dirección y pagos | La pestaña «Gastos» entera, en una respuesta. A los renglones tecleados a mano sin ID les pone uno (`hoja-…`). Sin la pestaña contesta una lista vacía. Fabricación recibe `ROL_SIN_PERMISO`: los gastos son dinero |
 | `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 50 por persona al día de México (Q-19, Elías, 2026-10-16; antes 200 por día GMT). Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
-| `/carpetas` | cualquier rol | Las subcarpetas de «Trabajos Pendientes» en Drive con sus archivos —nombre, liga, tipo y fecha, nunca el contenido— para que la ficha de cada proyecto enseñe su PDF de órdenes de fabricación y sus `.cdr` (desde `puente-sheets-10`). Solo lee. Cinco minutos de caché del lado de la hoja. Es la razón de que esa versión pida permiso de **leer Drive** al pegarla |
+| `/carpetas` | cualquier rol | Las subcarpetas de «Trabajos Pendientes» en Drive con sus archivos —nombre, liga, tipo y fecha, nunca el contenido— para que la ficha de cada proyecto enseñe su PDF de órdenes de fabricación y sus `.cdr` (desde `puente-sheets-10`). Solo lee. Cinco minutos de caché del lado de la hoja. Es la razón de que esa versión pida permiso de **leer Drive** al pegarla. Desde `puente-sheets-16` entra también con la sesión de la base, igual que `/crear_carpeta` y `/expandir` (ver «`puente-sheets-16`», abajo) |
 | `/crear_carpeta` | solo Dirección | Abre en «Trabajos Pendientes» la carpeta «Contacto - Negocio» del proyecto del taller que no tiene una; la pide sola la sincronización del teléfono de Dirección. Bajo el candado y sin distinguir acentos ni mayúsculas: si ya hay una con ese nombre, devuelve ésa. Solo crea; nunca mueve, renombra ni borra |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
@@ -526,6 +526,22 @@ captura en **Control → Gastos** y los manda por el puente, igual que las venta
 | **Una hoja vieja** | Con la 14 o anterior (lo dice `/salud`, o un «Camino desconocido») los gastos se apartan en la bandeja con su razón, sin perderse, y Control dice «Falta actualizar el puente». Al publicar la 15 vuelven solos a la cola (`revivirSinDestino`) |
 | **Pruebas** | `pruebas/gastos.mjs` (las cuentas, la lectura de filas, la bandeja y el Apps Script de verdad contra la hoja de mentiras, de punta a punta y contra una hoja en la 14). `pruebas/navegador/pf-gastos.mjs`: capturar, mandar, anular y la hoja vieja en Chromium |
 
+### `puente-sheets-16` — la sesión de la base abre Drive y Maps
+
+Desde el 25 de octubre de 2026 la empresa entra por la base («la base manda»): el teléfono trae su
+sesión de Supabase y ya no el permiso de Google de la hoja, que de fondo dejó de pedirse (auditoría
+2026-10-25, ES-3). Drive y los links cortos de Maps se quedaron en esta hoja, y sin una de sus dos
+puertas contestaba `ROL_SIN_PERMISO`: el 26 de octubre Elías subió diseños a «Trabajos Pendientes» y
+la ficha no los enseñaba.
+
+| | |
+|---|---|
+| **La tercera puerta** | `supa_token` en el cuerpo, la sesión de la base. Solo en `/carpetas`, `/crear_carpeta` y `/expandir` (`RUTAS_CON_LA_BASE`); en cualquier otro camino se ignora. Va después de Google y antes del token de dispositivo |
+| **Quién es** | La hoja le pregunta a la base `mi_acceso` con el token de la persona y la llave pública (`identidadDeLaBase`): la base rechaza un token falso o vencido (401) y dice el correo y el área en AL3D. El área es el rol: una cuenta dada de baja, invitada o de otra empresa no entra, y `/crear_carpeta` sigue siendo solo de Dirección. Caché por el hash del token, 300 s el sí y 60 el no |
+| **El teléfono** | Solo el relevo de la base la manda (`js/datos/supa-relevo.js` arma el lector con `Puente.crear(cfg, {tokenDeLaBase})`); el relevo de la hoja, el de siempre, no |
+| **Una hoja vieja** | Con la 15 la app nueva funciona igual que hoy: la hoja ignora `supa_token` y la ficha pide «Conectar Drive» |
+| **Pruebas** | `pruebas/drive-con-la-base.mjs`: la verificación contra una base de mentiras, la puerta entera con un Drive de mentiras (qué abre y qué no) y lo que manda el teléfono |
+
 ---
 
 ## Montarlo
@@ -664,7 +680,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-15`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-16`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

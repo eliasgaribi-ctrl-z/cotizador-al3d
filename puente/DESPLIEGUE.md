@@ -144,7 +144,8 @@ Y la **`puente-sheets-14`** (10 de octubre de 2026): lo de la 13 más una sola s
 para todo el equipo —la etapa, las notas, el plazo, la cita y las correcciones viajan, y gana el
 cambio más reciente— con tres columnas nuevas en Ventas, AG:AI (al final).
 Desde el 23 de octubre espera **`puente-sheets-15`**: lo de la 14 más los **gastos** —la pestaña
-«Gastos» y los caminos `/empujar_gastos` y `/jalar_gastos`— (al final). Cuál corre la hoja de verdad
+«Gastos» y los caminos `/empujar_gastos` y `/jalar_gastos`— (al final). Y desde el 26 de octubre,
+**`puente-sheets-16`**: lo de la 15 más la sesión de la base para Drive y Maps (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -479,6 +480,23 @@ teléfono los pide.
 Para comprobarlo: **Ajustes → El puente → Probar** en un teléfono tiene que decir `puente-sheets-15`.
 Después, **Control → Gastos → Registrar gasto** con uno de prueba: en la siguiente sincronización
 aparece su renglón en «Gastos», y «Anular» le pone «Sí» en la columna Anulado sin borrarlo.
+
+### Al pasar a `puente-sheets-16` (Drive con la base mandando) — pegar y publicar
+
+La 16 deja que la sesión de la base abra `/carpetas`, `/crear_carpeta` y `/expandir` (README,
+«`puente-sheets-16`»). Sin ella, con la base mandando, la ficha de cada proyecto no enseña los
+archivos de Drive. No crea pestañas, no toca Ventas y **no pide permisos nuevos**: ya salía a internet
+para los links de Maps. El orden no rompe nada: la app nueva con la hoja en la 15 pide «Conectar
+Drive», como hasta hoy.
+
+1. **Pegar y guardar.** **Extensiones → Apps Script → `Código.gs`**: selecciona todo, borra, pega
+   `puente/hoja-apps-script.gs` y guarda (💾). Parte de la 15: si la hoja corre la 15 del repositorio,
+   se pega entero.
+2. **Publicar la versión.** **Implementar → Gestionar implementaciones → lápiz → Versión: Versión
+   nueva → Implementar.** La URL no cambia.
+
+Para comprobarlo: con la base mandando, abre la ficha de un proyecto del taller: «Carpeta de Drive»
+enseña sus archivos sin tocar «Conectar Drive».
 
 ## Las cabeceras del sitio
 

@@ -351,7 +351,11 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 15', VERSION_ESPERADA, 'puente-sheets-15');
+  eq('la plataforma espera la 16', VERSION_ESPERADA, 'puente-sheets-16');
+  /* A la 15 solo le falta dejar pasar la sesión de la base a Drive y Maps: los gastos ya los lleva. */
+  const a15 = avisoVersion('puente-sheets-15');
+  cierto('a la 15 le dice que Drive no se ve con la base mandando y qué pegar', /Drive/.test(a15) && /sesión de la base/.test(a15) && /puente-sheets-16/.test(a15));
+  cierto('  y no le habla de los gastos, que la 15 ya lleva', !/«Gastos»/.test(a15));
   /* A la 14 solo le faltan los gastos: lo demás funciona igual, y el aviso no puede asustar con la
      obra, que la 14 ya sincroniza. */
   const a14 = avisoVersion('puente-sheets-14');

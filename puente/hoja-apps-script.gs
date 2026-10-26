@@ -1886,8 +1886,14 @@ function dialogoTokens() {
    hay, quién lo registró y si se anuló— y dos caminos, /empujar_gastos y /jalar_gastos, solo para
    dirección y pagos (ver la sección de los gastos, al final). La pestaña se crea sola con su
    primer gasto, o con «3 · Preparar la hoja para el puente». Un gasto no se borra ni se corrige
-   desde la plataforma: se anula, y el renglón se queda. Nada de Ventas cambia. */
-var PUENTE_VERSION = 'puente-sheets-15';
+   desde la plataforma: se anula, y el renglón se queda. Nada de Ventas cambia.
+   puente-sheets-16 (26 de octubre de 2026): la sesión de la BASE abre Drive y Maps. Con la empresa
+   en «la base manda» (25 de octubre) el teléfono entra con su sesión de Supabase y ya no trae el
+   permiso de Google de la hoja, y lo único del día a día que sigue aquí —/carpetas, /crear_carpeta
+   y /expandir— contestaba ROL_SIN_PERMISO: la ficha dejó de enseñar los diseños de Drive. Ahora esos
+   tres caminos, y solo ésos, aceptan también la sesión de la base (identidadDeLaBase). Ninguna
+   pestaña nueva ni permiso nuevo de Google: ya pedía salir a internet para /expandir. */
+var PUENTE_VERSION = 'puente-sheets-16';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1908,6 +1914,17 @@ var PUENTE_CLIENT_IDS = [
   /* Aplicación web · orígenes https://eliasgaribi-ctrl-z.github.io y https://cotizador-al3d.pages.dev */
   '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com'
 ];
+
+/* ── Entrar con la sesión de la base (puente-sheets-16) ──────────────────────
+   La base de producción y su llave PÚBLICA, las mismas de js/datos/supabase-config.js. Ninguna es
+   un secreto: viajan en la app. Lo que decide si alguien entra es la base misma, que rechaza un
+   token falso o vencido y dice el área de quien sí lo trae (ver identidadDeLaBase).
+   Esa puerta abre SOLO estos caminos: lo que sigue en esta hoja con la base mandando. Todo lo
+   demás —el dinero, las autorizaciones, la IA— sigue pidiendo una de las dos puertas de siempre. */
+var BASE_URL = 'https://gwzfdprdrdudfakjsdxf.supabase.co';
+var BASE_LLAVE_PUBLICA = 'sb_publishable__yKAsMzY5aar3i2oYmJtPA_uWcTWjed';
+var BASE_EMPRESA = 'al3d';
+var RUTAS_CON_LA_BASE = { carpetas: true, crear_carpeta: true, expandir: true };
 
 /* Quién es quién. Una pestaña normal de esta hoja, con dos columnas: Correo y Rol. Es una
    pestaña y no un diálogo ni una constante del código por la razón de siempre en este
@@ -2250,13 +2267,19 @@ function doPost(e) {
        una vuelta de red por operación. */
     var gtok = String((cuerpo && cuerpo.google_token) || '');
     var token = String((cuerpo && cuerpo.token) || '');
+    /* La tercera, la sesión de la base, solo en los caminos que la aceptan (RUTAS_CON_LA_BASE) y
+       después de Google: quien trae las dos es la misma persona, y Google ya está en caché. */
+    var stok = RUTAS_CON_LA_BASE[ruta] === true ? String((cuerpo && cuerpo.supa_token) || '') : '';
     var ingreso = gtok ? identidadDelIngreso(gtok) : null;
+    if (!ingreso && stok) ingreso = identidadDeLaBase(stok);
     var rol = ingreso ? ingreso.rol : rolDelToken(token);
     if (!rol) {
       return responder({ ok: false, codigo: 'ROL_SIN_PERMISO',
         mensaje: gtok
           ? 'Entraste con Google, pero ese correo no está en la pestaña «Accesos» de la hoja. Pídele a Dirección que te agregue.'
-          : 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' });
+          : stok
+            ? 'La base no reconoce esta sesión, o la cuenta no está activa en AL3D. Vuelve a entrar.'
+            : 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' });
     }
     /* El cupo se cuenta por quien llama, y quien llama es el correo cuando se entró con
        Google: contarlo por token dejaría a los tres aparatos de una persona compartiendo
@@ -2399,6 +2422,64 @@ function rolDelCorreo(correo) {
     return PUENTE_ROLES[rol] ? rol : null;
   }
   return null;
+}
+
+/**
+ * Verifica una sesión de la base y devuelve {correo, rol}, o null (puente-sheets-16).
+ *
+ * Se le pregunta a la base `mi_acceso` CON el token de la persona: si el token es falso, de otro
+ * proyecto o ya venció, la base contesta 401 y no entra. Si es bueno, la base dice su correo
+ * (verificado) y su área en AL3D, y esa área es el rol: con la base mandando, quién está en el
+ * equipo lo decide la base, no la pestaña «Accesos». Una cuenta dada de baja, invitada o sin área
+ * no entra.
+ *
+ * Como la de Google: caché por el hash del token (el sí 300 s, el no 60), un «no» se guarda solo
+ * cuando la base lo dijo de verdad, y mientras la base tropieza no se le pregunta por cada token.
+ */
+function identidadDeLaBase(tok) {
+  if (!tok || tok.length < 20 || tok.length > 4096) return null;
+  var cache = CacheService.getScriptCache();
+  var clave = 'base_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, tok));
+  var guardado = cache.get(clave);
+  if (guardado) {
+    if (guardado === '-') return null;
+    var p = guardado.split('|');
+    return { correo: p[0], rol: p[1] };
+  }
+
+  if (Number(cache.get('base_fallos') || 0) >= 5) return null;
+  if (contarEnVentana(cache, 'base_min', 60) > 120) return null;
+  var correo = '', area = '', definitivo = false;
+  try {
+    var r = UrlFetchApp.fetch(BASE_URL + '/rest/v1/rpc/mi_acceso', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { apikey: BASE_LLAVE_PUBLICA, Authorization: 'Bearer ' + tok },
+      payload: JSON.stringify({ p_empresa: BASE_EMPRESA }) });
+    var codigo = r.getResponseCode();
+    if (codigo === 200) {
+      definitivo = true;
+      var j = JSON.parse(r.getContentText());
+      if (j && j.ok === true && j.estado === 'activo') {
+        correo = String((j.usuario && j.usuario.correo) || '').trim().toLowerCase();
+        var emp = Array.isArray(j.empresas) ? j.empresas : [];
+        for (var i = 0; i < emp.length; i++) {
+          if (emp[i] && emp[i].empresa_id === BASE_EMPRESA && emp[i].estado === 'activo') area = String(emp[i].area || '');
+        }
+      }
+    } else if (codigo === 401 || codigo === 403) {
+      definitivo = true;
+    } else if (codigo === 429 || codigo >= 500) {
+      cache.put('base_fallos', String(Number(cache.get('base_fallos') || 0) + 1), 15);
+    }
+  } catch (e) {
+    /* Sin red no se puede verificar, y lo que no se verifica no entra. */
+    return null;
+  }
+  var rol = Object.prototype.hasOwnProperty.call(PUENTE_ROLES, area) ? area : '';
+  if (!correo || !rol) { if (definitivo) cache.put(clave, '-', 60); return null; }
+  cache.put(clave, correo + '|' + rol, 300);
+  return { correo: correo, rol: rol };
 }
 
 /** Crea la pestaña «Accesos» si no está, con el dueño de la hoja ya dentro como dirección.
