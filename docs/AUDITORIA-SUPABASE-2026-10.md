@@ -9,7 +9,18 @@ Revisión visual y funcional de toda la plataforma el día que la empresa pasó 
 | Medio | 29 |
 | Bajo | 19 |
 
-## Hoy, antes de arreglar nada
+## Avance (25 de octubre de 2026, noche)
+
+64 arreglados y 3 a medias, de 67. Todo quedó aplicado en una sola rama y un solo PR, con las decisiones recomendadas. Siete agentes trabajaron en paralelo, cada uno en su copia, y se juntaron con las pruebas en verde. Faltan dos cosas que solo pasan en producción: aplicar la migración 0028 en la base y publicar la app al fusionar.
+
+Para que llegue a producción:
+
+1. Fusionar el PR (la app se publica sola con la versión 154).
+2. Aplicar supabase/migrations/0028_auditoria_base.sql completo en el Editor SQL, primero en al3d-pruebas y después en al3d-produccion, y correr la prueba de humo: verde con 78 casos (94 con Storage, 98 con las constancias).
+3. En el teléfono de Pagos, si hay una venta apartada: Ajustes → La base de datos → «Volver a intentarlos» (con la 0028 ya entra).
+4. No hay que volver a desplegar ninguna función de Supabase ni tocar el Apps Script.
+
+## Mientras no esté publicado
 
 1. Pídele a Pagos que no registre ventas desde el Cotizador hasta el arreglo: que te pase el folio, la abres en tu Cotizador (te llega en el historial) y tocas «Registrar venta» tú. Revisa también en su teléfono si ya hay una venta apartada (Ajustes, en la lista de lo apartado). CZ-1
 2. Si un cobro dice «La base no contestó», no toques «Mandarlo como asiento nuevo»: primero «Volver a leer las ventas» y revisa si el saldo ya bajó. DN-1
@@ -19,13 +30,13 @@ Revisión visual y funcional de toda la plataforma el día que la empresa pasó 
 
 ## Lo que decide Elías
 
-- **CZ-1** — ¿Pagos puede dar de alta en la base una venta que viene del Cotizador? Sí: un cambio chico de permisos y Pagos registra como antes. No: el Cotizador le avisa a Pagos que esa venta la registra Dirección.
-- **DN-2** — ¿«Repartir un depósito» debe saltarse las comisiones de las ventas canceladas («No se dio»)? Recomendado: sí. Hoy les paga, y la pestaña Comisiones de Control no las cuenta.
-- **CZ-5** — ¿Quién decide si una venta lleva IVA: la cuenta o la cotización? Recomendado: la cuenta, como ya pasa en «Venta sin cotización» y en «Datos de la venta». Hoy, una venta del Cotizador conserva el IVA de la cotización aunque la cuenta no facture.
-- **DN-5** — ¿Necesitas registrar dinero que entra sin ser de una venta (préstamos, traspasos, reembolsos)? Si sí, es una tabla nueva en la base. Si no, el botón pasa a llamarse «+ Cobro de una venta».
-- **CM-2** — Mientras Material siga en mantenimiento, ¿escondo sus avisos rojos, su pestaña y la tarjeta del almacén? Recomendado: sí. Está pendiente desde el 13 de octubre.
-- **TR-8** — ¿Control entra a la barra del teléfono de Dirección? Hoy vive en «Más». Puede ir en lugar del Cotizador, o quedarse donde está con un atajo a «Cobros y abonos» en el Tablero.
-- **TP-12** — Con «Enseñar al cliente» encendido, ¿difumino los totales de los demás clientes en la lista? Recomendado: sí.
+- **CZ-1** — ¿Pagos puede dar de alta en la base una venta que viene del Cotizador? Elegido: sí. Con la base mandando, Pagos da de alta la venta del Cotizador (0028); Fabricación no, y el Cotizador se lo dice antes.
+- **DN-2** — ¿«Repartir un depósito» debe saltarse las comisiones de las ventas canceladas («No se dio»)? Elegido: sí. El reparto salta las canceladas (0028) y la app las marca aparte.
+- **CZ-5** — ¿Quién decide si una venta lleva IVA: la cuenta o la cotización? Elegido: la cuenta. La base ya lo hacía así; se corrigió el texto del Cotizador.
+- **DN-5** — ¿Necesitas registrar dinero que entra sin ser de una venta (préstamos, traspasos, reembolsos)? Elegido: sin tabla nueva. El botón se llama «+ Cobro de una venta».
+- **CM-2** — Mientras Material siga en mantenimiento, ¿escondo sus avisos rojos, su pestaña y la tarjeta del almacén? Elegido: sí. Un solo interruptor esconde avisos, pestaña, tarjeta del almacén y la alarma de conteo.
+- **TR-8** — ¿Control entra a la barra del teléfono de Dirección? Elegido: Control se queda en «Más», con «Cobros y abonos» como segunda pestaña y un atajo en el Tablero.
+- **TP-12** — Con «Enseñar al cliente» encendido, ¿difumino los totales de los demás clientes en la lista? Elegido: sí, con «Ver importes» para destaparlos.
 
 ## Orden de arreglo
 
@@ -43,6 +54,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-1 · Crítico · Control y dinero — «Reintentar» un cobro puede registrarlo dos veces y dejar la venta LIQUIDADA
 
+- **Estado:** arreglado.
 - **Qué pasa:** Si la base guardó el cobro pero la respuesta se perdió (mala señal), la pantalla avisa bien y ofrece «Reintentar». Pero en cuanto llega el aviso de otro teléfono, o se toca «Volver a leer las ventas», el saldo baja y la casilla «Marcar la venta como LIQUIDADA», que nadie tocó, se marca sola. La app cree entonces que cambiaste los datos, pregunta «Cambiaste los datos de un envío que no sabemos si llegó», y su botón rojo «Mandarlo como asiento nuevo» registra el cobro otra vez. Reproducido: saldo $3,200, cobro de $1,600 → dos cobros de $1,600, saldo $0 y la venta LIQUIDADA.
 - **A quién le pega:** A Pagos, en el teléfono, con mala señal, cuando el cliente paga en dos partes (el caso más común).
 - **Arreglo (S):** Que la casilla no se recalcule sola después de un envío incierto (o que no cuente para decidir si «cambiaron los datos»), y que la pregunta diga QUÉ cambió, con «Cancelar» como botón principal.
@@ -51,6 +63,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-1 · Crítico · Cotizador — Pagos «registra» una venta desde el Cotizador que nunca llega a la base
 
+- **Estado:** arreglado. Necesita la migración 0028 aplicada en la base: hasta entonces el recibo ya dice «No entró a la base» con su motivo.
 - **Qué pasa:** Con la base mandando, «Registrar venta» no revisa quién la registra. La base no deja que Pagos ni Fabricación den de alta una venta que viene de una cotización, así que su teléfono la aparta para siempre. Aun así, el Cotizador marca «Venta registrada» en verde y, a los 2 minutos, dice que el folio «llega solo». No llega: la venta se queda en ese teléfono y Dirección no la ve en Control ni en Cobros y abonos. Además, en el historial de Dirección la cotización sale como vendida.
 - **A quién le pega:** A Pagos, cada vez que cierra una venta desde el Cotizador, desde hoy. Es un anticipo cobrado que no queda en el libro.
 - **Arreglo (M):** Decisión tuya: (a) que Pagos pueda dar de alta ventas con cotización en la base (un cambio chico de permisos), o (b) que el Cotizador le diga a Pagos, antes de registrar, que la venta la da de alta Dirección. En los dos casos, que el recibo diga «no entró» y por qué cuando el teléfono la apartó. Hoy mismo conviene revisar el teléfono de Pagos por si ya hay una apartada.
@@ -59,6 +72,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-2 · Alto · Control y dinero — «Repartir un depósito» le paga comisión a ventas canceladas
 
+- **Estado:** arreglado. La app ya marca las canceladas; que el reparto deje de pagarles lo hace la 0028 al aplicarse.
 - **Qué pasa:** El reparto paga las comisiones pendientes de la venta más vieja a la más nueva, y la lista que recorre no salta las ventas «No se dio». En la prueba, de $3,000, una venta cancelada se llevó $2,100 y Notaría 12 solo $900; la vista previa no dice que esa venta está cancelada. La pestaña Comisiones de Control sí las salta, así que las dos pantallas dan cifras distintas, y el reparto no se deshace. El selector de cobro también ofrece la venta cancelada con su «saldo».
 - **A quién le pega:** A Pagos, al repartir el depósito de un vendedor.
 - **Arreglo (M):** Decidiste que el reparto paga aunque la venta no esté LIQUIDADA; las canceladas no se habían discutido. Recomendado: que la lista excluya las canceladas (una migración chica con su auditoría) y que el selector las marque. Antes, contar en producción cuántas canceladas tienen comisión pendiente.
@@ -67,6 +81,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-2 · Alto · Cotizador — Volver a registrar con la cuenta o el anticipo corregidos no corrige nada
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la hoja, tocar otra vez «Registrar venta» actualizaba la fila. Con la base, el segundo toque solo dice «ya estaba registrada» y no manda nada. Si el vendedor corrigió la cuenta (que decide el IVA y Facturas), el anticipo o su fecha, el cambio se pierde sin aviso.
 - **A quién le pega:** A quien se equivoca de cuenta o de anticipo y lo corrige en el mismo modal, con el cliente enfrente.
 - **Arreglo (S):** Si algo del modal difiere de lo registrado, decirlo: «La venta ya está en la base; para corregir cuenta o anticipo usa Control → Cobros y abonos → Datos de la venta», con un botón que lleve ahí con la venta elegida.
@@ -75,6 +90,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-3 · Alto · Cotizador — Sin entrar a Supabase, el teléfono cotiza con precios viejos o de fábrica sin decirlo
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la base mandando, el Cotizador pide los precios a la base. Si el teléfono no ha entrado a Supabase, espera 20 s y se queda con los guardados en el aparato. Si no hay guardados, usa los de fábrica, y «Precios y materiales» dice que «todavía no se ha guardado ninguna lista», aunque la base sí tiene. Al pedir la autorización, la hoja contesta que el precio no cuadra y que «ya trajo los de la hoja», cosa que en modo base no pasa. El vendedor queda en un ciclo sin salida, y quizá ya le dio al cliente el precio de la pantalla.
 - **A quién le pega:** A cualquier teléfono que no haya entrado a Supabase: el de Fabricación en Safari, un teléfono nuevo, quien tocó «Ahora no».
 - **Arreglo (M):** En el paso de Precio, cuando la base manda y no hay sesión, un letrero: «Precios de este teléfono del <fecha>: entra a Supabase para traer los de hoy», con botón a Ajustes. El mismo texto cuando la autorización rebota por precios.
@@ -83,6 +99,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-4 · Alto · Cotizador — Borrar del historial ahora borra para todos, también una ya vendida, y el aviso llega después
 
+- **Estado:** arreglado.
 - **Qué pasa:** La pista solo dice «mantén presionado para eliminar». Que se borra también en la base y en los demás teléfonos lo dice el aviso de después, que dura 8 s con «Deshacer». No hay freno para una cotización ya vendida ni para la de otro vendedor: Dirección puede borrar la de Pagos y desaparece de su teléfono. Recuperarla solo se puede con SQL.
 - **A quién le pega:** A Dirección, que ahora tiene en su teléfono el historial de toda la empresa.
 - **Arreglo (S):** Con la base mandando, que la pista diga «para todos los teléfonos». Si la cotización está vendida o es de otro teléfono, pedir confirmación con el botón rojo antes de borrar.
@@ -91,6 +108,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-1 · Alto · Proyectos y Tablero — La ficha y «Qué atender» siguen pidiendo «Copiar datos para la hoja»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Una venta recién ganada no tiene su V-### hasta que la base se lo da. En ese hueco (sin señal, o con el teléfono sin entrar a la base), la ficha le ofrece a Dirección y a Pagos «Copiar datos para la hoja». «Qué atender» dice «Copia los datos para la hoja con Estatus COBRANDO». Si alguien la pega en la hoja, esa venta queda donde ya nadie la copia a la base, y después puede llegar repetida. En el Cotizador ese botón ya se quitó; aquí no.
 - **A quién le pega:** A Dirección y a Pagos, en cada venta nueva mientras espera su folio.
 - **Arreglo (S):** Con la base mandando, no pintar el botón, que copiar se niegue, y que «Qué atender» diga «espera su folio de la base; sale solo al tener señal».
@@ -99,6 +117,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-1 · Alto · Proyectos y Tablero — La cuenta y el estatus de cobro se cambian de un toque, sin pregunta ni «Deshacer»
 
+- **Estado:** arreglado.
 - **Qué pasa:** En «Más detalles» de la ficha, los chips de cuenta y el segmento de estatus guardan al primer toque. Con la base mandando ese toque corrige la venta en la base. La cuenta decide el «Disponible» y las «Facturas» de Control. El mismo cambio en «Datos de la venta» sí pregunta, en rojo y diciendo de cuánto a cuánto. Son cinco chips pegados de 40 px dentro de una hoja que se desliza: un roce cambia la cuenta.
 - **A quién le pega:** A Dirección y a Pagos, al revisar una ficha en el teléfono.
 - **Arreglo (M):** Con la base mandando, que cambiar cuenta o estatus pregunte (de → a, y cómo queda el disponible), o que lleve a «Datos de la venta» con esa venta elegida. Como mínimo, «Deshacer» en el aviso.
@@ -107,6 +126,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-2 · Alto · Proyectos y Tablero — La ficha enseña código HTML junto al subtotal, y lo ve el cliente
 
+- **Estado:** arreglado.
 - **Qué pasa:** Cuando la venta no trae subtotal, la ficha lo calcula y escribe literalmente «$59,827.59 <span class="pf-sem nada">calculado</span>». Con «Enseñar al cliente», «Más detalles» se abre solo: lo ve el cliente.
 - **A quién le pega:** A Dirección y a Pagos en toda venta sin subtotal guardado: las que vinieron de la hoja con la celda vacía y las cotizaciones viejas.
 - **Arreglo (S):** Una palabra: pasar el permiso de HTML en esa línea (el tercer argumento de dato()).
@@ -115,6 +135,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-3 · Alto · Proyectos y Tablero — Proyectos no sabe que la base manda: sus avisos piden corregir en la hoja, que ya es de solo lectura
 
+- **Estado:** arreglado.
 - **Qué pasa:** La pantalla de Proyectos no consulta el modo ni una vez. Tiene unas 40 frases con «la hoja». Las peores dan instrucciones que ya no se pueden cumplir: «en la hoja, borra la que sobra», «márcala «No se dio» también en la hoja», el botón «Volver a darla de alta en la hoja». Además, la revisión contra la hoja sigue corriendo después de cada bajada de la base, así que esos avisos pueden seguir saliendo.
 - **A quién le pega:** A Dirección y a Pagos, en las fichas con avisos de la hoja.
 - **Arreglo (M):** Frases según quién manda, como ya hace Control. Con la base: que los avisos lleven a «Cobros y abonos → Datos de la venta», quitar las salidas que exigen editar la hoja, y apagar la revisión contra la hoja.
@@ -123,6 +144,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-1 · Alto · Calendario y Mapa — A los demás teléfonos la cita solo les llega con la fecha y la hora
 
+- **Estado:** arreglado.
 - **Qué pasa:** Al bajar de la base, la cita se convierte en un renglón «como de la hoja» y pierde el estado, la ventana (día, noche o madrugada), la duración y las notas. Por eso «Ya se instaló» marcado en un teléfono no llega a los otros: el proyecto instalado sigue en «ya pasó y nadie la marcó», con globo rojo. Lo que Fabricación propone le llega a Dirección como «Confirmada». Una cita de noche llega como de día, con la alarma del instalador mal. Las notas («subir por atrás…») no viajan. Y si un proyecto tiene dos citas (la instalación hecha y una visita de garantía), los otros teléfonos se quedan con la más vieja.
 - **A quién le pega:** A Dirección y a los instaladores, todos los días.
 - **Arreglo (L):** Bajar de la base la cita completa (estado, ventana, duración, notas) y aplicarla tal cual; tomar la cita viva más próxima, no la más vieja. Parche inmediato: que «ya pasó y nadie la marcó» no cuente proyectos en Instalado o después.
@@ -131,6 +153,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-2 · Alto · Calendario y Mapa — Material está en mantenimiento, pero el aviso rojo de material sigue en casi cada cita
 
+- **Estado:** arreglado.
 - **Qué pasa:** Material está apagado, pero el Calendario sigue pintando «Falta y es ya» en rojo, y arriba del día dice «Falta Acrílico blanco/opal 3 mm y 6 materiales más — se instala hoy». Las ventas sin partidas piden «apuntarlo a mano» en una pantalla que no existe. El Resumen de Control enseña «Almacén · vale $0.00 · 4 bajo mínimo», la tira de Herramientas lleva a la pantalla en mantenimiento y «Llevar a mi teléfono» ofrece la alarma mensual de conteo del almacén. Tanto rojo hace que nadie lo vea.
 - **A quién le pega:** A Dirección y a Fabricación, cada día.
 - **Arreglo (S):** Mientras Material siga en mantenimiento: apagar el aviso de material, esconder la pestaña y la tarjeta del almacén, y quitar la alarma de conteo. Es la decisión que quedó pendiente el 13 de octubre (fabmat-1 y fabmat-8).
@@ -139,6 +162,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-3 · Alto · Entrada y Ajustes — Ajustes sigue contando la plataforma de antes
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la base mandando, Ajustes dice que «la hoja de finanzas es el libro mayor», que «no hay copia en la nube» y que «el respaldo es la única defensa». La tarjeta principal sigue llamándose «La hoja de finanzas», con «Puente enchufado» y el botón «Traer el dinero de la hoja» (también para Fabricación). El índice de arriba tiene «Puente» y no tiene «Supabase», aunque Control y la bandeja mandan a «Ajustes → Supabase».
 - **A quién le pega:** A los tres roles, cada vez que algo los manda a Ajustes.
 - **Arreglo (M):** Con la base: «La base de datos» primero y en el índice; la tarjeta de la hoja plegada como «Hoja (solo lectura: Drive, IA, Maps y el sello)»; reescribir «Lo que esta pantalla tiene que decir»; botón «Traer de la base».
@@ -147,6 +171,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-4 · Alto · Entrada y Ajustes — «Ahora no» en la banda de arriba parece inofensivo, y deja al teléfono desconectado todo el día
 
+- **Estado:** arreglado.
 - **Qué pasa:** La banda dice «Conecta tu cuenta a la nube con un toque» con un botón «Ahora no». Con la base mandando y sin sesión, el teléfono no sube ni baja nada. Tras «Ahora no» solo queda una nube roja de 20 px: Tablero, Proyectos y Calendario siguen con datos viejos sin decirlo, y lo que se capture se queda en el teléfono.
 - **A quién le pega:** Sobre todo a Fabricación en el iPhone (Safari no da la cuenta en silencio).
 - **Arreglo (M):** Con la base mandando, que la banda diga «Sin esto, lo que hagas se queda solo en este teléfono». Cambiar «Ahora no» por «Recordármelo» (vuelve a los 15 min), y un aviso fijo en el Tablero mientras no haya sesión.
@@ -155,6 +180,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-1 · Alto · Entrada y Ajustes — Dar de baja a alguien en Ajustes → Personas no lo saca: entra por la hoja, y la pantalla de bloqueo trae su propia salida
 
+- **Estado:** arreglado.
 - **Qué pasa:** Si la base dice que la persona ya no está activa, la puerta no la deja fuera: le pregunta a la hoja, y quien sigue en la pestaña «Accesos» entra con su rol de siempre. Ya adentro, la app sí la tapa con «Tu acceso a AL3D se retiró», pero esa pantalla trae el botón «Apagar Supabase en este aparato». Al tocarlo se recarga y abre Control con los datos de dinero guardados en el teléfono. La confirmación de «Dar de baja» no avisa que también hay que quitarla de «Accesos».
 - **A quién le pega:** A Dirección, el día que da de baja a alguien de Pagos o del taller.
 - **Arreglo (M):** Con la base mandando, que la puerta trate «dado de baja» como «fuera» en lugar de preguntar a la hoja; quitar «Apagar Supabase» de la pantalla de bloqueo y borrar el pase al bloquear. Mientras tanto: al dar de baja a alguien, quitarlo también de «Accesos» de la hoja (y que la confirmación lo diga).
@@ -163,6 +189,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-2 · Alto · Entrada y Ajustes — En tema claro, la pantalla «Tu acceso se retiró» es texto blanco sobre gris claro
 
+- **Estado:** arreglado.
 - **Qué pasa:** El color de la letra apunta a una variable que no existe, y queda blanco sobre gris claro (contraste ~1:1). No se lee ni el título ni la explicación.
 - **A quién le pega:** A la persona dada de baja, justo cuando hay que explicarle qué pasó.
 - **Arreglo (S):** Usar los colores reales de la app (--sup y --tinta) o una clase de sistema.css.
@@ -171,6 +198,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-2 · Alto · Toda la app — El asistente ✦ sigue diciendo que el dinero se registra en la hoja
 
+- **Estado:** arreglado.
 - **Qué pasa:** El asistente no sabe que la base manda. A «¿cómo pago esta comisión?» contesta «Registra el abono con ⚡ AL3D → Registrar abono de comisión en la hoja. La plataforma solo lo espeja», y su botón «Comisiones en la hoja» abre la hoja. Desde hoy, lo que se escriba en la hoja ya no llega a la base: es un abono que nadie lee.
 - **A quién le pega:** A Pagos y a Dirección, cuando le preguntan al asistente por comisiones, saldos o liquidaciones.
 - **Arreglo (S):** Pasarle el modo al asistente. Con la base: «se registra en Control → Cobros y abonos», el enlace a esa pestaña, y quitar «la plataforma solo la espeja», «LIQUIDADO en la hoja» y «saldo que calcula la hoja».
@@ -179,6 +207,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-3 · Alto · Toda la app — Ventanas de permiso de Google que se abren solas mientras se trabaja
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la base mandando, entrar por el botón de Google de la puerta ya no deja el permiso de la hoja. Pero cada 5 minutos la app revisa las carpetas de Drive y los links de Maps, que siguen en la hoja. Si en ese segundo la persona acaba de tocar algo, la app pide el permiso y Google abre su ventana en medio del trabajo. En un teléfono que nunca dio ese permiso (como los de Fabricación), puede repetirse cada 5 minutos; si se cierra, Proyectos enseña un error de Drive.
 - **A quién le pega:** A los tres roles, sobre todo a Fabricación.
 - **Arreglo (M):** Con la base mandando, que las revisiones de fondo nunca abran la ventana de Google; el permiso de la hoja se pide solo desde un botón explícito («Conectar Drive», «Autorizar», la IA).
@@ -187,6 +216,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-4 · Alto · Toda la app — Un teléfono sin sesión en la base dice «0 trabajos» y «Nada urgente hoy»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la base mandando y sin sesión (Safari, «Ahora no», Google que no cargó), el teléfono no baja nada. En uno que nunca bajó, el Tablero afirma «0 trabajos en el taller» y «Nada urgente hoy». Si Google no cargó al abrir, la app no vuelve a intentar hasta reabrirla, aunque vuelva la señal; solo queda una cruz de 20 px.
 - **A quién le pega:** A un instalador nuevo o a un teléfono reinstalado: ve el taller vacío y tranquilo.
 - **Arreglo (M):** Con la base mandando y sin sesión, un estado propio en vez de los vacíos («Este teléfono no ha entrado a la base: lo que ves puede no estar al día», con el botón de Google ahí mismo), y volver a intentar al recuperar la señal y al volver a la app.
@@ -195,6 +225,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-5 · Medio · Control y dinero — Control: quedan frases de «la hoja» con la base mandando
 
+- **Estado:** arreglado.
 - **Qué pasa:** Ya estaban en la lista de BASE-MANDA: el globo «Venta de la hoja», «Por cobrar — según la hoja» y las explicaciones del Resumen. Nuevas: los estados vacíos («Cuando una venta pase a COBRANDO en la hoja»), «Un saldo es estimado: la hoja todavía no lo trae», «saldo de la hoja», «Marcar LIQUIDADO — en la hoja…», «Esta venta solo está en la hoja de finanzas», «se corrige en la columna Tipo de trabajo de la hoja» (hoy es en la ficha) y «Escrito en la hoja» en un gasto.
 - **A quién le pega:** A Dirección y a Pagos.
 - **Arreglo (M):** Una sola función «la base / la hoja» en esas frases; con la base, «saldo registrado».
@@ -203,6 +234,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-8 · Medio · Control y dinero — Con la base, el dinero se mueve en Control, y Control queda lejos en el teléfono
 
+- **Estado:** arreglado.
 - **Qué pasa:** En el teléfono de Dirección, Control vive en «Más» (dos toques). Dentro hay 9 pestañas en rejilla de 3×3, con letra de 11.5 px, y «Cobros y abonos», la pantalla de trabajo de Pagos, queda en la 7.ª posición.
 - **A quién le pega:** A Pagos y a Dirección, varias veces al día.
 - **Arreglo (M):** Con la base mandando, «Cobros y abonos» como segunda pestaña o un atajo en el Tablero de Pagos y Dirección. Decisión tuya: si Control entra a la barra de Dirección en lugar del Cotizador.
@@ -211,6 +243,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-9 · Medio · Control y dinero — Sin datos todavía, el Resumen dice $0.00 y «ya está todo cobrado»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Sin récord bajado (sin señal o sin sesión), el Resumen enseña «Disponible $0.00» y «Todo lo que está en fabricación y en cobranza ya está cobrado». Arriba sí dice que no se ha traído el récord, pero un cero afirmativo frente al cliente lleva a malas decisiones.
 - **A quién le pega:** A Dirección y a Pagos, al abrir Control sin señal o sin sesión.
 - **Arreglo (S):** Mientras no haya datos completos, cifras en «—» y la frase «sin datos de la base todavía».
@@ -219,6 +252,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-3 · Medio · Control y dinero — El «Disponible» del mes se mueve con los cobros en partes y con fechas atrasadas
 
+- **Estado:** a medias. La base ya no regresa la fecha de la liquidación y hay una nota junto al Disponible. Contar cada cobro con su propia fecha (desde la bitácora) queda para después: pide cambiar cómo se guarda la liquidación.
 - **Qué pasa:** La base guarda la liquidación como una sola cifra con la fecha del último cobro, y la pisa aunque esa fecha sea más vieja. Un cliente que pagó $10,000 en septiembre y $5,000 en octubre suma $15,000 al disponible de octubre. Capturar hoy un cobro olvidado con fecha de septiembre manda toda la liquidación a septiembre, y octubre baja. Está en la letra chica, pero la cifra grande no avisa.
 - **A quién le pega:** A Dirección, al leer el disponible del mes.
 - **Arreglo (M):** Contar cada cobro con su monto y su fecha (las líneas de la bitácora ya los tienen). Mínimo: que un cobro con fecha vieja no retroceda la fecha de la liquidación.
@@ -227,6 +261,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-4 · Medio · Control y dinero — Un gasto nuevo arranca en «Efectivo u otra», la opción que no resta del disponible
 
+- **Estado:** arreglado.
 - **Qué pasa:** «Cuenta de la que salió» viene preseleccionada en «Efectivo u otra». Si quien captura no la cambia, el gasto no resta de Elias BBVA y el «Disponible» sale inflado sin que nadie lo note.
 - **A quién le pega:** A Dirección y a Pagos, en cada gasto desde «+ Gasto».
 - **Arreglo (S):** Con la base mandando, sin opción preseleccionada («Elige la cuenta…») y obligatoria, o la última usada en ese teléfono.
@@ -235,6 +270,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-5 · Medio · Control y dinero — «+ Ingreso» solo sirve para cobrar una venta, y el formulario habla como contador
 
+- **Estado:** arreglado.
 - **Qué pasa:** El botón abre «Cobro o anticipo» y exige elegir una venta: no hay cómo registrar dinero que entra sin venta (un préstamo, un traspaso, un reembolso). El formulario dice «Cobro (se suma)», «Anticipo (total)», «liquidación», «asiento». Cobrar con «Cobro» el anticipo de una venta del Cotizador que ya lo traía lo cuenta dos veces.
 - **A quién le pega:** A Pagos y a Dirección.
 - **Arreglo (M):** Rotular «+ Cobro de una venta»; en el formulario, «Pago del cliente (después del anticipo)» y «Corregir el anticipo», con la nota de que el anticipo del Cotizador ya está registrado. Si quieres registrar ingresos sin venta, hace falta una tabla nueva.
@@ -243,6 +279,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-6 · Medio · Control y dinero — Para elegir la venta hay un desplegable con las 221, sin buscador
 
+- **Estado:** arreglado.
 - **Qué pasa:** En los cinco formularios, la venta se elige de un solo desplegable. En el iPhone la rueda corta el texto («V-215 · Restaurante Mar Azul — sal…») y no se puede buscar por cliente ni por folio. En «Datos de la venta» ni siquiera hay un orden útil.
 - **A quién le pega:** A Pagos, en cada cobro: es fácil elegir la venta de al lado.
 - **Arreglo (M):** Un buscador con lista (nombre, V-###, monto). Mínimo: grupos «Con saldo / Liquidadas / Canceladas» y el saldo al principio.
@@ -251,6 +288,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-5 · Medio · Cotizador — Hay dos reglas de IVA para la misma venta, y el aviso describe la de la hoja
 
+- **Estado:** arreglado. La base ya ponía el IVA según la cuenta desde la 0006: solo cambió el texto del Cotizador.
 - **Qué pasa:** El aviso dice «la hoja le quita el IVA». La base no lo hace: una venta que entra desde el Cotizador guarda el IVA de la cotización aunque la cuenta no facture (Elias BBVA). Una venta sin cotización sí lo saca de la cuenta. Queda una venta con IVA en una cuenta que Facturas no lista.
 - **A quién le pega:** A Pagos y a Dirección, al cuadrar Facturas y el disponible.
 - **Arreglo (M):** Decisión tuya: lo coherente con Facturas es que la cuenta mande, como en «Venta sin cotización» y «Datos de la venta». Después, corregir el texto.
@@ -259,6 +297,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-6 · Medio · Cotizador — Un cambio de precios no llega a los teléfonos que tienen la app abierta
 
+- **Estado:** arreglado.
 - **Qué pasa:** El aviso al guardar dice que los demás los toman «al abrir el Cotizador», pero el Cotizador no se recarga al cambiar de pantalla y no vuelve a pedir precios al regresar a la app. En un iPhone con la app viva se cotiza con lo de ayer hasta que la autorización rebota.
 - **A quién le pega:** A quien cotiza el día que Dirección cambia precios.
 - **Arreglo (S):** Volver a pedir los precios al regresar a la app (como mucho una vez cada 5 min) y corregir el texto.
@@ -267,6 +306,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-7 · Medio · Cotizador — No se ve de quién es una cotización, y editar la de otro la cambia para todos
 
+- **Estado:** arreglado.
 - **Qué pasa:** Una cotización de otro teléfono se ve igual a las propias: solo la delata la letra del folio, y sale el nombre de quien autorizó, no el del vendedor. «Abrir y editar» sobre la de otro la pisa en el teléfono de quien la hizo.
 - **A quién le pega:** A Dirección, con el historial de toda la empresa.
 - **Arreglo (M):** Guardar el vendedor y pintar una chapa «de <nombre>» cuando no es de este teléfono; pedir una confirmación de un renglón antes de editar una ajena.
@@ -275,6 +315,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-8 · Medio · Cotizador — El aviso rojo de «folio repetido» sale en cada apertura y no tiene arreglo
 
+- **Estado:** a medias. El aviso sale una sola vez por cotización, sin rojo y con el folio. Que la base reparta una letra por persona queda fuera.
 - **Qué pasa:** «Una cotización de la base no entra a este historial: su folio ya es de otra de este teléfono» sale en rojo, 9 s, cada vez que se abre la app. Cambiar la letra no arregla los folios que ya existen. La letra sale al azar del aparato: con 5 teléfonos hay ~36 % de probabilidad de que dos compartan letra.
 - **A quién le pega:** A Dirección y a Pagos.
 - **Arreglo (M):** Avisarlo una sola vez por cotización, sin rojo, con el folio y el teléfono. Que la base asigne una letra por persona.
@@ -283,6 +324,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-5 · Medio · Proyectos y Tablero — Un cambio que la base rechaza deja la tarjeta movida solo en este teléfono, y solo Ajustes lo dice
 
+- **Estado:** arreglado.
 - **Qué pasa:** Si la base rechaza para siempre un cambio de etapa (por ejemplo, mover una cotización que no se dio, o un rol sin permiso), el teléfono lo aparta. La tarjeta se queda en la etapa nueva, el glifo no pone cruz y el aviso solo vive en Ajustes. Este teléfono y los demás ven etapas distintas.
 - **A quién le pega:** A quien mueve tarjetas en el Tablero o la ficha.
 - **Arreglo (M):** Una marca en la tarjeta y en la ficha («No se guardó: motivo · Ver») y un botón «Volver a lo de la base».
@@ -291,6 +333,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-6 · Medio · Proyectos y Tablero — El buscador de Proyectos no encuentra por V-###, y la ficha no lo enseña
 
+- **Estado:** arreglado.
 - **Qué pasa:** Buscar «V-321» o «321» da 0 resultados. Con la base mandando, el V-### es la llave común: lo da el recibo del Cotizador y lo usan Cobros y abonos y Facturas. La cabecera de la ficha solo enseña el COT.
 - **A quién le pega:** A Dirección y a Pagos, al buscar una venta que vieron en Control.
 - **Arreglo (S):** Buscar también por V-### y por folio global, y enseñar el V-### junto al COT en la tarjeta y la ficha.
@@ -299,6 +342,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-7 · Medio · Proyectos y Tablero — Fabricación ve «Cuenta de cobro» y «Estatus en la hoja (dinero)» en la ficha
 
+- **Estado:** arreglado.
 - **Qué pasa:** Esos dos renglones están fuera del bloque de lo que solo ve quien maneja dinero. En ventas nuevas dicen «Sin capturar» en amarillo (una falsa alarma que Fabricación no puede arreglar). En las viejas enseñan la cuenta que quedó en el teléfono (Constru BNT, Moni MPago…), contra la regla de que Fabricación no ve nada de dinero.
 - **A quién le pega:** A Fabricación, en cada ficha.
 - **Arreglo (S):** Meter «Cuenta de cobro» dentro del bloque de dinero y quitarle «(dinero)» al estatus para Fabricación.
@@ -307,6 +351,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-3 · Medio · Calendario y Mapa — En el teléfono, lo de hoy queda abajo, tapado por la barra
 
+- **Estado:** arreglado.
 - **Qué pasa:** A 375 px el título «hoy» empieza en y=695, debajo de «Agendar» y de la barra de abajo; lo primero que se ve es el mes con puntos. En «Semana», hoy queda al final.
 - **A quién le pega:** A Fabricación, cada mañana.
 - **Arreglo (M):** En el teléfono, abrir en «Lista» para Fabricación, o poner hoy arriba de la rejilla.
@@ -315,6 +360,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-4 · Medio · Calendario y Mapa — «Ver en Maps» del renglón mide 69×16 px
 
+- **Estado:** arreglado.
 - **Qué pasa:** Es el «cómo llegar» de los instaladores y es un enlace diminuto pegado a la dirección; en «Lista» se parte en dos renglones. Los demás botones del renglón miden 40 px, y Mes/Semana/Lista 34 px (la regla es 44×44).
 - **A quién le pega:** A los instaladores, en la calle.
 - **Arreglo (S):** Un botón «Cómo llegar» de 44 px en la fila de acciones, como en la tira del Mapa.
@@ -323,6 +369,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-5 · Medio · Calendario y Mapa — Marcar «Ya se instaló» cuesta tres pasos
 
+- **Estado:** arreglado.
 - **Qué pasa:** Hay que bajar, tocar «Abrir» y luego «Ya se instaló» en la ficha. El renglón ofrece en cambio «Al calendario del teléfono» e «Instalador» (en la ficha se llama «Orden al instalador»).
 - **A quién le pega:** A Fabricación, en cada instalación.
 - **Arreglo (S):** En las citas de hoy y atrasadas, «Ya se instaló» (con deshacer) en lugar de «Al calendario del teléfono».
@@ -331,6 +378,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-6 · Medio · Calendario y Mapa — «Listo para instalar» e «Instalado» tienen casi el mismo verde
 
+- **Estado:** arreglado.
 - **Qué pasa:** En el teléfono la etapa solo se ve como un punto de color, y esos dos verdes casi no se distinguen (en claro y en oscuro).
 - **A quién le pega:** A Fabricación y a Dirección.
 - **Arreglo (S):** Otro tono para «Instalado», o un punto con forma o palomita.
@@ -339,6 +387,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-7 · Medio · Calendario y Mapa — La hoja «Agendar» de Fabricación dice «Agendar» aunque solo propone
 
+- **Estado:** arreglado.
 - **Qué pasa:** El botón es verde y dice «Agendar»; el aviso «queda como propuesta» está al final, debajo del pliegue. Con CM-1, la propuesta además llega como «Confirmada».
 - **A quién le pega:** A Fabricación.
 - **Arreglo (S):** Rótulo «Proponer» y el aviso arriba del formulario; va junto con CM-1.
@@ -347,6 +396,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-8 · Medio · Calendario y Mapa — El globo rojo del Calendario suma todos los «sin ubicar» del Mapa
 
+- **Estado:** arreglado.
 - **Qué pasa:** En la prueba de Fabricación el Calendario marcó 14 con solo 3 pendientes de agenda. Con ventas importadas sin pin, el globo queda alto para siempre y deja de significar algo.
 - **A quién le pega:** A Dirección y a Fabricación.
 - **Arreglo (S):** Contar solo los sin pin con instalación en los próximos 15 días, o un globo neutro para eso.
@@ -355,6 +405,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-5 · Medio · Entrada y Ajustes — «Salir de Supabase» no pregunta, y después el glifo sigue diciendo «al día»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Es el primer botón de la tarjeta y sale de un toque. La app no se entera de que la sesión se cerró: a los 33 s el glifo seguía en «Sincronización: al día». Pasa lo mismo si la sesión se cae sola.
 - **A quién le pega:** A los tres roles.
 - **Arreglo (S):** Confirmar «Salir» con la base mandando, y escuchar el cierre de sesión para poner la cruz y volver a ofrecer la banda.
@@ -363,6 +414,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-6 · Medio · Entrada y Ajustes — Cuando el captcha pide marcar la casilla, la puerta dice «En un momento puedes entrar»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Hoy en la app publicada el captcha pidió casilla. Mientras no se marque, el botón oficial de Google no sale (por eso no apareció), y la nota dice «Comprobando que eres una persona… En un momento puedes entrar». Si se toca el botón de la app, sale «toca otra vez». Nunca dice «marca la casilla». Y entrar por el botón de la app en un teléfono nuevo cuesta dos toques (la hoja y luego la base).
 - **A quién le pega:** A teléfonos nuevos, redes con VPN y navegadores dentro de otras apps.
 - **Arreglo (S):** Cuando el captcha pide casilla, decir «Marca la casilla de abajo para seguir».
@@ -371,6 +423,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-7 · Medio · Entrada y Ajustes — «Apagar en este aparato» sigue a la mano de los tres roles con la base mandando
 
+- **Estado:** arreglado.
 - **Qué pasa:** Apagado, el teléfono escribe en una hoja de solo lectura y la puerta deja de enseñar el botón de Google. La pregunta lo advierte, pero cualquiera de los tres roles lo tiene a un toque.
 - **A quién le pega:** A Pagos y a Fabricación.
 - **Arreglo (S):** Con la base mandando, solo Dirección lo ve, o va detrás de «Avanzado».
@@ -379,6 +432,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-8 · Medio · Entrada y Ajustes — Lo que la base rechazó se ve sin decir de qué venta era, y solo se puede «Volver a intentar»
 
+- **Estado:** arreglado.
 - **Qué pasa:** La lista de apartados vive en la tarjeta del puente y solo enseña el texto del error, sin cliente, campo ni fecha. Para la venta apartada de Pagos (CZ-1) no dice de qué cliente es. «Volver a intentarlos» rebota igual, y no hay «Descartar» ni «Pasar a Dirección».
 - **A quién le pega:** A quien tiene algo apartado y a Dirección cuando le preguntan.
 - **Arreglo (M):** Cada apartado con el nombre del proyecto y qué cambio era, más «Descartar» con confirmación; con la base mandando, en la tarjeta de la base.
@@ -387,6 +441,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-9 · Medio · Entrada y Ajustes — Si la base no contesta, la puerta habla de «mientras la empresa siga trabajando con la hoja»
 
+- **Estado:** arreglado.
 - **Qué pasa:** Los mensajes de la puerta cuando la base tarda o la persona no está activa siguen hablando de la hoja, y el renglón del camino dice «La hoja · qué te toca».
 - **A quién le pega:** A quien entra con mala señal.
 - **Arreglo (S):** Frases según quién manda: «La base no contestó: toca otra vez».
@@ -395,6 +450,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-6 · Medio · Toda la app — Mapa, Calendario, Cotizador y «Qué atender»: más frases de la hoja y jerga
 
+- **Estado:** arreglado.
 - **Qué pasa:** Mapa: el chip «Sin estatus en la hoja» y «el pin se pone cuando sincronice con la hoja». Calendario: las notas «Agendada desde la hoja», «así quedó en la hoja» y «vino de la hoja». Qué atender: «El puente está puesto · base», «Pon Estatus en la hoja en COBRANDO» y «Sin respaldo… el respaldo es la única defensa». Cotizador: la comisión «la misma que calcula la hoja de finanzas». (Lo del sello, la IA y la autorización sigue siendo cierto: el notario se quedó en la hoja.)
 - **A quién le pega:** A los tres roles.
 - **Arreglo (M):** «Estatus de cobro» en vez de «Estatus en la hoja»; «Sincroniza con la base» en vez de «El puente está puesto»; notas neutras en las citas.
@@ -403,6 +459,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-7 · Medio · Toda la app — Sin señal, el error habla de «Apps Script» y «Cualquier usuario»
 
+- **Estado:** arreglado.
 - **Qué pasa:** «No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso Cualquier usuario.» Sale sin señal en la caja de Drive de Proyectos (también con la base) y en el glifo.
 - **A quién le pega:** A los tres roles, sin señal.
 - **Arreglo (S):** «Sin señal: lo de Drive se ve en cuanto vuelva»; la pista técnica solo en Ajustes → Avanzado.
@@ -411,6 +468,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-10 · Medio · Toda la app — La primera carga baja ~400 KB comprimidos de CSS y JS antes de poder tocar
 
+- **Estado:** arreglado. Lo que solo usa el Cotizador salió a css/cotizador.css y el CSS del mapa llega con el Mapa: el CSS de la primera carga baja de 292 a 257 KB comprimidos (1 212 → 1 177 KB en total), con el estilo de cada elemento idéntico en 72 vistas. Las reglas que cambiaban la cascada al moverse se quedaron.
 - **Qué pasa:** 51 peticiones y 2.7 MB sin comprimir. sistema.css (557 KB) trae también los estilos del Cotizador, que vive en su propio marco. La segunda carga sale del service worker y es rápida (0.7 s), pero el primer día y después de cada versión nueva, en 4G, se nota.
 - **A quién le pega:** A todos, después de cada versión.
 - **Arreglo (L):** Separar el CSS del Cotizador del de la plataforma y cargar el CSS del mapa solo con el Mapa.
@@ -419,6 +477,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### H-1 · Medio · Toda la app — Se crean 2 a 4 conexiones a Supabase en cada carga
 
+- **Estado:** arreglado.
 - **Qué pasa:** Cuando varias partes de la app piden la conexión al mismo tiempo, cada una crea la suya. Son varias sesiones iguales renovando la llave por su cuenta y canales de tiempo real colgados de conexiones huérfanas. Puede explicar avisos que llegan dos veces o una sesión que se cae sola.
 - **A quién le pega:** A los tres roles, con la base mandando.
 - **Arreglo (S):** Guardar la promesa de la conexión, no la conexión: un cambio de una línea.
@@ -427,6 +486,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-11 · Bajo · Control y dinero — «+ Ingreso» y «+ Gasto» no miden lo mismo
 
+- **Estado:** arreglado.
 - **Qué pasa:** En la tarjeta «Disponible», Ingreso mide ~53 px de alto y Gasto ~45 px, en el mismo renglón.
 - **A quién le pega:** A Dirección y a Pagos.
 - **Arreglo (S):** El mismo alto y la misma clase de botón.
@@ -435,6 +495,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### H-2 · Bajo · Control y dinero — En Cuentas, cada casilla queda en su propio renglón, encima del nombre
 
+- **Estado:** arreglado.
 - **Qué pasa:** En «Qué cuentas son dinero disponible», la regla de estilo busca un label dentro de .pg-check, pero aquí el label es el propio .pg-check.
 - **A quién le pega:** A Dirección.
 - **Arreglo (S):** Darle flex a .ct-cta-casilla.
@@ -443,6 +504,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### H-5 · Bajo · Control y dinero — Facturas enseña el estatus en código y mezcla formatos de fecha
 
+- **Estado:** arreglado.
 - **Qué pasa:** Sale «FABRICACION» o «COBRANDO» tal cual viene de la base, y las fechas mezclan «09/09/2026» con «22 oct 2026». A 375 px los tres indicadores quedan en 2+1, con medio renglón vacío.
 - **A quién le pega:** A Dirección y a Pagos.
 - **Arreglo (S):** Estatus con su nombre y su chip de color, una sola forma de fecha, y los tres indicadores en una fila o en columna.
@@ -451,6 +513,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-7 · Bajo · Control y dinero — Al recargar la app, el aviso del cobro en duda desaparece
 
+- **Estado:** arreglado.
 - **Qué pasa:** Quedan los datos tecleados, pero ya no hay letrero de que el envío anterior quedó en duda. Al cerrar la app en el iPhone se pierde todo, y el siguiente envío va como uno nuevo (con DN-1, más riesgo de doble cobro).
 - **A quién le pega:** A Pagos.
 - **Arreglo (S):** Pintar el aviso desde el borrador en duda y guardarlo de forma que sobreviva al cierre.
@@ -459,6 +522,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-8 · Bajo · Control y dinero — En «Datos de la venta», cambiar a una cuenta fiscal no mueve el campo IVA
 
+- **Estado:** arreglado.
 - **Qué pasa:** La nota dice «Con esta cuenta la venta lleva IVA (16 %)», pero el desplegable sigue en «Sin IVA».
 - **A quién le pega:** A Dirección.
 - **Arreglo (S):** Mover el desplegable al valor que pone la cuenta, o apagarlo junto con la nota.
@@ -467,6 +531,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### DN-9 · Bajo · Control y dinero — Cobros y abonos en escritorio: botones de ~1000 px y huecos sueltos
 
+- **Estado:** arreglado.
 - **Qué pasa:** «Volver a leer las ventas» y «Registrar cobro…» ocupan todo el ancho; entre la casilla LIQUIDADA y su nota queda un hueco grande.
 - **A quién le pega:** A Dirección en la computadora.
 - **Arreglo (S):** Un ancho máximo para el pie del formulario y la nota pegada a la casilla.
@@ -475,6 +540,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-11 · Bajo · Cotizador — Con la base, el botón «Registrar venta» no da señal de trabajo
 
+- **Estado:** arreglado.
 - **Qué pasa:** Con la hoja, el botón decía «Registrando… / Registrada». Con la base no cambia; el resultado vive en un recibo al pie del modal, fuera de la vista en escritorio.
 - **A quién le pega:** A quien registra una venta.
 - **Arreglo (S):** Poner el botón en «Registrada · esperando folio» y desplazar el modal hasta el recibo.
@@ -483,6 +549,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CZ-9 · Bajo · Cotizador — La imagen de referencia que no viaja sale en otro teléfono como un documento que no abre
 
+- **Estado:** arreglado.
 - **Qué pasa:** La imagen con la que se cotizó no se sincroniza. En otro teléfono la entrada pinta el ícono de documento, como si hubiera algo que abrir.
 - **A quién le pega:** A Dirección, al revisar cotizaciones de otros.
 - **Arreglo (S):** Un ícono de imagen apagado con «La referencia está en el teléfono que la cotizó».
@@ -491,6 +558,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-10 · Bajo · Proyectos y Tablero — «Instalación pasada sin marcar» cuenta proyectos que ya están instalados
 
+- **Estado:** arreglado.
 - **Qué pasa:** El Tablero no excluye proyectos en Instalado o En garantía; «Qué atender» sí. Con CM-1 esto pasa más seguido.
 - **A quién le pega:** A Dirección, en el Tablero.
 - **Arreglo (S):** La misma guarda que usa «Qué atender» (regla A10).
@@ -499,6 +567,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-12 · Bajo · Proyectos y Tablero — «Enseñar al cliente» no tapa la lista: al cerrar la ficha se ven los totales de otros clientes
 
+- **Estado:** arreglado.
 - **Qué pasa:** El modo cliente solo tapa lo interno de la ficha. Al cerrarla delante del cliente, la lista y el Tablero enseñan nombres, totales y «resta» de los demás.
 - **A quién le pega:** A quien enseña una ficha en el teléfono frente al cliente.
 - **Arreglo (S):** Mientras el modo cliente esté encendido, difuminar los montos de las demás tarjetas. Puede ser decisión tuya.
@@ -507,6 +576,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TP-9 · Bajo · Proyectos y Tablero — El lector de pantalla solo oye «Abrir …» en cada tarjeta
 
+- **Estado:** arreglado.
 - **Qué pasa:** La etiqueta de la tarjeta reemplaza todo su contenido: no se oyen la etapa, la fecha ni el saldo.
 - **A quién le pega:** A quien usa el lector de pantalla.
 - **Arreglo (S):** Quitar el aria-label o usar aria-describedby.
@@ -515,6 +585,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-10 · Bajo · Calendario y Mapa — «Lo Que Viene» y «Toda La Agenda» salen en mayúscula de título
 
+- **Estado:** arreglado.
 - **Qué pasa:** La regla que pone en mayúscula el nombre del mes alcanza también a esos títulos.
 - **A quién le pega:** A todos.
 - **Arreglo (S):** Aplicarla solo al nombre del mes.
@@ -523,6 +594,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### CM-11 · Bajo · Calendario y Mapa — En el Mapa del teléfono, el botón del asistente tapa la tira de paradas
 
+- **Estado:** arreglado. En el código; no se comprobó a ojo en un teléfono.
 - **Qué pasa:** El botón flotante tapa el borde derecho de la tira; los pines miden 32×34 px.
 - **A quién le pega:** A Fabricación.
 - **Arreglo (S):** Subir el botón del asistente cuando la tira está a la vista.
@@ -531,6 +603,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### H-3 · Bajo · Entrada y Ajustes — Doble punto en «p.m..» en la nota del Cotizador de Ajustes
 
+- **Estado:** arreglado.
 - **Qué pasa:** La fecha ya termina en «p.m.» y el texto le agrega otro punto.
 - **A quién le pega:** A los tres roles.
 - **Arreglo (S):** Quitar el punto.
@@ -539,6 +612,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-10 · Bajo · Entrada y Ajustes — Ajustes → Supabase: restos de la etapa de prueba y personas con botones apilados
 
+- **Estado:** arreglado.
 - **Qué pasa:** Sigue el bloque «Escritura en sombra», que dice «La hoja sigue mandando», con un botón que no hace nada. Cada persona lleva selector, «Cambiar área» y «Dar de baja» a todo lo ancho; «Dar de baja» se ve igual que «Cambiar área», sale también en tu propia fila, y darle a alguien el área de Dirección o Pagos (con acceso al dinero) no pregunta.
 - **A quién le pega:** A Dirección.
 - **Arreglo (M):** Quitar el bloque de la sombra con la base mandando; personas en una fila compacta, «Dar de baja» en rojo y sin acciones en «tú»; confirmar los cambios hacia Dirección o Pagos.
@@ -547,6 +621,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-12 · Bajo · Toda la app — Letra de 10 a 11.5 px y botones de 34 a 40 px en varios controles
 
+- **Estado:** arreglado. Medido con dedo de verdad, los botones ya medían 44 px; el cambio fue la letra (12 px mínimo) y las capas con nombre.
 - **Qué pasa:** Pestañas a 11.5 px, barra del teléfono a 11 px, etiquetas de la barra lateral y años de la gráfica a 10 px, tarjetas de Proyectos a 11 px. Botones por debajo de 44 px: filtro de etapa (34), segmentos de la ficha (34), chips de cuenta (40), cerrar (40), sesión del encabezado (36). Las capas de z-index no siguen una escala.
 - **A quién le pega:** A todos, sobre todo en el teléfono y al sol.
 - **Arreglo (M):** Mínimo de 12 px en lo que se lee, 44 px en lo que se toca, y tokens de z-index.
@@ -555,6 +630,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-13 · Bajo · Toda la app — Los atajos de la app instalada no incluyen Control y sí Material
 
+- **Estado:** arreglado. El segundo manifest se queda: lo usan el service worker y las instalaciones viejas.
 - **Qué pasa:** Los atajos de la app (mantener presionado el ícono) son Tablero, Cotizador, Material y Calendario. Falta Control, la pantalla de Pagos; sobra Material, que está en mantenimiento. Hay además un manifest duplicado que nadie usa.
 - **A quién le pega:** A Pagos y a Dirección.
 - **Arreglo (S):** Cambiar Material por Control y quitar el duplicado.
@@ -563,6 +639,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### TR-14 · Bajo · Toda la app — Jerga técnica: «Supabase», «relevo», «Más módulos», «la nube»
 
+- **Estado:** arreglado.
 - **Qué pasa:** «Supabase» como título de tarjeta y de ruta, «este dispositivo, respaldo y relevo», «Más módulos».
 - **A quién le pega:** A los tres roles.
 - **Arreglo (S):** «La base de datos» y «Más pantallas».
@@ -571,6 +648,7 @@ Unas 77 horas de trabajo en total (S = 0.5 h, M = 2 h, L = 4 h).
 
 ### ES-11 · Bajo · Toda la app — Cada carga pregunta 4 a 6 veces quién eres y baja los proyectos dos veces
 
+- **Estado:** a medias. Una sola conexión por carga y una sola pregunta de acceso en vuelo. Recordar el acceso unos segundos rompía la prueba de cambio de modo y no se puso.
 - **Qué pasa:** Además de las conexiones repetidas (H-1), cada carga pide el acceso varias veces y baja los proyectos dos veces.
 - **A quién le pega:** A todos, con la base mandando.
 - **Arreglo (S):** Arreglar H-1 y recordar el acceso unos segundos.
