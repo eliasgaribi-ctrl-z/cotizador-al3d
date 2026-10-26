@@ -194,10 +194,10 @@ const enBase = () => laBaseManda();
 /* La fuente del récord en las frases (auditoría 2026-10-25, TR-5): con la base mandando, lo que esta pantalla decía de «la hoja» lo
    dice de la base; con la hoja mandando, letra por letra lo de siempre. */
 const laFuente = () => (enBase() ? 'la base' : 'la hoja');
-/* Material sigue en mantenimiento (`EN_MANTENIMIENTO` de js/mod/material.js, que no se exporta): mientras lo esté, el Resumen no
-   enseña la tarjeta del almacén, que llevaba a una pantalla apagada con «bajo mínimo» en rojo (auditoría 2026-10-25, CM-2). Cuando
-   se encienda Material, las dos en false. */
-const MATERIAL_EN_MANTENIMIENTO = true;
+/* Material sigue en mantenimiento (el interruptor único es `Agenda.MATERIAL_EN_MANTENIMIENTO`, js/datos/agenda.js): mientras lo
+   esté, el Resumen no enseña la tarjeta del almacén, que llevaba a una pantalla apagada con «bajo mínimo» en rojo (auditoría
+   2026-10-25, CM-2). */
+const MATERIAL_EN_MANTENIMIENTO = Agenda.MATERIAL_EN_MANTENIMIENTO;
 /* Con la base mandando y su récord todavía sin bajar (sin señal, sin sesión), las cifras del Resumen no son ceros: son «no sé». Antes
    decía «Disponible $0.00» y «ya está cobrado» delante del cliente (auditoría 2026-10-25, TR-9). Con la hoja mandando, lo de siempre. */
 const sinDatosDeLaBase = () => enBase() && !(D && D.bajada && D.bajada.completa);
