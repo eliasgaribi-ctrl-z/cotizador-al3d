@@ -243,10 +243,11 @@ const VENTA = (o = {}) => ({ id: 'proy-1', folio_local: 'COT-0042', dispositivo:
 
 /* Las copias de la regla «¿manda la base?» que viven en guiones sin módulos o en el arranque: se sacan del
    fuente y se corren contra el mismo almacenamiento. */
-const reglaDe = archivo => {
-  const t = sinComentarios(leer(archivo));
-  const m = /function laBaseManda\(\)\s*\{[\s\S]*?\n\}/.exec(t);
-  return m ? new Function('localStorage', m[0] + '; return laBaseManda();') : null;
+const reglaDe = (archivo, nombre = 'laBaseManda') => {
+  /* La del asistente (js/datos/asistente-contexto.js, `laBaseMandaAqui`) lee `globalThis.localStorage`: se le pasa el mismo. */
+  const t = sinComentarios(leer(archivo)).replace(/globalThis\.localStorage/g, 'localStorage');
+  const m = new RegExp('function ' + nombre + '\\(\\)\\s*\\{[\\s\\S]*?\\n\\}').exec(t);
+  return m ? new Function('localStorage', m[0] + '; return ' + nombre + '();') : null;
 };
 
 try {
@@ -303,8 +304,9 @@ try {
   console.log('\nLA ELECCIÓN: LA BASE MANDA SOLO CON EL INTERRUPTOR Y EL ÚLTIMO MODO OÍDO EN «base»');
   {
     const copias = { 'js/app.js': reglaDe('js/app.js'), 'js/nucleo/puerta.js': reglaDe('js/nucleo/puerta.js'), 'js/cotizador/venta.js': reglaDe('js/cotizador/venta.js'),
-      'js/mod/control.js': reglaDe('js/mod/control.js'), 'js/mod/ajustes.js': reglaDe('js/mod/ajustes.js') };
-    eq('las cinco copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function', 'function', 'function']);
+      'js/mod/control.js': reglaDe('js/mod/control.js'), 'js/mod/ajustes.js': reglaDe('js/mod/ajustes.js'),
+      'js/datos/asistente-contexto.js': reglaDe('js/datos/asistente-contexto.js', 'laBaseMandaAqui') };
+    eq('las seis copias existen', Object.values(copias).map(f => typeof f), ['function', 'function', 'function', 'function', 'function', 'function']);
     const ON = JSON.stringify({ encendido: true, desde: 1 });
     const casos = [
       ['apagado, sin modo', {}, false],
@@ -323,10 +325,10 @@ try {
       const dice = [Supa.laBaseManda(), ...Object.values(copias).map(f => f(m))];
       for (const k of Object.keys(ls)) delete ls[k];
       Object.assign(ls, guardado);
-      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js, venta.js, control.js y ajustes.js)', dice, [esperado, esperado, esperado, esperado, esperado, esperado]);
+      eq(que + ': ' + (esperado ? 'la base' : 'la hoja') + ' (supa.js, app.js, puerta.js, venta.js, control.js, ajustes.js y el asistente)', dice, [esperado, esperado, esperado, esperado, esperado, esperado, esperado]);
     }
     const sinAlmacen = { getItem: () => { throw new Error('bloqueado'); } };
-    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false, false, false]);
+    eq('sin almacenamiento (bloqueado): la hoja', Object.values(copias).map(f => f(sinAlmacen)), [false, false, false, false, false, false]);
 
     /* Lo que dice la base se guarda, y solo si lo dice de verdad. */
     crearClienteFalso();

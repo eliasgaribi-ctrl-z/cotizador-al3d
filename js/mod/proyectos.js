@@ -1021,8 +1021,12 @@ async function pintarAvisoDrive() {
   if (!r || (r.ok && !r.vieja) || r.codigo === 'SIN_CONFIG') { caja.innerHTML = ''; return; }
   const motivo = r && !r.ok ? (r.mensaje || 'No se pudo leer la carpeta de Drive.')
     : 'Ahora mismo no se pudo preguntar a la hoja; las marcas son de la última vez que se vio.';
+  /* Con la base mandando se entra sin el permiso de la hoja, y las vueltas de fondo ya no abren la ventana de Google
+     (auditoría 2026-10-25, ES-3): Drive lo pide un botón, dentro del toque. */
+  const conectar = r && r.codigo === 'SIN_PERMISO_DRIVE'
+    ? '<button type="button" class="btn btn-pri pf-btn-corto" data-conectar-drive>Conectar Drive</button>' : '';
   caja.innerHTML = '<div class="pj-drive">' + ico('i-doc') +
-    '<span><b>Carpetas de Drive:</b> ' + esc(motivo) + '</span>' +
+    '<span><b>Carpetas de Drive:</b> ' + esc(motivo) + '</span>' + conectar +
     '<a class="btn btn-gho pf-btn-corto" href="' + esc(Carpetas.RAIZ_TRABAJOS) + '" target="_blank" rel="noopener">Abrir Trabajos Pendientes</a></div>';
 }
 
@@ -1097,6 +1101,15 @@ function pintarCand() {
 
 async function clicLista(ev) {
   const t = ev.target;
+
+  /* «Conectar Drive»: la ventana de Google tiene que salir dentro del toque, así que es lo primero que se llama. */
+  if (t.closest('[data-conectar-drive]')) {
+    const r = await Carpetas.conectarDrive();
+    if (!r.ok) { toast(r.mensaje, 'err'); return; }
+    if (CTX && typeof CTX.sincronizar === 'function') CTX.sincronizar();
+    pintarAvisoDrive();
+    return;
+  }
 
   const seg = t.closest('[data-etapa]');
   if (seg) {

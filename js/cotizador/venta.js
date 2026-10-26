@@ -533,7 +533,7 @@ function esperarFolioDeVenta(fg){
     }
     if(Date.now()<hasta){ _rvFolioT=setTimeout(preguntar,RV_FOLIO_CADA); return; }
     _rvFolioDe='';
-    rvListo('Registrada como proyecto ganado — la base todavía no le da su folio: llega solo en cuanto este teléfono tenga señal y sesión en la base (Ajustes → Supabase), y se ve en la plataforma');
+    rvListo('Registrada como proyecto ganado — la base todavía no le da su folio: llega solo en cuanto este teléfono tenga señal y sesión en la base (Ajustes → La base de datos), y se ve en la plataforma');
   };
   return preguntar();
 }

@@ -189,7 +189,7 @@
     var c = String(codigo || '');
     $('contenido').innerHTML = '<div class="tv-vincular"><h1>Vincula esta pantalla</h1>' +
       '<div class="tv-codigo">' + esc(c.slice(0, 3)) + ' ' + esc(c.slice(3)) + '</div>' +
-      '<p>En la app de AL3D entra a <b>Ajustes → Supabase → Pantallas del taller</b> y escribe este código.</p>' +
+      '<p>En la app de AL3D entra a <b>Ajustes → La base de datos → Pantallas del taller</b> y escribe este código.</p>' +
       '<p class="chico">Solo Dirección puede vincularla. Si el código vence, aquí sale otro solo.</p></div>';
     $('resumen').innerHTML = '';
     $('proximas').innerHTML = '';

@@ -126,7 +126,8 @@ async function leer() {
       Agenda.listar({ desde: hoy, hasta: hoy, vivas: true, conProyecto: true }),
       Agenda.listar({ desde: hoy, hasta: masDias(hoy, 6), vivas: true }),
       Proyectos.listar({ sinFecha: true, vivos: true }),
-      Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR }),
+      /* Con la misma regla que el Calendario: sin las de una obra que ya está en «Instalado» o después (auditoría 2026-10-25, CM-1). */
+      Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true }),
       Stock.listaCompra({}),
       Stock.bajoMinimo(),
       Proyectos.listar({ etapa: 'instalado', conPendiente: true }),
@@ -227,7 +228,8 @@ function cuentas(d, rol, veDinero) {
       /* A la hoja «Agendar», que es la lista de esos proyectos y donde se les pone día. */
       aCal({ hoja: 'agendar' }, 'abrir el Calendario')));
   }
-  if (rol === 'direccion' || rol === 'fabricacion') {
+  /* Con Material en mantenimiento no se cuenta lo que hay que comprar: llevaría a una pantalla apagada (auditoría 2026-10-25, CM-2). */
+  if ((rol === 'direccion' || rol === 'fabricacion') && !Agenda.MATERIAL_EN_MANTENIMIENTO) {
     c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0, aMat));
   }
   if (rol === 'pagos') {
@@ -241,7 +243,7 @@ function cuentas(d, rol, veDinero) {
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
       c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>');
-    } else {
+    } else if (!Agenda.MATERIAL_EN_MANTENIMIENTO) {
       c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', false, aMat));
     }
   }
@@ -541,7 +543,7 @@ function publicarCuentas(d) {
   const ids = new Set();
   for (const f of d.porComprar) if (f.material_id) ids.add(f.material_id);
   for (const b of d.bajo) if (b.material_id || b.id) ids.add(b.material_id || b.id);
-  _ctx.ponerCuenta('material', ids.size);
+  _ctx.ponerCuenta('material', Agenda.MATERIAL_EN_MANTENIMIENTO ? 0 : ids.size);
 }
 
 /* ----- La barra fija del teléfono -----

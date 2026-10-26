@@ -310,7 +310,7 @@ console.log('\nLA PESTAÑA, PINTADA (con la base mandando)');
   cierto('y no se le pinta ni un importe ni un RFC', /son de Dirección y Pagos/.test(r.html) && !/\$\d/.test(r.html) && !/ABC010203XY1/.test(r.html));
   r = await pestana('sinsesion', { rolLocal: 'direccion', sesion: false, area: 'direccion' });
   eq('sin sesión de la base: no pregunta nada', r.llamadas, []);
-  cierto('y dice cómo entrar', /Ajustes → Supabase/.test(r.html));
+  cierto('y dice cómo entrar', /Ajustes → La base de datos/.test(r.html));
   for (const x of abiertas.splice(0)) x.soltar();
 }
 

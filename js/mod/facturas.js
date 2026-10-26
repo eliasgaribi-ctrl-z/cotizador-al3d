@@ -79,7 +79,7 @@ export function html() {
     'con su cliente fiscal, su constancia de situación fiscal y las dos facturas. Lo ven Dirección y Pagos; se guarda en la base.</p>';
   let cuerpo;
   if (_vista === 'esperando') cuerpo = '<p class="pf-nota" role="status">Preguntando a la base quién eres…</p>';
-  else if (_vista === 'entrar') cuerpo = '<p class="hintnote nota-av">Entra a la base con tu cuenta de Google (Ajustes → Supabase) para ver las facturas.</p>' +
+  else if (_vista === 'entrar') cuerpo = '<p class="hintnote nota-av">Entra a la base con tu cuenta de Google (Ajustes → La base de datos) para ver las facturas.</p>' +
     '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-fx-act="recargar">Volver a preguntar</button></div>';
   else if (_vista === 'sin_permiso') {
     const a = _acceso || {};

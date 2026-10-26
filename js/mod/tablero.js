@@ -159,6 +159,7 @@ export async function montar(contenedor, ctx) {
   _cont.addEventListener('click', _alClic = conservandoFoco(alClic));
   const capa = $('pf-pide');
   if (capa) capa.addEventListener('click', alClicPide);
+  window.addEventListener('al3d-sin-base', alCambiarSinBase);
   _oyendo = true;
 
   /* La base cerrada NO se pinta como un taller vacío. La diferencia entre «todavía no
@@ -192,6 +193,11 @@ function globo(d) {
   return d.V.filter(v => v.estado === 'no_llega').length + d.faltan.filter(x => x.pronto).length;
 }
 
+/* Con la base mandando y este teléfono sin sesión en ella, nada baja: un taller vacío y «Nada urgente hoy» serían una
+   afirmación falsa. app.js lo marca con la clase `sin-base` en <html> y el aviso `al3d-sin-base` (auditoría 2026-10-25, ES-4). */
+const sinBase = () => { try { return document.documentElement.classList.contains('sin-base'); } catch (_) { return false; } };
+function alCambiarSinBase() { if (_cont && _d) pintar(); }
+
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
@@ -212,6 +218,7 @@ export function desmontar() {
      sostiene. El router también la apaga al montar el siguiente. */
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
   window.removeEventListener('resize', alRedimensionar);
+  window.removeEventListener('al3d-sin-base', alCambiarSinBase);
   _cont = null; _ctx = null; _d = null; _oyendo = false; _acciones = [];
   _vista = 'tablero'; _origen = null;
 }
@@ -515,8 +522,9 @@ function necesita(d, rol) {
                                        : { tipo: 'abrir', id: x.p.id, que: 'abrir ' + nom }));
   }
 
-  /* Pagos no mueve el almacén. */
-  if (rol === 'direccion' || rol === 'fabricacion') {
+  /* Pagos no mueve el almacén. Y con Material en mantenimiento nadie: el aviso mandaba a una pantalla apagada (auditoría
+     2026-10-25, CM-2). */
+  if ((rol === 'direccion' || rol === 'fabricacion') && !Agenda.MATERIAL_EN_MANTENIMIENTO) {
     const sm = d.enTaller.map(v => ({ v, sem: d.semDe(v.proyecto_id) }))
       .filter(x => x.sem.estado === 'falta' || x.sem.estado === 'grave')
       .sort((a, b) => (a.sem.dias === null ? 1e9 : a.sem.dias) - (b.sem.dias === null ? 1e9 : b.sem.dias));
@@ -541,7 +549,9 @@ function necesita(d, rol) {
     '<h2 class="tb-sec-t" id="tb-nec-t">' + titulo + '</h2>' +
     (filas.length
       ? '<div class="tb-caja tb-necesita">' + filas.join('') + '</div>'
-      : '<p class="tb-caja tb-nada">' + ico('i-check') + '<span>Nada urgente hoy.</span></p>') +
+      : (sinBase()
+          ? '<p class="tb-caja tb-nada">' + ico('i-aviso') + '<span>Este teléfono no ha entrado a la base: lo que ves puede no estar al día.</span></p>'
+          : '<p class="tb-caja tb-nada">' + ico('i-check') + '<span>Nada urgente hoy.</span></p>')) +
     '</section>';
 }
 
@@ -606,7 +616,10 @@ const nombreDe = (d, v) => negocioDe(d.porId.get(v.proyecto_id), v.titulo);
    Tocar una ficha abre el proyecto. Ahí se avanza la etapa: esta pantalla ya no escribe nada. */
 function elTaller(d) {
   let cuerpo;
-  if (!d.vivos.length) {
+  if (!d.vivos.length && sinBase()) {
+    cuerpo = vacioTaller('Este teléfono no ha entrado a la base',
+      'Lo que ves puede no estar al día. Entra con tu cuenta de Google desde la banda de arriba y el taller aparece aquí.');
+  } else if (!d.vivos.length) {
     cuerpo = vacioTaller('Todavía no hay nada en el taller',
       'Cuando una cotización autorizada se marque como ganada, el trabajo aparece aquí en su estación.',
       btn('Abrir el Cotizador', 'btn btn-pri', { tipo: 'ir', ruta: 'cotizador' }));

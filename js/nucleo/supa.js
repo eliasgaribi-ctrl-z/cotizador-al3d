@@ -177,7 +177,9 @@ export const SE_BORRAN = ['al3d_pf_rol', 'al3d_pf_nombre', 'al3d_pf_ganadas', 'a
   'al3d_rv_cuenta', 'al3d_anidador_retazos', 'al3d_anidador_material', CLAVE_SESION, 'al3d_pf_supa_modo',
   /* Las del paso 4 de «la base manda»: la marca de la bajada del historial, sus lápidas, la de la subida única y el espejo pendiente
      de los precios en la hoja. */
-  'al3d_hist_nube', 'al3d_hist_borradas', 'al3d_pf_supa_subida', 'al3d_tarifas_espejo'];
+  'al3d_hist_nube', 'al3d_hist_borradas', 'al3d_pf_supa_subida', 'al3d_tarifas_espejo',
+  /* Las de la auditoría del 2026-10-25: los folios repetidos ya avisados, la hora de los precios leídos y los cobros en duda. */
+  'al3d_hist_choques', 'al3d_tarifas_leida', 'al3d_pf_pagos_inciertos'];
 /* `al3d_sombra` es la cola de la sombra de Supabase (js/datos/supa-sombra.js): solo existe en un aparato
    que la encendió, y lleva copias de operaciones de la bandeja. */
 export const BASES_LOCALES = ['al3d_pf', 'al3d_cot_imgs', 'al3d_sombra'];
