@@ -18,7 +18,8 @@
        sellos, la cita, la revisión— porque las procesa el relevo de la hoja con la base como su fuente
        de lectura (`Puente.fuenteDeLectura`), que es como ya leía la lectura en vivo. Nunca /jalar.
      · lo que no es de la bandeja —las carpetas de Drive y los links cortos de Maps— sigue en el Apps
-       Script (docs/BASE-MANDA.md, «Lo que decide Elías», 2).
+       Script (docs/BASE-MANDA.md, «Lo que decide Elías», 2), que desde puente-sheets-16 deja pasar la
+       sesión de la base a esos caminos: el teléfono no necesita además el permiso de Google de la hoja.
 
    UNA VENTA NUEVA. `ganar_proyecto` le da su V-### del contador de la base, y vuelve al teléfono como
    volvía el de la hoja: en `remoto.id_notion` de la respuesta y escrito en el proyecto
@@ -546,6 +547,6 @@ export function desdeSupa(Supa) {
   const fuente = crearFuente({ cliente: Supa.cliente, empresa: g.empresa || 'al3d', marca,
     area: () => ((relevo && relevo.cuenta()) || Supa.modoGuardado() || {}).area || '' });
   relevo = crearRelevo({ cliente: Supa.cliente, haySesion: Supa.haySesion, acceso: Supa.acceso,
-    lector: Puente.crear(Prefs.puente()), fuente });
+    lector: Puente.crear(Prefs.puente(), { tokenDeLaBase: Supa.tokenDeSesion }), fuente });
   return relevo;
 }

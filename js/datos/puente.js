@@ -953,7 +953,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-15';
+export const VERSION_ESPERADA = 'puente-sheets-16';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -964,6 +964,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 15 */ 'con la base mandando, la ficha de cada proyecto no enseña los archivos de su carpeta de Drive, no se abren carpetas nuevas ni se leen los links cortos de Maps sin tocar «Conectar Drive»: esa versión no acepta la sesión de la base. Falta pegar el Apps Script puente-sheets-16',
   /* 14 */ 'los gastos que se capturan en Control no llegan a la hoja: esa versión no tiene la pestaña «Gastos» ni sus caminos, y cada teléfono los guarda —sin perderse— hasta que la hoja se actualice. Falta pegar el Apps Script puente-sheets-15',
   /* 13 */ 'cada teléfono ve su propia versión de la obra: la etapa intermedia (En diseño, Cortado, Armado, Listo), las notas, el plazo de taller y las correcciones del teléfono, la dirección y el pin que se hacen en otro dispositivo no llegan, y una cita movida o cancelada en otro no siempre se mueve aquí. Falta pegar el Apps Script puente-sheets-14 y correr «3 · Preparar la hoja para el puente»',
   /* 12 */ '«⚡ AL3D → Registrar nueva venta» de la hoja no pide el teléfono del cliente, cómo se entrega ni la dirección y el link de Maps: la venta que se registra allá llega a los teléfonos sin esos datos y sale en «Faltan datos» del Tablero. Lo demás funciona igual',
@@ -1059,9 +1060,18 @@ async function tokenDeGoogle(conVentana) {
  * Una petición al Worker. Devuelve `{estado, cuerpo}` y NUNCA lanza por un cuerpo raro:
  * lo que lanza es la red, y con el código que la bandeja sabe interpretar.
  */
+/* La sesión de la base, para los caminos que la hoja le abre desde puente-sheets-16 (Drive y los links
+   de Maps). Solo la trae el relevo de la base (`crear(cfg, {tokenDeLaBase})`, js/datos/supa-relevo.js):
+   con la base mandando, es la puerta que el teléfono ya tiene abierta. Sin sesión, '' y no viaja. */
+async function sesionDeLaBase(deLaBase) {
+  if (typeof deLaBase !== 'function') return '';
+  try { return String((await deLaBase()) || ''); } catch (_) { return ''; }
+}
+
 async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
   /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
   const g = await tokenDeGoogle(opciones.conVentana === true);
+  const s = await sesionDeLaBase(opciones.deLaBase);
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
      de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
@@ -1097,6 +1107,7 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
      por {"ruta":"ia", (doPost en puente/hoja-apps-script.gs). */
   cuerpo = Object.assign({ ruta: camino.replace(/^\/+/, '') }, cuerpo);
   if (g) cuerpo.google_token = g;
+  if (s) cuerpo.supa_token = s;
   if (cfg.token) cuerpo.token = cfg.token;
 
   let r;
@@ -1214,8 +1225,11 @@ export function fuenteDeLectura(f) {
 /** Si las filas vienen de Supabase y no de la hoja (lo pinta Ajustes). */
 export function leeDeOtraFuente() { return !!_fuente; }
 
-export function crear(cfg0) {
+export function crear(cfg0, opc = {}) {
   const cfg = { url: normalizarUrl(cfg0 && cfg0.url), token: String((cfg0 && cfg0.token) || '') };
+  /* Con la base mandando, quien arma este relevo para Drive y Maps le pasa cómo leer la sesión de la
+     base (ver `sesionDeLaBase`). El relevo de la hoja, el de siempre, no la lleva. */
+  const deLaBase = (opc && typeof opc.tokenDeLaBase === 'function') ? opc.tokenDeLaBase : null;
   /* Basta la DIRECCIÓN. El token de dispositivo dejó de ser obligatorio aquí el 20 de
      septiembre de 2026 y esa línea —`if (!cfg.url || !cfg.token) return null`— costó un
      bucle en producción que conviene dejar escrito: con la puerta de Google puesta, un
@@ -1711,7 +1725,7 @@ export function crear(cfg0) {
     /** Las cuatro líneas que del lado del navegador son imposibles. */
     async expandir(u) {
       try {
-        const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')));
+        const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')), { deLaBase });
         /* Con el código de la hoja: `DATO_INVALIDO` (no es un dominio de Maps) es definitivo, y
            `SIN_RED` (la hoja no alcanzó a Google) se reintenta. Ver `Geo.resolverLink`. */
         return r.cuerpo.ok ? { ok: true, url: r.cuerpo.url }
@@ -1726,14 +1740,15 @@ export function crear(cfg0) {
      *  anterior contesta «Camino desconocido.»: eso se dice como lo que es, la hoja vieja. */
     async carpetas() {
       try {
-        const r = await pedir(cfg, '/carpetas');
+        const r = await pedir(cfg, '/carpetas', { deLaBase });
         const c = r.cuerpo || {};
         if (c.ok) return { ok: true, raiz: String(c.raiz || ''), carpetas: Array.isArray(c.carpetas) ? c.carpetas : [] };
         if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {
           return { ok: false, codigo: 'HOJA_VIEJA', mensaje: 'La hoja todavía no lee la carpeta de Drive: falta pegarle el Apps Script puente-sheets-10.' };
         }
-        /* Con la base mandando, Drive es lo único que pide el permiso de la hoja, y de fondo ya no se pide solo (ES-3): sin él la hoja
-           contesta que no sabe quién pregunta. Eso no es un error, es un permiso que falta, y se dice qué tocar. */
+        /* Con la base mandando, de fondo ya no se pide el permiso de Google de la hoja (ES-3). Desde puente-sheets-16 la hoja
+           acepta la sesión de la base para Drive y esto no pasa; con una hoja anterior, o una sesión que la base no reconoce,
+           la hoja contesta que no sabe quién pregunta. Eso no es un error, es un permiso que falta, y se dice qué tocar. */
         if (c.codigo === 'ROL_SIN_PERMISO' && !Ingreso.dentro() && laBaseManda()) {
           return { ok: false, codigo: 'SIN_PERMISO_DRIVE',
                    mensaje: 'Para ver aquí las carpetas de Drive, este teléfono necesita el permiso de Google de la hoja: toca «Conectar Drive».' };
@@ -1748,7 +1763,7 @@ export function crear(cfg0) {
      *  Si ya hay una con ese nombre, la hoja devuelve ésa y `creada` viene en false. */
     async crearCarpeta(nombre) {
       try {
-        const r = await pedir(cfg, '/crear_carpeta', { body: JSON.stringify({ nombre: String(nombre || '') }) });
+        const r = await pedir(cfg, '/crear_carpeta', { body: JSON.stringify({ nombre: String(nombre || '') }), deLaBase });
         const c = r.cuerpo || {};
         if (c.ok && c.carpeta) return { ok: true, creada: !!c.creada, carpeta: c.carpeta };
         if (c.codigo === 'NO_ENCONTRADO' && /camino desconocido/i.test(String(c.mensaje || ''))) {

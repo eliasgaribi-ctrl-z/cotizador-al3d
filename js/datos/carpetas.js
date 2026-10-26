@@ -193,6 +193,8 @@ function guardar() { try { localStorage.setItem(K_CACHE, JSON.stringify(_mem)); 
 /**
  * «Conectar Drive»: el permiso de Google de la hoja, pedido con un toque. Con la base mandando nada de fondo
  * lo pide (js/datos/puente.js, `tokenDeGoogle`), así que Drive lo necesita de un botón (`SIN_PERMISO_DRIVE`).
+ * Desde puente-sheets-16 la hoja acepta la sesión de la base y el botón no hace falta: queda para una hoja
+ * anterior o una sesión que la base no reconoce.
  * Tiene que llamarse DENTRO del clic: abre la ventana de Google. Con el permiso dado, la siguiente vuelta
  * vuelve a preguntar a Drive en vez de esperar los cinco minutos del último fallo.
  * @returns {Promise<{ok:boolean, mensaje?:string}>}

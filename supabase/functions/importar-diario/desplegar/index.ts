@@ -14,7 +14,7 @@
 //   121a081376026fad  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
 //   cfd0119724bf4a0e  js/datos/proyectos.js
-//   4c17a0a8e1003a4e  js/datos/puente.js
+//   8f24f962983e9d1f  js/datos/puente.js
 //   f264d239bd03e18f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   5be48180438525b2  js/nucleo/ingreso.js

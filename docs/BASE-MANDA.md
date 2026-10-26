@@ -285,7 +285,8 @@ base ya no da de alta ventas sin cotización (`0026`) y «Datos de la venta» de
 
 1. ~~El sello de los QR: su clave a Supabase, o `/autorizar` y `/verificar` se quedan en el Apps Script.~~ Decidido el 2026-10-25: se quedan
    en el Apps Script, con todo el notario, la IA y los links de Maps.
-2. ~~Las carpetas de Drive~~: se quedan en el Apps Script (decidido el 2026-10-25).
+2. ~~Las carpetas de Drive~~: se quedan en el Apps Script (decidido el 2026-10-25). Desde `puente-sheets-16` (2026-10-26) la hoja
+   acepta la sesión de la base para Drive y Maps: sin eso, con la base mandando, la ficha dejó de enseñar los diseños.
 3. Si los borradores de cotización y las imágenes de referencia se sincronizan entre teléfonos (las imágenes de las cotizaciones del historial
    ya se sincronizan desde el paso 4; los borradores y la imagen de referencia, no: ver «Paso 4»).
 4. La prueba de la entrada con Google en el iPhone.
