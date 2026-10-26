@@ -23,6 +23,7 @@
    ============================================================================ */
 
 import * as Sync from './sync.js';
+import * as Ingreso from '../nucleo/ingreso.js';
 
 /* Palabras que no dicen de quién es el trabajo: artículos, tratamientos y lo que Elías pone en
    el nombre de TODOS los archivos («Escalas y Logotipo de…», «Ordenes de Fabricacion»). */
@@ -188,6 +189,19 @@ function leerGuardada() {
   catch (_) { return null; }
 }
 function guardar() { try { localStorage.setItem(K_CACHE, JSON.stringify(_mem)); } catch (_) {} }
+
+/**
+ * «Conectar Drive»: el permiso de Google de la hoja, pedido con un toque. Con la base mandando nada de fondo
+ * lo pide (js/datos/puente.js, `tokenDeGoogle`), así que Drive lo necesita de un botón (`SIN_PERMISO_DRIVE`).
+ * Tiene que llamarse DENTRO del clic: abre la ventana de Google. Con el permiso dado, la siguiente vuelta
+ * vuelve a preguntar a Drive en vez de esperar los cinco minutos del último fallo.
+ * @returns {Promise<{ok:boolean, mensaje?:string}>}
+ */
+export async function conectarDrive() {
+  const r = Ingreso.correo() ? await Ingreso.renovar({ gesto: true }) : await Ingreso.entrar(false);
+  if (r && r.ok) _fallo = null;
+  return r && r.ok ? { ok: true } : { ok: false, mensaje: (r && r.mensaje) || 'Google no dio el permiso.' };
+}
 
 /** Lo último que se sabe de Drive, sin red y sin esperar: para pintar el tablero. */
 export function ultima() {

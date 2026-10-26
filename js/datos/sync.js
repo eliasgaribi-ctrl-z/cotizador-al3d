@@ -456,6 +456,27 @@ export async function rechazadas() {
 }
 
 /**
+ * Tira UNA operación apartada como «rechazada», la que alguien decidió en Ajustes que ya no va (auditoría
+ * 2026-10-25, ES-8: la única salida era «Volver a intentarlos», que rebotaba igual). Solo si de verdad está
+ * rechazada: lo pendiente, un conflicto o lo que no tiene destino no se tiran desde aquí.
+ * @returns {Promise<Resultado>} {valor:{descartada:boolean}}
+ */
+export async function descartarRechazada(id) {
+  const op = (await rechazadas()).find(o => o.id === id);
+  if (!op) return ok({ descartada: false });
+  const r = await DB.borrar('pendientes', op.id);
+  return ok({ descartada: !!(r && r.ok) });
+}
+
+/** La sesión de la base se fue: el relevo olvida la cuenta que recordaba (js/datos/supa-relevo.js). El de la hoja no
+ *  recuerda ninguna y no hace nada. */
+export function olvidarCuenta() {
+  if (_adaptador && typeof _adaptador.olvidarCuenta === 'function') {
+    try { _adaptador.olvidarCuenta(); } catch (_) { /* un relevo que truena al olvidar no tira la app */ }
+  }
+}
+
+/**
  * Tira de la bandeja lo que cuelga de UN proyecto: sus operaciones y las de su instalación.
  *
  * Es la otra salida de lo apartado, y la usa la capa de datos, no una pantalla: cuando

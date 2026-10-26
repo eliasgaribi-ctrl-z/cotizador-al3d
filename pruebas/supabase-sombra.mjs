@@ -110,8 +110,9 @@ try {
     cierto('la vuelta de 30 s solo se salta la bajada si la lectura en vivo lo dice (y vale null por omisión)',
       /let _lecturaEnVivo = null;/.test(app) && /if \(!\(_lecturaEnVivo && _lecturaEnVivo\.saltarJalar\(\)\)\) try \{/.test(app));
     const aj = sinComentarios(leer('js/mod/ajustes.js'));
+    /* Con la base mandando, en lugar de la sombra va solo la copia de la hoja y el cuadre (auditoría 2026-10-25, ES-10). */
     cierto('Ajustes solo pinta el bloque a Dirección activa con sesión, dentro de la tarjeta de Supabase',
-      /if \(a\.estado === 'activo' && a\.area === 'direccion'\) html \+= await bloquePersonas\(Supa\) \+ await bloquePantallas\(Supa\) \+ await bloqueSombra\(\);/.test(aj));
+      /if \(a\.estado === 'activo' && a\.area === 'direccion'\) \{\s*html \+= await bloquePersonas\(Supa, a\.correo\) \+ await bloquePantallas\(Supa\) \+ \(Supa\.laBaseManda\(\) \? await bloqueCopiaYCuadre\(\) : await bloqueSombra\(\)\);/.test(aj));
     cierto('y lo carga con import()', /await import\('\.\.\/datos\/supa-sombra\.js'\)/.test(aj) && /await import\('\.\.\/datos\/supa-enchufe\.js'\)/.test(aj));
     const sy = sinComentarios(leer('js/datos/sync.js'));
     cierto('el gancho de sync nace en null y solo se llama si existe', /let _alSubir = null;/.test(sy) && /if \(_alSubir\) \{ try \{ await _alSubir\(op, respuesta\); \} catch \(_\) \{/.test(sy));

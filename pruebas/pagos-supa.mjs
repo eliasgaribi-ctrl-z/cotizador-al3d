@@ -740,7 +740,7 @@ console.log('\nLOS TEXTOS QUE DECÍAN «LA HOJA» CON LA BASE MANDANDO (paso 5)'
     (aj.match(/' lo manda ' \+ Manda\.rolLoManda\(\) \+ '<\/span>'/g) || []).length === 2 && !/lo manda la hoja<\/span>/.test(aj));
   cierto('y su nota también (Ajustes y la barra de arriba)', !/Prefs\.ROL_LO_MANDA_LA_HOJA/.test(aj + app) &&
     (aj.match(/Manda\.notaDelRol\(\)/g) || []).length >= 4 && (app.match(/Manda\.notaDelRol\(\)/g) || []).length === 2);
-  cierto('y el párrafo de «Entrar con Google» dice de dónde sale el rol', /\(Manda\.rolDeLaBase\(\)\n?\s*\? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base<\/b>/.test(aj));
+  cierto('y el párrafo de «Entrar con Google» dice de dónde sale el rol', /\(Manda\.rolDeLaBase\(\)\n?\s*\? '<p class="pf-nota">El rol no sale de este aparato: sale de tu área en la <b>base de datos<\/b>/.test(aj));
   cierto('quien-manda.js no toca prefs.js (que va en los paquetes de dos funciones de Supabase)', !/rolDeLaBase|ROL_LO_MANDA_LA_BASE/.test(leer('js/datos/prefs.js')) &&
     /'\.\/js\/datos\/quien-manda\.js'/.test(leer('sw.js')));
   cierto('el pase que da la base lleva `de: \'base\'`', /Prefs\.setPase\(\{ correo, rol: a\.area, hasta: Date\.now\(\) \+ MS_PASE, visto: Date\.now\(\), de: 'base' \}\)/.test(leer('js/nucleo/puerta.js')));
@@ -749,7 +749,7 @@ console.log('\nLOS TEXTOS QUE DECÍAN «LA HOJA» CON LA BASE MANDANDO (paso 5)'
   pase();
   eq('pase de la hoja: «lo manda la hoja» y la nota de «Accesos»', [Manda.rolDeLaBase(), Manda.rolLoManda(), Manda.notaDelRol() === Prefs.ROL_LO_MANDA_LA_HOJA], [false, 'la hoja', true]);
   pase('base');
-  eq('pase de la base: «lo manda la base» y la nota de Personas', [Manda.rolDeLaBase(), Manda.rolLoManda(), /Ajustes → Supabase → Personas/.test(Manda.notaDelRol())], [true, 'la base', true]);
+  eq('pase de la base: «lo manda la base» y la nota de Personas', [Manda.rolDeLaBase(), Manda.rolLoManda(), /Ajustes → La base de datos → Personas/.test(Manda.notaDelRol())], [true, 'la base', true]);
   globalThis.localStorage.removeItem(Prefs.CLAVES.PASE);
   eq('sin pase: nada que decir (el interruptor del rol es de este aparato)', [Manda.rolDeLaBase(), Manda.rolLoManda()], [false, 'la hoja']);
 }
