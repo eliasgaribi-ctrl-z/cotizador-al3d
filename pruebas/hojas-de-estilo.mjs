@@ -47,8 +47,8 @@ cierto(!/^<style>$/m.test(html), 'cotizador.html ya no trae un bloque <style> pr
    moverla una línea más arriba no rompe nada ni avisa de nada, simplemente deja de aplicarse
    —y encima solo en la página donde se movió—. Así que el orden se comprueba aquí. */
 for (const [f, propia, otras] of [
-  ['cotizador.html', 'css/vidrio.css', ['css/sistema.css']],
-  ['index.html', 'css/vidrio.css', ['css/sistema.css', 'css/plataforma.css', 'vendor/leaflet.css']],
+  ['cotizador.html', 'css/vidrio.css', ['css/sistema.css', 'css/cotizador.css']],
+  ['index.html', 'css/vidrio.css', ['css/sistema.css', 'css/plataforma.css']],
   ['anidador-vectores/index.html', '../css/vidrio.css', ['../css/sistema.css', 'css/anidador.css']],
   /* Las tres páginas públicas también. Nacieron sin ella y se pintaban en la letra de reserva
      del sistema: pedían Sora y Manrope a Google, pero el token que las nombra vive aquí, y sin
@@ -65,6 +65,26 @@ for (const [f, propia, otras] of [
     cierto(iOtra > -1 && iVid > iOtra, f + ': el vidrio se lee después de ' + otra);
   }
 }
+/* LO QUE SOLO USA EL COTIZADOR VA EN SU HOJA, JUSTO DESPUÉS DEL SISTEMA (auditoría 2026-10-25, TR-10). css/cotizador.css son
+   tramos de sistema.css que la plataforma nunca usa; cotizador.html la lee pegada a sistema.css para que la cascada quede como
+   cuando vivían juntos, y la plataforma no la baja. El CSS de Leaflet tampoco va en index.html: lo pide el Mapa al abrirse y lo
+   pone justo antes del vidrio, que pisa reglas `.leaflet-*` (js/mod/mapa.js, `hojaDeLeaflet`). */
+{
+  const t = leer('cotizador.html');
+  const iSis = t.indexOf('<link rel="stylesheet" href="css/sistema.css">');
+  const iCot = t.indexOf('<link rel="stylesheet" href="css/cotizador.css">');
+  const entre = iSis > -1 && iCot > iSis ? t.slice(iSis, iCot) : '';
+  cierto(iCot > iSis && iSis > -1 && (entre.match(/<link /g) || []).length === 1,
+    'cotizador.html lee css/cotizador.css justo después de css/sistema.css (sin otra hoja en medio)');
+  cierto(!leer('index.html').includes('href="css/cotizador.css"'), 'la plataforma no baja la hoja del cotizador');
+  cierto(!leer('index.html').includes('href="vendor/leaflet.css"'), 'index.html ya no baja vendor/leaflet.css al abrir');
+  const mapa = leer('js/mod/mapa.js');
+  cierto(/function hojaDeLeaflet\(\)[\s\S]{0,900}link\[href\$="css\/vidrio\.css"\][\s\S]{0,120}\.before\(l\)/.test(mapa) &&
+    /await hojaDeLeaflet\(\);\s*await cargar\(\);/.test(mapa), 'el Mapa pide vendor/leaflet.css antes de crear el mapa, justo antes del vidrio');
+  const sw = leer('sw.js');
+  cierto(sw.includes("'./css/cotizador.css'") && sw.includes("'./vendor/leaflet.css'"), 'y las dos siguen en la precarga del service worker');
+}
+
 /* LA CAPA ESTUDIO (20/10/2026) VA DESPUÉS DEL VIDRIO, por la misma razón por la que el vidrio va
    después de las demás: repinta tokens y cromado con selectores de una clase, y con la misma
    especificidad gana la última. Se comprueba en las mismas siete páginas y, desde el 23/10, en el
@@ -116,16 +136,18 @@ for (const [f, src] of [['cotizador.html', 'js/tema.js'], ['index.html', 'js/tem
 }
 
 console.log('\nNINGÚN TOKEN SE USA SIN EXISTIR');
+const cotizadorCss = leer('css/cotizador.css');
 const definidos = new Set([...sistema.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])
   .concat([...plataforma.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1]))
-  .concat([...vidrio.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])));
+  .concat([...vidrio.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1]))
+  .concat([...cotizadorCss.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])));
 /* Los que publica el JS en caliente —el alto de la barra fija, el de los dos acordeones— no
    están en ninguna hoja Y NO PASA NADA, porque los tres se usan con valor de reserva. Lo que no
    puede haber es una var() sin definir Y sin reserva. */
 /* Sin comentarios: el del bloque de matices de partida EXPLICA esta misma regla con un `--x` de
    ejemplo, y buscarlo en el texto crudo haría fallar la prueba por su propia explicación. */
 for (const [archivo, css] of [['css/sistema.css', sistema], ['css/plataforma.css', plataforma],
-                              ['css/vidrio.css', vidrio]]) {
+                              ['css/vidrio.css', vidrio], ['css/cotizador.css', cotizadorCss]]) {
   const huerfanos = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/var\((--[a-z0-9-]+)\s*\)/g)]
     .map(m => m[1]).filter(t => !definidos.has(t));
   cierto(huerfanos.length === 0,
