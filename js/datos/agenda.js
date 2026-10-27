@@ -473,7 +473,11 @@ export const OBRA_YA_INSTALADA = ['instalado', 'garantia'];
 
 /**
  * @param {{desde?:string, hasta?:string, estado?:string, estados?:string[],
- *          proyecto_id?:string, vivas?:boolean, conProyecto?:boolean, sinObraInstalada?:boolean}} [filtro]
+ *          proyecto_id?:string, vivas?:boolean, conProyecto?:boolean, sinObraInstalada?:boolean,
+ *          sinOcultos?:boolean}} [filtro]
+ *   `sinOcultos`: sin las citas de las obras que Dirección ocultó del taller (`oculto_taller`, 0029;
+ *   auditoría 2026-10-26, T1-9). Lo pide «Lo que viene» del Calendario; el mes, la semana y «Toda la
+ *   agenda» las siguen enseñando: son lo que pasó.
  * @returns {Promise<Object[]>} vacío si la base no abrió. NUNCA lanza.
  */
 export async function listar(filtro = {}) {
@@ -502,10 +506,39 @@ export async function listar(filtro = {}) {
       .filter(p => p && OBRA_YA_INSTALADA.includes(p.etapa)).map(p => p.id));
     if (yaInstalados.size) filas = filas.filter(i => !yaInstalados.has(i.proyecto_id));
   }
+  if (f.sinOcultos && filas.length) {
+    const ocultos = new Set((await DB.listar('proyectos') || []).filter(p => p && p.oculto_taller === true).map(p => p.id));
+    if (ocultos.size) filas = filas.filter(i => !ocultos.has(i.proyecto_id));
+  }
 
   filas.sort(ordenDia);
   if (f.conProyecto) return await conProyectos(filas);
   return filas;
+}
+
+/**
+ * «Lo que viene» del Calendario: las citas de hoy en adelante y, ANTES de ellas, las que ya pasaron y
+ * nadie marcó (auditoría 2026-10-26, T1-9). Hasta entonces la lista arrancaba hoy, y una instalación
+ * que se hizo días después de su fecha acordada —o que no se hizo— desaparecía de la lista sin que
+ * nadie dijera qué pasó; para verla había que encender «Incluir lo que ya pasó». Ahora sigue saliendo,
+ * marcada `atrasada` (la pantalla la pinta en rojo, con su palabra), hasta que alguien la marque
+ * hecha, la mueva o la cancele. PURA.
+ * @param {Object[]} proximas las de hoy en adelante (`listar({desde: hoy, …})`)
+ * @param {Object[]} atrasadas las que ya pasaron sin marcar (`listar({hasta: ayer, estados: sin marcar,
+ *   sinObraInstalada: true, …})`, las mismas de «Ya pasó y nadie la marcó»)
+ * @returns {Object[]} las atrasadas (con `atrasada: true`), por fecha, y luego las próximas; sin repetir ninguna
+ */
+export function loQueViene(proximas, atrasadas) {
+  const vistas = new Set();
+  const out = [];
+  const tarde = (Array.isArray(atrasadas) ? atrasadas : []).filter(Boolean).slice().sort(ordenDia);
+  for (const i of tarde) { if (vistas.has(i.id)) continue; vistas.add(i.id); out.push({ ...i, atrasada: true }); }
+  for (const i of Array.isArray(proximas) ? proximas : []) {
+    if (!i || vistas.has(i.id)) continue;
+    vistas.add(i.id);
+    out.push(i);
+  }
+  return out;
 }
 
 /* Por día, y dentro del día por hora. Las que no tienen hora van al final: no es que sean

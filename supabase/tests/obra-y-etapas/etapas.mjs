@@ -5,7 +5,7 @@
 //     origen Y destino, y Pagos ninguna.) ET-02, ET-04b, ET-05, ET-05c y ET-17 fallan sin 0017;
 //   · al ALCANZAR el corte (cortado o más) salen del almacén los materiales del proyecto, una vez, con id determinista `mov-salida:<req.id>`;
 //   · instalación `hecha` ⇒ `instalado` (si la marca un área que puede marcar «instalado»: Dirección o Fabricación) y cobro ⇒ `instalado`
-//     (solo en filas importadas).
+//     (solo en filas importadas; desde 0029, solo con LIQUIDADO: COBRANDO deja la obra en su estación).
 import { describir, prueba, dato, igual, cierto, resumen } from '../arnes/marco.mjs';
 import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sembrarAlmacen, sesionDe, rpcT, una, sql, conCopia } from '../comun/semilla.js';
 
@@ -379,15 +379,19 @@ describir('ET-19 a ET-21 cobro ⇒ instalado (solo filas importadas, sin salidas
       igual(x.m, 0, 'sin salidas');
     });
   });
-  prueba('ET-20 Dirección y Pagos: corregir_venta(estatus COBRANDO) en una fila manual en «listo» → instalado', async () => {
+  /* 0029 (auditoría 2026-10-26, T1-9, decidido por Elías): COBRANDO ya no da la obra por instalada —se queda en su estación hasta LIQUIDADO—.
+     Hasta 0028 este caso esperaba «instalado» con COBRANDO. Lo demás de la transición está en obra-y-etapas/taller-hasta-liquidar.mjs. */
+  prueba('ET-20 Dirección y Pagos: corregir_venta(estatus COBRANDO) en una fila manual en «listo» la DEJA en «listo» (0029); con LIQUIDADO → instalado', async () => {
     await conVentas(async db => {
       for (const quien of ['dir', 'pag']) {
         await sql(db, `update public.proyectos set estatus = 'FABRICACION', etapa = 'listo' where id = 'c5'`);
         const y = await sesionDe(db, db.u[quien]).transaccion(async t => {
           const r = await rpcT(t, 'corregir_venta', { p_proyecto: 'c5', p_cambios: { estatus: 'COBRANDO' } });
-          return { r, e: (await etapa(t, 'c5')).etapa };
+          const e1 = (await etapa(t, 'c5')).etapa;
+          const r2 = await rpcT(t, 'corregir_venta', { p_proyecto: 'c5', p_cambios: { estatus: 'LIQUIDADO' } });
+          return { r, e1, r2, e2: (await etapa(t, 'c5')).etapa };
         });
-        igual([y.r.ok, y.e], [true, 'instalado'], quien);
+        igual([y.r.ok, y.e1, y.r2.ok, y.e2], [true, 'listo', true, 'instalado'], quien);
       }
     });
   });

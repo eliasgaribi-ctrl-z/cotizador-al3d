@@ -31,13 +31,18 @@
       y tener dos llaves distintas —una para la pantalla y otra para el almacén— es cómo un
       aviso atendido reaparece al recargar.
 
-   Dep: db, prefs, cotizador, ui (fechas y formato), stock/material/proyectos (perezosos).
+   Dep: db, prefs, cotizador, ui (fechas y formato), agenda (solo el interruptor de Material),
+   stock/material/proyectos (perezosos).
    ============================================================================ */
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
 import { TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from './entrega.js';
+/* El interruptor único de Material (auditoría 2026-10-26, T1-7). Estático y no perezoso como stock o
+   material: agenda.js no importa este archivo —no hay ciclo— y lo que se lee es una constante, no un
+   módulo de 60 KB. */
+import { MATERIAL_EN_MANTENIMIENTO } from './agenda.js';
 import { diasEntre } from '../nucleo/fechas.js';
 import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa, telWa }
   from '../nucleo/ui.js';
@@ -207,12 +212,20 @@ function normalizar(e) {
     cola: arr(E.cola),
     avisos: arr(E.avisos),
     calibracion: arr(E.calibracion),
+    /* Los folios de cotización que ya son una venta del libro (auditoría 2026-10-26, T1-1; ver `a6`). */
+    foliosDelLibro: arr(E.foliosDelLibro).map(String),
     hoy: esISO(E.hoy) ? E.hoy : hoyISO(),
     rol: E.rol || null,
     veDinero: E.veDinero === undefined ? E.rol !== 'fabricacion' : !!E.veDinero,
     dispositivo: E.dispositivo || '',
     /* La base manda (ver `laBaseManda`, arriba). Sin decirlo, la hoja: lo de siempre. */
     base: E.base === true,
+    /* Material encendido. Sin decirlo, lo dice el interruptor único (`MATERIAL_EN_MANTENIMIENTO` de
+       js/datos/agenda.js): con Material en mantenimiento no hay avisos de material, venga de quien
+       venga la llamada. Se puede decir `material: true` para probar el día que se encienda —es lo que
+       hace pruebas/reglas.mjs con las reglas de material— sin que `evaluar` deje de ser pura
+       (auditoría 2026-10-26, T1-7). */
+    material: E.material === undefined ? !MATERIAL_EN_MANTENIMIENTO : E.material === true,
   };
 }
 
@@ -229,9 +242,29 @@ function normalizar(e) {
 export function evaluar(estado) {
   const E = normalizar(estado);
   const out = [];
-  a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
-  a11(E, out); a12(E, out); a13(E, out); a15(E, out);
-  return ordenar(vigentes(out, E));
+  a6(E, out); a7(E, out); a10(E, out);
+  a11(E, out); a12(E, out); a15(E, out);
+  /* Las tres de material —A8 «falta material / no tiene material calculado», A9 «bajo mínimo» y A13
+     «constante desviada»— salen solo con Material encendido. Con Material en mantenimiento su cálculo
+     no está bien definido, su pantalla está apagada y sus botones («Recalcular material», «Ver la
+     lista de compra», «Ver almacén», «Actualizar la constante») llevaban a esa pantalla o a un número
+     en el que nadie confía; en rojo, encima, en casi cada instalación. El día que se encienda vuelven
+     las tres juntas, con el mismo interruptor (auditoría 2026-10-26, T1-7). */
+  if (E.material) { a8(E, out); a9(E, out); a13(E, out); }
+  return ordenar(vigentes(sinLoOculto(out, E), E));
+}
+
+/* Lo que Dirección ocultó del taller (`oculto_taller`, 0029; auditoría 2026-10-26, T1-9: «son
+   proyectos con los que quedé mal con el cliente, entonces probablemente nunca me liquiden») no
+   pide nada en «Qué atender»: ni sus avisos de proyecto ni los de su cita. Se quitan al final y no
+   antes de evaluar: el proyecto sigue en `E.proyectos`, así A6 sabe que su cotización ya se decidió
+   y no vuelve a preguntar por ella. El dinero no cambia: Control la sigue contando como siempre. */
+function sinLoOculto(lista, E) {
+  const ocultos = new Set(E.proyectos.filter(p => p && p.oculto_taller === true).map(p => p.id));
+  if (!ocultos.size) return lista;
+  const deLaCita = new Map(E.instalaciones.filter(Boolean).map(i => [i.id, i.proyecto_id]));
+  return lista.filter(a => !(a.entidad === 'proyecto' && ocultos.has(a.entidad_id)) &&
+                           !(a.entidad === 'instalacion' && ocultos.has(deLaCita.get(a.entidad_id))));
 }
 
 /** El aviso, con los campos de la pantalla y los de §4.9 en el mismo objeto: así
@@ -317,6 +350,11 @@ function a6(E, out) {
     if (p.folio_local) decididos.add(String(p.folio_local));
     if (p.folio_global) decididos.add(Cot.folioVisible(p.folio_global));
   }
+  /* Y las ventas del libro (auditoría 2026-10-26, T1-1): con la base mandando, el historial de la empresa trae
+     cotizaciones que otro teléfono ya vendió, y si esa venta ya no está en la línea del taller (COBRANDO,
+     LIQUIDADO) no es tarjeta aquí. Sin esto «Qué atender» las pedía decidir, y su «Se ganó» habría dado de
+     alta la misma venta otra vez. Los pone `refrescar` (`Proyectos.foliosDecididos`, la misma regla). */
+  for (const fg of E.foliosDelLibro) decididos.add(Cot.folioVisible(fg));
 
   for (const e of E.historial) {
     const folio = String(e.folio || '').trim();
@@ -640,15 +678,21 @@ function a12(E, out) {
        sin ordenar, y con `===` todo proyecto viejo salía como «se editó después de ganarse». */
     if (Cot.mismaHuella(antes, entrada)) continue;
 
+    /* Con Material en mantenimiento el aviso se queda —recalcular es también la única puerta por la
+       que cambian el nombre y el importe del proyecto (`Proyectos.resincronizar`)— pero no habla de
+       material: «Recalcular material» prometía algo de una pantalla apagada (auditoría 2026-10-26,
+       T1-7). Es el mismo botón y hace lo mismo. */
     out.push(aviso('A12', p.id, {
       tono: 'av',
       titulo: folio + ' se editó después de ganarse',
-      detalle: 'El material calculado ya no corresponde a lo que dice la cotización de hoy. Recalcular reemplaza la copia congelada y vuelve a derivar el material; dejarlo así conserva lo que se firmó.',
+      detalle: E.material
+        ? 'El material calculado ya no corresponde a lo que dice la cotización de hoy. Recalcular reemplaza la copia congelada y vuelve a derivar el material; dejarlo así conserva lo que se firmó.'
+        : 'El proyecto sigue con las partidas que se ganaron. Actualizarlo reemplaza la copia congelada por la cotización de hoy (partidas, nombre e importe); dejarlo así conserva lo que se firmó.',
       cuando: '',
       plazo: 0,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        { label: 'Recalcular material', tipo: 'resincronizar', datos: { proyecto_id: p.id } },
+        { label: E.material ? 'Recalcular material' : 'Actualizar con la de hoy', tipo: 'resincronizar', datos: { proyecto_id: p.id } },
         { label: 'Dejar como está', tipo: 'descartar_aviso', datos: { proyecto_id: p.id } },
       ],
     }));
@@ -786,13 +830,25 @@ function a15(E, out) {
  * las salidas de material se emiten como `derivado` y el almacén lo dice en su sello. Va
  * aquí porque es lo que corre «al abrir», que es el único momento que existe sin servidor.
  *
+ * Con Material en mantenimiento, NO. Abrir «Qué atender» o el asistente descontaba material
+ * a un día de la instalación sin que nadie tocara nada, y con la base mandando ese renglón va
+ * al libro COMPARTIDO de todos los teléfonos (auditoría 2026-10-26, T1-7). Nada descuenta
+ * solo mientras el interruptor esté puesto; tampoco se lee el almacén, que solo alimentaba
+ * los tres avisos de material que `evaluar` ya no saca. La guarda de verdad vive en
+ * `emitirSalidas` de js/datos/proyectos.js (por ahí pasan el corte y la derivada); ésta solo
+ * se ahorra la llamada.
+ *
  * NUNCA lanza: si algo falla devuelve lo que alcanzó a calcular, o [].
  */
 export async function refrescar(opts = {}) {
   const hoy = esISO(opts.hoy) ? opts.hoy : hoyISO();
+  const material = !MATERIAL_EN_MANTENIMIENTO;
   try {
+    /* El módulo de proyectos se carga siempre: con Material en mantenimiento ya no saca salidas, pero
+       `foliosDecididos` (abajo) sigue haciendo falta para que «Qué atender» no pida decidir una
+       cotización que ya es venta (auditoría 2026-10-26, T1-1 junto con T1-7). */
     const P = await mod('proyectos');
-    if (P && typeof P.emitirSalidasDerivadas === 'function') {
+    if (material && P && typeof P.emitirSalidasDerivadas === 'function') {
       try { await P.emitirSalidasDerivadas(hoy); } catch (_) {}
     }
 
@@ -801,19 +857,23 @@ export async function refrescar(opts = {}) {
       DB.listar('requerimientos'), DB.listar('avisos'),
     ]);
 
-    const S = await mod('stock');
+    const S = material ? await mod('stock') : null;
     const existencias = S && S.existencias ? await S.existencias().catch(() => []) : [];
     const faltantes = S && S.listaCompra
       ? await S.listaCompra({ hastaDias: DIAS_MATERIAL }).catch(() => []) : [];
-    const M = await mod('material');
+    const M = material ? await mod('material') : null;
     const calibracion = M && M.calibracion ? await M.calibracion().catch(() => []) : [];
 
+    /* Lo decidido que no es tarjeta aquí: las ventas del libro (auditoría 2026-10-26, T1-1; ver `a6`). */
+    const foliosDelLibro = P && typeof P.foliosDecididos === 'function'
+      ? [...await P.foliosDecididos(proyectos).catch(() => new Set())] : [];
+
     const lista = evaluar({
-      proyectos, instalaciones, requerimientos, existencias, faltantes,
+      proyectos, instalaciones, requerimientos, existencias, faltantes, foliosDelLibro,
       historial: Cot.historial(), cola: Cot.cola(),
       avisos: guardados, calibracion,
       hoy, rol: Prefs.rol(), veDinero: Prefs.veDinero(),
-      dispositivo: Prefs.dispositivo(), base: laBaseManda(),
+      dispositivo: Prefs.dispositivo(), base: laBaseManda(), material,
     });
 
     await persistir(lista, guardados);

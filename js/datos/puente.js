@@ -66,6 +66,8 @@ import { ENTREGAS, ENTREGA_NOMBRE, entregaDe, entregaDesdeHoja } from './entrega
 import * as Ingreso from '../nucleo/ingreso.js';
 import { duracionSugerida } from './agenda.js';
 import { fmtFecha, fmtHora, hoyISO } from '../nucleo/ui.js';
+/* El folio de cotización que trae una fila, con la regla de la tarjeta importada (auditoría 2026-10-26, T1-1; ver `bajar`). */
+import { folioDeLaFila as folioDeCotizacionDeLaFila } from './proyectos.js';
 
 /* ============================================================================
    El vocabulario del puente. Son los nombres que heredó de Notion —con el espacio final
@@ -168,7 +170,8 @@ export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
    Va aquí, al lado del vocabulario, para que quien toque la lista de estatus vea esta. */
 export const VIVAS_EN_TALLER = ['FABRICACION', 'REPARANDO'];
 /* Las etapas de la línea del taller, antes de «Instalado»: de éstas sale sola una tarjeta
-   importada cuando la hoja ya cobra su venta (ver `bajar()`). */
+   importada cuando la hoja (o la base) ya LIQUIDÓ su venta (ver `bajar()`). Con COBRANDO ya no:
+   la obra se queda en su estación hasta liquidarse (auditoría 2026-10-26, T1-9). */
 const EN_LA_LINEA = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
 
 /* Quita las llaves que no traen valor. Un `undefined` en un parche NO es «ponlo en nada»:
@@ -458,7 +461,14 @@ export function instalacionANotion(inst, viva) {
 export const COLUMNA_DEL_SELLO = {
   etapa: P.etapa, notas: P.notas, plazo_k: P.plazo, tel: P.tel, dir_texto: P.direccion,
   ubicacion: P.ubicacion, entrega: P.entrega, instalacion: P.fechaInst,
+  oculto_taller: '_oculto_taller',
 };
+/* «Ocultar del taller» (auditoría 2026-10-26, T1-9) no es una columna de la hoja: solo la base lo
+   guarda (`proyectos.oculto_taller`, 0029). La fila que arma la lectura de la base
+   (js/datos/supa-vivo.js) lo trae en esta llave, como trae la cita entera en `CITA_DE_LA_BASE`, y
+   su sello en la misma «columna» de los sellos. Una fila de la hoja no la trae nunca, y entonces no
+   se toca lo que este teléfono tenga. */
+export const OCULTO_DE_LA_BASE = COLUMNA_DEL_SELLO.oculto_taller;
 const GRUPO_DE_COLUMNA = Object.fromEntries(Object.entries(COLUMNA_DEL_SELLO).map(([g, c]) => [c, g]));
 
 /** Cuándo se cambió por última vez esta instalación, con la mano de alguien. La que bajó de la
@@ -575,6 +585,14 @@ export function obraDeLaFila(venta, local, o = {}) {
     const e = venta.entrega;
     toma('entrega', e, !e, e === entregaDe(local), () => { parche.entrega = e; }, false);
   }
+  /* «Ocultar del taller» (T1-9), solo de una fila de la base. `false` cuenta como vacío: sin sello
+     no deshace nada (la base dice `false` de todas las obras que nadie ocultó, y eso no debe pisar
+     un «ocultar» de este teléfono que todavía no sube); con sello, es Dirección que la volvió a
+     mostrar, y se aplica. */
+  if (typeof venta.oculto_taller === 'boolean') {
+    const o = venta.oculto_taller;
+    toma('oculto_taller', o, !o, o === (local.oculto_taller === true), () => { parche.oculto_taller = o; }, true);
+  }
   return cambio ? { parche, sellos } : { parche: {}, sellos: null };
 }
 
@@ -679,6 +697,8 @@ export function ventaDeHoja(fila) {
      con la celda vacía es '' —«la hoja no dice», que se lee instalación pero NO pisa lo de este
      lado— y la revisión de la bajada lo usa para mandar la que la fila no tiene. */
   if (Object.prototype.hasOwnProperty.call(fila, P.entrega)) v.entrega = entregaDesdeHoja(fila[P.entrega]);
+  /* «Ocultar del taller» (T1-9): solo si la fila es de la base y trae la llave (ver `OCULTO_DE_LA_BASE`). */
+  if (Object.prototype.hasOwnProperty.call(fila, OCULTO_DE_LA_BASE)) v.oculto_taller = fila[OCULTO_DE_LA_BASE] === true;
   /* Las notas, el plazo y los sellos (puente-sheets-14): solo si la fila trae la columna de los
      sellos —una hoja con AG:AI—. Los sellos se guardan por dato de la plataforma (etapa, notas,
      tel…; la cita es `instalacion`), que es como los compara `obraDeLaFila`. */
@@ -953,7 +973,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-16';
+export const VERSION_ESPERADA = 'puente-sheets-17';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -964,6 +984,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 16 */ 'con la base mandando, la hoja sigue aceptando lo que le manda un teléfono que todavía no se enteró —una etapa, un cobro, un gasto— y eso se queda en la hoja congelada sin llegar a la base; al abrir la hoja nadie ve que ya no recibe, y el correo de los lunes sale con cifras viejas. Falta pegar el Apps Script puente-sheets-17 (Código.gs y Copia diaria.gs)',
   /* 15 */ 'con la base mandando, la ficha de cada proyecto no enseña los archivos de su carpeta de Drive, no se abren carpetas nuevas ni se leen los links cortos de Maps sin tocar «Conectar Drive»: esa versión no acepta la sesión de la base. Falta pegar el Apps Script puente-sheets-16',
   /* 14 */ 'los gastos que se capturan en Control no llegan a la hoja: esa versión no tiene la pestaña «Gastos» ni sus caminos, y cada teléfono los guarda —sin perderse— hasta que la hoja se actualice. Falta pegar el Apps Script puente-sheets-15',
   /* 13 */ 'cada teléfono ve su propia versión de la obra: la etapa intermedia (En diseño, Cortado, Armado, Listo), las notas, el plazo de taller y las correcciones del teléfono, la dirección y el pin que se hacen en otro dispositivo no llegan, y una cita movida o cancelada en otro no siempre se mueve aquí. Falta pegar el Apps Script puente-sheets-14 y correr «3 · Preparar la hoja para el puente»',
@@ -998,6 +1019,14 @@ export function avisoVersion(version) {
 
 const MS_ESPERA = 15000;
 
+/* Con la base mandando, la hoja no recibe escrituras (puente-sheets-17; ver «LA BASE MANDA» en `crear`). El
+   código, el evento que escucha js/app.js y lo que la persona lee junto a cada cambio que espera. */
+export const LA_BASE_MANDA = 'LA_BASE_MANDA';
+export const EVENTO_LA_BASE_MANDA = 'al3d-la-base-manda';
+export const MSG_LA_BASE_MANDA = 'La plataforma ahora guarda en la base: este teléfono tiene que entrar con su cuenta. ' +
+  'Lo que hiciste se queda guardado aquí y sale en cuanto entres.';
+const MS_ENTRE_AVISOS = 20000;
+
 /** Un error del relevo, con el código que `sync.js` entiende. */
 function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codigo; return e; }
 
@@ -1021,15 +1050,30 @@ function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codig
 const MS_RENOVAR = 5000;
 const MS_ENTRE_RENOVACIONES = 60000;
 let _renovadoEn = 0;
+/* ── Y el freno de js/app.js, aquí también (auditoría 2026-10-26, T1-8) ──────────────────────────
+   Cerrar la ventana de Google, o decirle que no, ES la respuesta. Hasta octubre de 2026 este archivo
+   solo tenía el tope de uno por minuto: la persona cerraba la ventana y al minuto la vuelta del notario
+   —o cualquier otra petición que coincidiera con un toque— se la volvía a abrir. Ahora, tras un «no»
+   (DATO_INVALIDO: ventana cerrada, permiso negado, un origen que Google no acepta, o una ventana que no
+   regresó), nada que no sea un botón de la persona vuelve a pedirla en diez minutos: el mismo
+   MS_TRAS_NEGARSE que el oyente de clics de js/app.js. Un botón sí puede (`permisoDelToque`): es la
+   persona volviendo a pedirlo, no la app insistiendo. */
+const MS_TRAS_NEGARSE = 10 * 60000;
+let _renovarDesde = 0;
+/* La renovación que está en curso, si hay una: quien llega mientras tanto la espera en vez de abrir otra
+   ventana. Un toque que dispara dos preguntas, o la vuelta de fondo que cae mientras la persona todavía
+   está leyendo la pantalla de Google, son UNA ventana, no dos. */
+let _renovando = null;
 
 /* ── Con la base mandando, lo de fondo nunca abre la ventana de Google ──────────────────
    Quien entra por el botón de Google de la puerta no trae el permiso de la hoja, y lo que sigue en
    el Apps Script de fondo —las carpetas de Drive cada cinco minutos, los links cortos de Maps— lo
    pedía si en ese segundo había un toque reciente: la ventana de Google se abría sola en medio del
    trabajo, en el teléfono de Fabricación una vez cada cinco minutos (auditoría 2026-10-25, ES-3). Con
-   la base mandando, la ventana solo la abre una pregunta que alguien pidió con un botón (`hablar`: el
-   sello, la IA) o el «Entrar con Google» de Ajustes. La misma regla que js/app.js, leída sin cargar nada
-   (en una función de Supabase, sin localStorage, es la hoja: no cambia nada). */
+   la base mandando, la ventana solo la abre una pregunta que alguien pidió con un botón (`hablar` con
+   `toque`, o `permiso()`: el sello, la IA; ver T1-8 abajo) o el «Entrar con Google» de Ajustes. La
+   misma regla que js/app.js, leída sin cargar nada (en una función de Supabase, sin localStorage, es la
+   hoja: no cambia nada). */
 function laBaseManda() {
   try {
     const ls = globalThis.localStorage;
@@ -1038,22 +1082,123 @@ function laBaseManda() {
   } catch (_) { return false; }
 }
 
-async function tokenDeGoogle(conVentana) {
+/* ── Las dos clases de pregunta: la que pidió una persona con un botón, y la de fondo ─────────────
+   (auditoría 2026-10-26, T1-8). La auditoría del 25-oct (ES-3) quiso que lo de fondo nunca abriera la
+   ventana de Google con la base mandando, y la puerta que dejó abierta era `hablar`: TODA pregunta suelta
+   a la hoja pedía con ventana. Y por ahí pasaban cosas que nadie pidió: abrir el asistente o el modal de
+   la IA (/salud para pintar los proveedores), la espera de una autorización cada quince segundos
+   (/estado), la cola de Dirección (/pendientes), el reintento de /solicitar, el repintado del
+   Autorizador y el reintento de la copia de precios. Con el permiso de la hoja vencido —dura una hora— y
+   un toque cualquiera en esos cinco segundos, la ventana de Google se abría sola más o menos cada hora,
+   y si se cerraba volvía al minuto.
+
+   Ahora son tres caminos y cada quien dice el suyo:
+     · el BOTÓN (`hablar(..., {toque: true})` o `permiso()`): Solicitar, Autorizar, Rechazar, Analizar con
+       IA, Preguntar al asistente, Guardar precios. Puede abrir la ventana —dentro del toque, que es
+       cuando el navegador la deja abrir— y ESPERA a la persona (`permisoDelToque`);
+     · lo de FONDO (`hablar` sin `toque`, que es lo que se supone si nadie dice nada): nunca abre la
+       ventana. Sin permiso vivo sale sin él, y si la hoja contesta que no sabe quién pregunta eso se dice
+       como lo que es, «falta el permiso de Google» (`SIN_PERMISO_DE_GOOGLE`), no «sin señal»;
+     · el RELEVO de la hoja (la bandeja, Ajustes): lo de siempre. Con la base mandando no abre nada (ES-3);
+       con la hoja mandando, solo con un toque reciente, uno por minuto y nunca en los diez minutos que
+       siguen a un «no». */
+function anotarRespuesta(r) {
+  /* Un «no» de la persona frena diez minutos todo lo que no sea un botón. SIN_GESTO no es un «no» (nadie
+     vio nada) ni SIN_RED tampoco (no hubo a quién preguntarle). */
+  if (r && r.ok === false && r.codigo === 'DATO_INVALIDO') _renovarDesde = Date.now() + MS_TRAS_NEGARSE;
+  return r;
+}
+/* Una sola renovación a la vez, la pida quien la pida (ver `_renovando`). Nunca rechaza: contesta el
+   Resultado de ingreso.js. */
+function renovarUnaVez(abrir) {
+  if (_renovando) return _renovando;
+  _renovadoEn = Date.now();
+  let p;
+  try { p = Promise.resolve(abrir()); } catch (e) { p = Promise.reject(e); }
+  const esta = p
+    .catch(() => ({ ok: false, codigo: 'SIN_RED', mensaje: 'No se pudo pedir el permiso de Google.' }))
+    .then(anotarRespuesta)
+    .finally(() => { if (_renovando === esta) _renovando = null; });
+  _renovando = esta;
+  return esta;
+}
+/* El navegador sabe decir si hubo un toque (`navigator.userActivation`, Chrome y Safari 16.4+). Si no sabe,
+   el botón se cree a sí mismo: viene de un clic. */
+function sabeDelToque() {
+  try { return !!(globalThis.navigator && globalThis.navigator.userActivation); } catch (_) { return false; }
+}
+
+/* El token para una petición de fondo o del relevo. Nunca abre la ventana para `hablar` de fondo. */
+async function tokenDeGoogle(deFondo) {
   if (Ingreso.dentro()) return Ingreso.token();
   if (!Ingreso.configurado() || !Ingreso.correo()) return '';
-  if (!conVentana && laBaseManda()) return '';
+  if (deFondo || laBaseManda()) return '';
   if (!Ingreso.hayGesto()) return '';
-  if (Date.now() - _renovadoEn < MS_ENTRE_RENOVACIONES) return '';
-  _renovadoEn = Date.now();
+  const ahora = Date.now();
+  if (ahora - _renovadoEn < MS_ENTRE_RENOVACIONES || ahora < _renovarDesde) return '';
   let t = 0;
   try {
     await Promise.race([
-      Ingreso.renovar(),
+      renovarUnaVez(() => Ingreso.renovar()),
       new Promise(r => { t = setTimeout(r, MS_RENOVAR); }),
     ]);
   } catch (_) { /* renovar no lanza; y si lanzara, la petición sale con lo que haya */ }
   finally { if (t) clearTimeout(t); }
   return Ingreso.token();
+}
+
+/* ── El permiso pedido por un botón: se ESPERA a la persona ──────────────────────────────────────
+   Antes la renovación se cortaba a los cinco segundos (MS_RENOVAR) y la petición salía sin el permiso: en
+   un teléfono nuevo, el primer «Solicitar» abría la pantalla de consentimiento de Google, la persona la
+   leía, aceptaba… y la solicitud ya se había ido sin él, con «Sin señal» en pantalla. Ahora un botón
+   espera a la ventana, como ya hacía `asegurarSesion` del notario con `entrar(false)`. La espera tiene
+   tope —el de `Ingreso.entrar`, dos minutos— para el iPhone con la app instalada, donde la ventana de
+   Google a veces no regresa: sin él, «Sellando…» giraba para siempre.
+
+   `conToken`: el aparato tiene token de dispositivo. Entonces un «no» de Google no corta nada (la hoja
+   decide con el token), y uno que nunca entró con Google no tiene por qué ver la ventana.
+   Devuelve {ok:true, token} o {ok:false, codigo, mensaje}; nunca lanza. */
+async function permisoDelToque(conToken) {
+  if (Ingreso.dentro()) return { ok: true, token: Ingreso.token() };
+  if (!Ingreso.configurado()) return { ok: true, token: '' };
+  if (!Ingreso.correo()) {
+    /* Nunca entró con Google en este aparato. Con token de dispositivo, lo de siempre: decide el token. Sin
+       él, el botón es la única puerta que queda, y es «Entrar con Google» completo, como «Conectar Drive»
+       (js/datos/carpetas.js). */
+    if (conToken) return { ok: true, token: '' };
+  }
+  const r = await renovarUnaVez(() => (Ingreso.correo()
+    ? Ingreso.renovar(sabeDelToque() ? undefined : { gesto: true })
+    : Ingreso.entrar(false)));
+  if (Ingreso.dentro()) return { ok: true, token: Ingreso.token() };
+  return { ok: false, codigo: (r && r.codigo) || 'SIN_RED',
+           mensaje: (r && r.mensaje) || 'Google no dio el permiso.' };
+}
+
+/* Lo que se dice cuando una pregunta de fondo sale sin permiso y la hoja contesta que no sabe quién
+   pregunta. La frase de la hoja («Pégalo otra vez en Ajustes») es de los tiempos del token de dispositivo:
+   con la base mandando nadie tiene uno, y lo que falta es el permiso de Google, que se pide con un botón. */
+export const SIN_PERMISO_DE_GOOGLE =
+  'Falta el permiso de Google de la hoja: dura una hora y se pide con un botón, aceptando la ventana de Google.';
+function faltaPermiso(mensaje, motivo) {
+  const e = falla('ROL_SIN_PERMISO', mensaje || SIN_PERMISO_DE_GOOGLE);
+  e.permisoGoogle = true;
+  if (motivo) e.motivo = motivo;
+  return e;
+}
+
+/**
+ * El permiso de Google de la hoja, pedido por un botón y SIN preguntarle nada a la hoja. Para lo que tarda
+ * en llegar a su primera pregunta —la IA prepara la imagen, el asistente lee el taller— y para lo que hace
+ * varias seguidas: se llama al principio del toque, que es cuando el navegador deja abrir la ventana, y
+ * después las preguntas van de fondo con el permiso ya vivo (auditoría 2026-10-26, T1-8).
+ * @returns {Promise<{ok:boolean, codigo?:string, mensaje?:string}>} nunca lanza.
+ */
+export async function permiso() {
+  const p = Prefs.puente();
+  const conToken = !!String(p.token || '');
+  const r = await permisoDelToque(conToken);
+  return (r.ok || conToken) ? { ok: true } : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
 }
 
 /**
@@ -1069,8 +1214,9 @@ async function sesionDeLaBase(deLaBase) {
 }
 
 async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
-  /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
-  const g = await tokenDeGoogle(opciones.conVentana === true);
+  /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. `deFondo` lo pone
+     `hablar`, que ya pidió el permiso él mismo si la pregunta venía de un botón: aquí ya no se abre nada. */
+  const g = await tokenDeGoogle(opciones.deFondo === true);
   const s = await sesionDeLaBase(opciones.deLaBase);
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
@@ -1177,15 +1323,31 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
  *
  * Devuelve el cuerpo tal como lo contestó la hoja —`{ok:false, codigo, mensaje}` incluido— y
  * solo lanza por la red o por un rol sin permiso, con el código que `falla` pone.
+ *
+ * `opciones.toque`: la pidió una persona con un botón (ver «Las dos clases de pregunta», arriba). Sin
+ * él es de fondo y NUNCA abre la ventana de Google. Un permiso que falta lanza ROL_SIN_PERMISO con
+ * `permisoGoogle: true` y una frase que dice qué falta, para que nadie lo pinte como «sin señal».
  */
-export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA) {
+export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA, opciones = {}) {
   const p = Prefs.puente();
   const cfg = { url: normalizarUrl(p.url), token: String(p.token || '') };
   if (!cfg.url) throw falla('DATO_INVALIDO', 'Este aparato no tiene la dirección del puente.');
-  /* Una pregunta que alguien pidió con un botón: con la base mandando, es la que sí puede pedir el permiso de
-     Google de la hoja (ver `tokenDeGoogle`). */
-  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo), conVentana: true }, espera);
-  return r.cuerpo;
+  if (opciones && opciones.toque === true) {
+    /* El botón pide el permiso primero, y lo espera. Si la persona cerró la ventana, Google dijo que no o
+       la ventana no regresó, la pregunta ni sale —sin token de dispositivo la hoja la rechazaría— y se
+       dice por qué con las palabras de ingreso.js («Cerraste la ventana de Google…»). */
+    const pm = await permisoDelToque(!!cfg.token);
+    if (!pm.ok && !cfg.token) throw faltaPermiso(pm.mensaje, pm.codigo);
+  }
+  try {
+    const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo), deFondo: true }, espera);
+    return r.cuerpo;
+  } catch (e) {
+    /* Salió sin ninguna de las dos puertas y la hoja dijo que no sabe quién pregunta: eso es un permiso que
+       falta, no una cuenta sin acceso ni un token mal pegado. */
+    if (e && e.codigo === 'ROL_SIN_PERMISO' && !cfg.token && !Ingreso.dentro()) throw faltaPermiso();
+    throw e;
+  }
 }
 
 /** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de
@@ -1298,6 +1460,48 @@ export function crear(cfg0, opc = {}) {
   };
   const noSabeGastos = () => { hojaSabeGastos = false; gastosSabidoEn = Date.now(); };
 
+  /* ── LA BASE MANDA: la hoja ya no recibe (puente-sheets-17; auditoría 2026-10-26, T1-2) ──────────
+     Con la empresa en modo 'base', la hoja contesta LA_BASE_MANDA a /empujar, /empujar_almacen y
+     /empujar_gastos sin escribir nada. Este teléfono no se había enterado —si se hubiera enterado,
+     escribiría en la base y este relevo no estaría subiendo—, y lo que importa es que el cambio NO se
+     pierda: hasta la 16 la hoja contestaba «listo», la bandeja lo soltaba y se quedaba en una hoja
+     congelada.
+
+     Cómo se traduce, y por qué así:
+       · NO definitivo. `sync` no lo aparta como rechazado ni como «sin destino»: se queda en la bandeja
+         como pendiente, con el mensaje de abajo, y sale en cuanto el teléfono escriba en la base (el
+         relevo de la base toma la misma bandeja; docs/BASE-MANDA.md).
+       · Sin saturar la hoja. `sync` NO corta la vuelta con un código que no conoce: sigue con la
+         siguiente operación (js/datos/sync.js, `tratar`: solo cortan SIN_RED, DESCONOCIDO y el
+         ROL_SIN_PERMISO de la puerta). Con cuarenta cambios esperando, eran cuarenta peticiones a la
+         hoja cada 30 s, de cada teléfono así. Por eso este relevo RECUERDA la respuesta diez minutos
+         (`laHojaNoRecibe`): el resto de la vuelta, y las vueltas de esos diez minutos, se contestan aquí
+         mismo sin red. Pasado ese rato se le vuelve a preguntar a la hoja —una petición—, por si la
+         empresa regresó a la hoja. Y no se toca sync.js: cada operación queda con su razón a la vista.
+       · Un aviso por vuelta. `al3d-la-base-manda` lo escucha js/app.js para preguntarle el modo a la
+         base y avisarle a la persona; se dispara a lo más una vez cada 20 s (`MS_ENTRE_AVISOS`), menos
+         que el bombeo de cada 30 s: una vuelta con cuarenta cambios da UN aviso, no cuarenta.
+       · /salud dice el modo desde la 17 (`notarModo`): si ya se sabe por ahí, ni la primera subida sale. */
+  let laBaseMandaDesde = 0;
+  let avisadoEn = 0;
+  const notarModo = m => {
+    if (m === 'base') laBaseMandaDesde = Date.now();
+    else if (m === 'hoja') laBaseMandaDesde = 0;
+  };
+  const laHojaNoRecibe = () => !!laBaseMandaDesde && Date.now() - laBaseMandaDesde < MS_VOLVER_A_PREGUNTAR;
+  const avisarLaBaseManda = () => {
+    if (Date.now() - avisadoEn < MS_ENTRE_AVISOS) return;
+    avisadoEn = Date.now();
+    try { globalThis.dispatchEvent(new CustomEvent(EVENTO_LA_BASE_MANDA)); } catch (_) { /* sin ventana: las pruebas */ }
+  };
+  /* Lo que se le contesta a `sync` por cada operación: no definitivo, con la razón para la persona. */
+  const porLaBase = lista => {
+    avisarLaBaseManda();
+    return lista.map(op => ({ id: op.id, ok: false, codigo: LA_BASE_MANDA, mensaje: MSG_LA_BASE_MANDA }));
+  };
+  /* La hoja lo acaba de decir (en toda la respuesta o en una operación): se recuerda desde ahora. */
+  const laHojaLoDijo = () => { laBaseMandaDesde = Date.now(); };
+
   /* Lo más alto de la secuencia del almacén que trajo la última bajada, para guardarlo cuando
      `sync` ya escribió lo que bajó (ver `despuesDeBajar`). Antes no: si la escritura local se
      cayera a la mitad, la marca diría que esos renglones ya están aquí. */
@@ -1307,6 +1511,7 @@ export function crear(cfg0, opc = {}) {
     if (escribibles) return escribibles;
     const r = await pedir(cfg, '/salud');
     notarVersion(r.cuerpo.version);
+    if (r.cuerpo.ok === true) notarModo(r.cuerpo.modo);   // puente-sheets-17: quién manda, sin gastar una subida
     /* Solo se recuerda una lista de verdad. Un /salud que contestó 503 porque Notion está
        caído no trae `escribibles`, y cachear ese vacío dejaría a este teléfono mandando a
        ciegas el resto de la sesión: así, la siguiente subida vuelve a preguntar. */
@@ -1352,6 +1557,7 @@ export function crear(cfg0, opc = {}) {
     try { await asegurarEscribibles(); } catch (e) {
       return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
     }
+    if (laHojaNoRecibe()) return porLaBase(lista);
     if (hojaSabeAlmacen === false) return lista.map(sinPestana);
 
     const envio = [];
@@ -1364,6 +1570,8 @@ export function crear(cfg0, opc = {}) {
     }
     const c = r.cuerpo || {};
     if (c.ok === false) {
+      /* La base manda (puente-sheets-17): la hoja no escribió nada. Se queda en la bandeja, sin apartar. */
+      if (c.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase(lista); }
       /* «Camino desconocido»: una hoja anterior al 9 que no dijo su versión. Se aparta como si
          la hubiera dicho —la razón es la misma— y no como rechazo: no es culpa del renglón. */
       if (c.codigo === 'NO_ENCONTRADO') { noSabe(); return lista.map(sinPestana); }
@@ -1379,6 +1587,8 @@ export function crear(cfg0, opc = {}) {
          libro reste dos veces. Lo que la hoja no escribió por ser más viejo que lo que ya tiene
          (`viejos`) tampoco es un rechazo: otro teléfono lo cambió después, y gana. */
       if (x.ok) return { id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba };
+      /* La 17 lo dice en toda la respuesta (arriba); si algún día lo dice por operación, lo mismo. */
+      if (x.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase([op])[0]; }
       return { id: op.id, ok: false, codigo: x.codigo || 'DESCONOCIDO', definitivo: DEFINITIVOS.includes(x.codigo),
                mensaje: x.mensaje || 'La hoja rechazó el cambio.' };
     });
@@ -1499,6 +1709,7 @@ export function crear(cfg0, opc = {}) {
         return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
       }
     }
+    if (laHojaNoRecibe()) return porLaBase(lista);
     if (hojaSabeGastos === false) return lista.map(sinPestanaGastos);
 
     const envio = lista.map(op => {
@@ -1515,6 +1726,8 @@ export function crear(cfg0, opc = {}) {
     }
     const c = r.cuerpo || {};
     if (c.ok === false) {
+      /* La base manda (puente-sheets-17): la hoja no escribió nada. El gasto se queda en la bandeja, sin apartar. */
+      if (c.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase(lista); }
       /* «Camino desconocido»: una hoja anterior a la 15 que no dijo su versión. Se aparta con la
          razón —no es culpa del gasto— y vuelve sola cuando la hoja se actualice. */
       if (c.codigo === 'NO_ENCONTRADO') { noSabeGastos(); return lista.map(sinPestanaGastos); }
@@ -1527,6 +1740,7 @@ export function crear(cfg0, opc = {}) {
     for (const op of lista) {
       const x = res.find(y => y && y.id === op.id);
       if (!x) { salida.push({ id: op.id, ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja contestó sin decir qué pasó con ese gasto.' }); continue; }
+      if (!x.ok && x.codigo === LA_BASE_MANDA) { laHojaLoDijo(); salida.push(porLaBase([op])[0]); continue; }
       if (x.ok) {
         await marcarGastoEnHoja(String(op.registro_id || (op.datos && op.datos.id) || ''));
         salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba });
@@ -1693,7 +1907,10 @@ export function crear(cfg0, opc = {}) {
                  /* Por cuál de las dos puertas entró y con qué correo. La puerta
                     (js/nucleo/puerta.js) necesita las dos: un `via:'token'` significa que la
                     hoja reconoció al APARATO y no a la persona, y eso no da pase. */
-                 via: r.cuerpo.via || 'token', correo: r.cuerpo.correo || '' };
+                 via: r.cuerpo.via || 'token', correo: r.cuerpo.correo || '',
+                 /* Quién manda, según la hoja (puente-sheets-17): la puerta lo lee para avisar a un aparato que todavía
+                    no sabe que la base manda (auditoría 2026-10-26, T1-3). Una hoja anterior no lo dice: ''. */
+                 modo: r.cuerpo.modo === 'base' || r.cuerpo.modo === 'hoja' ? r.cuerpo.modo : '' };
       } catch (e) {
         return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
       }
@@ -1781,6 +1998,8 @@ export function crear(cfg0, opc = {}) {
      */
     async subir(ops) {
       const lista = Array.isArray(ops) ? ops : [];
+      /* La hoja ya dijo que la base manda (hace menos de diez minutos): ni se le pregunta. Ver «LA BASE MANDA». */
+      if (lista.length && laHojaNoRecibe()) return porLaBase(lista);
       /* Un lote del almacén (`sync` los arma con `agrupa`) va entero a su camino; uno de gastos, al suyo. */
       if (lista.length && lista.every(op => op && DEL_ALMACEN.includes(op.almacen))) return subirAlmacen(lista);
       if (lista.length && lista.every(op => op && op.almacen === 'gastos')) return subirGastos(lista);
@@ -1792,6 +2011,8 @@ export function crear(cfg0, opc = {}) {
            cómo se crea una fila sin título en la base del dinero. */
         return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
       }
+      /* El /salud de recién dijo que la base manda (puente-sheets-17): no se gasta un /empujar. */
+      if (laHojaNoRecibe()) return porLaBase(lista);
 
       /* ── `definitivo`: lo que reintentar no arregla ────────────────────────────────
          Un rechazo de ESTA operación —el rol no escribe nada de lo que trae, el alta no
@@ -1951,6 +2172,15 @@ export function crear(cfg0, opc = {}) {
           break;
         }
 
+        /* La base manda (puente-sheets-17): la hoja no escribió nada, en toda la respuesta. Ni se marca el
+           proyecto como fallido —no falló nada: espera— ni se manda lo que sigue del lote a la misma hoja:
+           todo se queda en la bandeja hasta que el teléfono escriba en la base. */
+        if (r.cuerpo && r.cuerpo.ok === false && r.cuerpo.codigo === LA_BASE_MANDA) {
+          laHojaLoDijo();
+          salida.push(...porLaBase(lista.slice(lista.indexOf(op))));
+          break;
+        }
+
         const res = (Array.isArray(r.cuerpo.resultados) ? r.cuerpo.resultados : [])
           .find(x => x && x.id === op.id);
 
@@ -1980,6 +2210,8 @@ export function crear(cfg0, opc = {}) {
           continue;
         }
 
+        /* Lo mismo si algún día la hoja lo dice por operación: espera, no falló. */
+        if (res.codigo === LA_BASE_MANDA) { laHojaLoDijo(); salida.push(porLaBase([op])[0]); continue; }
         if (res.codigo !== 'CONFLICTO' && res.codigo !== 'SIN_RED') {
           await espejarLocal(proy.id, { notion_estado: 'fallido' });
         }
@@ -2243,15 +2475,19 @@ export function crear(cfg0, opc = {}) {
         }) : null);
         if (!aplicar) continue;
 
-        /* Una tarjeta IMPORTADA cuya venta la hoja ya pasó a COBRANDO o LIQUIDADO: el trabajo se
-           entregó. Su etapa no la mueve nadie más —nació en la hoja, no hay cotización ni
-           instalación agendada que la empuje— y se quedaba en el tablero como «Ganado» para
-           siempre: en octubre de 2026 eran ocho obras cobradas o cerradas pidiendo taller. Se
-           pasa a «Instalado», solo de este lado (`sync.jalar` escribe sin encolar) y solo si
-           seguía en la línea del taller: una que alguien ya movió a garantía o canceló, se queda. */
+        /* Una tarjeta IMPORTADA cuya venta la hoja ya LIQUIDÓ: el trabajo se entregó y se cobró. Su
+           etapa no la mueve nadie más —nació en la hoja, no hay cotización ni instalación agendada
+           que la empuje— y se quedaba en el tablero como «Ganado» para siempre: en octubre de 2026
+           eran ocho obras cerradas pidiendo taller. Se pasa a «Instalado», solo de este lado
+           (`sync.jalar` escribe sin encolar) y solo si seguía en la línea del taller: una que
+           alguien ya movió a garantía o canceló, se queda.
+           Hasta el 2026-10-26 también con COBRANDO, y así se iban de «El taller» obras que todavía
+           no se instalaban: Pagos pasa a cobrar en cuanto el trabajo está listo. Elías decidió que
+           se queden en su estación hasta LIQUIDADO (auditoría 2026-10-26, T1-9), y lo mismo hace la
+           base (`interno.etapa_por_cobro`, 0029_taller_hasta_liquidar.sql). */
         /* Se decide al final, después de la etapa que baja de la hoja (`obraDeLaFila`): ver
-           `cobradaEnLaLinea` abajo. */
-        const cobradaEnLaLinea = !!(venta && esImportadoLocal(local) && ESTATUS_DE_PAGOS.includes(String(venta.estatus || '')));
+           `liquidadaEnLaLinea` abajo. */
+        const liquidadaEnLaLinea = !!(venta && esImportadoLocal(local) && String(venta.estatus || '') === 'LIQUIDADO');
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.
@@ -2263,6 +2499,18 @@ export function crear(cfg0, opc = {}) {
         const sello = Math.max(editado, Number(local.actualizado_en) || 0);
 
         delete aplicar.folio_global;   // la llave era para encontrarlo, no para escribirlo
+        /* …salvo en la tarjeta IMPORTADA que todavía no lo tiene (auditoría 2026-10-26, T1-1). Las importadas nacían sin el folio
+           de su cotización, y con la base mandando eso es justo lo que las ata a la cotización que el historial de la empresa trae
+           (ver `proyectos.desdeVentaDeHoja`): sin él, el teléfono de Dirección enseñaba la venta como «sin decidir» y «Se ganó» la
+           duplicaba. Las que ya bajaron vacías lo reciben aquí, en la siguiente bajada; las nuevas ya nacen con él.
+           NUNCA se pisa uno que ya tenga, ni en una tarjeta de este teléfono (ésa es la llave de su cotización y de su venta en la
+           base) ni en una importada con OTRO. Si difieren, se queda el de la tarjeta: en la base el folio de un proyecto no se
+           cambia (`proyectos_inmutable`, 0003), así que la diferencia solo puede venir de una celda «Folio cotizacion» corregida a
+           mano en la hoja. La tarjeta sigue atada a su renglón por el folio de la hoja, y las DOS cotizaciones quedan decididas
+           —la de la tarjeta por la tarjeta y la de la fila por el récord (`proyectos.foliosDecididos`)—, así que ninguna sale como
+           «sin decidir» ni se puede volver a ganar. Lo único que no se hace es adivinar cuál de las dos es la buena. */
+        const folioDeLaFila = folioDeCotizacionDeLaFila(venta);
+        if (folioDeLaFila && esImportadoLocal(local) && !String(local.folio_global || '').trim()) aplicar.folio_global = folioDeLaFila;
         /* La fila VINO: la venta está en la hoja, y un «ya no está» de antes es viejo —alguien
            la volvió a meter, o deshizo el borrado—. Ver `proyectos.avisoDeHoja`.
            Y lo mismo la decisión de dejarla fuera (`fuera_de_hoja`): se tomó para una fila que
@@ -2317,9 +2565,9 @@ export function crear(cfg0, opc = {}) {
             if (u.maps_url && !String(local.maps_url || '').trim()) aplicar.maps_url = u.maps_url;
           }
         }
-        /* La tarjeta importada ya cobrada, a «Instalado» (ver arriba), con la etapa que quedó: la de
+        /* La tarjeta importada ya liquidada, a «Instalado» (ver arriba), con la etapa que quedó: la de
            aquí, o la que acaba de bajar de la hoja. */
-        if (cobradaEnLaLinea && EN_LA_LINEA.includes(String(aplicar.etapa || local.etapa || ''))) {
+        if (liquidadaEnLaLinea && EN_LA_LINEA.includes(String(aplicar.etapa || local.etapa || ''))) {
           aplicar.etapa = 'instalado';
         }
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
@@ -2456,7 +2704,11 @@ function rango(valor) {
 async function porFolioGlobal(fg) {
   const filas = await DB.listar('proyectos',
     { indice: 'porFolio', rango: rango(fg), filtro: p => p && p.folio_global === fg });
-  return filas.length ? filas[0] : null;
+  /* La de verdad antes que la importada (auditoría 2026-10-26, T1-1). Desde que la tarjeta importada trae el folio de su
+     cotización (`proyectos.desdeVentaDeHoja`), las dos pueden tenerlo un momento: con la hoja mandando, si la bajada importa la
+     fila antes de que el buzón de este teléfono convierta la venta del cotizador, nace la de verdad y la revisión de esa misma
+     bajada junta las dos (`revisarContraLaHoja`). Mientras tanto el dinero de la fila le cae a la que se queda. */
+  return filas.find(p => !esImportadoLocal(p)) || filas[0] || null;
 }
 
 /* ============================================================================

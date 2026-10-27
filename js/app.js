@@ -1842,7 +1842,10 @@ async function conectarLaNube() {
     Supa.vigilar();
   }
   const r = await Supa.entrarSinBoton(correo);
-  if (r.ok) { marcarSinBase(false); return; }
+  /* Dentro. Si acaba de entrar, `acceso` trae lo que dijo la base (y el modo ya quedó guardado); si contestó «ya» —la sesión
+     estaba hecha—, no preguntó nada: se pregunta aquí si la pregunta del arranque no la tenía (T1-3: con el interruptor
+     recién encendido, aquella contestó «apagado»). */
+  if (r.ok) { marcarSinBase(false); if (r.acceso) QM.anotar(r.acceso); else QM.preguntarSiHaceFalta(); return; }
   marcarSinBase(laBaseManda());
   if (r.codigo !== 'NECESITA_TOQUE' && r.codigo !== 'OTRA_CUENTA') {
     /* Google no cargó (sin red, bloqueado): se vuelve a intentar solo, y con la base mandando se dice ya. */
@@ -1869,6 +1872,8 @@ function ofrecerNube(Supa, correo) {
       _nube = null;
       _nubeLuego = 0;
       marcarSinBase(false);
+      /* Lo que dijo la base al entrar: quita la banda de «no sabe a dónde guardar» (T1-3). */
+      QM.anotar(res.acceso);
       toast(laBaseManda() ? 'Listo: este teléfono ya está en la base' : 'Listo: este teléfono ya está en la nube', 'ok', 3000);
       revisarDispositivo();
       /* Con la base mandando, lo que esperaba la sesión sale ya, y el aviso en vivo se vuelve a conectar. */
@@ -1927,13 +1932,19 @@ function revisarDispositivo() {
      abra la app. Con la base mandando no es opcional —sin sesión el teléfono no manda ni recibe nada—: se dice
      así, y «Recordármelo» la aparta 15 minutos o hasta la siguiente pantalla (TR-4). */
   const manda = laBaseManda();
+  /* Y si este aparato ni siquiera sabe a dónde guardar (T1-3, `crearQuienManda`): la misma urgencia que con la base mandando
+     —roja, sin «Ahora no»—, porque callar aquí era quedarse escribiendo en la hoja sin que nadie lo viera. */
+  const noSabe = QM.banda();
+  const urge = manda || !!noSabe;
   if (_nube && Date.now() >= _nubeLuego) {
-    pintarBanda({ tono: manda ? 'mal' : '',
+    pintarBanda({ tono: urge ? 'mal' : '',
       html: (manda
         ? '<b>Este teléfono no ha entrado a la base.</b> Sin esto, lo que hagas se queda solo en este teléfono y lo que ves puede no estar al día. Entra con un toque: '
-        : 'Conecta tu cuenta a la nube con un toque: así lo de este teléfono se guarda y se ve en los demás. ') +
+        : noSabe
+          ? '<b>Este aparato no sabe a dónde guardar.</b> No ha entrado a la base, así que no sabe si manda la hoja o la base. Entra con un toque: '
+          : 'Conecta tu cuenta a la nube con un toque: así lo de este teléfono se guarda y se ve en los demás. ') +
         '<span id="pf-nube-google" class="pf-nube-google"></span>',
-      accion: manda
+      accion: urge
         ? { label: 'Recordármelo', fn: recordarNubeLuego }
         : { label: 'Ahora no', fn: () => { _nube = null; revisarDispositivo(); } } });
     _nube();
@@ -1943,6 +1954,11 @@ function revisarDispositivo() {
   if (_sinBase && manda && !_nube && Date.now() >= _nubeLuego) {
     pintarBanda({ tono: 'mal', texto: 'Este teléfono no ha entrado a la base: lo que ves puede no estar al día, y lo que hagas se queda solo aquí hasta que entre.',
       accion: { label: 'Entrar', fn: () => { conectarLaNube().catch(() => {}); } } });
+    return;
+  }
+  /* No sabe a dónde guardar (T1-3): con el botón para entrar con su cuenta (o encenderla), o para volver a preguntar. */
+  if (noSabe && Date.now() >= _nubeLuego) {
+    pintarBanda({ tono: noSabe.tono, html: noSabe.html, accion: noSabe.accion });
     return;
   }
   if (_quien && _quien.nota) {
@@ -2022,6 +2038,11 @@ async function arrancar() {
      datos del taller no pasan por aquí. */
   registrarSW();
 
+  /* ¿QUIÉN MANDA? Los oyentes ANTES de cualquier pregunta, también las de la puerta (auditoría 2026-10-26, T1-3 y MB-15):
+     el aviso de que cambió el modo, el de que la hoja dice que la base manda y el de otra pestaña. No enchufan nada hasta
+     que el arranque enchufa la bandeja (ver `crearQuienManda`). */
+  QM.colgar(window);
+
   faseArranque('puerta');
   try {
     const Puerta = await import('./nucleo/puerta.js');
@@ -2059,6 +2080,11 @@ async function arrancar() {
     document.body.appendChild(d);
     return;
   }
+
+  /* ¿QUIÉN MANDA? En cuanto hay puerta, en CADA arranque (T1-3): corre en paralelo con abrir la base local y montar la
+     primera pantalla, así que no la frena. Con el interruptor apagado ni siquiera carga supa.js. Su respuesta la espera,
+     un momento, el enchufe de la bandeja (abajo). */
+  QM.preguntar();
 
   /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
      no llegó —la base que no abre, un import colgado por un service worker a medias— y lo
@@ -2243,12 +2269,9 @@ async function arrancar() {
   quitarArranque();
   avisarActualizada();
 
-  /* Supabase (pruebas, pieza 3): solo en el aparato donde Dirección lo encendió en Ajustes. Apagado
-     ni siquiera se carga el módulo. Vigila si la base dice que a esta cuenta se le retiró el acceso
-     (con sus tres candados: js/nucleo/supa.js); la puerta de arriba no cambia. */
-  try {
-    if (/"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '')) import('./nucleo/supa.js').then(S => S.vigilar()).catch(() => {});
-  } catch (_) { /* sin almacenamiento: apagado */ }
+  /* La vigilancia de Supabase (si la base dice que a esta cuenta se le retiró el acceso, con sus tres candados:
+     js/nucleo/supa.js) ya no arranca aquí, después de montar: la arranca la pregunta de quién manda, en cuanto pasa la
+     puerta (`QM.preguntar`, T1-3). Apagado, ni se carga el módulo. */
   conectarLaNube().catch(() => { /* sin red o sin Google: se intenta la siguiente vez que se abra */ });
   /* La sombra (fase 3) y la lectura en vivo (fase 4), con su propio interruptor cada una y solo en
      este aparato: js/datos/supa-enchufe.js. Sin el general Y el de la sombra encendidos, ni se carga. */
@@ -2283,24 +2306,18 @@ async function arrancar() {
   /* El puente va al final del arranque, después de pintar. Enchufarlo es leer una clave y
      construir un objeto —no toca la red— pero el módulo que lo construye se carga aparte, y
      esperar una descarga antes de la primera pantalla sería pagar en la calle, sin señal,
-     por algo que ni siquiera hace falta para trabajar. */
+     por algo que ni siquiera hace falta para trabajar.
+
+     Antes de enchufar, la respuesta de quién manda, si llega a tiempo (T1-3): la pregunta salió al pasar la puerta y casi
+     siempre ya contestó; si no, se enchufa con lo que se sabe y el aviso `al3d-modo` la vuelve a enchufar cuando conteste.
+     El oyente de ese aviso se colgó al principio del arranque (`QM.colgar`) y desde `QM.listo()` ya enchufa. Antes vivía
+     aquí abajo, DESPUÉS de este enchufe, y un aviso que llegaba en medio se perdía (MB-15). */
+  await QM.esperar(MS_TOPE_MODO_AL_ARRANCAR);
+  QM.listo();
   await enchufarPuente();
   sincronizarCallado();
   contarTodo();
   window.addEventListener('hashchange', () => setTimeout(contarTodo, 800));
-  /* La base dijo que cambió quién manda —la hoja o la base— (js/nucleo/supa.js guarda el modo cada vez que
-     le pregunta, y avisa solo si cambió): la bandeja se vuelve a enchufar y el enchufe de Supabase se
-     acomoda. De vuelta en la hoja, el enchufe quita lo de la base y, si la sombra de pruebas estaba
-     encendida, la vuelve a enganchar. Sin el interruptor de Supabase este aviso no llega: supa.js ni se carga. */
-  window.addEventListener('al3d-modo', async () => {
-    await enchufarPuente();
-    if (!laBaseManda()) {
-      import('./datos/supa-enchufe.js')
-        .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
-        .catch(() => {});
-    }
-    sincronizarCallado();
-  });
   /* La sesión de la base se fue —«Salir de Supabase», o un refresco que falló solo— (js/nucleo/supa.js,
      `al3d-supa-salio`): el relevo olvida la cuenta que recordaba, Realtime se apaga y el glifo dice la verdad.
      Con la base mandando, además, vuelve la banda para entrar (ES-5). Se espera un momento antes de mirar:
@@ -2311,6 +2328,8 @@ async function arrancar() {
       try {
         const Supa = await import('./nucleo/supa.js');
         if (await Supa.haySesion()) return;
+        /* Sin sesión ya no se sabe preguntar quién manda: si este aparato tampoco lo sabía, la banda roja (T1-3). */
+        QM.anotar({ estado: 'sin_sesion' });
         if (laBaseManda()) {
           marcarSinBase(true);
           const Ingreso = await import('./nucleo/ingreso.js');
@@ -2430,9 +2449,232 @@ function laBaseManda() {
   } catch (_) { return false; }
 }
 
+/* ============================================================================
+   ¿SABE ESTE APARATO A DÓNDE GUARDAR? (auditoría 2026-10-26, T1-3)
+
+   El 26-oct el Chrome de escritorio de Dirección tenía el interruptor de Supabase encendido, una sesión válida en la
+   base (activo, una sola empresa, la base en 'base') y token de dispositivo, y NO tenía el modo guardado
+   (`al3d_pf_supa_modo`): la bandeja corrió en modo hoja y nada lo dijo. En una carga posterior la app sí lo guardó. No se
+   encontró cuál fue la causa de la primera vez, y había varias posibles, todas en el arranque:
+     · el modo solo lo preguntaba la vigilancia de supa.js, que arrancaba DESPUÉS de montar la primera pantalla y, si en
+       ese momento la sesión no estaba lista o la respuesta no llegaba, no volvía a preguntar en diez minutos (y con una
+       petición colgada, nunca: supa.js, «Los topes de las esperas»);
+     · la entrada única contesta «ya» con la sesión hecha, sin preguntar nada (supa.js, `entrarSinBoton`);
+     · la puerta solo le preguntaba a la base si ya sabía que la base manda (js/nucleo/puerta.js, `supaSinModo`);
+     · y el oyente de `al3d-modo` se colgaba al final del arranque, después de enchufar la bandeja: un aviso que llegaba
+       antes se perdía (MB-15).
+   Lo de aquí cierra lo que toca a la app:
+     · los oyentes se cuelgan ANTES de cualquier pregunta (`colgar`, lo primero del arranque) y no enchufan nada hasta que
+       el arranque enchufa (`listo`): un aviso temprano no se pierde ni enchufa a destiempo, porque el enchufe del arranque
+       lee el modo de ese momento;
+     · el modo se pregunta en CADA arranque en cuanto hay puerta (`preguntar`), en paralelo con abrir la base local y montar
+       la primera pantalla —no la frena—, y el arranque espera la respuesta un momento antes de la primera vuelta de la
+       bandeja (`esperar`);
+     · si al final no se sabe —interruptor encendido sin modo guardado, o la base contesta algo que no es «activo»—, banda
+       roja (`banda`): este aparato no sabe a dónde guardar, con el botón para entrar con su cuenta (el flujo de siempre:
+       el botón de Google en la banda) o para volver a preguntar. Nada de irse a la hoja callado;
+     · la hoja dice que la base manda —contesta LA_BASE_MANDA a una escritura (js/datos/puente.js) o trae `modo:'base'` en
+       su /salud (la puerta)—: con sesión en la base, se le pregunta a ella (guarda el modo y avisa `al3d-modo`, que vuelve
+       a enchufar la bandeja); sin sesión, o con el interruptor apagado, la misma banda roja. Apagado, el botón lo enciende:
+       es un toque a mano, como «Encender» de Ajustes (borra la marca de «apagado a propósito», `al3d_pf_supa_no`). Lo que
+       se respeta de esa marca es que NADA lo encienda solo, y la banda le habla distinto a Dirección, que es la única que
+       lo apaga a propósito con la base mandando (Ajustes no le da el botón a nadie más);
+     · otra pestaña oyó el modo (o encendió o apagó el interruptor): el aviso `storage` llega a ésta, que vuelve a enchufar
+       su bandeja con lo de ahora.
+
+   Va como una función con todo lo que usa pasado por `d` —sin tocar nada de este archivo— para que la prueba la saque de
+   aquí y la corra en node (pruebas/supabase-quien-manda.mjs), con supa.js de verdad y el aparato de verdad: app.js no se
+   puede importar allí, arranca la plataforma al cargarse.
+   @param {{ls:Function, supa:Function, ingreso:Function, rol:Function, enchufar:Function, rearrancarEnchufe:Function,
+            sincronizar:Function, repintar:Function, conectar:Function, ofrecer:Function, ahora:Function}} d
+   ============================================================================ */
+export function crearQuienManda(d) {
+  /* respuesta: lo último que contestó la base en esta carga (null: todavía no se le pregunta). hojaDijoBase: la hoja dijo
+     que la base manda y la base todavía no lo confirma. listo: el arranque ya enchufó la bandeja. conecto: la reacción ya
+     intentó la entrada sin botón una vez en esta carga (Google no se pregunta en cada escritura rechazada). */
+  const st = { respuesta: null, hojaDijoBase: false, listo: false, pregunta: null, reaccion: null, reaccionEn: 0, conecto: false };
+  /* Cada vuelta de la bandeja contra la hoja puede traer otro LA_BASE_MANDA: se reacciona como mucho una vez cada 30 s. */
+  const MS_ENTRE_REACCIONES = 30000;
+  const CUENTA_NO_ACTIVA = ['sin_acceso', 'acceso_revocado', 'correo_no_verificado', 'invitacion_pendiente'];
+  const lee = k => { try { const s = d.ls(); return (s && s.getItem(k)) || ''; } catch (_) { return ''; } };
+  const encendido = () => /"encendido":true/.test(lee('al3d_pf_supa'));
+  const sabeElModo = () => /"modo":"(hoja|base)"/.test(lee('al3d_pf_supa_modo'));
+  const mandaLaBase = () => encendido() && /"modo":"base"/.test(lee('al3d_pf_supa_modo'));
+  const apagadoAProposito = () => lee('al3d_pf_supa_no') === '1';
+  const sinEntrar = r => !r || r.estado === 'sin_sesion' || r.estado === 'apagado';
+
+  /* Lo que contestó la base (o la entrada a ella), y repintar la banda. */
+  function anotar(r) {
+    if (r && typeof r === 'object' && r.estado) {
+      st.respuesta = r;
+      /* La base es la que dice quién manda: si contesta «base», lo que dijo la hoja ya quedó atendido. Si contesta «hoja»,
+         las dos no están de acuerdo y eso se queda anotado, para que la banda lo diga (`desacuerdo`); borrarlo aquí dejaba
+         las escrituras detenidas por la hoja sin ninguna explicación (revisión de la Tanda 1, 2026-10-26). */
+      if (r.estado === 'activo' && r.modo === 'base') st.hojaDijoBase = false;
+    }
+    d.repintar();
+  }
+
+  /** '' si este aparato sabe a dónde guardar; si no, por qué: 'apagado' | 'apagado_dir' | 'sin_sesion' | 'sin_respuesta' |
+   *  'cuenta' | 'desacuerdo'. */
+  function noSabe() {
+    if (!encendido()) {
+      /* Apagado y sin que nadie diga lo contrario: lo de siempre, la hoja (puede ser una empresa que sigue en la hoja). */
+      if (!st.hojaDijoBase) return '';
+      return apagadoAProposito() && d.rol() === 'direccion' ? 'apagado_dir' : 'apagado';
+    }
+    const r = st.respuesta;
+    if (r && CUENTA_NO_ACTIVA.includes(r.estado)) return 'cuenta';
+    if (st.hojaDijoBase && !mandaLaBase()) {
+      if (!r) return '';
+      if (sinEntrar(r)) return 'sin_sesion';
+      /* La hoja dice «base» y la base, «hoja»: una de las dos está mal puesta, y eso no lo arregla este aparato. */
+      return r.estado === 'activo' && r.modo === 'hoja' ? 'desacuerdo' : 'sin_respuesta';
+    }
+    /* Con un modo oído, sin señal vale el último (la regla de siempre). Sin respuesta todavía, el arranque está preguntando. */
+    if (sabeElModo() || !r) return '';
+    return sinEntrar(r) ? 'sin_sesion' : 'sin_respuesta';
+  }
+
+  /** La banda roja, o null. `accion` ya trae su función: entrar con la cuenta, o volver a preguntar. */
+  function banda() {
+    const k = noSabe();
+    if (!k) return null;
+    const NO = '<b>Este aparato no sabe a dónde guardar.</b> ';
+    const entrarCon = label => ({ label, fn: () => { entrar().catch(() => {}); } });
+    const otraVez = { label: 'Volver a preguntar', fn: () => { preguntar(); } };
+    const t = {
+      apagado: [NO + 'La empresa ya trabaja con la base y aquí la base está apagada: la hoja ya no recibe lo que guardes. Entra con tu cuenta para encenderla.', entrarCon('Entrar con tu cuenta')],
+      apagado_dir: [NO + 'La empresa ya trabaja con la base y en este aparato la apagaste a propósito: la hoja ya no recibe lo que guardes.', entrarCon('Encender y entrar')],
+      sin_sesion: [NO + 'No ha entrado a la base, así que no sabe si manda la hoja o la base. Entra con tu cuenta.', entrarCon('Entrar con tu cuenta')],
+      sin_respuesta: [NO + 'La base no contestó quién manda, la hoja o la base. Revisa la señal y vuelve a preguntar.', otraVez],
+      cuenta: [NO + 'La base no reconoce esta cuenta como activa: que Dirección la dé de alta en Ajustes → La base de datos → Personas.', otraVez],
+      desacuerdo: [NO + 'La hoja dice que ya manda la base y la base dice que manda la hoja. Avísale a Dirección: hasta que se pongan de acuerdo, lo que guardes espera en este aparato.', otraVez],
+    }[k];
+    return { tono: 'mal', html: t[0], accion: t[1], motivo: k };
+  }
+
+  /** Le pregunta a la base quién manda (supa.js, `saberQuienManda`, con sus reintentos y topes). Una sola en vuelo. */
+  function preguntar() {
+    if (st.pregunta) return st.pregunta;
+    const p = (async () => {
+      if (!encendido()) return { estado: 'apagado' };
+      const Supa = await d.supa();
+      /* La vigilancia del acceso retirado arranca aquí, con la pregunta, y no después de montar la primera pantalla. */
+      Supa.vigilar();
+      return await Supa.saberQuienManda();
+    })().catch(() => ({ estado: 'desconocido' })).then(r => { anotar(r); return r; });
+    st.pregunta = p;
+    const fin = () => { if (st.pregunta === p) st.pregunta = null; };
+    p.then(fin, fin);
+    return p;
+  }
+  /* Después de entrar a la base sin la respuesta a la mano (la entrada única contestó «ya»): se pregunta si lo último que
+     se oyó no venía de una sesión. Si ya contestó la base en esta carga, no se vuelve a gastar un `mi_acceso`. */
+  function preguntarSiHaceFalta() {
+    if (st.pregunta || sinEntrar(st.respuesta) || st.respuesta.estado === 'desconocido') return preguntar();
+    return Promise.resolve(st.respuesta);
+  }
+
+  /* El modo cambió (lo dijo la base aquí, Ajustes encendió o apagó, u otra pestaña lo oyó): la bandeja se vuelve a enchufar
+     y el enchufe de Supabase se acomoda; de vuelta en la hoja, si la sombra de pruebas estaba encendida, la vuelve a enganchar.
+     Antes de que el arranque enchufe, solo se repinta: ese enchufe leerá el modo de ahora. */
+  async function alCambiarElModo() {
+    if (!st.listo) { d.repintar(); return; }
+    await d.enchufar();
+    if (!mandaLaBase()) d.rearrancarEnchufe();
+    d.sincronizar();
+    d.repintar();
+  }
+
+  /* La hoja dijo que la base manda. Con el interruptor encendido se le pregunta a la base (con sesión, guarda el modo y avisa;
+     sin sesión, la entrada de siempre, una vez); apagado, la banda roja y su botón. */
+  function laHojaDiceQueLaBaseManda() {
+    st.hojaDijoBase = true;
+    if (st.reaccion) return st.reaccion;
+    if (st.reaccionEn && d.ahora() - st.reaccionEn < MS_ENTRE_REACCIONES) { d.repintar(); return Promise.resolve(); }
+    const p = (async () => {
+      if (!encendido()) { d.repintar(); return; }
+      const r = await preguntar();
+      if (sinEntrar(r) && !st.conecto) { st.conecto = true; d.conectar(); }
+    })().catch(() => {}).then(() => { st.reaccion = null; st.reaccionEn = d.ahora(); });
+    st.reaccion = p;
+    return p;
+  }
+
+  /* El botón de la banda. Encender aquí es un toque a mano (borra «apagado a propósito», como «Encender» de Ajustes) y
+     vuelve a enchufar; con sesión basta con preguntar; sin ella, el botón de Google en la banda (`ofrecerNube`). */
+  async function entrar() {
+    const Supa = await d.supa();
+    if (!Supa.encendido()) { Supa.encender(true); alCambiarElModo().catch(() => {}); }
+    Supa.vigilar();
+    if (await Supa.haySesion()) { await preguntar(); return; }
+    const Ingreso = await d.ingreso();
+    d.ofrecer(Supa, Ingreso.correo());
+  }
+
+  /* El aviso `storage` solo llega a las OTRAS pestañas del mismo origen: la que guardó el modo ya se enchufó sola.
+     Solo cuenta si cambió lo que decide a dónde se guarda —el modo, o el interruptor—: `guardarModo` reescribe la llave
+     en cada pregunta (con su `visto` nuevo), y reaccionar a eso hacía un bucle entre dos pestañas abiertas: una pregunta,
+     la otra se vuelve a enchufar y pregunta, y así sin parar (revisión de la Tanda 1, 2026-10-26). */
+  function alCambiarOtraPestana(ev) {
+    if (!ev || (ev.key !== 'al3d_pf_supa_modo' && ev.key !== 'al3d_pf_supa')) return null;
+    const campo = ev.key === 'al3d_pf_supa_modo' ? 'modo' : 'encendido';
+    const leer = t => { try { const v = JSON.parse(t || 'null'); return v && typeof v === 'object' ? v[campo] : null; } catch (_) { return null; } };
+    /* Un navegador siempre manda `oldValue` (null si la llave es nueva); sin él no se puede comparar, y se reacciona. */
+    if (ev.oldValue !== undefined && leer(ev.oldValue) === leer(ev.newValue)) return null;
+    return alCambiarElModo();
+  }
+
+  function colgar(win) {
+    win.addEventListener('al3d-modo', () => { alCambiarElModo().catch(() => {}); });
+    win.addEventListener('al3d-la-base-manda', () => { laHojaDiceQueLaBaseManda(); });
+    win.addEventListener('storage', ev => { const p = alCambiarOtraPestana(ev); if (p) p.catch(() => {}); });
+  }
+
+  return {
+    colgar, preguntar, preguntarSiHaceFalta, anotar, noSabe, banda, entrar, alCambiarElModo, laHojaDiceQueLaBaseManda, alCambiarOtraPestana,
+    /* La respuesta del arranque, o `ms` como mucho: lo que tarde de más lo recoge `al3d-modo` después. */
+    esperar(ms) {
+      if (!st.pregunta) return Promise.resolve();
+      let reloj = 0;
+      return Promise.race([st.pregunta.then(() => clearTimeout(reloj)), new Promise(r => { reloj = setTimeout(r, ms); })]);
+    },
+    listo() { st.listo = true; },
+    estado: () => ({ respuesta: st.respuesta, hojaDijoBase: st.hojaDijoBase, listo: st.listo, preguntando: !!st.pregunta }),
+  };
+}
+
+/* Lo que el arranque espera la respuesta de la base antes de la primera vuelta de la bandeja. La pregunta salió en cuanto
+   pasó la puerta, así que casi siempre ya contestó mientras se montaba la primera pantalla. */
+const MS_TOPE_MODO_AL_ARRANCAR = 4000;
+const QM = crearQuienManda({
+  ls: () => { try { return localStorage; } catch (_) { return null; } },
+  supa: () => import('./nucleo/supa.js'),
+  ingreso: () => import('./nucleo/ingreso.js'),
+  rol: () => Prefs.rol(),
+  enchufar: () => enchufarPuente(),
+  rearrancarEnchufe: () => {
+    import('./datos/supa-enchufe.js')
+      .then(E => E.arrancar({ sincronizar: sincronizarCallado, avisarApp: ctx.ponerLecturaEnVivo }))
+      .catch(() => {});
+  },
+  sincronizar: () => sincronizarCallado(),
+  repintar: () => { if (_bandaLista) revisarDispositivo(); },
+  conectar: () => { if (!_nube) conectarLaNube().catch(() => {}); },
+  ofrecer: (Supa, correo) => { _nubeLuego = 0; ofrecerNube(Supa, correo); },
+  ahora: () => Date.now(),
+});
+
 /** Enchufa el relevo de la hoja si este dispositivo ya tiene URL y token en Ajustes; o, con la base
- *  mandando, el de la base (js/datos/supa-relevo.js). */
+ *  mandando, el de la base (js/datos/supa-relevo.js).
+ *
+ *  Con turno (auditoría 2026-10-26, T1-3): ahora lo puede pedir un aviso del modo mientras otro enchufe todavía carga su
+ *  módulo, y el que leyó el modo VIEJO podía terminar después y dejar puesta la bandeja equivocada. El que llega después de
+ *  un enchufe más nuevo no registra nada: ese ya leyó el modo de ahora. */
+let _enchufeTurno = 0;
 export async function enchufarPuente() {
+  const turno = ++_enchufeTurno;
   if (!Prefs.hayPuente()) { Sync.registrar(null); pintarSync('quieto'); return false; }
   try {
     if (laBaseManda()) {
@@ -2440,6 +2682,7 @@ export async function enchufarPuente() {
          acepta no se copia a la base otra vez. Y el enchufe arranca lo que la lectura en vivo hacía para
          bajar —Realtime—, ya sin pedir la sombra (js/datos/supa-enchufe.js). */
       const [Supa, Relevo] = await Promise.all([import('./nucleo/supa.js'), import('./datos/supa-relevo.js')]);
+      if (turno !== _enchufeTurno) return Sync.configurado();
       Sync.alSubir(null);
       Sync.registrar(Relevo.desdeSupa(Supa));
       import('./datos/supa-enchufe.js')
@@ -2449,6 +2692,7 @@ export async function enchufarPuente() {
       return Sync.configurado();
     }
     const Puente = await import('./datos/puente.js');
+    if (turno !== _enchufeTurno) return Sync.configurado();
     /* De vuelta de la base a la hoja: la fuente de las filas que puso el relevo de la base se quita YA,
        para que la siguiente bajada sea de la hoja (si la lectura en vivo de pruebas está encendida, el
        enchufe pone la suya otra vez). Al arrancar no hay relevo todavía y no se toca nada. */

@@ -1122,7 +1122,8 @@ console.log('\nEL MENÚ TRAE LOS PASOS DE LA ACTUALIZACIÓN (sin el selector de 
     SpreadsheetApp.getUi = function () { return { createMenu: menu }; };
     onOpen();
     return items; })()`);
-  eq('los tres pasos, en orden', items.slice(-3), ['revisarColumnasDelPuente', 'realinearColumnasDelPuente', 'prepararHojaParaElPuente']);
+  /* El 4 (puente-sheets-17): que la base manda, sin esperar a la copia de cada 3 horas. */
+  eq('los cuatro pasos, en orden', items.slice(-4), ['revisarColumnasDelPuente', 'realinearColumnasDelPuente', 'prepararHojaParaElPuente', 'marcarQueLaBaseManda']);
   cierto('y cada uno existe en el script', items.every(f => H.run('typeof ' + f) === 'function'));
 }
 
@@ -1354,8 +1355,8 @@ console.log('\nREGISTRAR NUEVA VENTA PIDE LOS DATOS PARA LA ENTREGA — puente-s
   eq('sin AE ni AF la venta entra, con su dirección', [V.fila(r7.folio) > 0, V.celda(r7.folio, 'Direccion')], [true, 'Av. Patria 100']);
   cierto('  y dice que el teléfono y la entrega esperan a «Preparar la hoja»', /teléfono ni la entrega/.test(r7.nota) && /Preparar la hoja/.test(r7.nota));
 
-  eq('la versión es la 16', api.PUENTE_VERSION, 'puente-sheets-16');
-  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-16');
+  eq('la versión es la 17', api.PUENTE_VERSION, 'puente-sheets-17');
+  eq('y la plataforma la espera', VERSION_ESPERADA, 'puente-sheets-17');
 }
 
 console.log('\nLA HOJA LEE EL LINK DE MAPS IGUAL QUE LA PLATAFORMA (coordenadasDeMaps_ = parseGmaps)');

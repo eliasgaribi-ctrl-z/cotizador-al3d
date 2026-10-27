@@ -152,9 +152,10 @@ const pintado = await p.evaluate(() => {
 /^3 trabajos en el taller/.test(pintado.resumen)
   ? bien('el resumen dice cuántos trabajos hay: «' + pintado.resumen + '»')
   : mal('el resumen dice «' + pintado.resumen + '»');
-pintado.estaciones.length === 5
-  ? bien('el taller pinta las cinco estaciones: ' + pintado.estaciones.join(', '))
-  : mal('el taller pintó ' + pintado.estaciones.length + ' estaciones');
+/* Auditoría 2026-10-26, T1-9: las cinco estaciones y, al final, «Instalado, por cobrar» (`por_cobrar`). */
+pintado.estaciones.length === 6 && pintado.estaciones[5] === 'por_cobrar'
+  ? bien('el taller pinta las cinco estaciones y «Instalado, por cobrar»: ' + pintado.estaciones.join(', '))
+  : mal('el taller pintó ' + pintado.estaciones.length + ' columnas: ' + pintado.estaciones.join(', '));
 pintado.fichas === 3
   ? bien('una ficha por trabajo: 3')
   : mal('el taller pintó ' + pintado.fichas + ' fichas para 3 trabajos');

@@ -126,11 +126,16 @@ export function ordenarArchivos(archivos) {
    ya no piden carpeta ni enseñan marca en el tablero. */
 export const EN_TALLER = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
 
-/** ¿Este proyecto está en el taller? Fuera los cancelados, los que la hoja ya cobra y los que
- *  la hoja dejó de traer. PURA. */
+/** ¿Este proyecto está en el taller? Fuera los cancelados, los ya liquidados y los que la hoja dejó
+ *  de traer. PURA.
+ *
+ *  COBRANDO ya NO lo saca (auditoría 2026-10-26, T1-9, decidido por Elías: «que se queden en la
+ *  tabla hasta que pasen a Liquidados»): Pagos pasa a cobrar en cuanto el trabajo está listo, a veces
+ *  días antes de instalarlo, y la obra sigue en el taller —con su carpeta, su marca y sus datos de
+ *  entrega pendientes— mientras esté en una estación. LIQUIDADO sí: está cerrada. */
 export function enTaller(p) {
   if (!p || !EN_TALLER.includes(p.etapa) || p.hoja_perdida) return false;
-  return !['COBRANDO', 'LIQUIDADO'].includes(String(p.estatus_notion || ''));
+  return String(p.estatus_notion || '') !== 'LIQUIDADO';
 }
 
 /** El nombre con el que se le abre carpeta: «Contacto - Negocio», como Elías ya las llama. PURA. */

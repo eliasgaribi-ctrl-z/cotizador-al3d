@@ -78,6 +78,8 @@ import * as Ingreso from '../nucleo/ingreso.js';
 import * as Puente from '../datos/puente.js';
 import * as DB from '../datos/db.js';
 import * as Sync from '../datos/sync.js';
+/* La venta del libro de una cotización que aquí no es tarjeta (auditoría 2026-10-26, T1-1; ver `estadoDeVenta`). */
+import { ventaDelLibro } from '../datos/proyectos.js';
 
 let _cont = null;
 let _ctx = null;
@@ -340,7 +342,9 @@ export function desmontar() {
                        que decide es la hoja, que verifica el token en cada petición.
      · sesion()      — que haya un token de Google vivo, pidiéndolo si caducó. Abre la
                        ventana de Google, así que el marco la llama dentro de un toque.
-     · hablar(r,c,t) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar).
+     · hablar(r,c,t,o) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar). Con
+                       `o.toque` la pidió un botón y puede abrir la ventana de Google; sin él, nunca.
+     · permiso()     — el permiso de Google de la hoja, pedido dentro de un toque sin preguntar nada.
      · avisar(m,t,f) — el aviso del notario («COT-0042 ya está autorizada · Abrir») cuando el
                        marco está ESCONDIDO. Conservado, el cotizador sigue vivo y su vigilante
                        sigue preguntando —dentro del marco `visibilityState` dice 'visible'—,
@@ -372,7 +376,15 @@ function exponerIdentidad() {
       return r.ok ? { ok: true, correo: Ingreso.correo() }
                   : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
     },
-    hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
+    /* `opciones.toque`: la pidió una persona con un botón, y entonces puede abrir la ventana de Google. Sin
+       él es de fondo y nunca la abre (js/datos/puente.js, «Las dos clases de pregunta»; auditoría
+       2026-10-26, T1-8). Del marco solo pasa ese sí o no. */
+    hablar(ruta, cuerpo, espera, opciones) {
+      return Puente.hablar(ruta, cuerpo, espera, { toque: !!(opciones && opciones.toque === true) });
+    },
+    /* El permiso de Google de la hoja, pedido al principio de un toque, sin preguntarle nada a la hoja: para
+       lo que tarda en llegar a su primera pregunta (la IA prepara la imagen). Nunca lanza. */
+    permiso() { return Puente.permiso(); },
     async folioDeVenta(fg) {
       const e = await estadoDeVenta(fg);
       return e.folio || '';
@@ -416,7 +428,16 @@ async function estadoDeVenta(fg) {
     const alta = ops.find(o => o.almacen === 'proyectos' && o.tipo === 'crear') || ops[0];
     if (alta) return { apartada: String(alta.ultimo_error || 'la base no la aceptó'), datos: datosDe(p) };
   }
-  return vivos.length ? { datos: datosDe(vivos[0]) } : {};
+  if (vivos.length) return { datos: datosDe(vivos[0]) };
+  /* Sin tarjeta aquí, el libro (auditoría 2026-10-26, T1-1): la venta que otro teléfono registró con esta cotización y que en este
+     no es tarjeta (ya no está en la línea del taller) vive solo en el récord (`ventas_hoja`, que con la base mandando baja de la base).
+     Sin esto el cotizador de Dirección dejaba otra constancia de una cotización de Pagos ya vendida —el hito «venta» llega con el
+     historial de la empresa, y se le preguntaba aquí—, y la plataforma tenía que negarse después (`Proyectos.ganar`). */
+  let v = null;
+  try { v = await ventaDelLibro([f]); } catch (_) { v = null; }
+  if (!v || !/^V-\d+$/.test(String(v.folio_hoja || ''))) return {};
+  return { folio: String(v.folio_hoja), datos: { cuenta: v.cuenta || null, estatus: v.estatus || null,
+    anti: v.anticipo != null ? Number(v.anticipo) : null, fecha_anticipo: v.fecha_anticipo || null } };
 }
 
 /* ============================================================================

@@ -18,7 +18,10 @@
    `importar-diario` de Supabase con el secreto en una cabecera. La función lo pasa a la base en una
    sola transacción, cuadra por folio y anota el resultado (Ajustes → Supabase lo enseña). Esta hoja
    NO se escribe: solo se lee, con el candado del puente puesto mientras se lee (para no leer una
-   subida a medias) y soltado antes de mandar.
+   subida a medias) y soltado antes de mandar. Lo único que deja, desde puente-sheets-17, es QUIÉN MANDA: la
+   función contesta el modo de la base y Código.gs lo guarda en la propiedad MODO_EMPRESA —no en una celda—
+   (ver «quién manda», abajo). Desde el 25 de octubre de 2026 la base manda y la copia ya no aplica nada: solo
+   cuadra, para ver si alguien siguió escribiendo en la hoja.
 
    Lo que deja en el registro (Ejecuciones): una línea con cuentas —aplicada o no, cuadra o no,
    cuántas ventas, diferencias y conflictos—. Nunca un nombre, un teléfono ni un importe.
@@ -80,7 +83,26 @@ function copiarHojaASupabase() {
   var segundos = Math.round((Date.now() - inicio) / 100) / 10;
   var codigo = r.getResponseCode(), c = null;
   try { c = JSON.parse(r.getContentText()); } catch (e) { c = null; }
-  return copiaAnotar_(copiaLinea_(codigo, c, ventas, segundos));
+  return copiaAnotar_(copiaLinea_(codigo, c, ventas, segundos) + copiaAnotarModo_(codigo, c));
+}
+
+/* ---------------------------------------------------------------- quién manda (puente-sheets-17)
+   La función importar-diario lee de la base quién manda (empresas.modo) y lo contesta en `modo`: 'base' u 'hoja'. Aquí se le pasa a
+   Código.gs (fijarModoEmpresa_), que lo guarda en la propiedad MODO_EMPRESA: con 'base', las rutas de escritura del puente dejan de
+   aceptar lo que mandan los teléfonos que no se enteraron (ver «QUIÉN MANDA» en Código.gs). Es el camino que no depende de nadie: cada
+   3 horas, con el secreto que la copia ya tiene. Este archivo no escribe la propiedad él mismo —como las firmas, lo hace la función de
+   Código.gs, la única que sabe qué significa— y sin Código.gs junto no anota nada. Una función vieja que no dice `modo` no cambia nada:
+   la hoja se queda con lo que sabía. Lo que se agrega al registro: el modo y si cambió, nada más. (auditoría 2026-10-26, T1-2) */
+function copiaAnotarModo_(codigo, c) {
+  if (codigo !== 200 || !c || c.ok !== true || (c.modo !== 'base' && c.modo !== 'hoja')) return '';
+  if (typeof fijarModoEmpresa_ !== 'function') return ' Manda la ' + c.modo + ' (sin Código.gs junto no se anota).';
+  try {
+    return fijarModoEmpresa_(c.modo, 'copia diaria (importar-diario)')
+      ? ' Manda la ' + c.modo + ': la hoja lo anotó' + (c.modo === 'base' ? ' y ya no recibe escrituras de los teléfonos.' : ' y vuelve a recibir lo que mandan los teléfonos.')
+      : ' Manda la ' + c.modo + ' (la hoja ya lo sabía).';
+  } catch (e) {
+    return ' Manda la ' + c.modo + ', pero no se pudo anotar en la hoja (' + String((e && e.message) || e).slice(0, 60) + '); se intenta en la siguiente copia.';
+  }
 }
 
 /** Programa la copia todos los días entre 3 y 4 de la mañana, hora de México. Si ya estaba, la deja una sola vez. */
@@ -214,7 +236,11 @@ function copiaCelda_(v, zona) {
 function copiaLinea_(codigo, c, ventas, segundos) {
   var n = function (x) { return (typeof x === 'number' && isFinite(x)) ? x : 0; };
   if (codigo === 200 && c && c.ok === true) {
-    var partes = [c.aplicado ? 'aplicada' : 'NO se aplicó (el plan trae conflictos o filas que no entran: lo decide una persona)',
+    /* Con la base mandando no aplicar es lo esperado, no un problema: la copia ya solo cuadra. Decir «lo decide una persona» mandaba a
+       buscar un conflicto que no existe (auditoría 2026-10-26, T1-4). */
+    var partes = [c.aplicado ? 'aplicada'
+      : (c.modo === 'base' || c.motivo === 'modo_base') ? 'no se aplicó: la base manda (modo base) y la copia ya solo cuadra, para ver si alguien siguió escribiendo en la hoja'
+      : 'NO se aplicó (el plan trae conflictos o filas que no entran: lo decide una persona)',
       c.cuadra ? 'CUADRA' : 'no cuadra', n(c.ventas) + ' ventas', n(c.diferencias) + ' diferencias', n(c.conflictos) + ' conflictos'];
     if (n(c.rechazos)) partes.push(n(c.rechazos) + ' filas que no entran');
     var a = (c.autorizaciones && typeof c.autorizaciones === 'object') ? c.autorizaciones : null;

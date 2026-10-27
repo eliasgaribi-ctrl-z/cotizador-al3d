@@ -351,8 +351,14 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 16', VERSION_ESPERADA, 'puente-sheets-16');
-  /* A la 15 solo le falta dejar pasar la sesión de la base a Drive y Maps: los gastos ya los lleva. */
+  eq('la plataforma espera la 17', VERSION_ESPERADA, 'puente-sheets-17');
+  /* A la 16 solo le falta saber quién manda: que la hoja deje de aceptar lo que mandan los teléfonos que
+     no se enteraron de que la base manda (auditoría 2026-10-26, T1-2). */
+  const a16 = avisoVersion('puente-sheets-16');
+  cierto('a la 16 le dice que la hoja sigue aceptando lo que no llega a la base y qué pegar',
+    /no se enteró/.test(a16) && /no llegar a la base|sin llegar a la base/.test(a16) && /puente-sheets-17/.test(a16) && /Copia diaria/.test(a16));
+  cierto('  y no le habla de Drive, que la 16 ya abre con la sesión de la base', !/Drive/.test(a16));
+  /* A la 15 le falta dejar pasar la sesión de la base a Drive y Maps (y lo de la 16): los gastos ya los lleva. */
   const a15 = avisoVersion('puente-sheets-15');
   cierto('a la 15 le dice que Drive no se ve con la base mandando y qué pegar', /Drive/.test(a15) && /sesión de la base/.test(a15) && /puente-sheets-16/.test(a15));
   cierto('  y no le habla de los gastos, que la 15 ya lleva', !/«Gastos»/.test(a15));
@@ -1416,14 +1422,21 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await DB.poner('proyectos', propio('proy-S', 'COT-0720@TEST', 'V-720', { nombre: 'Sastrería Sol - Letras' }));
   await DB.poner('requerimientos', { id: 'req-S', proyecto_id: 'proy-S', material_id: 'mat-prueba', estado: 'calculado',
                                      cantidad_compra: 2, cantidad_ajustada: null, unidad_compra: 'lamina' });
+  /* Con Material en mantenimiento (el interruptor único de js/datos/agenda.js, auditoría 2026-10-26, T1-7) NINGUNO
+     resta: cortar no saca nada del almacén. El caso con Material encendido —los dos cortes restan UNA vez— se prueba
+     ahora en pruebas/material-en-mantenimiento.mjs, en un proceso con Material encendido: este archivo carga agenda.js
+     (por puente.js) antes de que se pudiera encender. */
   const [c1, c2] = await Promise.all([Proy.avanzarEtapa('proy-S', 'cortado'), Proy.avanzarEtapa('proy-S', 'cortado')]);
   const salidasS = (await DB.listar('movimientos')).filter(m => m.requerimiento_id === 'req-S');
-  eq('6 · dos cortes a la vez restan el material UNA vez', [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado],
-     [true, true, 1, 'consumido']);
+  eq('6 · dos cortes a la vez con Material en mantenimiento: ninguno resta y la línea sigue «calculado»',
+     [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado], [true, true, 0, 'calculado']);
 
-  /* 7 · La hoja ya cobra la venta de una tarjeta importada: sale de la línea del taller. Se
-     quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cobradas pidiendo
-     taller—. La que alguien ya pasó a garantía no se toca, y nada de esto sube a la hoja. */
+  /* 7 · La hoja ya LIQUIDÓ la venta de una tarjeta importada: sale de la línea del taller. Se
+     quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cerradas pidiendo
+     taller—. La que alguien ya pasó a garantía no se toca, y nada de esto sube a la hoja.
+     Con COBRANDO, desde el 2026-10-26, ya NO (auditoría, T1-9, decidido por Elías: «que se queden en
+     la tabla hasta que pasen a Liquidados»): la obra sigue en su estación. Hasta entonces este caso
+     esperaba «Instalado» también para V-730. */
   H.filas.push(fila('V-730', 'Cafetería Alba - Letras'), fila('V-731', 'Gimnasio Roca - Caja'), fila('V-732', 'Dental Mar - Letras'));
   await jalarTodo();
   const g732 = await DB.obtener('proyectos', 'proy-hoja-V-732');
@@ -1437,9 +1450,9 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const a73 = H.empujadas.length;
   await jalarTodo();
   await S.bombear();
-  eq('7 · cobrada o liquidada en la hoja, la tarjeta importada pasa a «Instalado»; la de garantía se queda',
+  eq('7 · liquidada en la hoja, la tarjeta importada pasa a «Instalado»; la que solo se cobra (COBRANDO) se queda en su estación; la de garantía se queda',
      await Promise.all(['V-730', 'V-731', 'V-732'].map(async f => (await DB.obtener('proyectos', 'proy-hoja-' + f)).etapa)),
-     ['instalado', 'instalado', 'garantia']);
+     ['ganado', 'instalado', 'garantia']);
   eq('7 · y no se manda nada a la hoja por eso', H.empujadas.length - a73, 0);
 
   /* 8 · La fecha de instalación escrita en la hoja llega al Calendario, y manda la hoja. Hasta

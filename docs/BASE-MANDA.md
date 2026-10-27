@@ -222,7 +222,7 @@ dar de alta una venta sin cotización con la hoja mandando; Dirección corrige u
 - **Corregir desde la ficha del proyecto.** La corrección vive en «Cobros y abonos»; la ficha sigue con sus botones de cuenta y estatus, que van por
   la bandeja y sin pregunta, como siempre. Un botón en la ficha que lleve a «Datos de la venta» con esa venta elegida sería lo siguiente.
 - **La fecha del anticipo** (la que decide el mes de la venta en Control) y los datos de la obra no están en «Datos de la venta»: los de la obra se
-  cambian en la ficha; la fecha del anticipo sigue solo desde el Editor SQL (`proyecto_actualizar`, Dirección).
+  cambian en la ficha. La fecha del anticipo, desde `0032` (auditoría 2026-10-26, T1-6), también en «Datos de la venta», solo Dirección.
 - El anticipo, la liquidación y los abonos siguen en sus formularios. Una venta no se borra.
 - Nada de esto se probó en un navegador ni contra `al3d-produccion` (hace falta la app publicada y la empresa en `'base'`).
 
@@ -274,11 +274,50 @@ La fecha la decide Elías. **Antes del día:**
    «de la base»; el candado del rol, «lo manda la base». En el de Fabricación: ni «Cobros y abonos» ni una cifra.
 
 **Cómo se regresa:** `modo_cambiar('hoja')`, volver a instalar la copia (`instalarCopiaDiaria`) y quitarle a la hoja el solo lectura (abajo).
+**Con candado desde `0030`** (auditoría 2026-10-26, T1-5, decidido por Elías): ver abajo.
 
-Cómo se regresa en cualquier paso: `modo_cambiar('hoja')`. La hoja sigue completa mientras no se apague la copia. Ojo: el espejo a
-la hoja solo lleva Ventas y Abonos; lo que se capture de almacén, gastos o autorizaciones en modo base no vuelve solo a la hoja. Con los gastos,
-además: de vuelta en la hoja, la copia de cada 3 horas le pone lápida (`deleted_at`) a los que se capturaron en la base y no están en la
-pestaña; no se pierden (siguen en la base), pero dejan de verse hasta que alguien los pase a la hoja. Y desde el paso 6, de vuelta en la hoja la
+### Volver a la hoja, con candado (`0030_candado_volver_a_la_hoja.sql`)
+
+El regreso tiene un precio que antes no se veía: con la hoja mandando, la copia de cada 3 horas vuelve a dejar la base **como dice la hoja**, y la
+hoja no tiene nada de lo que se capturó en la base mientras mandaba (el espejo a la hoja está apagado). La primera copia lo pisaría: la
+liquidación y la etapa vuelven a las de la hoja, a los gastos que la hoja no tiene les pone lápida (`deleted_at`) y una venta nueva sale como
+«conflicto». Antes `modo_cambiar('hoja')` contestaba `ok` y el dinero se movía solo tres horas después.
+
+Ahora `modo_cambiar('hoja')` **se niega** (`DATO_INVALIDO`, definitivo) mientras la base tenga cambios hechos **desde que manda**
+(`empresas.modo_desde`) que la copia pisaría, y dice cuáles: cuántos, de qué tipo y sus folios, en el mensaje y en `pendientes`
+(`{total, desde, tipos: [{tipo, n, nombre, folios, mas}], resumen}`). Por ejemplo: «No se puede volver a la hoja: la base tiene 3 cambios hechos
+con la base mandando que la hoja no tiene, y la copia de cada 3 horas los pisaría: 1 venta nueva (V-230); 1 venta con cobro o cambio de dinero
+(V-210); 1 gasto (2026-10-26 Vinil de corte)».
+
+| Tipo | Qué cuenta (desde `modo_desde`) |
+|---|---|
+| `venta_nueva` | ventas con V-### creadas en la base (`ganar_proyecto`, `alta_venta`) |
+| `cobro` | ventas de antes con su dinero cambiado (cobros, anticipo, liquidación, «Datos de la venta») |
+| `abono` | abonos de comisión, repartos y correcciones |
+| `etapa` | ventas de antes que cambiaron de etapa (la línea `etapa` de la bitácora) |
+| `cita` | ventas de antes con su cita nueva o movida |
+| `datos` | ventas de antes con otro cambio (notas, teléfono, ubicación, entrega, plazo…) que no salió ya como cobro, etapa o cita |
+| `gasto` | gastos registrados o anulados (los que no traen folio de venta se nombran por su día y su concepto) |
+| `almacen`, `compra`, `catalogo` | movimientos del almacén, renglones de la lista de compra, materiales y constantes |
+
+**No frena el regreso** lo que la hoja no tiene pero la copia **no pisa**: las cotizaciones y sus imágenes, los clientes fiscales, las facturas y
+las cuentas disponibles (`0027`), las personas y las pantallas. Tampoco las tarifas: con la base mandando ya se copian a la pestaña «Tarifas»
+cada vez que Dirección las guarda (paso 4). Sin nada pendiente, `modo_cambiar('hoja')` cambia como siempre.
+
+**Si de todos modos hay que regresar** (un error grave en la base, y Elías lo decide): no hay botón ni parámetro para saltarse el candado, a
+propósito. El candado mira la **hora** de cada cambio, no la hoja (la base no puede leerla), así que pasar los cambios a la hoja a mano no lo abre.
+El orden es: (1) leer la lista que da `modo_cambiar('hoja')`; (2) pasar cada cosa a la hoja a mano (Ventas, Abonos, Gastos…); (3) como dueño, en el
+Editor SQL: `update public.empresas set modo = 'hoja', modo_desde = now() where id = 'al3d';` (no deja la línea en la bitácora, como el paso 5 del
+día del cambio); (4) volver a instalar la copia (`instalarCopiaDiaria`) y quitarle a la hoja el solo lectura. Si la base no sabe desde cuándo manda
+(`modo_desde` vacío y sin la línea `modo` de la bitácora: alguien la pasó a `'base'` por SQL sin la hora), `modo_cambiar('hoja')` se niega con esa
+razón en vez de contar todo como pendiente. Prueba: `supabase/tests/acceso/modo.mjs` (MO-08; MO-06 regresa por el Editor SQL).
+
+**Para que surta efecto en producción:** aplicar `0030` en `al3d-pruebas` y después en `al3d-produccion` (Editor SQL, el archivo entero; termina con
+la auditoría). Ninguna función nueva en `public` ni firma distinta (`modo_cambiar(text, text)` se reemplaza tal cual); la app no cambia por esto
+(hoy `modo_cambiar` no tiene botón). No hay que volver a pegar ninguna función ni tocar el Apps Script.
+
+Lo que queda igual al regresar: la hoja sigue completa mientras no se apague la copia. El espejo a la hoja solo lleva Ventas y Abonos (y está
+apagado); lo que se capture de almacén, gastos o autorizaciones en modo base no vuelve solo a la hoja. Y desde el paso 6, de vuelta en la hoja la
 base ya no da de alta ventas sin cotización (`0026`) y «Datos de la venta» desaparece: las dos cosas vuelven a hacerse en la hoja.
 
 ## Lo que decide Elías
@@ -367,3 +406,21 @@ los 10 minutos) y la bandeja manda las ventas nuevas. Una que ya se apartó ante
 «Success» con la auditoría limpia. Prueba de humo en las dos: **98 de 98, 0 fallos** (H01–H04 en verde). En producción, después: la empresa
 sigue en `'base'`, `ganar_proyecto` y `registrar_cobro` llevan el cambio «0028:», la matriz dice `pagos.alta.ganar_proyecto = true` y no quedó
 ninguna fila de la prueba.
+
+## Auditoría del 2026-10-26: cada aparato sabe quién manda (T1-3)
+
+El 26-oct el Chrome de escritorio de Dirección tenía Supabase encendido, sesión válida en la base (activo, la base en `'base'`) y token de
+dispositivo, y **no tenía el modo guardado** (`al3d_pf_supa_modo`): la bandeja corrió en modo hoja y nada lo dijo. No se encontró la causa
+exacta; se cerraron todas las posibles del arranque:
+
+| Qué pasaba | Qué hace ahora | Dónde |
+|---|---|---|
+| El modo solo lo preguntaba la vigilancia, después de montar la primera pantalla, una vez; si la sesión no estaba lista, no volvía a preguntar en 10 min. Y una petición colgada dejaba la carga entera sin preguntar (la promesa compartida y `_enCurso` no se soltaban) | La app pregunta en **cada arranque, en cuanto pasa la puerta** (`saberQuienManda`: tres intentos con espera creciente), en paralelo con la primera pantalla, y la bandeja espera la respuesta hasta 4 s antes de su primera vuelta. Cada espera tiene tope (`TOPES`: el cliente 20 s, la sesión 8 s, `mi_acceso` 15 s); una pregunta colgada contesta «no sé» y suelta el turno | `js/nucleo/supa.js`, `js/app.js` (`crearQuienManda`) |
+| La puerta solo le preguntaba a la base si ya sabía que la base manda | Con Supabase encendido y sin modo oído, la puerta le pregunta primero a la base (guarda el modo y, con la base mandando, el pase sale de ella) | `js/nucleo/puerta.js` (`supaSinModo`) |
+| El oyente de `al3d-modo` se colgaba después de enchufar la bandeja: un aviso que llegaba antes se perdía (MB-15) | Los oyentes se cuelgan lo primero del arranque y no enchufan hasta que el arranque enchufa; el enchufe lleva turno (el que leyó el modo viejo no registra nada) | `js/app.js` |
+| Sin modo, nada lo decía | **Banda roja** «Este aparato no sabe a dónde guardar», con «Entrar con tu cuenta» (el botón de Google en la banda), «Volver a preguntar» o «Encender y entrar»; también si la base contesta algo que no es «activo» | `js/app.js` (`banda`, `revisarDispositivo`) |
+| La hoja rechaza la escritura porque la base manda (`LA_BASE_MANDA`, puente-sheets-17) o su `/salud` dice `modo:'base'` | El aviso `al3d-la-base-manda`: con sesión se le pregunta a la base (guarda el modo y la bandeja se vuelve a enchufar); sin sesión, la entrada de siempre una vez y la banda roja; con Supabase apagado, la banda roja y su botón lo enciende (nada lo enciende solo) | `js/app.js`, `js/nucleo/puerta.js` |
+| Otra pestaña oía el modo y ésta seguía en la hoja | El aviso `storage` de `al3d_pf_supa_modo` (o del interruptor) vuelve a enchufar la bandeja de esta pestaña | `js/app.js` |
+
+Prueba: `pruebas/supabase-quien-manda.mjs` (supa.js de verdad, el escritorio con su token y el teléfono sin él). Sin probar en un navegador de
+verdad. Para el `/salud`: hace falta que `salud()` de `js/datos/puente.js` pase el `modo` que trae la hoja.

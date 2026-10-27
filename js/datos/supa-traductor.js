@@ -29,9 +29,15 @@
 export const DINERO = Object.freeze({ anti_pactado: 'anticipo', sub: 'subtotal', cuenta: 'cuenta',
   estatus_notion: 'estatus', pct_comision: 'pct_comision', nombre: 'nombre' });
 /** Los de la obra que escribe `proyecto_actualizar`, con su nombre en la base. */
+/* `oculto_taller`: «Ocultar del taller» (auditoría 2026-10-26, T1-9; 0029_taller_hasta_liquidar.sql), con su sello como las notas. Solo
+   Dirección lo escribe: a las otras áreas se lo quita `porArea` del relevo con la matriz que dijo la base, y lo nombra. */
 export const OBRA = Object.freeze({ notas: 'notas', tel: 'tel', dir_texto: 'dir_texto', entrega: 'entrega',
   plazo_k: 'plazo_k', entrecalles: 'entrecalles', ubicacion_pendiente: 'ubicacion_pendiente', contacto: 'contacto',
-  negocio: 'negocio', tipo_trabajo: 'tipo_trabajo', compromiso_texto: 'compromiso_texto', fecha_ganado: 'fecha_anticipo' });
+  negocio: 'negocio', tipo_trabajo: 'tipo_trabajo', compromiso_texto: 'compromiso_texto', fecha_ganado: 'fecha_anticipo',
+  oculto_taller: 'oculto_taller' });
+/* Lo que se manda de una operación de una versión anterior, que no dice qué cambió: la obra de siempre. «Ocultar del taller» no
+   existía entonces, y mandarlo «por si acaso» le pondría a Fabricación un rechazo que nadie pidió. */
+const OBRA_DE_ANTES = Object.keys(OBRA).filter(k => k !== 'oculto_taller');
 /** La ubicación es UN dato con cuatro campos: si cambia uno, viajan los cuatro. */
 const UBICACION = ['lat', 'lng', 'maps_url', 'geo_fuente'];
 /** Lo que va por `almacen_aplicar`: el libro, el catálogo y las listas de compra. */
@@ -124,7 +130,7 @@ export function traducir(op, extra = {}) {
      manda la obra completa con sus sellos —la base decide por sello y no pisa lo más nuevo— y ni
      el dinero ni la etapa, que solo viajan cuando se sabe que fueron lo que cambió. */
   const sabe = Array.isArray(op.campos);
-  const campos = new Set(sabe ? op.campos : [...Object.keys(OBRA), ...UBICACION]);
+  const campos = new Set(sabe ? op.campos : [...OBRA_DE_ANTES, ...UBICACION]);
   const llamadas = [];
 
   const obra = {};

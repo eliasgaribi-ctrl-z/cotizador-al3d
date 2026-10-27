@@ -39,8 +39,9 @@
        base dicen si se registró algo o no.
 
    «DATOS DE LA VENTA» (paso 6, decidido por Elías el 2026-10-25): Dirección corrige el nombre, el
-   subtotal, la cuenta, el estatus, la fecha de liquidación, el % pactado o el IVA de una venta, que
-   antes solo se podía desde el Editor SQL. Solo con la base mandando y solo Dirección (Pagos y
+   subtotal, la cuenta, el estatus, la fecha de liquidación, el % pactado o el IVA de una venta (y
+   desde 0032 la fecha del anticipo: auditoría 2026-10-26, T1-6), que antes solo se podía desde el
+   Editor SQL. Solo con la base mandando y solo Dirección (Pagos y
    Fabricación ni ven la pestaña del formulario). Cada campo arranca con lo que tiene la base y se manda
    solo lo que cambió (`corregir_venta`); la pregunta dice de cuánto a cuánto y cómo quedan el neto, el
    saldo y la comisión, con el botón de peligro si cambia el dinero. Justo antes de preguntar se vuelve a
@@ -79,7 +80,7 @@ const NOMBRE = { cobro: 'Cobro de una venta', abono: 'Abono de comisión', repar
   venta: 'Venta sin cotización', datos: 'Datos de la venta' };
 const AREA = { direccion: 'Dirección', pagos: 'Pagos', fabricacion: 'Fabricación' };
 const CAMPOS = ['proyecto', 'que', 'monto', 'fecha', 'nota', 'nombre', 'cuenta', 'estatus', 'tipos', 'subtotal', 'anticipo', 'cita',
-  'tel', 'entrega', 'dir', 'maps', 'iva', 'fliq', 'pct', 'cambios'];
+  'tel', 'entrega', 'dir', 'maps', 'iva', 'fliq', 'pct', 'fant', 'cambios'];
 const MS_RELEER = 3000;
 
 const enBase = () => laBaseManda();
@@ -185,12 +186,22 @@ export function cablear(el, o = {}) {
 export function soltar() { _el = null; }
 
 /** Qué formulario enseñar al abrir: lo usan los botones rápidos de Control («+ Cobro de una venta» abre el de cobro) y el «Ir a
- *  corregir» del Cotizador, que trae además el V-### de la venta (auditoría 2026-10-25, CZ-2). El borrador de cada formulario no se
- *  toca, salvo la venta elegida cuando llega una y el formulario no tiene un envío en duda. */
+ *  corregir» del Cotizador, que trae además el V-### de la venta (auditoría 2026-10-25, CZ-2) y, si lo que cambió es el anticipo,
+ *  'anticipo' en vez de un formulario (2026-10-26, T1-6). El borrador de cada formulario no se toca, salvo la venta elegida cuando
+ *  llega una y el modo del de cobro, y solo si ese formulario no tiene un envío en duda. */
 export function elegirFormulario(t, ventaFolio = '') {
+  /* 'anticipo' no es un formulario: es «Corregir el anticipo», el segundo modo de «Cobro de una venta» (auditoría 2026-10-26, T1-6).
+     Lo pide el «Ir a corregir» del Cotizador cuando lo que cambió es el anticipo de una venta que ya está en la base: antes abría el
+     de cobro en «Pago del cliente», y el anticipo corregido que se escribía ahí se SUMABA como un pago más (dinero contado dos veces).
+     El modo se cambia solo si ese formulario no tiene un envío en duda: un pago que se mandó sin respuesta no cambia de qué es (DN-1). */
+  const modo = t === 'anticipo' ? 'anticipo' : '';
+  if (modo) t = 'cobro';
   if (!PS.FORMULARIOS.includes(t)) return;
   _form = t;
   _ventaAlAbrir = /^V-\d+$/.test(String(ventaFolio || '')) ? String(ventaFolio) : '';
+  /* Y el monto que hubiera tecleado para un PAGO se suelta al pasar a corregir el anticipo: ahí se leería como el anticipo total. */
+  const bc = borradores().cobro;
+  if (modo && !bc.incierto && bc.campos.modo !== modo) { bc.campos.modo = modo; delete bc.campos.monto; }
   ponerVentaAlAbrir();
   guardar();
   if (_el) repintar();
@@ -344,6 +355,7 @@ function detalleVivo(t, v) {
   if (t === 'datos') {
     return 'En la base: subtotal ' + PS.pesosDe(v.subtotal) + ' · ' + (v.iva ? 'con IVA' : 'sin IVA') + ' · neto ' + PS.pesosDe(v.neto) +
       ' · cuenta ' + esc(v.cuenta || 'sin cuenta') + ' · ' + esc(v.estatus || 'sin estatus') +
+      (v.fechaAnticipo ? ' · anticipo del ' + esc(v.fechaAnticipo) : '') +
       (v.fechaLiquidacion ? ' · liquidada el ' + esc(v.fechaLiquidacion) : '') + (v.pct != null ? ' · ' + esc(String(v.pct)) + ' % pactado' : '') +
       '<br>Anticipo ' + PS.pesosDe(v.anticipo) + ' · liquidación ' + PS.pesosDe(v.liquidacion) + ' · saldo ' + PS.pesosDe(v.saldo) +
       ' · comisión ' + PS.pesosDe(v.comision) + ' (abonado ' + PS.pesosDe(v.abonado) + ')';
@@ -486,6 +498,7 @@ function formDatos() {
   const val = k => (c[k] !== undefined && c[k] !== null ? c[k] : (ahora[k] !== undefined ? ahora[k] : ''));
   /* El IVA lo pone la cuenta mientras la venta no quede LIQUIDADA (la regla de la base, `normalizar_iva`): el desplegable enseña el que
      va a poner y no se toca. Antes se quedaba en el de antes mientras la nota decía el nuevo (auditoría 2026-10-25, DN-8). */
+  const fechaDelAnticipo = PS.puedeCorregirLaFechaDelAnticipo(_acceso);
   const loPoneLaCuenta = !!val('cuenta') && val('estatus') !== 'LIQUIDADO';
   const ivaVisto = loPoneLaCuenta ? (val('cuenta') === PS.CUENTA_SIN_IVA ? 'no' : 'si') : val('iva');
   const campos = !v ? '' :
@@ -501,13 +514,23 @@ function formDatos() {
     '</div>' +
     '<p class="pf-nota">' + (loPoneLaCuenta ? 'El IVA lo pone la cuenta. A mano, solo en una venta LIQUIDADA.'
       : 'Venta LIQUIDADA (o sin cuenta): el IVA se puede poner a mano.') + '</p>' +
-    '<div class="pg-dos">' +
-      campoTexto(t, 'fliq', 'Fecha de liquidación', val('fliq'), { tipo: 'date', max: hoy(), ayuda: 'Vacía: sin fecha.' }) +
-      campoTexto(t, 'pct', '% de comisión pactado', val('pct'), { pista: '10', largo: 6,
-        ayuda: 'Informativo: la comisión se calcula siempre al 10 % del subtotal. Vacío: sin porcentaje.' }) +
-    '</div>';
+    /* La fecha del anticipo (auditoría 2026-10-26, T1-6; `corregir_venta` la acepta desde 0032): la que decide en qué mes se cuenta la
+       venta, y hasta aquí solo se corregía desde el Editor SQL. Solo si la base deja a esta cuenta escribirla. */
+    (fechaDelAnticipo
+      ? '<div class="pg-dos">' +
+          campoTexto(t, 'fant', 'Fecha del anticipo', val('fant'), { tipo: 'date', max: hoy(), ayuda: 'El día que se cobró: de ella sale el mes de la venta.' }) +
+          campoTexto(t, 'fliq', 'Fecha de liquidación', val('fliq'), { tipo: 'date', max: hoy(), ayuda: 'Vacía: sin fecha.' }) +
+        '</div>' +
+        campoTexto(t, 'pct', '% de comisión pactado', val('pct'), { pista: '10', largo: 6,
+          ayuda: 'Informativo: la comisión se calcula siempre al 10 % del subtotal. Vacío: sin porcentaje.' })
+      : '<div class="pg-dos">' +
+          campoTexto(t, 'fliq', 'Fecha de liquidación', val('fliq'), { tipo: 'date', max: hoy(), ayuda: 'Vacía: sin fecha.' }) +
+          campoTexto(t, 'pct', '% de comisión pactado', val('pct'), { pista: '10', largo: 6,
+            ayuda: 'Informativo: la comisión se calcula siempre al 10 % del subtotal. Vacío: sin porcentaje.' }) +
+        '</div>');
   return '<form class="pg-form" data-pg-tipo="datos" novalidate>' +
-    '<p class="pf-nota">Para lo que quedó mal en una venta: el nombre, el subtotal, la cuenta, el estatus, el IVA, la fecha de liquidación o el % ' +
+    '<p class="pf-nota">Para lo que quedó mal en una venta: el nombre, el subtotal, la cuenta, el estatus, el IVA, ' +
+    (fechaDelAnticipo ? 'la fecha del anticipo, ' : '') + 'la fecha de liquidación o el % ' +
     'pactado. Cada campo trae lo que tiene la base; se manda solo lo que cambies, y antes se pregunta con lo de antes y lo de después. El anticipo ' +
     'se corrige en «Cobro de una venta» → «Corregir el anticipo» y la liquidación en «Corregir».</p>' +
     selectVenta(t, c) + campos + msg(t, 'cambios') +

@@ -565,7 +565,8 @@ const PROPS = { IMPORTAR_URL: 'https://gwzfdprdrdudfakjsdxf.supabase.co/function
   cierto('las seis que se eligen en el editor no terminan en _ (Apps Script esconde esas)', EDITOR.every(n => propios.has(n)));
   const sinComentarios = GS.replace(/\/\*[\s\S]*?\*\//g, '');
   const corte = GS.lastIndexOf('/*', GS.indexOf('EL RESPALDO SEMANAL DE LA BASE'));
-  cierto('no usa nada que escriba la hoja ni las propiedades: ni setValue(s), ni appendRow, ni setProperty', !/setValues?\(|appendRow|setProperty|deleteProperty|insertSheet|deleteRow/.test(sinComentarios));
+  /* Quién manda (puente-sheets-17) sí queda en una propiedad, pero la escribe Código.gs (fijarModoEmpresa_), no este archivo. */
+  cierto('no usa nada que escriba la hoja ni las propiedades: ni setValue(s), ni appendRow, ni setProperty (el modo lo anota Código.gs)', !/setValues?\(|appendRow|setProperty|deleteProperty|insertSheet|deleteRow/.test(sinComentarios));
   cierto('y la COPIA no toca Drive: DriveApp solo aparece en el bloque del respaldo, que va después y no lee la hoja',
     corte > 0 && !/DriveApp/.test(GS.slice(0, corte).replace(/\/\*[\s\S]*?\*\//g, '')) && !/SpreadsheetApp/.test(GS.slice(corte).replace(/\/\*[\s\S]*?\*\//g, '')));
 }

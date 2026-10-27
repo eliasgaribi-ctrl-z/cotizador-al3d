@@ -6,18 +6,18 @@
 // Cómo se despliega y qué secretos lleva: supabase/README.md, «La copia diaria (importar-diario)».
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/supabase-importar-diario.mjs falla si una cambió:
 //   998974899ffa11bc  datos/semilla.json
-//   e77af4afd7f5ddf0  js/datos/agenda.js
+//   f86e3a271b2d6673  js/datos/agenda.js
 //   d8b415f4d8dcf1ed  js/datos/catalogo-precios.js
-//   64c4eb181e3d381f  js/datos/cotizador.js
+//   f4d76f28e34f9a66  js/datos/cotizador.js
 //   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
 //   121a081376026fad  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
-//   cfd0119724bf4a0e  js/datos/proyectos.js
-//   8f24f962983e9d1f  js/datos/puente.js
-//   f264d239bd03e18f  js/datos/taller.js
+//   9fca655dea24dff6  js/datos/proyectos.js
+//   a6c602deca1783b6  js/datos/puente.js
+//   3726e8a5b940e62f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
-//   5be48180438525b2  js/nucleo/ingreso.js
+//   72e8414cf324dbc9  js/nucleo/ingreso.js
 //   182f2f140a2e13d6  js/nucleo/ui.js
 //   5d93c4aec89d58bb  scripts/importador/celdas.mjs
 //   9c015d4000ba42f9  scripts/importador/plan.mjs
@@ -26,8 +26,8 @@
 //   2b5e0ad232337eb4  supabase/functions/_shared/respaldo.js
 //   02ed914bbd6ab1de  supabase/functions/_shared/sello.js
 //   217550f09676854a  supabase/functions/importar-diario/base.js
-//   a71a48031bacb916  supabase/functions/importar-diario/copia.js
-//   3effd9bd054b80dd  supabase/functions/importar-diario/handler.js
+//   fcccd7683db61be1  supabase/functions/importar-diario/copia.js
+//   7f68b28a3d463885  supabase/functions/importar-diario/handler.js
 //   f258da7bfe7dfd34  supabase/functions/importar-diario/index.ts
 //   944d38c278361c01  supabase/functions/importar-diario/respaldo.js
 // ============================================================================
@@ -1088,6 +1088,7 @@ var ORDEN = ETAPAS.reduce((m, e, i) => {
   m[e] = i;
   return m;
 }, {});
+var ESTATUS_POR_COBRAR = Object.freeze(["FABRICACION", "REPARANDO", "COBRANDO"]);
 
 // js/nucleo/ingreso.js
 var K_TOK = "al3d_pf_gtok";
@@ -1183,9 +1184,12 @@ var COLUMNA_DEL_SELLO = {
   dir_texto: P.direccion,
   ubicacion: P.ubicacion,
   entrega: P.entrega,
-  instalacion: P.fechaInst
+  instalacion: P.fechaInst,
+  oculto_taller: "_oculto_taller"
 };
+var OCULTO_DE_LA_BASE = COLUMNA_DEL_SELLO.oculto_taller;
 var GRUPO_DE_COLUMNA = Object.fromEntries(Object.entries(COLUMNA_DEL_SELLO).map(([g, c]) => [c, g]));
+var MS_TRAS_NEGARSE = 10 * 6e4;
 
 // supabase/functions/_shared/sello.js
 var FORMATO_V1 = "AL3D-AUTH-v1";
@@ -3685,7 +3689,8 @@ async function copiar({ base, plan, volcado, ahora, inicio }) {
           duracion_ms: duracion()
         };
         const g = await anotar(tx, d);
-        return { ...d, ...g };
+        const modo = mandaLaBase ? "base" : m && m[0] && m[0].modo === "hoja" ? "hoja" : null;
+        return { ...d, ...g, modo };
       });
     } catch (e) {
       if (e instanceof CopiaOcupada) throw e;
@@ -3916,7 +3921,8 @@ async function manejar(peticion, deps) {
         error: r.error
       });
     }
-    return responder(200, { ok: true, ...res, motivo: r.aplicado ? null : "conflictos" });
+    const modo = r.modo === "base" || r.modo === "hoja" ? r.modo : null;
+    return responder(200, { ok: true, ...res, modo, motivo: r.aplicado ? null : modo === "base" ? "modo_base" : "conflictos" });
   } catch (e) {
     if (e instanceof CopiaOcupada) return responder(409, sobreDeError("OCUPADA", "Ya hay una copia en curso: esta no hizo nada."));
     if (e instanceof ErrorDeCopia) {

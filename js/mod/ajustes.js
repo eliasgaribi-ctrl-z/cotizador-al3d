@@ -1725,7 +1725,10 @@ function bloqueCopiaDiaria(nube) {
   if (u.rechazos) por.push(u.rechazos + (u.rechazos === 1 ? ' fila que no entra' : ' filas que no entran'));
   return nota('<b>Copia diaria de la hoja a la nube:</b> cuadró ' + nube.deSiete + ' de los últimos 7 días · racha: ' + nube.racha + ' de ' + nube.meta + '. ' +
     'Último día (' + esc(dia) + '): ' + (u.cuadra ? 'cuadra' : 'no cuadra') + ' — ' + esc(por.join(', ')) +
-    (u.aplicado ? '.' : '; la copia no se aplicó (lo decide una persona).'), u.cuadra ? 'ok' : 'av');
+    /* Con la base mandando no aplicar es lo esperado —la copia ya solo cuadra—, y «lo decide una persona» mandaba a buscar un
+       conflicto que no existe (auditoría 2026-10-26, T1-4). */
+    (u.aplicado ? '.' : laBaseManda() ? '; no se aplicó porque la base manda: la copia ya solo cuadra, para ver si alguien siguió escribiendo en la hoja.'
+      : '; la copia no se aplicó (lo decide una persona).'), u.cuadra ? 'ok' : 'av');
 }
 
 async function accionSombra(b) {

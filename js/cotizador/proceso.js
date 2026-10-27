@@ -303,8 +303,12 @@ function esperaHTML(){
   /* «Revisado hace…» solo cuenta una respuesta POSTERIOR a esta solicitud: la hora de la consulta
      de la solicitud anterior no dice nada de ésta. Sin respuesta todavía, se dice lo que se hace. */
   const ts=(s.enviada&&_estadoTs>=(Number(s.ts)||0)&&_estadoTs>0)?_estadoTs:0;
+  /* Sin el permiso de Google de la hoja la vuelta de 15 s no puede preguntar (T1-8, notario.js): se dice, sin
+     `data-hace` —el reloj de pintarHaceEspera lo taparía con «Revisado hace…»—, y abajo sale «Revisar ahora». */
   const hace=s.enviada&&_esperaViva(s)
-    ? `<span class="espera-hace" data-hace="${ts}">${ts?'Revisado hace '+haceTexto(Date.now()-ts):'La app vuelve a preguntar sola cada 15 s'}</span>`
+    ? (_sinPermisoHoja
+      ? `<span class="espera-hace">Para ver si ya la autorizaron falta el permiso de Google de la hoja: toca «Revisar ahora».</span>`
+      : `<span class="espera-hace" data-hace="${ts}">${ts?'Revisado hace '+haceTexto(Date.now()-ts):'La app vuelve a preguntar sola cada 15 s'}</span>`)
     : '';
   return `<ol class="recorrido" aria-label="Recorrido de la solicitud">${tramos}</ol><span class="espera-frase">${frase}</span>${hace}`;
 }
@@ -369,8 +373,13 @@ function renderAuth(){
     const remotas=remotasHTML();
     /* «Revisado hace N s», con reloj (C9): la hora de reloj de pared decía a qué hora se miró, pero
        no cuánto llevaba mirando sin respuesta. El texto lo mantiene vivo pintarHaceEspera(). */
-    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Aquí llegan también las solicitudes de los otros teléfonos${_remotasTs?' · <span data-hace="'+_remotasTs+'" data-prefijo="revisado">revisado hace '+haceTexto(Date.now()-_remotasTs)+'</span>':' · buscando…'}</p>`;
-    if(!_remotasTs||Date.now()-_remotasTs>VIGILA_MS) setTimeout(consultarSolicitudes,0);
+    /* Sin el permiso de Google de la hoja (notario.js, _sinPermisoHoja; auditoría 2026-10-26, T1-8) la cola
+       de los otros teléfonos no llega, y se dice con su botón: «Revisar ahora» sí puede pedir el permiso. Y
+       el repintado no vuelve a preguntar por su cuenta —es de fondo y no abriría la ventana—: la vuelta de
+       quince segundos sigue, y la primera respuesta buena lo quita. */
+    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Aquí llegan también las solicitudes de los otros teléfonos${_sinPermisoHoja?' · <span>sin el permiso de Google de la hoja no se pueden traer</span>':_remotasTs?' · <span data-hace="'+_remotasTs+'" data-prefijo="revisado">revisado hace '+haceTexto(Date.now()-_remotasTs)+'</span>':' · buscando…'}</p>`
+      +(_sinPermisoHoja?`<button class="btn btn-gho" data-acc="revisarSolicitudesAhora()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Revisar ahora</button>`:'');
+    if(!_sinPermisoHoja&&(!_remotasTs||Date.now()-_remotasTs>VIGILA_MS)) setTimeout(consultarSolicitudes,0);
     /* La lista de la cola NO se rehace con el resto del panel: este panel se repinta en cada tecla
        del anticipo, y una lista que se rehace entera no puede saber qué llegó (C22). Aquí solo se
        arma lo que va adentro; lo monta _montarCola() sobre un contenedor que sobrevive. */
@@ -424,7 +433,8 @@ function renderAuth(){
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
         : `<div class="authnote espera${Q.solicitud&&Q.solicitud.error?' falla':''}">${esperaHTML()}</div>
            ${puedeAutorizar()?`<button class="btn btn-pri" data-acc="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>`:''}
-           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" data-acc="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> ${Q.solicitud.cancelada?'Volver a pedirla':'Reintentar el envío'}</button>`:''}
+           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" data-acc="enviarSolicitud(true)"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> ${Q.solicitud.cancelada?'Volver a pedirla':'Reintentar el envío'}</button>`:''}
+           ${_sinPermisoHoja&&Q.solicitud&&Q.solicitud.enviada&&_esperaViva(Q.solicitud)?`<button class="btn btn-gho" data-acc="revisarSolicitudesAhora()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Revisar ahora</button>`:''}
            <button class="btn btn-gho" data-acc="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
@@ -1915,7 +1925,8 @@ function solicitarConfirmado(){
   Q.estado='pendiente'; Q.solicitud={enviada:false,ts:Date.now(),error:''};
   pushToQueue(); saveState(); renderItems();
   toast('Precio bloqueado · mandando la solicitud a Dirección…','',3000);
-  enviarSolicitud();
+  /* Del botón (T1-8): puede pedir el permiso de Google de la hoja y lo espera. */
+  enviarSolicitud(true);
 }
 /* ----- Autorizar sin cambiar de rol -----
    El flujo de vendedor → autorizador está pensado para dos personas y se queda tal
@@ -2179,7 +2190,7 @@ function rechazar(){
   const i=identidadVerificada();
   Q.autorizador=i?i.correo:'';
   Q.nota=($('a-note')?.value||'').trim();
-  if(Q.solicitud){ Q.solicitud.retirada=true; hablarHoja('rechazar',{folio:folioGlobal(),nota:Q.nota}).catch(()=>{}); }
+  if(Q.solicitud){ Q.solicitud.retirada=true; hablarHoja('rechazar',{folio:folioGlobal(),nota:Q.nota},undefined,true).catch(()=>{}); }
   Q.solicitud=null; Q.sello=null;
   vibrar([20,60,20]);
   Q.estado='rechazada'; _selfAuth=false; Q.reauth=null; paBorradorLimpiar();

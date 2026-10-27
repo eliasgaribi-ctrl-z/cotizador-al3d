@@ -218,7 +218,8 @@ console.log('\nCONTROL: con la base mandando, «Cuentas» y «Facturas»; con la
   cierto('«+ Ingreso» abre «Cobros y abonos» con el formulario de cobro a la vista, esté o no cargada esa pestaña',
     /function abrirIngreso\(\) \{\n  _formAlAbrir = 'cobro';/.test(sinC) && /cambiarTab\('asientos'\);/.test(sinC) &&
     (sinC.match(/elegirFormulario\(_formAlAbrir, _ventaAlAbrir\)/g) || []).length === 2 &&
-    /export function elegirFormulario\(t, ventaFolio = ''\) \{\n  if \(!PS\.FORMULARIOS\.includes\(t\)\) return;/.test(sinComentarios(leer('js/mod/pagos-supa.js'))));
+    /* Desde la auditoría 2026-10-26 (T1-6) acepta también 'anticipo' («Corregir el anticipo», el modo del de cobro) antes de la guarda. */
+    /export function elegirFormulario\(t, ventaFolio = ''\) \{[\s\S]{0,200}?if \(!PS\.FORMULARIOS\.includes\(t\)\) return;/.test(sinComentarios(leer('js/mod/pagos-supa.js'))));
   cierto('el formulario del gasto, con la hoja mandando, es el desplegable de siempre (ni «disponible» ni la nota)',
     /if \(!disp\) return CUENTAS\.map\(c => '<option>' \+ esc\(c\) \+ '<\/option>'\)\.join\(''\);/.test(sinC) && /return disp \? '<p class="pf-nota ct-gas-nota">/.test(sinC));
   cierto('y con la base mandando cada cuenta lleva su NOMBRE como valor (lo que se guarda en el gasto y lo que resta)',

@@ -1012,7 +1012,7 @@ console.log('\n11. SELLOS (opcional), UNA HOJA SIN PREPARAR Y EL ESTADO');
   H.lote({ ventas: [venta('V-001'), venta('V-002')], abonos: [grupo('V-001', [abono(1), abono(2)])] });
   H.abonos._g[9][3] = 5;                                      // un renglón de nadie (importe sin folio) también ocupa
   const e = H.doPost(JSON.stringify({ ruta: 'espejo', secreto: SECRETO_HOJA, accion: 'estado' }));
-  eq('«estado» cuenta lo ocupado y lo libre de cada pestaña, no escribe nada y dice la versión', [e.ok, e.version, e.fin, e.ventas, e.abonos, e.modo_espejo, e.sellos], [true, 'puente-sheets-16', 310, { ocupadas: 2, libres: 307 }, { ocupadas: 3, libres: 1996 }, true, false]);
+  eq('«estado» cuenta lo ocupado y lo libre de cada pestaña, no escribe nada y dice la versión', [e.ok, e.version, e.fin, e.ventas, e.abonos, e.modo_espejo, e.sellos], [true, 'puente-sheets-17', 310, { ocupadas: 2, libres: 307 }, { ocupadas: 3, libres: 1996 }, true, false]);
   cierto('  y cuándo fue la última sincronización', Math.abs(Date.parse(e.ultima_sincronizacion) - Date.now()) < 5000);
   const log = espiar(H); H.doPost(JSON.stringify({ ruta: 'espejo', secreto: SECRETO_HOJA, accion: 'estado' }));
   eq('«estado» no escribe nada', log.length, 0);

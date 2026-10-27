@@ -6,13 +6,13 @@
 // Cómo se despliega: supabase/README.md, «La pantalla del taller (pantalla)». No lleva secretos propios.
 // Fuentes (huella sha256 de 16 caracteres, con saltos LF); pruebas/supabase-pantalla.mjs falla si una cambió:
 //   d8b415f4d8dcf1ed  js/datos/catalogo-precios.js
-//   64c4eb181e3d381f  js/datos/cotizador.js
+//   f4d76f28e34f9a66  js/datos/cotizador.js
 //   2dd6625d9ef82214  js/datos/db.js
 //   5e57c990f1be0624  js/datos/entrega.js
 //   121a081376026fad  js/datos/geo.js
 //   71dc554fabaf8870  js/datos/prefs.js
-//   cfd0119724bf4a0e  js/datos/proyectos.js
-//   f264d239bd03e18f  js/datos/taller.js
+//   9fca655dea24dff6  js/datos/proyectos.js
+//   3726e8a5b940e62f  js/datos/taller.js
 //   a80af2424caeef7c  js/nucleo/fechas.js
 //   182f2f140a2e13d6  js/nucleo/ui.js
 //   da8d7ea3e1d49150  supabase/functions/_shared/cliente.js
@@ -861,6 +861,7 @@ function ventanaTaller(p, inst, opts = {}) {
   }
   return salida;
 }
+var ESTATUS_POR_COBRAR = Object.freeze(["FABRICACION", "REPARANDO", "COBRANDO"]);
 
 // supabase/functions/pantalla/handler.js
 var MAX_CUERPO = 2048;
