@@ -169,7 +169,8 @@ console.log('\nEL CÓDIGO — todo pregunta al mismo interruptor');
     /if \(E\.material\) \{ a8\(E, out\); a9\(E, out\); a13\(E, out\); \}/.test(reglas) &&
     /material: E\.material === undefined \? !MATERIAL_EN_MANTENIMIENTO : E\.material === true/.test(reglas));
   cierto('reglas.js: «Qué atender» no llama a la degradación con el interruptor puesto',
-    /const material = !MATERIAL_EN_MANTENIMIENTO;/.test(reglas) && /const P = material \? await mod\('proyectos'\) : null;/.test(reglas));
+    /const material = !MATERIAL_EN_MANTENIMIENTO;/.test(reglas) &&
+    /if \(material && P && typeof P\.emitirSalidasDerivadas === 'function'\)/.test(reglas));
 
   const datos = sinComentarios(leer('js/datos/proyectos.js'));
   cierto('proyectos.js: la guarda vive en la única puerta de las salidas (el corte y la derivada) y lee agenda.js',

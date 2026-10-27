@@ -844,8 +844,11 @@ export async function refrescar(opts = {}) {
   const hoy = esISO(opts.hoy) ? opts.hoy : hoyISO();
   const material = !MATERIAL_EN_MANTENIMIENTO;
   try {
-    const P = material ? await mod('proyectos') : null;
-    if (P && typeof P.emitirSalidasDerivadas === 'function') {
+    /* El módulo de proyectos se carga siempre: con Material en mantenimiento ya no saca salidas, pero
+       `foliosDecididos` (abajo) sigue haciendo falta para que «Qué atender» no pida decidir una
+       cotización que ya es venta (auditoría 2026-10-26, T1-1 junto con T1-7). */
+    const P = await mod('proyectos');
+    if (material && P && typeof P.emitirSalidasDerivadas === 'function') {
       try { await P.emitirSalidasDerivadas(hoy); } catch (_) {}
     }
 
