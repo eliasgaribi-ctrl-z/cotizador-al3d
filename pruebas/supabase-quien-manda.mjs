@@ -338,6 +338,13 @@ console.log('\nDOS PESTAÑAS: EL MODO QUE OYÓ UNA LE LLEGA A LA OTRA');
   ventanaB.dispatchEvent(Object.assign(new Event('storage'), { key: null }));
   await pausa(5);
   eq('otra clave (o un `clear`) no enchufa nada', b.t.enchufes.length, 2);
+  /* La otra pestaña volvió a preguntar y reescribió la llave con el MISMO modo (solo cambia su `visto`): eso no es un
+     cambio, y reaccionar a él hacía un bucle entre dos pestañas abiertas (revisión de la Tanda 1, 2026-10-26). */
+  const igual = almacen.get('al3d_pf_supa_modo');
+  const otraVez = igual.replace(/"visto":\d+/, '"visto":' + (Date.now() + 1000));
+  ventanaB.dispatchEvent(Object.assign(new Event('storage'), { key: 'al3d_pf_supa_modo', oldValue: igual, newValue: otraVez }));
+  await pausa(5);
+  eq('el mismo modo con otro `visto` no vuelve a enchufar: no hay bucle entre pestañas', b.t.enchufes.length, 2);
   /* Y si en la otra pestaña apagan el interruptor (Ajustes), ésta vuelve a la hoja. */
   almacen.delete('al3d_pf_supa');
   ventanaB.dispatchEvent(Object.assign(new Event('storage'), { key: 'al3d_pf_supa', newValue: null }));

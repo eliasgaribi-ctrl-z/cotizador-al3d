@@ -580,6 +580,10 @@ function mandarALaHoja(cierre){
   return puentePost(cfg,'empujar',{ops:[{id:datos['Folio cotizacion'],datos:datos}]})
     .then(j=>{
       const r=(j&&j.resultados&&j.resultados[0])||null;
+      /* La hoja ya no recibe: la base manda (puente-sheets-17). No es un error que se arregle copiando la fila a la
+         hoja, que nadie lee: la venta espera en este aparato hasta que entre a la base (revisión de la Tanda 1, 2026-10-26). */
+      const laBase=(j&&j.codigo==='LA_BASE_MANDA')||(r&&r.codigo==='LA_BASE_MANDA');
+      if(laBase){ const e=new Error((r&&r.mensaje)||(j&&j.mensaje)||'La plataforma ahora guarda en la base: este teléfono tiene que entrar con su cuenta.'); e.laBaseManda=true; throw e; }
       if(!r||r.ok!==true) throw new Error((r&&r.mensaje)||'El puente no pudo escribir la venta.');
       marcarHito('venta');
       /* El folio interno de la hoja (V-042) viene como `id_notion`, el nombre que heredó
@@ -595,6 +599,15 @@ function mandarALaHoja(cierre){
       return true;
     })
     .catch(e=>{
+      if(e&&e.laBaseManda){
+        toast(e.message,'err',8000);
+        /* La plataforma escucha este aviso para preguntarle a la base quién manda (js/app.js). El cotizador puede vivir
+           dentro de la plataforma o solo en su pestaña: se avisa a las dos ventanas. */
+        for(const w of [globalThis, (()=>{try{return globalThis.parent;}catch(_){return null;}})()]){
+          try{ if(w&&w.dispatchEvent) w.dispatchEvent(new CustomEvent('al3d-la-base-manda')); }catch(_){}
+        }
+        return false;
+      }
       toast((e&&e.message)||'No se pudo mandar la venta a la hoja','err',7000,
         {label:'Copiar datos',fn:copiarDatosVenta});
       return false;

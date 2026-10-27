@@ -2507,8 +2507,10 @@ export function crearQuienManda(d) {
   function anotar(r) {
     if (r && typeof r === 'object' && r.estado) {
       st.respuesta = r;
-      /* La base es la que dice quién manda: en cuanto contesta de verdad, lo que dijo la hoja ya quedó atendido. */
-      if (r.estado === 'activo' && r.modo) st.hojaDijoBase = false;
+      /* La base es la que dice quién manda: si contesta «base», lo que dijo la hoja ya quedó atendido. Si contesta «hoja»,
+         las dos no están de acuerdo y eso se queda anotado, para que la banda lo diga (`desacuerdo`); borrarlo aquí dejaba
+         las escrituras detenidas por la hoja sin ninguna explicación (revisión de la Tanda 1, 2026-10-26). */
+      if (r.estado === 'activo' && r.modo === 'base') st.hojaDijoBase = false;
     }
     d.repintar();
   }
@@ -2611,9 +2613,16 @@ export function crearQuienManda(d) {
     d.ofrecer(Supa, Ingreso.correo());
   }
 
-  /* El aviso `storage` solo llega a las OTRAS pestañas del mismo origen: la que guardó el modo ya se enchufó sola. */
+  /* El aviso `storage` solo llega a las OTRAS pestañas del mismo origen: la que guardó el modo ya se enchufó sola.
+     Solo cuenta si cambió lo que decide a dónde se guarda —el modo, o el interruptor—: `guardarModo` reescribe la llave
+     en cada pregunta (con su `visto` nuevo), y reaccionar a eso hacía un bucle entre dos pestañas abiertas: una pregunta,
+     la otra se vuelve a enchufar y pregunta, y así sin parar (revisión de la Tanda 1, 2026-10-26). */
   function alCambiarOtraPestana(ev) {
     if (!ev || (ev.key !== 'al3d_pf_supa_modo' && ev.key !== 'al3d_pf_supa')) return null;
+    const campo = ev.key === 'al3d_pf_supa_modo' ? 'modo' : 'encendido';
+    const leer = t => { try { const v = JSON.parse(t || 'null'); return v && typeof v === 'object' ? v[campo] : null; } catch (_) { return null; } };
+    /* Un navegador siempre manda `oldValue` (null si la llave es nueva); sin él no se puede comparar, y se reacciona. */
+    if (ev.oldValue !== undefined && leer(ev.oldValue) === leer(ev.newValue)) return null;
     return alCambiarElModo();
   }
 
