@@ -42,7 +42,7 @@ const filaHoja = (id, nombre, sub) => ({ id_notion: id, editado: null, 'Proyecto
 
 /* El puente de mentiras: contesta como el Apps Script. Con `version` 15 guarda los gastos que le
    llegan y los devuelve en /jalar_gastos; con la 14 no conoce esos caminos. */
-async function ponerPuente(ctx, { version = 'puente-sheets-16', rol = 'direccion' } = {}) {
+async function ponerPuente(ctx, { version = 'puente-sheets-17', rol = 'direccion' } = {}) {
   const mock = { gastos: new Map(), empujes: [], rutas: [] };
   const sabe = Number(version.split('-').pop()) >= 15;
   await ctx.route(B + '/puente', async route => {

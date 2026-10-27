@@ -181,7 +181,8 @@ async function anotar(tx, d) {
 /**
  * Aplica la copia y anota el cuadre.
  * @param {{base:object, plan:object, volcado?:object, ahora:function():number, inicio:number}} o
- * @returns {Promise<{id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, duracion_ms, resumen}>}
+ * @returns {Promise<{id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, duracion_ms, resumen, modo?}>}  modo: 'base' | 'hoja' | null
+ *          (solo cuando la copia corrió; si tronó, no se sabe y no va)
  * @throws CopiaOcupada si otra corrida tiene el candado; ErrorDeCopia si ni siquiera se pudo anotar.
  */
 export async function copiar({ base, plan, volcado, ahora, inicio }) {
@@ -223,7 +224,11 @@ export async function copiar({ base, plan, volcado, ahora, inicio }) {
         const d = { empresa, aplicado: !!sqlCopia && !mandaLaBase, diferencias: dif.n, conflictos: conflictosPlan + cambios.n_conflictos, rechazos,
           resumen: r, duracion_ms: duracion() };
         const g = await anotar(tx, d);
-        return { ...d, ...g };
+        /* `modo`, para la hoja (puente-sheets-17; auditoría 2026-10-26, T1-2): copia-diaria.gs lo anota en sus propiedades y, con 'base',
+           sus rutas de escritura dejan de aceptar lo que mandan los teléfonos que no se enteraron. null si la empresa no tiene renglón o
+           trae otra cosa: entonces la hoja no cambia lo que sabía. Va fuera de `d`, que es lo que se anota en cuadre_diario. */
+        const modo = mandaLaBase ? 'base' : (m && m[0] && m[0].modo === 'hoja') ? 'hoja' : null;
+        return { ...d, ...g, modo };
       });
     } catch (e) {
       if (e instanceof CopiaOcupada) throw e;

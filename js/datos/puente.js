@@ -953,7 +953,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-16';
+export const VERSION_ESPERADA = 'puente-sheets-17';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -964,6 +964,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 16 */ 'con la base mandando, la hoja sigue aceptando lo que le manda un teléfono que todavía no se enteró —una etapa, un cobro, un gasto— y eso se queda en la hoja congelada sin llegar a la base; al abrir la hoja nadie ve que ya no recibe, y el correo de los lunes sale con cifras viejas. Falta pegar el Apps Script puente-sheets-17 (Código.gs y Copia diaria.gs)',
   /* 15 */ 'con la base mandando, la ficha de cada proyecto no enseña los archivos de su carpeta de Drive, no se abren carpetas nuevas ni se leen los links cortos de Maps sin tocar «Conectar Drive»: esa versión no acepta la sesión de la base. Falta pegar el Apps Script puente-sheets-16',
   /* 14 */ 'los gastos que se capturan en Control no llegan a la hoja: esa versión no tiene la pestaña «Gastos» ni sus caminos, y cada teléfono los guarda —sin perderse— hasta que la hoja se actualice. Falta pegar el Apps Script puente-sheets-15',
   /* 13 */ 'cada teléfono ve su propia versión de la obra: la etapa intermedia (En diseño, Cortado, Armado, Listo), las notas, el plazo de taller y las correcciones del teléfono, la dirección y el pin que se hacen en otro dispositivo no llegan, y una cita movida o cancelada en otro no siempre se mueve aquí. Falta pegar el Apps Script puente-sheets-14 y correr «3 · Preparar la hoja para el puente»',
@@ -997,6 +998,14 @@ export function avisoVersion(version) {
    ============================================================================ */
 
 const MS_ESPERA = 15000;
+
+/* Con la base mandando, la hoja no recibe escrituras (puente-sheets-17; ver «LA BASE MANDA» en `crear`). El
+   código, el evento que escucha js/app.js y lo que la persona lee junto a cada cambio que espera. */
+export const LA_BASE_MANDA = 'LA_BASE_MANDA';
+export const EVENTO_LA_BASE_MANDA = 'al3d-la-base-manda';
+export const MSG_LA_BASE_MANDA = 'La plataforma ahora guarda en la base: este teléfono tiene que entrar con su cuenta. ' +
+  'Lo que hiciste se queda guardado aquí y sale en cuanto entres.';
+const MS_ENTRE_AVISOS = 20000;
 
 /** Un error del relevo, con el código que `sync.js` entiende. */
 function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codigo; return e; }
@@ -1298,6 +1307,48 @@ export function crear(cfg0, opc = {}) {
   };
   const noSabeGastos = () => { hojaSabeGastos = false; gastosSabidoEn = Date.now(); };
 
+  /* ── LA BASE MANDA: la hoja ya no recibe (puente-sheets-17; auditoría 2026-10-26, T1-2) ──────────
+     Con la empresa en modo 'base', la hoja contesta LA_BASE_MANDA a /empujar, /empujar_almacen y
+     /empujar_gastos sin escribir nada. Este teléfono no se había enterado —si se hubiera enterado,
+     escribiría en la base y este relevo no estaría subiendo—, y lo que importa es que el cambio NO se
+     pierda: hasta la 16 la hoja contestaba «listo», la bandeja lo soltaba y se quedaba en una hoja
+     congelada.
+
+     Cómo se traduce, y por qué así:
+       · NO definitivo. `sync` no lo aparta como rechazado ni como «sin destino»: se queda en la bandeja
+         como pendiente, con el mensaje de abajo, y sale en cuanto el teléfono escriba en la base (el
+         relevo de la base toma la misma bandeja; docs/BASE-MANDA.md).
+       · Sin saturar la hoja. `sync` NO corta la vuelta con un código que no conoce: sigue con la
+         siguiente operación (js/datos/sync.js, `tratar`: solo cortan SIN_RED, DESCONOCIDO y el
+         ROL_SIN_PERMISO de la puerta). Con cuarenta cambios esperando, eran cuarenta peticiones a la
+         hoja cada 30 s, de cada teléfono así. Por eso este relevo RECUERDA la respuesta diez minutos
+         (`laHojaNoRecibe`): el resto de la vuelta, y las vueltas de esos diez minutos, se contestan aquí
+         mismo sin red. Pasado ese rato se le vuelve a preguntar a la hoja —una petición—, por si la
+         empresa regresó a la hoja. Y no se toca sync.js: cada operación queda con su razón a la vista.
+       · Un aviso por vuelta. `al3d-la-base-manda` lo escucha js/app.js para preguntarle el modo a la
+         base y avisarle a la persona; se dispara a lo más una vez cada 20 s (`MS_ENTRE_AVISOS`), menos
+         que el bombeo de cada 30 s: una vuelta con cuarenta cambios da UN aviso, no cuarenta.
+       · /salud dice el modo desde la 17 (`notarModo`): si ya se sabe por ahí, ni la primera subida sale. */
+  let laBaseMandaDesde = 0;
+  let avisadoEn = 0;
+  const notarModo = m => {
+    if (m === 'base') laBaseMandaDesde = Date.now();
+    else if (m === 'hoja') laBaseMandaDesde = 0;
+  };
+  const laHojaNoRecibe = () => !!laBaseMandaDesde && Date.now() - laBaseMandaDesde < MS_VOLVER_A_PREGUNTAR;
+  const avisarLaBaseManda = () => {
+    if (Date.now() - avisadoEn < MS_ENTRE_AVISOS) return;
+    avisadoEn = Date.now();
+    try { globalThis.dispatchEvent(new CustomEvent(EVENTO_LA_BASE_MANDA)); } catch (_) { /* sin ventana: las pruebas */ }
+  };
+  /* Lo que se le contesta a `sync` por cada operación: no definitivo, con la razón para la persona. */
+  const porLaBase = lista => {
+    avisarLaBaseManda();
+    return lista.map(op => ({ id: op.id, ok: false, codigo: LA_BASE_MANDA, mensaje: MSG_LA_BASE_MANDA }));
+  };
+  /* La hoja lo acaba de decir (en toda la respuesta o en una operación): se recuerda desde ahora. */
+  const laHojaLoDijo = () => { laBaseMandaDesde = Date.now(); };
+
   /* Lo más alto de la secuencia del almacén que trajo la última bajada, para guardarlo cuando
      `sync` ya escribió lo que bajó (ver `despuesDeBajar`). Antes no: si la escritura local se
      cayera a la mitad, la marca diría que esos renglones ya están aquí. */
@@ -1307,6 +1358,7 @@ export function crear(cfg0, opc = {}) {
     if (escribibles) return escribibles;
     const r = await pedir(cfg, '/salud');
     notarVersion(r.cuerpo.version);
+    if (r.cuerpo.ok === true) notarModo(r.cuerpo.modo);   // puente-sheets-17: quién manda, sin gastar una subida
     /* Solo se recuerda una lista de verdad. Un /salud que contestó 503 porque Notion está
        caído no trae `escribibles`, y cachear ese vacío dejaría a este teléfono mandando a
        ciegas el resto de la sesión: así, la siguiente subida vuelve a preguntar. */
@@ -1352,6 +1404,7 @@ export function crear(cfg0, opc = {}) {
     try { await asegurarEscribibles(); } catch (e) {
       return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
     }
+    if (laHojaNoRecibe()) return porLaBase(lista);
     if (hojaSabeAlmacen === false) return lista.map(sinPestana);
 
     const envio = [];
@@ -1364,6 +1417,8 @@ export function crear(cfg0, opc = {}) {
     }
     const c = r.cuerpo || {};
     if (c.ok === false) {
+      /* La base manda (puente-sheets-17): la hoja no escribió nada. Se queda en la bandeja, sin apartar. */
+      if (c.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase(lista); }
       /* «Camino desconocido»: una hoja anterior al 9 que no dijo su versión. Se aparta como si
          la hubiera dicho —la razón es la misma— y no como rechazo: no es culpa del renglón. */
       if (c.codigo === 'NO_ENCONTRADO') { noSabe(); return lista.map(sinPestana); }
@@ -1379,6 +1434,8 @@ export function crear(cfg0, opc = {}) {
          libro reste dos veces. Lo que la hoja no escribió por ser más viejo que lo que ya tiene
          (`viejos`) tampoco es un rechazo: otro teléfono lo cambió después, y gana. */
       if (x.ok) return { id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba };
+      /* La 17 lo dice en toda la respuesta (arriba); si algún día lo dice por operación, lo mismo. */
+      if (x.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase([op])[0]; }
       return { id: op.id, ok: false, codigo: x.codigo || 'DESCONOCIDO', definitivo: DEFINITIVOS.includes(x.codigo),
                mensaje: x.mensaje || 'La hoja rechazó el cambio.' };
     });
@@ -1499,6 +1556,7 @@ export function crear(cfg0, opc = {}) {
         return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
       }
     }
+    if (laHojaNoRecibe()) return porLaBase(lista);
     if (hojaSabeGastos === false) return lista.map(sinPestanaGastos);
 
     const envio = lista.map(op => {
@@ -1515,6 +1573,8 @@ export function crear(cfg0, opc = {}) {
     }
     const c = r.cuerpo || {};
     if (c.ok === false) {
+      /* La base manda (puente-sheets-17): la hoja no escribió nada. El gasto se queda en la bandeja, sin apartar. */
+      if (c.codigo === LA_BASE_MANDA) { laHojaLoDijo(); return porLaBase(lista); }
       /* «Camino desconocido»: una hoja anterior a la 15 que no dijo su versión. Se aparta con la
          razón —no es culpa del gasto— y vuelve sola cuando la hoja se actualice. */
       if (c.codigo === 'NO_ENCONTRADO') { noSabeGastos(); return lista.map(sinPestanaGastos); }
@@ -1527,6 +1587,7 @@ export function crear(cfg0, opc = {}) {
     for (const op of lista) {
       const x = res.find(y => y && y.id === op.id);
       if (!x) { salida.push({ id: op.id, ok: false, codigo: 'DESCONOCIDO', mensaje: 'La hoja contestó sin decir qué pasó con ese gasto.' }); continue; }
+      if (!x.ok && x.codigo === LA_BASE_MANDA) { laHojaLoDijo(); salida.push(porLaBase([op])[0]); continue; }
       if (x.ok) {
         await marcarGastoEnHoja(String(op.registro_id || (op.datos && op.datos.id) || ''));
         salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], ya_estaba: !!x.ya_estaba });
@@ -1781,6 +1842,8 @@ export function crear(cfg0, opc = {}) {
      */
     async subir(ops) {
       const lista = Array.isArray(ops) ? ops : [];
+      /* La hoja ya dijo que la base manda (hace menos de diez minutos): ni se le pregunta. Ver «LA BASE MANDA». */
+      if (lista.length && laHojaNoRecibe()) return porLaBase(lista);
       /* Un lote del almacén (`sync` los arma con `agrupa`) va entero a su camino; uno de gastos, al suyo. */
       if (lista.length && lista.every(op => op && DEL_ALMACEN.includes(op.almacen))) return subirAlmacen(lista);
       if (lista.length && lista.every(op => op && op.almacen === 'gastos')) return subirGastos(lista);
@@ -1792,6 +1855,8 @@ export function crear(cfg0, opc = {}) {
            cómo se crea una fila sin título en la base del dinero. */
         return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
       }
+      /* El /salud de recién dijo que la base manda (puente-sheets-17): no se gasta un /empujar. */
+      if (laHojaNoRecibe()) return porLaBase(lista);
 
       /* ── `definitivo`: lo que reintentar no arregla ────────────────────────────────
          Un rechazo de ESTA operación —el rol no escribe nada de lo que trae, el alta no
@@ -1951,6 +2016,15 @@ export function crear(cfg0, opc = {}) {
           break;
         }
 
+        /* La base manda (puente-sheets-17): la hoja no escribió nada, en toda la respuesta. Ni se marca el
+           proyecto como fallido —no falló nada: espera— ni se manda lo que sigue del lote a la misma hoja:
+           todo se queda en la bandeja hasta que el teléfono escriba en la base. */
+        if (r.cuerpo && r.cuerpo.ok === false && r.cuerpo.codigo === LA_BASE_MANDA) {
+          laHojaLoDijo();
+          salida.push(...porLaBase(lista.slice(lista.indexOf(op))));
+          break;
+        }
+
         const res = (Array.isArray(r.cuerpo.resultados) ? r.cuerpo.resultados : [])
           .find(x => x && x.id === op.id);
 
@@ -1980,6 +2054,8 @@ export function crear(cfg0, opc = {}) {
           continue;
         }
 
+        /* Lo mismo si algún día la hoja lo dice por operación: espera, no falló. */
+        if (res.codigo === LA_BASE_MANDA) { laHojaLoDijo(); salida.push(porLaBase([op])[0]); continue; }
         if (res.codigo !== 'CONFLICTO' && res.codigo !== 'SIN_RED') {
           await espejarLocal(proy.id, { notion_estado: 'fallido' });
         }

@@ -82,13 +82,15 @@ Todos entran por **POST** a la misma URL, con el camino en el cuerpo (`{"ruta":"
 `doGet` contesta que solo atiende POST y nada más. «Cualquier rol» quiere decir una cuenta de
 Google que esté en «Accesos» o un token de dispositivo válido: sin ninguna de las dos, la
 respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es `/verificar`.
+Con la base mandando (`MODO_EMPRESA` = `base`, desde `puente-sheets-17`), `/empujar`, `/empujar_almacen` y
+`/empujar_gastos` contestan `LA_BASE_MANDA` sin escribir nada (ver «`puente-sheets-17`», abajo).
 
 | Camino | Quién | Qué hace |
 |---|---|---|
-| `/salud` | cualquier rol | Estado, `version`, el rol, la lista de lo que **este rol** puede escribir, por qué puerta entró (Google o token) y qué proveedores de IA tienen llave —sí o no; la llave no sale nunca— |
+| `/salud` | cualquier rol | Estado, `version`, el rol, la lista de lo que **este rol** puede escribir, por qué puerta entró (Google o token) y qué proveedores de IA tienen llave —sí o no; la llave no sale nunca— y, desde `puente-sheets-17`, quién manda (`modo`: `base` u `hoja`) |
 | `/esquema` | cualquier rol | Qué columnas le faltan a la hoja, y si falta «Accesos». Las **detecta**, no las crea |
 | `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve**; el teléfono del cliente (AE, desde `puente-sheets-11`) y la entrega (AF, desde `puente-sheets-12`), para todos. Lee hasta la última columna que la hoja tenga: una hoja sin AE baja todo menos el teléfono, y una sin AF todo menos la entrega, sin tronar |
-| `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
+| `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar`. Con la base mandando contesta `LA_BASE_MANDA` y no escribe (`puente-sheets-17`) |
 | `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps. Contesta `DATO_INVALIDO` si no es Maps (definitivo) y `SIN_RED` si Google no contestó (se reintenta). Desde octubre de 2026 lo usan «Se ganó», «Completar» del Tablero, el panel «Pegar link» del Mapa y la sincronización (`Geo.resolverLink`); y la misma función de un salto (`expandirLiga_`) la usa «Registrar nueva venta» de la hoja |
 | `/solicitar` | cualquier rol | Pide a Dirección que autorice un precio. La hoja recalcula el subtotal con su copia del catálogo y, si no cuadra con el del teléfono, contesta `CATALOGO_DESINCRONIZADO`. No pisa la solicitud pendiente que **otra persona** tenga sobre el mismo folio (Dirección sí puede) |
 | `/cancelar` | quien la pidió, o Dirección | Retira una solicitud pendiente: el teléfono la reabrió para editarla y lo que se pidió ya no es lo que hay |
@@ -542,6 +544,26 @@ la ficha no los enseñaba.
 | **Una hoja vieja** | Con la 15 la app nueva funciona igual que hoy: la hoja ignora `supa_token` y la ficha pide «Conectar Drive» |
 | **Pruebas** | `pruebas/drive-con-la-base.mjs`: la verificación contra una base de mentiras, la puerta entera con un Drive de mentiras (qué abre y qué no) y lo que manda el teléfono |
 
+### `puente-sheets-17` — la hoja sabe que la base manda
+
+Desde el 25 de octubre la hoja está congelada, pero seguía **aceptando** lo que le mandaba un teléfono
+que no se había enterado de que la base manda (sin la sesión de la base, o que no había vuelto a
+preguntar): contestaba «listo», el teléfono sacaba el cambio de su bandeja y se quedaba en la hoja, sin
+llegar a ningún lado (auditoría 2026-10-26, T1-2). Y quien abría la hoja no veía que ya no recibe, y el
+correo de los lunes salía con las cifras del día en que se congeló (T1-4).
+
+| | |
+|---|---|
+| **El modo** | Una propiedad del script, `MODO_EMPRESA` (`base` u `hoja`), con `MODO_EMPRESA_NOTA` (de dónde salió y cuándo). Sin ella, `hoja`: todo como siempre. Ninguna credencial nueva |
+| **Quién la fija** | Sola: la copia de cada 3 horas (`Copia diaria.gs`) con el `modo` que le contesta `importar-diario`, y de paso cada sesión de la base que entra a Drive o Maps (`mi_acceso` trae el modo). A mano: ⚡ AL3D → 🔧 Actualizar el puente → «4 · La base manda», o `marcarQueLaBaseManda` / `marcarQueLaHojaManda` en el editor. Manda la base: si a mano se pone `hoja` y la base dice `base`, la siguiente copia lo regresa |
+| **Con `base`** | `/empujar`, `/empujar_almacen` y `/empujar_gastos` contestan `{ok:false, codigo:'LA_BASE_MANDA'}` después de las puertas y antes del candado, sin tocar nada. Leer (`/jalar`, `/salud`…), Drive, Maps, el sello, la IA, `/verificar` y `/espejo` siguen igual. Nada se borra ni se protege |
+| **El teléfono** | `LA_BASE_MANDA` **no es definitivo**: el cambio se queda en la bandeja como pendiente, con «La plataforma ahora guarda en la base: este teléfono tiene que entrar con su cuenta», y sale a la base cuando el teléfono escriba en ella. Para no saturar la hoja (la bandeja no corta la vuelta con un código que no conoce), el relevo recuerda la respuesta diez minutos y contesta lo demás sin red; si `/salud` ya dijo `base`, ni la primera subida sale. Avisa con el evento `al3d-la-base-manda` (lo escucha `js/app.js`), a lo más una vez por vuelta |
+| **Al abrir la hoja** | Un aviso que se queda hasta que lo cierran: «La plataforma manda desde el 25 de octubre: lo que se escriba aquí ya no llega a ningún lado. Captura en la plataforma.» |
+| **El correo de los lunes** | Con `base` no sale el resumen (sus cifras serían viejas): la primera vez sale un aviso corto, sin cifras, de que el resumen ahora está en la plataforma (Control); después, solo una línea en el registro (`RESUMEN_AVISO_BASE` guarda cuándo salió el aviso). El disparador se queda |
+| **La copia** | Su línea del registro ya no dice «lo decide una persona» cuando no aplicó porque la base manda; Ajustes tampoco |
+| **Una hoja vieja** | Con la 16 la app nueva funciona igual que hoy: la hoja acepta y el teléfono nunca ve `LA_BASE_MANDA`. «Probar» dice que falta la 17 |
+| **Pruebas** | `pruebas/la-hoja-con-la-base.mjs`: las tres rutas con `base` y con `hoja`, `/salud`, quién fija el modo, la copia de punta a punta con la función de verdad, el aviso, el correo, y el teléfono real (entra con Google, sin token, sin saber que la base manda): la bandeja conserva, la hoja no se satura y el evento sale una vez por vuelta |
+
 ---
 
 ## Montarlo
@@ -680,7 +702,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-16`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-17`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla
