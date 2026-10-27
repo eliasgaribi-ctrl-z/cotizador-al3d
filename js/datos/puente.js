@@ -66,6 +66,8 @@ import { ENTREGAS, ENTREGA_NOMBRE, entregaDe, entregaDesdeHoja } from './entrega
 import * as Ingreso from '../nucleo/ingreso.js';
 import { duracionSugerida } from './agenda.js';
 import { fmtFecha, fmtHora, hoyISO } from '../nucleo/ui.js';
+/* El folio de cotización que trae una fila, con la regla de la tarjeta importada (auditoría 2026-10-26, T1-1; ver `bajar`). */
+import { folioDeLaFila as folioDeCotizacionDeLaFila } from './proyectos.js';
 
 /* ============================================================================
    El vocabulario del puente. Son los nombres que heredó de Notion —con el espacio final
@@ -2497,6 +2499,18 @@ export function crear(cfg0, opc = {}) {
         const sello = Math.max(editado, Number(local.actualizado_en) || 0);
 
         delete aplicar.folio_global;   // la llave era para encontrarlo, no para escribirlo
+        /* …salvo en la tarjeta IMPORTADA que todavía no lo tiene (auditoría 2026-10-26, T1-1). Las importadas nacían sin el folio
+           de su cotización, y con la base mandando eso es justo lo que las ata a la cotización que el historial de la empresa trae
+           (ver `proyectos.desdeVentaDeHoja`): sin él, el teléfono de Dirección enseñaba la venta como «sin decidir» y «Se ganó» la
+           duplicaba. Las que ya bajaron vacías lo reciben aquí, en la siguiente bajada; las nuevas ya nacen con él.
+           NUNCA se pisa uno que ya tenga, ni en una tarjeta de este teléfono (ésa es la llave de su cotización y de su venta en la
+           base) ni en una importada con OTRO. Si difieren, se queda el de la tarjeta: en la base el folio de un proyecto no se
+           cambia (`proyectos_inmutable`, 0003), así que la diferencia solo puede venir de una celda «Folio cotizacion» corregida a
+           mano en la hoja. La tarjeta sigue atada a su renglón por el folio de la hoja, y las DOS cotizaciones quedan decididas
+           —la de la tarjeta por la tarjeta y la de la fila por el récord (`proyectos.foliosDecididos`)—, así que ninguna sale como
+           «sin decidir» ni se puede volver a ganar. Lo único que no se hace es adivinar cuál de las dos es la buena. */
+        const folioDeLaFila = folioDeCotizacionDeLaFila(venta);
+        if (folioDeLaFila && esImportadoLocal(local) && !String(local.folio_global || '').trim()) aplicar.folio_global = folioDeLaFila;
         /* La fila VINO: la venta está en la hoja, y un «ya no está» de antes es viejo —alguien
            la volvió a meter, o deshizo el borrado—. Ver `proyectos.avisoDeHoja`.
            Y lo mismo la decisión de dejarla fuera (`fuera_de_hoja`): se tomó para una fila que
@@ -2690,7 +2704,11 @@ function rango(valor) {
 async function porFolioGlobal(fg) {
   const filas = await DB.listar('proyectos',
     { indice: 'porFolio', rango: rango(fg), filtro: p => p && p.folio_global === fg });
-  return filas.length ? filas[0] : null;
+  /* La de verdad antes que la importada (auditoría 2026-10-26, T1-1). Desde que la tarjeta importada trae el folio de su
+     cotización (`proyectos.desdeVentaDeHoja`), las dos pueden tenerlo un momento: con la hoja mandando, si la bajada importa la
+     fila antes de que el buzón de este teléfono convierta la venta del cotizador, nace la de verdad y la revisión de esa misma
+     bajada junta las dos (`revisarContraLaHoja`). Mientras tanto el dinero de la fila le cae a la que se queda. */
+  return filas.find(p => !esImportadoLocal(p)) || filas[0] || null;
 }
 
 /* ============================================================================

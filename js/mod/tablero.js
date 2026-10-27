@@ -291,7 +291,8 @@ async function leer() {
   /* Las cotizaciones autorizadas que nadie decidió. Solo dirección: es la única que puede
      contestar, y es el eslabón sin el cual no hay proyecto, ni agenda, ni material. */
   const pendientes = Prefs.rol() === 'direccion'
-    ? Cot.sinDecidir(new Set((todos || []).map(p => p && p.folio_global).filter(Boolean)), 0)
+    /* Con las ventas del libro (auditoría 2026-10-26, T1-1): una cotización que otro teléfono ya vendió no es «sin decidir». */
+    ? Cot.sinDecidir(await Proy.foliosDecididos((todos || []).filter(Boolean)), 0)
     : [];
 
   const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];

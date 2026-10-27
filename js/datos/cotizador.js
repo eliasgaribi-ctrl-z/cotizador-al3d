@@ -161,7 +161,10 @@ export function estadoOrigen(proyecto) {
    El eslabón perdido, hecho visible. Una cotización autorizada es una que ya tiene precio
    bueno; que se haya vendido o no NO está escrito en ningún sistema, y por eso los datos
    del cotizador nunca llegaban a Notion.
-   @param foliosGanados Set de folio_global ya convertidos en proyecto */
+   @param foliosGanados Set de folio_global ya convertidos en proyecto. Lo bueno es el de
+          `Proyectos.foliosDecididos()`, que suma las ventas del libro (auditoría 2026-10-26,
+          T1-1): con la base mandando, el historial de la empresa trae cotizaciones que otro
+          teléfono ya vendió y que aquí no son tarjeta. */
 export function sinDecidir(foliosGanados, diasMin = 0) {
   const ahora = Date.now();
   const disp = Prefs.dispositivo();
@@ -171,8 +174,13 @@ export function sinDecidir(foliosGanados, diasMin = 0) {
        lleva `disp` desde que el cotizador lo sella, y un respaldo restaurado en otro
        teléfono trae proyectos con el folio global del aparato viejo. Comparar contra el
        nuevo resucitaba como «sin decidir» ventas ya registradas. Misma regla que
-       `conversion()`; y por si el proyecto se guardó con el folio visible, también ése. */
-    if (foliosGanados.has(folioGlobal(e.folio, e.disp || disp)) || foliosGanados.has(e.folio)) return false;
+       `conversion()`; y por si el proyecto se guardó con el folio visible, también ése.
+       Y con el de ESTE aparato también (auditoría 2026-10-26, T1-1): hasta ese arreglo,
+       «Se ganó» guardaba la venta con el aparato de este teléfono aunque la cotización fuera
+       de otro, y esa venta ya está decidida. Son las mismas llaves que mira `Proyectos.ganar`
+       antes de dar de alta: lo que aquí sale como «sin decidir» es lo que «Se ganó» sí da de alta. */
+    if (foliosGanados.has(folioGlobal(e.folio, e.disp || disp)) || foliosGanados.has(folioGlobal(e.folio, disp)) ||
+        foliosGanados.has(e.folio)) return false;
     const dias = (ahora - (Number(e.ts) || ahora)) / 86400000;
     return dias >= diasMin;
   });
@@ -238,6 +246,9 @@ export async function drenarBuzon() {
          buzón existe para cubrir— quedaba dentro de la copia congelada y el aviso R6 no
          podía sonar nunca. Con la huella de aquel momento sí se nota. */
       huella: g.huella || '',
+      /* Lo convierte el buzón, no un «Se ganó» a mano (auditoría 2026-10-26, T1-1): con la hoja mandando, el cotizador ya
+         escribió la fila y la tarjeta importada que la bajada haya traído antes no le estorba (ver `Proyectos.ganar`). */
+      desde_buzon: true,
     });
     if (r.ok) { creados++; procesadas.push(g); }
     else if (r.codigo === 'DUPLICADO') { repetidos++; procesadas.push(g); }

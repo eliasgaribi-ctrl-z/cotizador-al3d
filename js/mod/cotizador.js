@@ -78,6 +78,8 @@ import * as Ingreso from '../nucleo/ingreso.js';
 import * as Puente from '../datos/puente.js';
 import * as DB from '../datos/db.js';
 import * as Sync from '../datos/sync.js';
+/* La venta del libro de una cotización que aquí no es tarjeta (auditoría 2026-10-26, T1-1; ver `estadoDeVenta`). */
+import { ventaDelLibro } from '../datos/proyectos.js';
 
 let _cont = null;
 let _ctx = null;
@@ -426,7 +428,16 @@ async function estadoDeVenta(fg) {
     const alta = ops.find(o => o.almacen === 'proyectos' && o.tipo === 'crear') || ops[0];
     if (alta) return { apartada: String(alta.ultimo_error || 'la base no la aceptó'), datos: datosDe(p) };
   }
-  return vivos.length ? { datos: datosDe(vivos[0]) } : {};
+  if (vivos.length) return { datos: datosDe(vivos[0]) };
+  /* Sin tarjeta aquí, el libro (auditoría 2026-10-26, T1-1): la venta que otro teléfono registró con esta cotización y que en este
+     no es tarjeta (ya no está en la línea del taller) vive solo en el récord (`ventas_hoja`, que con la base mandando baja de la base).
+     Sin esto el cotizador de Dirección dejaba otra constancia de una cotización de Pagos ya vendida —el hito «venta» llega con el
+     historial de la empresa, y se le preguntaba aquí—, y la plataforma tenía que negarse después (`Proyectos.ganar`). */
+  let v = null;
+  try { v = await ventaDelLibro([f]); } catch (_) { v = null; }
+  if (!v || !/^V-\d+$/.test(String(v.folio_hoja || ''))) return {};
+  return { folio: String(v.folio_hoja), datos: { cuenta: v.cuenta || null, estatus: v.estatus || null,
+    anti: v.anticipo != null ? Number(v.anticipo) : null, fecha_anticipo: v.fecha_anticipo || null } };
 }
 
 /* ============================================================================

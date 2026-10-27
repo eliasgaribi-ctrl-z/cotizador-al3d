@@ -193,6 +193,9 @@ function abrirRegistrarVenta(){
   const avBase=document.getElementById('rv-base-av');
   if(avBase){ avBase.textContent=vetada?RV_VETADA:''; avBase.hidden=!vetada; }
   const btnReg=document.getElementById('rv-registrar'); if(btnReg) btnReg.disabled=vetada;
+  /* Lo que el modal enseña al abrirse: un segundo toque solo avisa de lo que la persona cambió desde aquí (auditoría 2026-10-26, T1-6;
+     ver `rvCambiosDesde`). */
+  _rvAlAbrir=rvValoresDelModal();
   const fondo=document.getElementById('rv-modal-bg');
   if(fondo.setAttribute) fondo.setAttribute('aria-label',laBaseManda()?'Registrar la venta':'Registrar la venta en la hoja de finanzas');
   fondo.classList.add('show');
@@ -686,17 +689,33 @@ function registrarEnLaHoja(cierre){
    nada —la venta ya es de la base, y la base corrige con su pregunta y su bitácora—, y el vendedor que corrigió la
    cuenta o el anticipo en el modal creía que había quedado (auditoría 2026-10-25, CZ-2). Se dice qué no se cambió y
    dónde se cambia. */
-function rvCambiosDesde(antes,g){
+function rvCambiosDesde(antes,g,alAbrir){
   if(!antes||typeof antes!=='object') return [];
   /* Solo lo que se sabe de antes: la copia de la plataforma no trae la fecha de instalación (vive en la cita). */
   const sabe=k=>Object.prototype.hasOwnProperty.call(antes,k)&&antes[k]!=null;
+  /* Y solo lo que la persona CAMBIÓ en el modal (auditoría 2026-10-26, T1-6): `alAbrir` es lo que el modal enseñaba al abrirse
+     (`rvValoresDelModal`). El modal no abre con lo que tiene la base sino con lo de siempre —la fecha del anticipo es HOY, el
+     estatus FABRICACION, la cuenta la preferida, el anticipo el de la cotización—, así que un segundo toque OTRO DÍA, sin tocar
+     nada, «cambiaba» la fecha del anticipo (y el estatus de una venta que ya se cobró, o el anticipo que Pagos corrigió en la base):
+     avisos de cambios que nadie hizo, con un botón que llevaba a corregir lo que estaba bien. Sin `alAbrir` (quien llama sin el
+     modal), lo de antes: todo lo distinto cuenta. */
+  const a=alAbrir&&typeof alAbrir==='object'?alAbrir:null;
+  const txt=(x,y)=>String(x==null?'':x)!==String(y==null?'':y);
+  const num=(x,y)=>Math.abs((Number(x)||0)-(Number(y)||0))>=0.01;
+  const toco=(k,dist)=>!a||dist(a[k],g[k]);
   const out=[];
-  if(sabe('cuenta')&&String(antes.cuenta)!==String(g.cuenta||'')) out.push('la cuenta');
-  if(sabe('anti')&&Math.abs((Number(antes.anti)||0)-(Number(g.anti)||0))>=0.01) out.push('el anticipo');
-  if(sabe('fecha_anticipo')&&String(antes.fecha_anticipo)!==String(g.fecha_anticipo||'')) out.push('la fecha del anticipo');
-  if(sabe('estatus')&&String(antes.estatus)!==String(g.estatus||'')) out.push('el estatus');
-  if(sabe('fecha_instalacion')&&String(antes.fecha_instalacion)!==String(g.fecha_instalacion||'')) out.push('la fecha de instalación');
+  if(sabe('cuenta')&&toco('cuenta',txt)&&String(antes.cuenta)!==String(g.cuenta||'')) out.push('la cuenta');
+  if(sabe('anti')&&toco('anti',num)&&num(antes.anti,g.anti)) out.push('el anticipo');
+  if(sabe('fecha_anticipo')&&toco('fecha_anticipo',txt)&&String(antes.fecha_anticipo)!==String(g.fecha_anticipo||'')) out.push('la fecha del anticipo');
+  if(sabe('estatus')&&toco('estatus',txt)&&String(antes.estatus)!==String(g.estatus||'')) out.push('el estatus');
+  if(sabe('fecha_instalacion')&&toco('fecha_instalacion',txt)&&String(antes.fecha_instalacion)!==String(g.fecha_instalacion||'')) out.push('la fecha de instalación');
   return out;
+}
+/* Lo que el modal enseña ahora, con las llaves de la constancia. Se toma al abrirlo (`_rvAlAbrir`) para saber qué tocó la persona. */
+let _rvAlAbrir=null;
+function rvValoresDelModal(){
+  const v=id=>{ const el=document.getElementById(id); return el?String(el.value||''):''; };
+  return {cuenta:v('rv-cuenta'),anti:parseFloat(v('rv-anticipo'))||0,fecha_anticipo:v('rv-fecha'),estatus:v('rv-estatus'),fecha_instalacion:v('rv-fecha-inst')};
 }
 /* La constancia ya se la llevó la plataforma (el buzón se vacía al convertirla en proyecto), pero el paso «venta» está
    marcado: con la base mandando se le pregunta a la plataforma qué tiene de esa venta antes de dejar otra constancia.
@@ -726,27 +745,69 @@ async function rvYaRegistradaEnLaBase(g){
   const fg=g.folio+'@'+g.disp, b=_rvPreguntaFolio();
   let e={}; try{ if(b) e=await _rvEstado(b,fg); }catch(_){}
   if(!e.folio&&!e.datos&&!e.apartada) return false;
-  const cambios=rvCambiosDesde(e.datos,g);
+  const cambios=rvCambiosDesde(e.datos,g,_rvAlAbrir);
   if(cambios.length){ rvYaEstabaConCambios(cambios,fg); return true; }
   toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
     {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
   esperarFolioDeVenta(fg);
   return true;
 }
+/* Dónde se corrige cada cosa de una venta que ya está en la base, y a dónde lleva el botón (auditoría 2026-10-26, T1-6). Antes el
+   aviso decía «se corrige en Control → Cobros y abonos» para todo, y «Ir a corregir» le abría a Pagos «Pago del cliente»: si ahí
+   escribía el anticipo corregido, la base lo SUMABA como un pago más (`registrar_cobro` es acumulativo) y el dinero quedaba contado
+   dos veces. Y la cuenta y el estatus ni están en ese formulario. Ahora:
+     · el anticipo, en «Corregir el anticipo» (el anticipo TOTAL, que reemplaza al de antes: `corregir_venta`), para los dos;
+     · la cuenta, el estatus y la fecha del anticipo, para Dirección en «Datos de la venta»; para Pagos la cuenta y el estatus en la
+       ficha del proyecto (sus botones de siempre), y la fecha del anticipo se la pide a Dirección (no la corrige Pagos);
+     · la fecha de instalación, en el Calendario o en la ficha.
+   El botón lleva a lo primero que haya, en ese orden: el dinero primero. PURA salvo el área, que se le pasa. */
+function rvDondeSeCorrige(cambios,area){
+  const hay=k=>cambios.includes(k);
+  const y=xs=>xs.length===1?xs[0]:xs.slice(0,-1).join(', ')+' y '+xs[xs.length-1];
+  const n=xs=>xs.length>1?'n':'';
+  const dir=area==='direccion';
+  const partes=[];
+  let boton=null;
+  if(hay('el anticipo')){
+    partes.push('el anticipo se corrige en Control → Cobros y abonos → «Corregir el anticipo» (con el anticipo total: no es un pago y no se suma)');
+    boton={label:'Ir a corregir',ruta:'control',form:'anticipo'};
+  }
+  const datos=['la cuenta','el estatus','la fecha del anticipo'].filter(hay);
+  if(dir&&datos.length){
+    partes.push(y(datos)+' se corrige'+n(datos)+' en Control → Cobros y abonos → «Datos de la venta»');
+    if(!boton) boton={label:'Ir a corregir',ruta:'control',form:'datos'};
+  }
+  if(!dir){
+    const ficha=['la cuenta','el estatus'].filter(hay);
+    if(ficha.length){
+      partes.push(y(ficha)+' se cambia'+n(ficha)+' en la ficha del proyecto, en Proyectos');
+      if(!boton) boton={label:'Abrir la ficha',ruta:'proyectos'};
+    }
+    if(hay('la fecha del anticipo')) partes.push('la fecha del anticipo la corrige Dirección, en «Datos de la venta»');
+  }
+  if(hay('la fecha de instalación')){
+    partes.push('la fecha de instalación se cambia en el Calendario o en la ficha del proyecto');
+    if(!boton) boton={label:'Ir al Calendario',ruta:'agenda'};
+  }
+  return {partes,boton};
+}
 function rvYaEstabaConCambios(cambios,fg){
   const lista=cambios.length===1?cambios[0]:cambios.slice(0,-1).join(', ')+' y '+cambios[cambios.length-1];
-  const soloFecha=cambios.length===1&&cambios[0]==='la fecha de instalación';
-  const donde=soloFecha?'se cambia en el Calendario o en la ficha del proyecto'
-    :'se corrige'+(cambios.length>1?'n':'')+' en Control → Cobros y abonos'+(cambios.includes('la fecha de instalación')?' (la fecha de instalación, en el Calendario)':'');
-  const texto='La venta ya está en la base: '+lista+' no se cambi'+(cambios.length>1?'an':'a')+' desde aquí, '+donde+'.';
+  const d=rvDondeSeCorrige(cambios,areaDeQuienEntro());
+  const donde=d.partes.join('; ');
+  const texto='La venta ya está en la base: '+lista+' no se cambi'+(cambios.length>1?'an':'a')+' desde aquí. '+
+    donde.charAt(0).toUpperCase()+donde.slice(1)+'.';
   rvNoEntro(texto,'av');
+  const b=d.boton;
   const ir=async()=>{
-    if(soloFecha){ irAPlataforma('agenda'); return; }
+    if(b.ruta==='agenda'){ irAPlataforma('agenda'); return; }
     let venta=fg;
-    try{ const b=_rvPreguntaFolio(); if(b){ const e=await _rvEstado(b,fg); if(e.folio) venta=e.folio; } }catch(_){}
-    irAPlataforma('control',{tab:'asientos',form:areaDeQuienEntro()==='direccion'?'datos':'cobro',venta});
+    try{ const q=_rvPreguntaFolio(); if(q){ const e=await _rvEstado(q,fg); if(e.folio) venta=e.folio; } }catch(_){}
+    if(b.ruta==='proyectos'){ irAPlataforma('proyectos',/^V-\d+$/.test(venta)?{venta}:null); return; }
+    irAPlataforma('control',{tab:'asientos',form:b.form,venta});
   };
-  toast(texto,'',9000,{label:soloFecha?'Ir al Calendario':'Ir a corregir',fn:ir});
+  /* Sin botón cuando no hay a dónde ir desde este teléfono (Pagos, y solo la fecha del anticipo: es de Dirección). */
+  toast(texto,'',9000,b?{label:b.label,fn:ir}:undefined);
 }
 function registrarGanada(){
   /* Fabricación con la base mandando: el modal ya lo dice y el botón está apagado; esto es por si llega por otro lado. */
@@ -789,7 +850,7 @@ function registrarGanada(){
       /* Ya estaba registrada: el hito puede faltar si se registró antes de que existieran
          —o si el respaldo trajo las ganadas y no los hitos—, y lo que manda es el hecho. */
       marcarHito('venta');
-      const cambios=laBaseManda()?rvCambiosDesde(previa,g):[];
+      const cambios=laBaseManda()?rvCambiosDesde(previa,g,_rvAlAbrir):[];
       if(cambios.length){ rvYaEstabaConCambios(cambios,g.folio+'@'+g.disp); return; }
       /* Se reintenta la hoja aunque la constancia ya existiera: el puente busca por folio
          antes de crear, así que no puede duplicar, y este es justo el camino de «se

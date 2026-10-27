@@ -212,6 +212,8 @@ function normalizar(e) {
     cola: arr(E.cola),
     avisos: arr(E.avisos),
     calibracion: arr(E.calibracion),
+    /* Los folios de cotización que ya son una venta del libro (auditoría 2026-10-26, T1-1; ver `a6`). */
+    foliosDelLibro: arr(E.foliosDelLibro).map(String),
     hoy: esISO(E.hoy) ? E.hoy : hoyISO(),
     rol: E.rol || null,
     veDinero: E.veDinero === undefined ? E.rol !== 'fabricacion' : !!E.veDinero,
@@ -348,6 +350,11 @@ function a6(E, out) {
     if (p.folio_local) decididos.add(String(p.folio_local));
     if (p.folio_global) decididos.add(Cot.folioVisible(p.folio_global));
   }
+  /* Y las ventas del libro (auditoría 2026-10-26, T1-1): con la base mandando, el historial de la empresa trae
+     cotizaciones que otro teléfono ya vendió, y si esa venta ya no está en la línea del taller (COBRANDO,
+     LIQUIDADO) no es tarjeta aquí. Sin esto «Qué atender» las pedía decidir, y su «Se ganó» habría dado de
+     alta la misma venta otra vez. Los pone `refrescar` (`Proyectos.foliosDecididos`, la misma regla). */
+  for (const fg of E.foliosDelLibro) decididos.add(Cot.folioVisible(fg));
 
   for (const e of E.historial) {
     const folio = String(e.folio || '').trim();
@@ -854,8 +861,12 @@ export async function refrescar(opts = {}) {
     const M = material ? await mod('material') : null;
     const calibracion = M && M.calibracion ? await M.calibracion().catch(() => []) : [];
 
+    /* Lo decidido que no es tarjeta aquí: las ventas del libro (auditoría 2026-10-26, T1-1; ver `a6`). */
+    const foliosDelLibro = P && typeof P.foliosDecididos === 'function'
+      ? [...await P.foliosDecididos(proyectos).catch(() => new Set())] : [];
+
     const lista = evaluar({
-      proyectos, instalaciones, requerimientos, existencias, faltantes,
+      proyectos, instalaciones, requerimientos, existencias, faltantes, foliosDelLibro,
       historial: Cot.historial(), cola: Cot.cola(),
       avisos: guardados, calibracion,
       hoy, rol: Prefs.rol(), veDinero: Prefs.veDinero(),
