@@ -27,7 +27,8 @@
      3. «El taller»: las cinco estaciones, siempre, con el nombre de cada trabajo en una
         ficha. Rojo es «va tarde», ámbar «toca hoy», y las dos llevan su palabra. Tocar el
         nombre abre el proyecto: ahí está lo demás —material, cómo es, dónde se instala— y ahí
-        se avanza la etapa.
+        se avanza la etapa. Desde el 2026-10-26, una sexta columna: «Instalado, por cobrar»,
+        hasta que la venta se liquide (auditoría, T1-9; ver `elTaller`).
      4. La próxima instalación, y la puerta a «Qué atender», que no tiene otra.
 
    Lo que salió de aquí no se perdió. Los botones de cada renglón —avanzar, mover la fecha,
@@ -262,11 +263,16 @@ async function leer() {
 
   const porId = new Map(vivos.map(p => [p.id, p]));
 
-  /* Las ventanas. Se descartan las de lo que ya se instaló y lo cancelado: el taller es lo
-     que TODAVÍA está en la mesa. */
-  const V = vivos
-    .map(p => Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts }))
-    .filter(v => v && v.estado !== 'cancelado' && v.estado !== 'hecho');
+  /* Las ventanas. Las estaciones son lo que TODAVÍA está en la mesa: sin lo que ya se instaló ni lo
+     cancelado. Lo instalado que todavía no se liquida va en su propia columna, «Instalado, por
+     cobrar», hasta que su estatus pase a LIQUIDADO; y lo que Dirección ocultó del taller no va en
+     ninguna (auditoría 2026-10-26, T1-9: `Taller.tablaDelTaller`). */
+  const tabla = Taller.tablaDelTaller(vivos, instDe, { hoy, cts });
+  const V = tabla.estaciones;
+  /* Lo que no está oculto: de aquí salen los avisos («Faltan datos», las citas sin marcar, la
+     próxima instalación). Una obra oculta no pide nada. */
+  const enTabla = vivos.filter(p => !Taller.ocultoDelTaller(p));
+  const oculto = id => Taller.ocultoDelTaller(porId.get(id));
 
   /* El semáforo de material de un proyecto, con el contexto ya leído. */
   const semDe = id => Agenda.dictamen(
@@ -292,6 +298,7 @@ async function leer() {
 
   return {
     hoy, V, vivos, porId, instDe, mat, fres, enTaller, pendientes, semDe,
+    porCobrar: tabla.porCobrar, ocultos: tabla.ocultos,
     /* Las que YA PASARON Y NADIE MARCÓ: dejan el almacén sin descontar y la cobranza sin
        arrancar, y son invisibles en cualquier otra pantalla. */
     /* Sin las de un proyecto que ya está en «Instalado» o «En garantía» (o que no se dio): ahí la
@@ -301,15 +308,16 @@ async function leer() {
     vencidas: (insts || []).filter(i => {
       if (!(i && i.fecha && i.fecha < hoy && VIVAS_SIN_MARCAR.includes(i.estado))) return false;
       const p = porId.get(i.proyecto_id);
-      return !!p && p.etapa !== 'instalado' && p.etapa !== 'garantia';
+      return !!p && p.etapa !== 'instalado' && p.etapa !== 'garantia' && !Taller.ocultoDelTaller(p);
     })
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))),
     /* «Faltan datos» (js/datos/datos-de-entrega.js): los del taller sin teléfono, sin forma de
        entrega o, si se instalan, sin dirección o sin pin. Por la fecha de entrega más cercana;
-       la fecha es la de su instalación viva, la misma que pinta el Calendario. */
-    faltan: DD.faltanDatos(vivos, { hoy, fechaDe: p => (instDe.get(p.id) || {}).fecha || null }),
-    /* La próxima instalación, sin las hechas: marcada la de hoy, «la próxima» no puede ser ella. */
-    prox: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha')
+       la fecha es la de su instalación viva, la misma que pinta el Calendario. Sin lo oculto. */
+    faltan: DD.faltanDatos(enTabla, { hoy, fechaDe: p => (instDe.get(p.id) || {}).fecha || null }),
+    /* La próxima instalación, sin las hechas: marcada la de hoy, «la próxima» no puede ser ella.
+       Tampoco la de una obra oculta: «Lo que viene» del Calendario tampoco la enseña. */
+    prox: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha' && !oculto(i.proyecto_id))
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))[0] || null,
   };
 }
@@ -406,6 +414,11 @@ function fechaLarga(iso) {
   return f ? DIA_LARGO[f.getDay()] + ' ' + f.getDate() + ' de ' + MES_LARGO[f.getMonth()] : '';
 }
 
+/* La cuenta es la de las cinco estaciones, también desde que existe «Instalado, por cobrar»
+   (auditoría 2026-10-26, T1-9): «en el taller» es trabajo por hacer, y el importe es lo que vale
+   ese trabajo. Lo instalado que falta liquidar ya se hizo —su número va en el encabezado de su
+   columna— y sumarlo aquí inflaría las dos cifras con obras que el taller ya no toca. Lo oculto no
+   cuenta en ninguna. */
 function resumen(d, veDinero) {
   const n = d.V.length;
   let dinero = '';
@@ -613,9 +626,17 @@ const nombreDe = (d, v) => negocioDe(d.porId.get(v.proyecto_id), v.titulo);
    toca hoy; la leyenda lo dice arriba con palabras y cada ficha lo lleva escrito para el lector
    de pantalla. El `title` es la frase completa de la ventana, para quien pasa el ratón.
 
-   Tocar una ficha abre el proyecto. Ahí se avanza la etapa: esta pantalla ya no escribe nada. */
+   Tocar una ficha abre el proyecto. Ahí se avanza la etapa: esta pantalla ya no escribe nada.
+
+   Desde el 2026-10-26 (auditoría, T1-9, decidido por Elías: «Hasta liquidar, con columna nueva»)
+   hay una SEXTA, después de «Listo para instalar»: «Instalado, por cobrar», con lo que ya se
+   instaló —su etapa es «Instalado» o su cita está marcada hecha— y cuya venta todavía no se
+   liquida. Ahí no hay rojo ni ámbar: ya no va tarde de nada, solo falta cobrarlo; cada ficha lo
+   dice para el lector de pantalla. Al pasar a LIQUIDADO sale sola. Lo que Dirección ocultó del
+   taller no sale en ninguna de las seis. */
 function elTaller(d) {
   let cuerpo;
+  const porCobrar = d.porCobrar || [];
   if (!d.vivos.length && sinBase()) {
     cuerpo = vacioTaller('Este teléfono no ha entrado a la base',
       'Lo que ves puede no estar al día. Entra con tu cuenta de Google desde la banda de arriba y el taller aparece aquí.');
@@ -623,12 +644,16 @@ function elTaller(d) {
     cuerpo = vacioTaller('Todavía no hay nada en el taller',
       'Cuando una cotización autorizada se marque como ganada, el trabajo aparece aquí en su estación.',
       btn('Abrir el Cotizador', 'btn btn-pri', { tipo: 'ir', ruta: 'cotizador' }));
-  } else if (!d.V.length) {
+  } else if (!d.V.length && !porCobrar.length) {
+    /* Vacío de verdad: nada en las estaciones y nada instalado por cobrar. Con algo por cobrar, la
+       tabla se pinta entera —las estaciones dicen «Nada aquí»—: lo que falta liquidar es justo lo
+       que no se puede perder de vista. */
     cuerpo = vacioTaller('Nada en la mesa',
-      'Lo que hay ya está instalado o cerrado. En Proyectos lo ves con su etapa.',
+      d.ocultos ? 'Lo que hay ya está instalado y liquidado, cerrado u oculto del taller. En Proyectos lo ves con su etapa.'
+                : 'Lo que hay ya está instalado y liquidado, o cerrado. En Proyectos lo ves con su etapa.',
       btn('Ver los proyectos', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'proyectos' }));
   } else {
-    cuerpo = ESTACIONES.map(e => estacion(d, e)).join('');
+    cuerpo = ESTACIONES.map(e => estacion(d, e)).join('') + columnaPorCobrar(d);
   }
   const leyenda = d.V.length
     ? '<p class="tb-leyenda"><span class="tb-punto mal" aria-hidden="true"></span>va tarde' +
@@ -648,6 +673,31 @@ function estacion(d, e) {
       ? '<ul class="tb-fichas">' + g.map(v => '<li>' + ficha(d, v) + '</li>').join('') + '</ul>'
       : '<p class="tb-est-vacia">Nada aquí</p>') +
     '</div>';
+}
+
+/* La sexta columna (T1-9). Siempre que la tabla se pinta, como las otras cinco: una columna que
+   aparece y desaparece movería todo lo de abajo. Va marcada `tb-est-cobrar` para que la hoja de estilos
+   la distinga de las estaciones (la línea de arriba punteada: ya no es una estación del taller). */
+const POR_COBRAR_NOMBRE = 'Instalado, por cobrar';
+function columnaPorCobrar(d) {
+  const g = d.porCobrar || [];
+  return '<div class="tb-est tb-est-cobrar" data-etapa="por_cobrar">' +
+    '<p class="tb-est-h"><b>' + g.length + '</b>' + esc(POR_COBRAR_NOMBRE) + '</p>' +
+    (g.length
+      ? '<ul class="tb-fichas">' + g.map(x => '<li>' + fichaPorCobrar(d, x) + '</li>').join('') + '</ul>'
+      : '<p class="tb-est-vacia">Nada por cobrar</p>') +
+    '</div>';
+}
+
+/* Sin tono: lo instalado ya no va tarde de nada. El `title` dice cuándo se instaló y por qué sigue
+   aquí; tocarla abre el proyecto, como cualquier ficha. */
+function fichaPorCobrar(d, x) {
+  const i = _acciones.push({ tipo: 'abrir', id: x.proyecto_id }) - 1;
+  const titulo = (x.instalado_el ? 'Se instaló el ' + fmtFecha(x.instalado_el) + '.' : 'Ya se instaló.') +
+    ' Falta liquidarla: sale de aquí cuando su estatus de cobro pase a LIQUIDADO (hoy: ' + x.estatus + ').';
+  return '<button type="button" class="tb-ficha tb-ficha-cobrar" data-acc="' + i + '" data-clave="abrir:' + esc(x.proyecto_id) + '"' +
+    ' title="' + esc(titulo) + '">' + esc(nombreDe(d, x)) +
+    '<span class="solo-voz">, instalado, por cobrar</span></button>';
 }
 
 function ficha(d, v) {

@@ -400,3 +400,84 @@ export function cargaDeDia(fecha, ventanas) {
   }
   return out;
 }
+
+/* ============================================================================
+   La tabla del taller, hasta liquidar (auditoría 2026-10-26, T1-9)
+   ============================================================================ */
+
+/* Lo que pidió Elías, con sus palabras: «quiero que los proyectos que salen en fabricación se
+   queden en la tabla hasta que pasen a Liquidados; tengo proyectos que los instalo después de su
+   fecha acordada y se quitan de la tabla». Y eligió «Hasta liquidar, con columna nueva».
+
+   Dos cosas los sacaban antes de tiempo, y ninguna vive aquí: la base y el teléfono daban la obra
+   por INSTALADA en cuanto Pagos la pasaba a COBRANDO (`interno.etapa_por_cobro` y
+   `liquidadaEnLaLinea` en puente.js; ya solo con LIQUIDADO). Lo que vive aquí es la tabla misma:
+   las cinco estaciones siguen siendo lo que `ventanaTaller` no da por hecho, y lo que ya se
+   instaló pero no se ha liquidado tiene su sexta columna, «Instalado, por cobrar», hasta que su
+   estatus pase a LIQUIDADO.
+
+   Y «Ocultar del taller» (la segunda petición del mismo día: «son proyectos con los que quedé mal
+   con el cliente, entonces probablemente nunca me liquiden»): Dirección marca la obra y sale de
+   las seis columnas, de la cuenta y de los avisos. Se cuenta aparte (`ocultos`) y no se borra nada:
+   en Proyectos sigue, con su marca, para volver a mostrarla. */
+
+/** Los estatus de cobro de una venta que todavía no se liquida. Sin estatus (una venta que nunca
+ *  llegó al libro) NO es «por cobrar»: no se sabe, y una columna que se llena de lo que no se sabe
+ *  se aprende a ignorar. */
+export const ESTATUS_POR_COBRAR = Object.freeze(['FABRICACION', 'REPARANDO', 'COBRANDO']);
+
+/** ¿Dirección la ocultó del taller? (`oculto_taller`, 0029). PURA. */
+export const ocultoDelTaller = p => !!(p && p.oculto_taller === true);
+
+/**
+ * ¿Va en «Instalado, por cobrar»? Ya instalada —su etapa es «Instalado» o su cita está marcada
+ * hecha: lo mismo que `ventanaTaller` llama `hecho`—, y su venta todavía no se liquida. Fuera lo que
+ * está en garantía (es otro trabajo, con su propia cuenta), lo cancelado, lo oculto y la tarjeta
+ * cuya fila ya no está en el libro (`hoja_perdida`: su estatus de aquí ya no lo confirma nadie).
+ * PURA.
+ * @param {Object} p el proyecto
+ * @param {VentanaTaller} v su ventana (`ventanaTaller`)
+ */
+export function porCobrar(p, v) {
+  if (!p || !v || v.estado !== 'hecho') return false;
+  if (p.etapa === 'cancelado' || p.etapa === 'garantia' || ocultoDelTaller(p) || p.hoja_perdida) return false;
+  return ESTATUS_POR_COBRAR.includes(String(p.estatus_notion || '').toUpperCase());
+}
+
+/**
+ * La tabla del taller: las cinco estaciones y la columna de lo instalado por cobrar. PURA.
+ *
+ * `estaciones` son las ventanas que no están hechas ni canceladas —las que reparte el Tablero por
+ * su etapa real, como siempre—. `porCobrar` va de la instalación más vieja a la más reciente (la
+ * que lleva más tiempo sin cobrarse, primero) y lo que no tiene fecha al final. `ocultos` es cuántas
+ * obras vivas se dejaron fuera por «Ocultar del taller».
+ *
+ * @param {Object[]} proyectos los del teléfono (con o sin cancelados: se descartan aquí)
+ * @param {Map|function} instDe la instalación viva de cada proyecto (un Map por id, o una función)
+ * @param {{hoy?:string, cts?:Object}} [opts]
+ * @returns {{estaciones:VentanaTaller[], porCobrar:Array<{proyecto_id:string, titulo:string,
+ *            etapa_real:string, estatus:string, instalado_el:(string|null)}>, ocultos:number}}
+ */
+export function tablaDelTaller(proyectos, instDe, opts = {}) {
+  const hoy = esISO(opts.hoy) ? opts.hoy : hoyISO();
+  const instDeId = typeof instDe === 'function' ? instDe
+    : (id => (instDe && typeof instDe.get === 'function' ? instDe.get(id) : null) || null);
+  const estaciones = [], cobrar = [];
+  let ocultos = 0;
+  for (const p of Array.isArray(proyectos) ? proyectos : []) {
+    if (!p || p.etapa === 'cancelado') continue;
+    if (ocultoDelTaller(p)) { ocultos++; continue; }
+    const i = instDeId(p.id);
+    const v = ventanaTaller(p, i, { hoy, cts: opts.cts });
+    if (!v || v.estado === 'cancelado') continue;
+    if (v.estado !== 'hecho') { estaciones.push(v); continue; }
+    if (!porCobrar(p, v)) continue;
+    const cita = i && esISO(i.fecha) && i.estado !== 'cancelada' ? i.fecha : null;
+    cobrar.push({ proyecto_id: p.id || null, titulo: p.nombre || '', etapa_real: p.etapa || 'ganado',
+                  estatus: String(p.estatus_notion).toUpperCase(), instalado_el: cita });
+  }
+  cobrar.sort((a, b) => (a.instalado_el ? 0 : 1) - (b.instalado_el ? 0 : 1) ||
+    String(a.instalado_el || '').localeCompare(String(b.instalado_el || '')) ||
+    String(a.titulo).localeCompare(String(b.titulo), 'es'));
+  return { estaciones, porCobrar: cobrar, ocultos };
+}
