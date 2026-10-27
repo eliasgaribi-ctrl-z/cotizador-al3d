@@ -734,12 +734,79 @@ try {
     elementos['rv-cuenta'].value = 'Constru BNT';
     vm.runInContext('registrarGanada()', ctx);
     const ganadas = JSON.parse(lsC.al3d_pf_ganadas);
-    eq('con otra cuenta: no se manda nada nuevo y el recibo dice que la cuenta se corrige en Control',
-      [ganadas.length, ganadas[0].cuenta, recibos.some(r => /^AV:La venta ya está en la base: la cuenta no se cambia desde aquí, se corrige en Control → Cobros y abonos/.test(r))],
+    /* Desde la auditoría 2026-10-26 (T1-6), a Pagos se le dice dónde SÍ cambia la cuenta: en la ficha (en «Cobros y abonos» no está). */
+    eq('con otra cuenta: no se manda nada nuevo y el recibo dice dónde se cambia la cuenta (Pagos: en la ficha del proyecto)',
+      [ganadas.length, ganadas[0].cuenta, recibos.some(r => /^AV:La venta ya está en la base: la cuenta no se cambia desde aquí\. La cuenta se cambia en la ficha del proyecto, en Proyectos\.$/.test(r))],
       [1, '', true]);
     cierto('con un botón para ir a corregirla', avisos.some(a => /la cuenta no se cambia/.test(a)));
     eq('lo que cambió, sin contar lo que no se sabe de antes', vm.runInContext('rvCambiosDesde({cuenta:\'Elias BBVA\',anti:5800,estatus:null},{cuenta:\'Elias BBVA\',anti:7000,estatus:\'COBRANDO\'})', ctx),
       ['el anticipo']);
+
+    /* ── Auditoría 2026-10-26, T1-6: «Ir a corregir» lleva a donde se corrige SIN sumar, y un segundo toque otro día no inventa cambios ── */
+    const idas = [];
+    const acciones = [];
+    ctx.toast = (m, t, d, accion) => { avisos.push(m); acciones.push(accion || null); };
+    vm.runInContext('irAPlataforma=function(r,p){ _idas.push([r,p||null]); }', ctx);
+    ctx._idas = idas;
+    ctx.AL3D = { estadoDeVenta: async () => ({ folio: 'V-305', datos: { cuenta: 'Constru BNT', estatus: 'COBRANDO', anti: 5800, fecha_anticipo: '2026-10-01' } }) };
+    const tocar = async (rol, cambios) => {
+      ctx.identidadVerificada = () => ({ correo: 'x@al3d.mx', rol });
+      idas.length = 0; acciones.length = 0;
+      vm.runInContext('rvYaEstabaConCambios(' + JSON.stringify(cambios) + ',\'COT-0002-P@P4G0\')', ctx);
+      const a = acciones[acciones.length - 1];
+      if (a && a.fn) await a.fn();
+      return { texto: avisos[avisos.length - 1], boton: a ? a.label : null, ida: idas[0] || null };
+    };
+    let t = await tocar('pagos', ['el anticipo']);
+    eq('Pagos, el anticipo: «Ir a corregir» abre «Corregir el anticipo» de ESA venta (no «Pago del cliente», que lo sumaría)',
+      [t.boton, t.ida], ['Ir a corregir', ['control', { tab: 'asientos', form: 'anticipo', venta: 'V-305' }]]);
+    cierto('y el aviso dice que es el anticipo total y que no se suma', /Corregir el anticipo» \(con el anticipo total: no es un pago y no se suma\)/.test(t.texto));
+    t = await tocar('pagos', ['la cuenta', 'el estatus']);
+    eq('Pagos, la cuenta y el estatus: a la ficha del proyecto (donde Pagos los cambia), con su V-###', [t.boton, t.ida], ['Abrir la ficha', ['proyectos', { venta: 'V-305' }]]);
+    t = await tocar('pagos', ['la fecha del anticipo']);
+    eq('Pagos, la fecha del anticipo: la corrige Dirección; sin botón (desde aquí no hay a dónde ir)',
+      [/la fecha del anticipo la corrige Dirección, en «Datos de la venta»/i.test(t.texto), t.boton], [true, null]);
+    t = await tocar('direccion', ['la cuenta', 'la fecha del anticipo']);
+    eq('Dirección, la cuenta y la fecha del anticipo: a «Datos de la venta»', [t.boton, t.ida, /se corrigen en Control → Cobros y abonos → «Datos de la venta»/.test(t.texto)],
+      ['Ir a corregir', ['control', { tab: 'asientos', form: 'datos', venta: 'V-305' }], true]);
+    t = await tocar('direccion', ['la cuenta', 'el anticipo']);
+    eq('Dirección, el anticipo y la cuenta: primero el dinero (Corregir el anticipo), y el aviso dice dónde va la cuenta', [t.ida && t.ida[1].form,
+      /La venta ya está en la base: la cuenta y el anticipo no se cambian desde aquí\. El anticipo se corrige en .*; la cuenta se corrige en Control → Cobros y abonos → «Datos de la venta»\.$/.test(t.texto)],
+      ['anticipo', true]);
+    t = await tocar('pagos', ['la fecha de instalación']);
+    eq('solo la fecha de instalación: al Calendario, como antes', [t.boton, t.ida], ['Ir al Calendario', ['agenda', null]]);
+
+    /* Un segundo toque OTRO DÍA, sin tocar nada: el modal abre con la fecha del anticipo de HOY, el estatus FABRICACION y el anticipo de
+       la cotización, y la base tiene otra fecha, COBRANDO y el anticipo que Pagos corrigió. Nada de eso lo cambió nadie. */
+    ctx.identidadVerificada = () => ({ correo: 'ana@al3d.mx', rol: 'pagos' });
+    ctx.AL3D = { estadoDeVenta: async () => ({ folio: 'V-305', datos: { cuenta: 'Constru BNT', estatus: 'COBRANDO', anti: 6500, fecha_anticipo: '2026-09-02' } }) };
+    lsC.al3d_pf_ganadas = '[]';
+    vm.runInContext('hitosDe=function(){ return { venta: 1 }; }', ctx);
+    vm.runInContext('abrirRegistrarVenta()', ctx);
+    elementos['rv-cuenta'].value = 'Constru BNT';
+    vm.runInContext('_rvAlAbrir=rvValoresDelModal()', ctx);          // la cuenta preferida de este teléfono, la misma de la venta
+    recibos.length = 0; avisos.length = 0;
+    vm.runInContext('registrarGanada()', ctx);
+    for (let n = 0; n < 60 && !avisos.length; n++) await espera(5);
+    eq('otro día, sin tocar nada: «ya estaba registrada», sin avisos de cambios que nadie hizo, ni otra constancia',
+      [avisos.some(a => /ya estaba registrada/.test(a)), recibos.some(r => /^AV:/.test(String(r))), JSON.parse(lsC.al3d_pf_ganadas).length], [true, false, 0]);
+    eq('las fechas y el estatus del modal eran los de siempre (por eso eran avisos falsos)', [elementos['rv-fecha'].value !== '2026-09-02', elementos['rv-estatus'].value], [true, 'FABRICACION']);
+    /* Y si esa vez sí cambia el anticipo en el modal, se dice: solo eso. */
+    vm.runInContext('abrirRegistrarVenta()', ctx);
+    elementos['rv-cuenta'].value = 'Constru BNT';
+    vm.runInContext('_rvAlAbrir=rvValoresDelModal()', ctx);
+    vm.runInContext('rvAcotar=function(){ return { anti: 7000, paso: 65, aviso: \'\' }; }', ctx);
+    elementos['rv-anticipo'].value = '7000';
+    recibos.length = 0; avisos.length = 0;
+    vm.runInContext('registrarGanada()', ctx);
+    for (let n = 0; n < 60 && !recibos.some(r => /^AV:/.test(String(r))); n++) await espera(5);
+    eq('cambiar el anticipo en el modal: el aviso nombra SOLO el anticipo', recibos.filter(r => /^AV:/.test(String(r))).map(r => /^AV:La venta ya está en la base: el anticipo no se cambia desde aquí\./.test(r)),
+      [true]);
+    eq('lo puro: sin tocar, nada; tocado y distinto de la base, sí', [
+      vm.runInContext('rvCambiosDesde({cuenta:\'A\',anti:5800,fecha_anticipo:\'2026-09-02\',estatus:\'COBRANDO\'},{cuenta:\'A\',anti:5800,fecha_anticipo:\'2026-10-26\',estatus:\'FABRICACION\'},{cuenta:\'A\',anti:5800,fecha_anticipo:\'2026-10-26\',estatus:\'FABRICACION\'})', ctx),
+      vm.runInContext('rvCambiosDesde({cuenta:\'A\',estatus:\'COBRANDO\'},{cuenta:\'B\',estatus:\'LIQUIDADO\'},{cuenta:\'A\',estatus:\'FABRICACION\'})', ctx)],
+      [[], ['la cuenta', 'el estatus']]);
+    ctx.toast = (m, t) => avisos.push(m);
     delete ctx.identidadVerificada;
   }
 

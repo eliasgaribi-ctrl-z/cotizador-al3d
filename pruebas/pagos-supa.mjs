@@ -450,7 +450,7 @@ const cD = x => ({ proyecto: VD.id, ...x });
   const sin = PS.plan('datos', cD(PS.valoresDeLaVenta(VD)), oD());
   eq('lo que ya tiene la base no es un cambio: no sale nada', [sin.ok, sin.sinCambios, sin.errores.cambios], [false, true, 'No cambiaste nada: la base ya tiene esos datos.']);
   eq('cada campo arranca con lo de la base, como lo escribe el formulario', PS.valoresDeLaVenta(VD),
-    { nombre: 'Letras Farmacia', subtotal: '10000.00', cuenta: 'Constru BNT', estatus: 'COBRANDO', iva: 'si', fliq: '', pct: '10' });
+    { nombre: 'Letras Farmacia', subtotal: '10000.00', cuenta: 'Constru BNT', estatus: 'COBRANDO', iva: 'si', fliq: '', pct: '10', fant: '' });
   eq('sin tocar nada, tampoco', PS.plan('datos', cD({}), oD()).sinCambios, true);
   p = PS.plan('datos', cD({ cuenta: 'Elias BBVA' }), oD());
   eq('la cuenta que no factura: el IVA pasa a «sin IVA» porque lo pone la cuenta (no se manda: lo hace la base), y el neto lo dice',
@@ -492,9 +492,13 @@ const cD = x => ({ proyecto: VD.id, ...x });
     [true, false, false, false]);
   const sql17 = leer('supabase/migrations/0017_decisiones_elias.sql');
   const matriz = JSON.parse(/select '(\{[\s\S]*?\})'::jsonb/.exec(sql17)[1]);
+  /* La fecha del anticipo (0032, auditoría 2026-10-26, T1-6) no está en la lista de `corregir_venta`: quién la escribe lo dice la de
+     `proyecto_actualizar` (solo Dirección), que es la que `corregir_venta` mira para ese campo desde 0032. */
   eq('lo que corrige el formulario lo deja la matriz de la base a Dirección (0017), y la mira: sin «subtotal» en su lista, no hay formulario',
-    [Object.values(PS.CAMPOS_DE_LA_VENTA).every(k => matriz.direccion.corregir_venta.includes(k)), PS.puedeCorregirLaVenta(actD('direccion', matriz.direccion.corregir_venta)),
-     PS.puedeCorregirLaVenta(actD('direccion', ['nombre']))], [true, true, false]);
+    [Object.values(PS.CAMPOS_DE_LA_VENTA).filter(k => k !== 'fecha_anticipo').every(k => matriz.direccion.corregir_venta.includes(k)),
+     PS.puedeCorregirLaVenta(actD('direccion', matriz.direccion.corregir_venta)), PS.puedeCorregirLaVenta(actD('direccion', ['nombre']))], [true, true, false]);
+  eq('y la fecha del anticipo, la lista de `proyecto_actualizar`: Dirección sí, Pagos no', [matriz.direccion.proyecto_actualizar.includes('fecha_anticipo'),
+    matriz.pagos.proyecto_actualizar.includes('fecha_anticipo')], [true, false]);
   cierto('la base también se lo deja a Pagos: «solo Dirección» lo cumple la pantalla (decisión de Elías; dicho en docs/BASE-MANDA.md)',
     matriz.pagos.corregir_venta.includes('subtotal') && PS.SOLO_CON_LA_BASE.includes('datos'));
 
@@ -547,7 +551,7 @@ console.log('\nQUIÉN VE LOS FORMULARIOS');
 const _abiertas = [];
 /* `modo`: lo que dice la base de quién manda ('hoja' o 'base'; sin decirlo, como antes de 0024). `alta`: lo que dice la
    matriz de `alta_venta` para esa área (sin decirlo, sin permisos en la respuesta). */
-async function pestana(nombre, { rolLocal, sesion, area, modo, alta, borrador }) {
+async function pestana(nombre, { rolLocal, sesion, area, modo, alta, borrador, ventas }) {
   for (const x of _abiertas.splice(0)) x.soltar();                 // la pestaña de antes se fue (ya no oye a la base)
   globalThis.localStorage.setItem('al3d_pf_supa', JSON.stringify({ encendido: true, desde: 1 }));
   if (modo) globalThis.localStorage.setItem('al3d_pf_supa_modo', JSON.stringify({ modo, area }));
@@ -563,7 +567,7 @@ async function pestana(nombre, { rolLocal, sesion, area, modo, alta, borrador })
     rpc: n => (n === 'mi_acceso' ? { data: { ok: true, estado: 'activo', usuario: { correo: 'quien@al3d.mx' }, empresas: [{ empresa_id: 'al3d', area, estado: 'activo' }],
       ...(modo ? { modo } : {}), ...(permisos ? { permisos } : {}) }, error: null }
       : { data: { ok: true }, error: null }),
-    from: () => ({ data: [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600,
+    from: () => ({ data: ventas || [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600,
       d_cuenta: 'Constru BNT', f_iva: true, g_subtotal: 10000, pct_comision: 10 }], error: null }),
   };
   const M = await import('../js/mod/pagos-supa.js?' + nombre);
@@ -675,6 +679,87 @@ console.log('\nCON LA BASE MANDANDO: «COBROS Y ABONOS» (paso 5)');
   for (const x of _abiertas.splice(0)) x.soltar();
   globalThis.localStorage.removeItem('al3d_pf_supa');
   globalThis.localStorage.removeItem('al3d_pf_supa_modo');
+}
+
+/* ============================================================================
+   Auditoría 2026-10-26, T1-6. El «Ir a corregir» del Cotizador le abría a Pagos «Pago del cliente»: el anticipo corregido que se escribía
+   ahí se SUMABA como un pago más (dinero contado dos veces). Y la fecha del anticipo no la podía corregir nadie. Con el teléfono de Pagos
+   como es en producción: la base mandando, la sesión de Google en la base (`mi_acceso`, sin token de dispositivo) y la venta que la base
+   tiene; el mismo dinero contra la base de verdad en supabase/tests/pagos/fecha-del-anticipo.mjs.
+   ============================================================================ */
+console.log('\n«IR A CORREGIR» ABRE «CORREGIR EL ANTICIPO» Y LA FECHA DEL ANTICIPO SE CORRIGE (auditoría 2026-10-26, T1-6)');
+{
+  const VENTAS = [{ proyecto_id: 'p1', a_folio: 'V-214', b_proyecto: 'Letras Farmacia', k_saldo: 5800, t_restante: 800, h_neto: 11600, i_anticipo: 5800,
+    j_liquidacion: 0, d_cuenta: 'Constru BNT', f_iva: true, g_subtotal: 10000, pct_comision: 10, l_fecha_anticipo: '2026-09-28', c_estatus: 'COBRANDO' }];
+  /* Pagos estaba a medio capturar un PAGO de $1,500 de esta misma venta (el borrador de la pestaña) cuando le llega el pase. */
+  const aMedias = { _form: 'abono', cobro: { opId: 'pf-c1', campos: { proyecto: 'p1', monto: '1500' } } };
+  let r = await pestana('t16pagos', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'base', alta: true, borrador: aMedias, ventas: VENTAS });
+  eq('el teléfono de Pagos: la base manda y la pestaña lee la venta con la sesión de la base (sin token del aparato)',
+    [(await import('../js/nucleo/supa.js')).laBaseManda(), r.llamadas.map(x => x[0] + ':' + x[1])], [true, ['rpc:mi_acceso', 'from:ventas_calculadas']]);
+  r.M.elegirFormulario('anticipo', 'V-214');
+  const h = r.M.html();
+  cierto('«Ir a corregir» (el pase `anticipo`) abre el de cobro EN «Corregir el anticipo», no en «Pago del cliente»',
+    /data-pg-tipo="cobro"/.test(h) && /class="on" aria-pressed="true" data-pg-modo="anticipo">Corregir el anticipo/.test(h) &&
+    /Anticipo total de la venta/.test(h) && !/Marcar la venta como LIQUIDADA/.test(h));
+  cierto('con la venta del pase elegida', /<option value="p1" selected>V-214/.test(h));
+  const b = JSON.parse(globalThis.sessionStorage.getItem(PS.CLAVE_BORRADOR));
+  eq('y el monto del pago que estaba a medias se suelta (ahí se leería como el anticipo total)', [b.cobro.campos.modo, b.cobro.campos.monto, b._form],
+    ['anticipo', undefined, 'cobro']);
+  const v = PS.normalizarVentas(VENTAS)[0];
+  const p = PS.plan('cobro', { ...b.cobro.campos, monto: '6000' }, { opId: b.cobro.opId, venta: v, area: 'pagos', baseManda: true });
+  eq('lo que se manda desde ahí CORRIGE (corregir_venta, valor absoluto), no suma un pago (registrar_cobro)', [p.rpc, p.args],
+    ['corregir_venta', { p_proyecto: 'p1', p_cambios: { anticipo: 6000 } }]);
+  cierto('y la pregunta lo dice: de cuánto a cuánto, y que no se suma', /\$5,800\.00 a \$6,000\.00/.test(p.texto) && /no se suma/.test(p.texto));
+
+  /* Un PAGO que se mandó sin respuesta: el pase no le cambia de qué es (su reintento tiene que ser el mismo envío, DN-1). */
+  const enDuda = { _form: 'cobro', cobro: { opId: 'pf-c2', campos: { proyecto: 'p1', monto: '1500', modo: 'cobro' }, incierto: 'x' } };
+  r = await pestana('t16duda', { rolLocal: 'pagos', sesion: true, area: 'pagos', modo: 'base', alta: true, borrador: enDuda, ventas: VENTAS });
+  r.M.elegirFormulario('anticipo', 'V-214');
+  const bd = JSON.parse(globalThis.sessionStorage.getItem(PS.CLAVE_BORRADOR));
+  eq('con un pago en duda, el pase no cambia el modo ni el monto', [bd.cobro.campos.modo, bd.cobro.campos.monto], ['cobro', '1500']);
+  eq('un nombre que no es formulario no hace nada', (r.M.elegirFormulario('otro'), JSON.parse(globalThis.sessionStorage.getItem(PS.CLAVE_BORRADOR))._form), 'cobro');
+
+  /* Dirección: «Datos de la venta» trae la fecha del anticipo, con la de la base. */
+  r = await pestana('t16dir', { rolLocal: 'direccion', sesion: true, area: 'direccion', modo: 'base', alta: true, ventas: VENTAS,
+    borrador: { _form: 'datos', datos: { opId: 'pf-d1', campos: { proyecto: 'p1' } } } });
+  cierto('Dirección: «Datos de la venta» trae la fecha del anticipo con la que tiene la base, y la nombra',
+    /id="pg-datos-fant"[^>]*value="2026-09-28"/.test(r.html) && /Fecha del anticipo/.test(r.html) && /anticipo del 2026-09-28/.test(r.html) &&
+    /el IVA, la fecha del anticipo, la fecha de liquidación/.test(r.html));
+  r.M.elegirFormulario('datos', 'V-214');
+  cierto('y el pase de Dirección para la cuenta, el estatus o la fecha (`datos`) cae ahí, con la venta elegida', /data-pg-tipo="datos"/.test(r.M.html()));
+  for (const x of _abiertas.splice(0)) x.soltar();
+  globalThis.localStorage.removeItem('al3d_pf_supa');
+  globalThis.localStorage.removeItem('al3d_pf_supa_modo');
+
+  /* La capa pura de la fecha del anticipo. */
+  const VF = { ...VD, fechaAnticipo: '2026-09-28' };
+  const oF = (x = {}) => oD({ venta: VF, ...x });
+  let q = PS.plan('datos', cD({ fant: '2026-10-05' }), oF());
+  eq('la fecha del anticipo va a corregir_venta como `fecha_anticipo`, con lo de antes', [q.rpc, q.args.p_cambios, q.antes], ['corregir_venta',
+    { fecha_anticipo: '2026-10-05' }, { fecha_anticipo: '2026-09-28' }]);
+  cierto('y la pregunta dice que la venta cambia de mes', /Fecha del anticipo: 2026-09-28 → 2026-10-05 \(la venta pasa a contarse en 2026-10\)/.test(q.texto));
+  q = PS.plan('datos', cD({ fant: '2026-09-30' }), oF());
+  cierto('en el mismo mes no dice nada del mes', !/pasa a contarse/.test(q.texto));
+  const errF = x => { const z = PS.plan('datos', cD({ fant: x }), oF()); return z.ok ? 'ok' : (z.sinCambios ? 'igual' : z.errores.fant); };
+  eq('vacía no (la venta se caería de su mes); futura no; que no existe no; la misma, nada',
+    [errF(''), errF('2026-10-26'), errF('2026-02-30'), errF('2026-09-28')],
+    ['La fecha del anticipo no se puede quedar vacía: de ella sale el mes en que se cuenta la venta.', 'La fecha no puede ser posterior a hoy.', 'Esa fecha no existe.', 'igual']);
+  eq('una histórica sin fecha que se deja sin fecha: nada que corregir', PS.plan('datos', cD({ fant: '' }), oD()).sinCambios, true);
+  eq('el resumen dice la fecha que quedó', PS.resumen(q, { ok: true, escritos: ['fecha_anticipo'], rechazadas: [], venta: { fecha_anticipo: '2026-09-30' } }, VF),
+    'Venta V-214 corregida: fecha del anticipo 2026-09-30. Queda en la bitácora de la base con lo de antes.');
+  const sin0032 = { data: { ok: true, escritos: [], rechazadas: [{ nombre: 'fecha_anticipo', por: 'el rol direccion no puede escribir esta propiedad' }], venta: {} }, error: null };
+  eq('una base sin 0032 (la app publicada antes): se dice que falta la migración, y que no se registró nada',
+    PS.clasificar('corregir_venta', sin0032).mensaje,
+    'La base no aceptó el cambio: la base todavía no corrige la fecha del anticipo: falta aplicar la migración 0032. No se registró nada.');
+  const act = (area, pa) => ({ estado: 'activo', area, permisos: { alta: { alta_venta: true }, corregir_venta: ['subtotal'], ...(pa ? { proyecto_actualizar: pa } : {}) } });
+  eq('el campo sale a quien la matriz deja escribir la fecha (Dirección), y no a Pagos', [PS.puedeCorregirLaFechaDelAnticipo(act('direccion', ['fecha_anticipo'])),
+    PS.puedeCorregirLaFechaDelAnticipo(act('direccion', ['notas'])), PS.puedeCorregirLaFechaDelAnticipo(act('pagos', ['notas', 'tel'])),
+    PS.puedeCorregirLaFechaDelAnticipo(act('direccion'))], [true, false, false, true]);
+  llamadas.length = 0;
+  ESC = { from: () => ({ data: VENTAS, error: null }) };
+  const lv = await PS.leerVentas(doble);
+  eq('las ventas piden la fecha del anticipo (L de la vista, que existe desde 0004) y la traen', [/l_fecha_anticipo/.test(llamadas[0][2]), lv.ventas[0].fechaAnticipo],
+    [true, '2026-09-28']);
 }
 
 /* ============================================================================ */

@@ -415,8 +415,8 @@ async function leer() {
   d.pendientes = [];
   if (Prefs.rol() === 'direccion') {
     const todos = await Proyectos.listar({});
-    const ganados = new Set((todos || []).map(p => p.folio_global));
-    d.pendientes = Cot.sinDecidir(ganados, 0);
+    /* Con las ventas del libro (auditoría 2026-10-26, T1-1): una cotización que otro teléfono ya vendió no es «sin decidir». */
+    d.pendientes = Cot.sinDecidir(await Proyectos.foliosDecididos(todos || []), 0);
   }
   return d;
 }

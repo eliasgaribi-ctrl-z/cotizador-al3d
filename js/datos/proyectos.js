@@ -431,6 +431,21 @@ function partirNombreDeHoja(nombre) {
 }
 
 /**
+ * El folio de la cotización que trae un renglón de `ventas_hoja` («Folio cotizacion»), o '' si no
+ * trae uno que sirva (auditoría 2026-10-26, T1-1). No sirve la «huella del defecto» —la fila que
+ * trae ahí su propio folio de hoja, lo que escribía el error de septiembre de 2026 (ver `aNotion`
+ * en puente.js)— ni un V-### suelto: con eso la tarjeta diría que salió de una cotización que no
+ * existe. La misma regla para la tarjeta que nace de la fila (`desdeVentaDeHoja`), para la que ya
+ * existía y lo recibe al bajar (`bajar` en puente.js) y para lo que ya se decidió
+ * (`foliosDecididos`). PURA.
+ */
+export function folioDeLaFila(v) {
+  const fc = String((v && v.folio_cotizacion) || '').trim();
+  if (!fc || fc === String((v && v.folio_hoja) || '').trim() || /^V-\d+$/i.test(fc)) return '';
+  return fc;
+}
+
+/**
  * Un renglón de `ventas_hoja` como proyecto de la plataforma. PURO: sin base, sin red y sin
  * reloj salvo los sellos, para que la prueba de node lo corra entero.
  *
@@ -458,10 +473,18 @@ export function desdeVentaDeHoja(venta) {
     empresa_id: Prefs.empresa(),
     folio_local: folioHoja,
     dispositivo: 'hoja',
-    /* Vacío a propósito: no hay cotización detrás. `folio_hoja` es lo que ata este proyecto
-       a su renglón, y es lo que `ventas.unificar` mira para no contar la misma venta dos
-       veces —una como proyecto y otra como fila—. */
-    folio_global: '',
+    /* El folio de la cotización que trae la fila, si trae uno (auditoría 2026-10-26, T1-1). Iba
+       vacío siempre, con la idea de que una fila importada no tenía cotización detrás. Con la base
+       mandando sí la tiene: la venta que Pagos registró desde SU cotizador llega a este teléfono
+       como fila con «Folio cotizacion» (`supa-vivo.js` manda el `folio_global` de la base), y el
+       historial de la empresa trae esa misma cotización. Con la tarjeta en blanco, `Cot.sinDecidir`
+       no la reconocía: el teléfono de Dirección la enseñaba como «autorizada sin decidir» en
+       Proyectos, el Tablero, el Calendario, «Qué atender» y Control, y «Se ganó» daba de alta la
+       misma venta otra vez, con otro V-###. Lo que ata la tarjeta a su renglón sigue siendo
+       `folio_hoja` (`ventas.unificar` lo mira para no contar la venta dos veces); el folio es
+       además la llave con la que se sabe de qué cotización salió. La fila sin folio de cotización
+       (la venta sin cotización, las anteriores a la plataforma) nace vacía, como antes. */
+    folio_global: folioDeLaFila(v),
     folio_hoja: folioHoja,
     /* La marca. Todo lo que derive de partidas tiene que preguntarla antes. */
     de_hoja: true,
@@ -653,6 +676,87 @@ async function yaExiste(folioGlobal) {
   return filas.length ? filas[0] : null;
 }
 
+/* ── «Se ganó» una sola vez (auditoría 2026-10-26, T1-1) ──────────────────────────────────────
+   En un teléfono de Dirección que no hizo la venta, «Se ganó» sobre una cotización ya vendida daba
+   de alta OTRA venta, con otro V-###, y Control la contaba dos veces. Eran dos huecos juntos:
+     1. `ganar` buscaba el proyecto con el aparato de ESTE teléfono (`COT-0042@D1R3`), y la venta
+        era de la cotización hecha en el de Pagos (`COT-0042@P4G0`). No la encontraba aquí, y la
+        base (`ganar_proyecto`, 0028) tampoco: la busca por ese mismo folio global. Ahora manda el
+        aparato de la cotización (`e.disp`, el que trae el historial de la empresa), como ya hacían
+        `descartar`, `Cot.sinDecidir` y el «Registrar venta» del cotizador (`dispDeLaCotizacion`).
+        Y la llave vieja, la de este teléfono, también se mira: lo que se ganó aquí antes de este
+        arreglo quedó con ella, y no se vuelve a dar de alta con la otra.
+     2. La tarjeta que baja de la base nacía sin el folio de su cotización (ver `desdeVentaDeHoja`),
+        y una venta que no está en la línea del taller (COBRANDO, LIQUIDADO) ni siquiera es tarjeta:
+        vive solo en el récord (`ventas_hoja`). Así que la red de seguridad mira también el libro:
+        si el folio de la cotización ya es una venta (una tarjeta importada que lo trae, o un
+        renglón del récord), «Se ganó» dice cuál («ya es la venta V-123») y no crea nada.
+   La excepción es el buzón de ESTE teléfono con la hoja mandando (`desde_buzon`): ahí el cotizador
+   ya escribió la fila en la hoja y lo que falta es la tarjeta con sus partidas. Si la bajada se
+   adelantó y la importó, la tarjeta de verdad nace igual y la revisión junta las dos
+   (`revisarContraLaHoja`), como siempre. Con la base mandando no hay excepción: la venta del
+   cotizador entra a la base por esta misma tarjeta, así que si el libro ya la tiene, la registró
+   alguien más. */
+
+/** Todos los proyectos de este teléfono con ese folio global (la tarjeta importada y la de verdad pueden coincidir un momento). */
+async function conEseFolio(folioGlobal) {
+  return DB.listar('proyectos', { indice: 'porFolio', rango: rango(folioGlobal), filtro: p => p && p.folio_global === folioGlobal });
+}
+
+/* Las llaves con las que esa cotización pudo quedar como proyecto: la de su aparato y la de ESTE teléfono (la de antes del arreglo). */
+function llavesDeLaCotizacion(folio, disp) {
+  const suya = Cot.folioGlobal(folio, disp);
+  const deAqui = Cot.folioGlobal(folio, Prefs.dispositivo());
+  return suya === deAqui ? [suya] : [suya, deAqui];
+}
+
+/* El renglón del libro (`ventas_hoja`: la hoja o, con la base mandando, la base) que ya es la venta de alguna de esas llaves, o null.
+   También el folio a secas: una fila de antes del aparato pegado lo trae así, y `Cot.sinDecidir` ya la cuenta como decidida. Lo usa
+   también el recibo de «Registrar venta» (`estadoDeVenta` en js/mod/cotizador.js) para una venta que aquí no es tarjeta. */
+export async function ventaDelLibro(llaves, folio) {
+  let filas = [];
+  try { filas = await DB.listar('ventas_hoja'); } catch (_) { return null; }
+  const buscadas = new Set([...llaves, String(folio || '')].filter(Boolean));
+  return (Array.isArray(filas) ? filas : []).find(v => v && buscadas.has(folioDeLaFila(v))) || null;
+}
+
+/* ¿Manda la base? La misma regla de js/nucleo/supa.js, en la copia que ya exporta reglas.js (perezoso: reglas.js no se carga aquí de
+   entrada). Sin poder saberlo, la hoja. */
+async function baseManda() {
+  const R = await mod('reglas');
+  try { return !!(R && typeof R.laBaseManda === 'function' && R.laBaseManda()); } catch (_) { return false; }
+}
+
+const folioDeVentaDe = p => {
+  const f = String((p && (p.folio_hoja || p.notion_page_id)) || '').trim();
+  return /^V-\d+$/.test(f) ? f : '';
+};
+/** La frase de la red de seguridad: qué venta es ya esa cotización. Una sola, para «Se ganó» y para «No se dio». */
+export function yaEsLaVenta(folio, folioHoja, nombre, cola = ' No se creó otra.') {
+  const fh = String(folioHoja || '').trim();
+  return folio + ' ya es la venta ' + (fh || 'que ya está en el libro') + (nombre ? ' («' + nombre + '»)' : '') + '.' + cola;
+}
+
+/**
+ * Los folios de cotización que ya se decidieron, para `Cot.sinDecidir` (auditoría 2026-10-26, T1-1): los de los proyectos de este
+ * teléfono —ganados, importados con su folio, lápidas— Y los de las ventas del libro (`ventas_hoja`). Sin los segundos, una venta que
+ * otro teléfono registró y que ya no está en la línea del taller (COBRANDO, LIQUIDADO: no es tarjeta aquí) salía como «autorizada sin
+ * decidir» en cuanto su cotización llegaba con el historial de la empresa, y su «Se ganó» la habría duplicado. Es la misma regla que la
+ * red de seguridad de `ganar`: lo que aquí cuenta como decidido es lo que «Se ganó» se niega a dar de alta otra vez.
+ * @param {Object[]} [proyectos] los que la pantalla ya leyó (cancelados incluidos); sin ellos, se leen
+ * @returns {Promise<Set<string>>}
+ */
+export async function foliosDecididos(proyectos) {
+  const out = new Set();
+  let lista = proyectos;
+  if (!Array.isArray(lista)) { try { lista = await DB.listar('proyectos'); } catch (_) { lista = []; } }
+  for (const p of lista) { const fg = String((p && p.folio_global) || '').trim(); if (fg) out.add(fg); }
+  let filas = [];
+  try { filas = await DB.listar('ventas_hoja'); } catch (_) { filas = []; }
+  for (const v of (Array.isArray(filas) ? filas : [])) { const fc = folioDeLaFila(v); if (fc) out.add(fc); }
+  return out;
+}
+
 /**
  * Crea el proyecto desde una entrada del historial. Congela `origen`, deriva nombre,
  * tipos y ubicación, y calcula el requerimiento de material.
@@ -661,7 +765,9 @@ async function yaExiste(folioGlobal) {
  * @param {{fecha_instalacion?:string, hora?:string, ventana?:string, sub?:number,
  *          neto?:number, anti_pactado?:number, cuenta?:string, estatus_notion?:string,
  *          pct_comision?:number, disp?:string, fecha_ganado?:string, plazo_k?:number,
- *          huella?:string}} [extra]
+ *          huella?:string, desde_buzon?:boolean}} [extra]
+ *        `disp`: el aparato de la cotización; sin él, el que trae la entrada (`e.disp`) y, si tampoco, este teléfono.
+ *        `desde_buzon`: lo convierte el buzón de este teléfono (`Cot.drenarBuzon`), no un «Se ganó» a mano.
  * @returns {Promise<Resultado>} valor = el proyecto
  */
 export async function ganar(entradaHistorial, extra = {}) {
@@ -675,15 +781,26 @@ export async function ganar(entradaHistorial, extra = {}) {
   if (!DB.estado().ok) return mal('DB_NO_DISPONIBLE', DB.motivoTexto());
 
   const x = extra && typeof extra === 'object' ? extra : {};
-  const disp = String(x.disp || '').trim() || Prefs.dispositivo();
-  const fg = Cot.folioGlobal(e.folio, disp);
+  /* El aparato de la COTIZACIÓN, no el de este teléfono (ver «"Se ganó" una sola vez», arriba). */
+  const disp = String(x.disp || '').trim() || String(e.disp || '').trim() || Prefs.dispositivo();
+  const llaves = llavesDeLaCotizacion(e.folio, disp);
+  const excepcionDelBuzon = x.desde_buzon === true && !(await baseManda());
 
-  const previo = await yaExiste(fg);
-  if (previo) {
-    return mal('DUPLICADO', e.folio + ' ya está en la plataforma como «' + previo.nombre + '».');
+  for (const k of llaves) {
+    for (const previo of await conEseFolio(k)) {
+      if (!esImportado(previo)) {
+        const fh = folioDeVentaDe(previo);
+        return mal('DUPLICADO', e.folio + ' ya está en la plataforma como «' + previo.nombre + '»' + (fh ? ' (' + fh + ')' : '') + '.');
+      }
+      if (!excepcionDelBuzon) return mal('DUPLICADO', yaEsLaVenta(e.folio, folioDeVentaDe(previo), previo.nombre));
+    }
+  }
+  if (!excepcionDelBuzon) {
+    const fila = await ventaDelLibro(llaves, e.folio);
+    if (fila) return mal('DUPLICADO', yaEsLaVenta(e.folio, fila.folio_hoja, fila.nombre));
   }
 
-  const p = armarProyecto(e, x, 'ganado');
+  const p = armarProyecto(e, { ...x, disp }, 'ganado');
   if (!p) return mal('DATO_INVALIDO', 'No se pudo copiar esa cotización. Ábrela en el cotizador para ver si está completa.');
 
   const r = await DB.poner('proyectos', p);
@@ -758,6 +875,15 @@ export async function descartar(ref, motivo = '') {
        proyecto ganado desde otro. */
     const disp = String(ref.disp || '').trim() || Prefs.dispositivo();
     p = await yaExiste(Cot.folioGlobal(ref.folio, disp));
+    /* «No se dio» de una cotización que YA es una venta del libro (auditoría 2026-10-26, T1-1): la tarjeta que bajó de la base o de la
+       hoja con su folio, o el renglón del récord. Desde que la tarjeta importada trae el folio de su cotización, aquí se encontraría
+       y se cancelaría una venta registrada —el cambio de etapa iría a la base para todos—; y sin tarjeta se dejaba una lápida encima
+       de una venta viva. Ninguna de las dos la decide este botón: la venta se cancela desde su ficha, donde se ve qué es. */
+    const libro = p ? (esImportado(p) ? p : null) : await ventaDelLibro(llavesDeLaCotizacion(ref.folio, disp), ref.folio);
+    if (libro) {
+      return mal('DUPLICADO', yaEsLaVenta(ref.folio, libro.folio_hoja || libro.notion_page_id, libro.nombre,
+        ' Si no se va a hacer, se cancela desde su ficha.'));
+    }
     if (!p) {
       /* Nunca fue proyecto: se crea la lápida. Trae su nombre, sus tipos y su importe
          derivados igual que uno ganado, porque «cuánto dejamos de vender este mes» es una

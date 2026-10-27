@@ -31,7 +31,8 @@
    sí llegó contesta «ya existía» con el MISMO folio. Desde 0026 la base también se niega con la hoja mandando.
 
    Y en el paso 6, CORREGIR LOS DATOS DE UNA VENTA («Datos de la venta»: el nombre, el subtotal, la cuenta, el
-   estatus, la fecha de liquidación, el % pactado y el IVA), que hasta aquí solo se podía desde el Editor SQL.
+   estatus, la fecha de liquidación, el % pactado y el IVA; desde 0032 también la fecha del anticipo, auditoría
+   2026-10-26, T1-6), que hasta aquí solo se podía desde el Editor SQL.
    Con la función de siempre (`corregir_venta`, 0007: valores ABSOLUTOS, una línea de nivel dinero en la
    bitácora con lo de antes y lo de después de cada campo que cambió). Solo Dirección (decidido por Elías el
    2026-10-25, aunque la matriz de la base también se lo deja a Pagos) y solo con la base mandando (con la hoja,
@@ -70,9 +71,11 @@ export const TOPE_NOMBRE = 200;
 export const TOPE_DIRECCION = 400;      // la del diálogo de la hoja
 export const TOPE_LIGA = 2000;          // proyectos.maps_url (0012)
 export const TOPE_NOMBRE_VENTA = 2000;  // corregir_venta (0007): el nombre de una venta ya registrada, de 1 a 2000
-/** Lo que se corrige en «Datos de la venta», con su nombre en `corregir_venta` (0007). El anticipo y la liquidación tienen su formulario. */
+/** Lo que se corrige en «Datos de la venta», con su nombre en `corregir_venta` (0007). El anticipo y la liquidación tienen su formulario.
+ *  La fecha del anticipo (`fant`) desde 0032 (auditoría 2026-10-26, T1-6): era lo único de la venta que nadie podía corregir desde un
+ *  teléfono, y es la que decide el mes en que Control cuenta la venta. */
 export const CAMPOS_DE_LA_VENTA = Object.freeze({ nombre: 'nombre', subtotal: 'subtotal', cuenta: 'cuenta', estatus: 'estatus', iva: 'iva',
-  fliq: 'fecha_liquidacion', pct: 'pct_comision' });
+  fliq: 'fecha_liquidacion', pct: 'pct_comision', fant: 'fecha_anticipo' });
 
 /* ============================================================================
    Montos
@@ -228,6 +231,16 @@ export function puedeCorregirLaVenta(acceso) {
   if (a.estado !== 'activo' || a.area !== 'direccion') return false;
   const deja = a.permisos && a.permisos.corregir_venta;
   return Array.isArray(deja) ? deja.includes('subtotal') : true;
+}
+/**
+ * La fecha del anticipo en «Datos de la venta» (auditoría 2026-10-26, T1-6): quien corrige la venta Y quien la matriz de la base deja
+ * escribir esa fecha. La matriz ya lo decía desde 0002 en `proyecto_actualizar` —solo Dirección—, y `corregir_venta` mira esa misma
+ * lista para este campo desde 0032 (no hay otra lista que mantener). Sin permisos en la respuesta, como `puedeCorregirLaVenta`.
+ */
+export function puedeCorregirLaFechaDelAnticipo(acceso) {
+  if (!puedeCorregirLaVenta(acceso)) return false;
+  const deja = acceso.permisos && acceso.permisos.proyecto_actualizar;
+  return Array.isArray(deja) ? deja.includes('fecha_anticipo') : true;
 }
 
 /** Un formulario en blanco, con su op_id ya nacido. */
@@ -514,7 +527,7 @@ export function plan(tipo, c = {}, o = {}) {
 }
 
 function fallo(errores) {
-  const orden = ['tipo', 'proyecto', 'que', 'modo', 'nombre', 'subtotal', 'cuenta', 'estatus', 'iva', 'fliq', 'pct', 'tipos', 'anticipo', 'monto',
+  const orden = ['tipo', 'proyecto', 'que', 'modo', 'nombre', 'subtotal', 'cuenta', 'estatus', 'iva', 'fant', 'fliq', 'pct', 'tipos', 'anticipo', 'monto',
     'fecha', 'cita', 'tel', 'entrega', 'dir', 'maps', 'nota', 'cambios'];
   const primero = orden.find(k => errores[k]) || Object.keys(errores)[0];
   return { ok: false, errores, primero };
@@ -542,7 +555,7 @@ export function leerPorcentaje(texto) {
 export function valoresDeLaVenta(v) {
   if (!v) return {};
   return { nombre: String(v.nombre || ''), subtotal: planoDeCentavos(cent(v.subtotal)), cuenta: v.cuenta || '', estatus: v.estatus || '',
-    iva: v.iva === false ? 'no' : 'si', fliq: v.fechaLiquidacion || '', pct: v.pct == null ? '' : String(v.pct) };
+    iva: v.iva === false ? 'no' : 'si', fliq: v.fechaLiquidacion || '', pct: v.pct == null ? '' : String(v.pct), fant: v.fechaAnticipo || '' };
 }
 
 const IVA_TEXTO = b => (b ? 'con IVA' : 'sin IVA');
@@ -585,6 +598,19 @@ function planDatos(c, o, v) {
     if (!r.ok) err.fliq = r.mensaje;
     else if ((r.valor || null) !== (v.fechaLiquidacion || null)) {
       cambia('fliq', v.fechaLiquidacion || null, r.valor || null, 'Fecha de liquidación: ' + textoDeFecha(v.fechaLiquidacion) + ' → ' + textoDeFecha(r.valor));
+    }
+  }
+  /* La fecha del anticipo (0032; auditoría 2026-10-26, T1-6). No se vacía: de ella sale el mes en que Control y la base cuentan la
+     venta (la W de `ventas_calculadas`), y una venta sin mes desaparece de los totales. No puede ser posterior a hoy (es cuándo se
+     cobró). Una venta histórica sin fecha que se deja sin fecha: nada que hacer. */
+  if (toca('fant') && !(String(c.fant).trim() === '' && !v.fechaAnticipo)) {
+    const r = String(c.fant).trim() ? leerFecha(c.fant, o.hoy)
+      : { ok: false, mensaje: 'La fecha del anticipo no se puede quedar vacía: de ella sale el mes en que se cuenta la venta.' };
+    if (!r.ok) err.fant = r.mensaje;
+    else if (r.valor !== (v.fechaAnticipo || null)) {
+      const mes = f => String(f || '').slice(0, 7);
+      cambia('fant', v.fechaAnticipo || null, r.valor, 'Fecha del anticipo: ' + textoDeFecha(v.fechaAnticipo) + ' → ' + r.valor +
+        (mes(r.valor) !== mes(v.fechaAnticipo) ? ' (la venta pasa a contarse en ' + r.valor.slice(0, 7) + ')' : ''));
     }
   }
   if (toca('pct')) {
@@ -655,11 +681,11 @@ export function correccionAlDia(p, ahora) {
 }
 
 const NOMBRE_DEL_CAMPO = { nombre: 'nombre', subtotal: 'subtotal', cuenta: 'cuenta', estatus: 'estatus', iva: 'IVA', fecha_liquidacion: 'fecha de liquidación',
-  pct_comision: '% pactado', anticipo: 'anticipo', liquidacion: 'liquidación' };
+  pct_comision: '% pactado', anticipo: 'anticipo', liquidacion: 'liquidación', fecha_anticipo: 'fecha del anticipo' };
 function valorEscrito(k, v) {
   if (k === 'subtotal' || k === 'anticipo' || k === 'liquidacion') return pesosDe(v);
   if (k === 'iva') return IVA_TEXTO(v !== false);
-  if (k === 'fecha_liquidacion') return textoDeFecha(v);
+  if (k === 'fecha_liquidacion' || k === 'fecha_anticipo') return textoDeFecha(v);
   if (k === 'pct_comision') return textoDePct(v);
   return String(v == null ? '—' : v);
 }
@@ -701,9 +727,17 @@ export function clasificar(rpcNombre, res, lanzado) {
   if (data.ok === false) return seguro(String(data.codigo || ''), rpcNombre, String(data.mensaje || ''));
   /* corregir_venta contesta ok:true aunque rechace el campo: si no escribió nada, es un error. */
   if (Array.isArray(data.rechazadas) && data.rechazadas.length && Array.isArray(data.escritos) && !data.escritos.length) {
-    return seguro('RECHAZADO', rpcNombre, String((data.rechazadas[0] && data.rechazadas[0].por) || ''));
+    return seguro('RECHAZADO', rpcNombre, porQueNoSeCambio(data.rechazadas[0]));
   }
   return { ok: true, data };
+}
+
+/* Por qué la base no aceptó un campo de `corregir_venta`, en palabras. La fecha del anticipo antes de 0032 (la app publicada antes
+   de aplicar la migración): la base contesta «el rol … no puede escribir esta propiedad», y lo que pasa es que todavía no la corrige. */
+function porQueNoSeCambio(x) {
+  const por = String((x && x.por) || '');
+  if (x && x.nombre === 'fecha_anticipo' && /no puede escribir/.test(por)) return 'la base todavía no corrige la fecha del anticipo: falta aplicar la migración 0032';
+  return por;
 }
 
 const NADA = ' No se registró nada.';
@@ -761,7 +795,9 @@ export async function vistaPrevia(cliente, montoTexto) {
 
 /* Desde el paso 6, también lo que corrige «Datos de la venta»: la cuenta, el IVA, el subtotal, la fecha de liquidación y el % pactado. */
 /* Y la etapa (auditoría 2026-10-25, DN-2): una venta cancelada («No se dio») se marca en el selector y va aparte, al final. */
-const COLUMNAS = 'proyecto_id,a_folio,b_proyecto,c_estatus,d_cuenta,f_iva,g_subtotal,h_neto,i_anticipo,j_liquidacion,k_saldo,n_fecha_liquidacion,' +
+/* Y la fecha del anticipo (L), que «Datos de la venta» corrige desde 0032 (auditoría 2026-10-26, T1-6): la columna existe en la vista
+   desde 0004, así que leerla no depende de 0032. */
+const COLUMNAS = 'proyecto_id,a_folio,b_proyecto,c_estatus,d_cuenta,f_iva,g_subtotal,h_neto,i_anticipo,j_liquidacion,k_saldo,l_fecha_anticipo,n_fecha_liquidacion,' +
   'r_comision,s_abonado,t_restante,pct_comision,etapa';
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const numFolio = f => { const m = /(\d+)$/.exec(String(f || '')); return m ? Number(m[1]) : -1; };
@@ -785,6 +821,7 @@ export function normalizarVentas(filas) {
     comision: num(x.r_comision), abonado: num(x.s_abonado), restante: num(x.t_restante),
     cuenta: x.d_cuenta == null ? '' : String(x.d_cuenta), iva: x.f_iva !== false, subtotal: num(x.g_subtotal),
     fechaLiquidacion: fechaDe(x.n_fecha_liquidacion), pct: x.pct_comision == null || x.pct_comision === '' ? null : num(x.pct_comision),
+    fechaAnticipo: fechaDe(x.l_fecha_anticipo),
     cancelada: x.etapa === 'cancelado',
   })).sort((a, b) => numFolio(b.folio) - numFolio(a.folio));
 }
@@ -872,7 +909,7 @@ export function resumen(p, data, venta) {
     const quedo = escritos.map(k => NOMBRE_DEL_CAMPO[k] + ' ' + valorEscrito(k, q[k]));
     if (escritos.includes('cuenta') && !escritos.includes('iva') && 'iva' in q) quedo.push(IVA_TEXTO(q.iva !== false));
     return 'Venta ' + f + ' corregida: ' + quedo.join(', ') + '.' +
-      (rech.length ? ' No se cambió: ' + rech.map(x => (NOMBRE_DEL_CAMPO[x.nombre] || x.nombre) + ' (' + x.por + ')').join('; ') + '.' : '') +
+      (rech.length ? ' No se cambió: ' + rech.map(x => (NOMBRE_DEL_CAMPO[x.nombre] || x.nombre) + ' (' + porQueNoSeCambio(x) + ')').join('; ') + '.' : '') +
       ' Queda en la bitácora de la base con lo de antes.';
   }
   if (p.rpc === 'corregir_venta') {

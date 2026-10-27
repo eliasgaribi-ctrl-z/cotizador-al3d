@@ -266,6 +266,12 @@ export async function montar(c, ctx) {
      pintada debajo para que cerrar la capa devuelva a algo. */
   if (pase && pase.proyecto_id) {
     try { await abrirFicha(pase.proyecto_id); } catch (_) { /* el proyecto ya no está: la lista sirve igual */ }
+  } else if (pase && /^V-\d+$/.test(String(pase.venta || ''))) {
+    /* El «Abrir la ficha» del Cotizador (auditoría 2026-10-26, T1-6): la cuenta y el estatus de una venta que ya está en la base no se
+       cambian desde «Registrar venta», y para Pagos se cambian aquí, en su ficha. El pase trae el V-### (lo único que el cotizador sabe
+       de ella); si este teléfono no la tiene como tarjeta, se queda la lista. */
+    const p = TODOS.find(x => x && x.etapa !== 'cancelado' && (x.notion_page_id === pase.venta || x.folio_hoja === pase.venta));
+    if (p) { try { await abrirFicha(p.id); } catch (_) { /* la lista sirve igual */ } }
   }
 }
 
@@ -388,9 +394,12 @@ async function leerDatos() {
      dijiste que no es un aviso que se aprende a ignorar.
 
      Sin mínimo de días, al revés que la tarjeta de Inicio: allá los 7 días evitan
-     molestar con la venta de ayer, aquí decidir ES el trabajo de la pantalla. */
-  const decididos = new Set(TODOS.map(p => p.folio_global));
-  SIN_DECIDIR = Prefs.rol() === 'direccion' ? Cot.sinDecidir(decididos, 0) : [];
+     molestar con la venta de ayer, aquí decidir ES el trabajo de la pantalla.
+
+     Lo decidido son los proyectos de aquí Y las ventas del libro (auditoría 2026-10-26, T1-1): con la
+     base mandando, el historial de la empresa trae cotizaciones que otro teléfono ya vendió, y su venta
+     no es tarjeta aquí si ya no está en la línea del taller. */
+  SIN_DECIDIR = Prefs.rol() === 'direccion' ? Cot.sinDecidir(await Proy.foliosDecididos(TODOS), 0) : [];
 }
 
 /* De la lista de lo apartado de la bandeja (`Sync.rechazadas`), lo último de cada proyecto: sus
