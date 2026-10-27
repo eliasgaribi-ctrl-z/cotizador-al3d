@@ -1201,6 +1201,7 @@ function conCandado(fn) {
 
 /** Resumen de los lunes. Se puede correr a mano para probarlo. */
 function enviarResumen() {
+  if (laBaseManda_()) return resumenConLaBaseMandando_();
   var ss = SpreadsheetApp.getActive();
   var v = ss.getSheetByName('Ventas');
   var n = FIN - 1;
@@ -1237,6 +1238,46 @@ function enviarResumen() {
     'Para apagarlo: Extensiones › Apps Script › Activadores.</p></div>';
 
   MailApp.sendEmail({ to: CORREO, subject: 'AL3D — pendientes de la semana', htmlBody: html });
+}
+
+/* ── El correo de los lunes con la base mandando (puente-sheets-17; auditoría 2026-10-26, T1-4) ─────────
+   El resumen lee Ventas, y con la base mandando Ventas quedó congelada el 25 de octubre: «por cobrar
+   $X en N proyectos» saldría cada lunes con las cifras de ese día, y un correo con números viejos se cree
+   —nadie lo compara con la plataforma—. Lo que se eligió:
+     · No se manda el resumen. Cada lunes queda una línea en el registro (Ejecuciones) que dice por qué.
+     · La PRIMERA vez se manda, en su lugar, un aviso corto SIN cifras: que el resumen ahora está en la
+       plataforma (Control), con el botón para abrirla. Una sola vez (RESUMEN_AVISO_BASE guarda cuándo):
+       un correo vacío cada semana se aprende a ignorar. Cuesta un correo, no una pantalla nueva.
+   El disparador no se quita: si algún día la hoja vuelve a mandar, el lunes siguiente sale el resumen
+   como siempre. Correrlo a mano («📬 Mandarme el resumen ahora») dice lo mismo en la hoja. */
+var PLATAFORMA_URL = 'https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/';
+var PROP_RESUMEN_AVISO_BASE = 'RESUMEN_AVISO_BASE';
+
+function resumenConLaBaseMandando_() {
+  var props = PropertiesService.getScriptProperties();
+  var ya = props.getProperty(PROP_RESUMEN_AVISO_BASE);
+  var linea;
+  if (!ya) {
+    var html = '<div style="font-family:Roboto,Arial,sans-serif;color:#1a1a1a">' +
+      '<h2 style="color:#1c3d6e;margin-bottom:4px">AL3D — el resumen de los lunes ahora está en la plataforma</h2>' +
+      '<p>Desde el 25 de octubre la plataforma manda y la hoja «Finanzas AL3D» quedó congelada: sus cifras de ' +
+      'cobranza y de comisiones ya no se ponen al día. Para no mandarte números viejos, el resumen de los lunes ' +
+      'deja de salir de la hoja.</p>' +
+      '<p>Lo por cobrar y las comisiones pendientes, al día, están en la plataforma, en Control.</p>' +
+      '<p style="margin-top:22px"><a href="' + PLATAFORMA_URL + '" style="background:#1c3d6e;color:#fff;padding:10px 18px;' +
+      'border-radius:6px;text-decoration:none">Abrir la plataforma</a></p>' +
+      '<p style="color:#9aa3ae;font-size:12px">Este aviso sale una sola vez. Los lunes siguientes no llega nada de la hoja.</p></div>';
+    MailApp.sendEmail({ to: CORREO, subject: 'AL3D — el resumen de los lunes ahora está en la plataforma', htmlBody: html });
+    props.setProperty(PROP_RESUMEN_AVISO_BASE, new Date().toISOString());
+    linea = 'Resumen de los lunes: no se mandó con cifras —la base manda y esta hoja está congelada—; salió, una sola vez, ' +
+      'el aviso de que el resumen ahora está en la plataforma.';
+  } else {
+    linea = 'Resumen de los lunes: no se mandó —la base manda y esta hoja está congelada: sus cifras serían viejas—. ' +
+      'El aviso de que ahora está en la plataforma ya salió el ' + ya.slice(0, 10) + '.';
+  }
+  Logger.log(linea);
+  try { SpreadsheetApp.getActive().toast(linea, 'Resumen de los lunes', 12); } catch (e) { /* desde el disparador no hay hoja a la vista */ }
+  return linea;
 }
 
 /* Las celdas van escapadas (escaparHtml, más abajo): el nombre del proyecto lo escribe
@@ -1283,8 +1324,14 @@ function onOpen() {
       .addSubMenu(SpreadsheetApp.getUi().createMenu('🔧  Actualizar el puente')
           .addItem('1 · Revisar columnas Y–AD (vista previa, no escribe)', 'revisarColumnasDelPuente')
           .addItem('2 · Realinear columnas Y–AD', 'realinearColumnasDelPuente')
-          .addItem('3 · Preparar la hoja para el puente', 'prepararHojaParaElPuente'))
+          .addItem('3 · Preparar la hoja para el puente', 'prepararHojaParaElPuente')
+          /* puente-sheets-17: no esperar a la copia de cada 3 horas para que la hoja deje de recibir. Solo
+             hacia 'base': regresar a 'hoja' se hace desde el editor (marcarQueLaHojaManda), a propósito. */
+          .addItem('4 · La base manda: la hoja deja de recibir', 'marcarQueLaBaseManda'))
       .addToUi();
+  /* Con la base mandando, quien abre la hoja lo ve antes de capturar nada (auditoría 2026-10-26, T1-4): un
+     aviso que se queda hasta que lo cierran. No se borra ni se protege nada: es un aviso, no un candado. */
+  try { avisarQueLaBaseManda_(); } catch (e) { /* sin propiedades a la mano, sin aviso: nunca tumba el menú */ }
 }
 
 /* ---------- estilos compartidos de los formularios ---------- */
@@ -1892,8 +1939,17 @@ function dialogoTokens() {
    permiso de Google de la hoja, y lo único del día a día que sigue aquí —/carpetas, /crear_carpeta
    y /expandir— contestaba ROL_SIN_PERMISO: la ficha dejó de enseñar los diseños de Drive. Ahora esos
    tres caminos, y solo ésos, aceptan también la sesión de la base (identidadDeLaBase). Ninguna
-   pestaña nueva ni permiso nuevo de Google: ya pedía salir a internet para /expandir. */
-var PUENTE_VERSION = 'puente-sheets-16';
+   pestaña nueva ni permiso nuevo de Google: ya pedía salir a internet para /expandir.
+   puente-sheets-17 (26 de octubre de 2026; auditoría 2026-10-26, T1-2 y T1-4): la hoja SABE quién
+   manda. Una propiedad del script, MODO_EMPRESA ('base' u 'hoja'), que se fija sola —la copia de cada
+   3 horas la anota con lo que contesta la base, y también cada vez que una sesión de la base entra a
+   Drive o Maps— o a mano (⚡ AL3D → 🔧 Actualizar el puente → 4, o marcarQueLaBaseManda en el editor).
+   Con 'base', /empujar, /empujar_almacen y /empujar_gastos contestan LA_BASE_MANDA sin escribir nada:
+   el cambio se queda en la bandeja del teléfono que no se había enterado y sale a la base cuando
+   entre con su cuenta. Hasta la 16 lo escribían en esta hoja congelada y ahí se quedaba, sin llegar a
+   ningún lado. /salud dice el modo; al abrir la hoja se ve el aviso, y el correo de los lunes ya no
+   sale con cifras viejas (ver «QUIÉN MANDA», abajo). Ninguna pestaña ni permiso nuevo. */
+var PUENTE_VERSION = 'puente-sheets-17';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1925,6 +1981,102 @@ var BASE_URL = 'https://gwzfdprdrdudfakjsdxf.supabase.co';
 var BASE_LLAVE_PUBLICA = 'sb_publishable__yKAsMzY5aar3i2oYmJtPA_uWcTWjed';
 var BASE_EMPRESA = 'al3d';
 var RUTAS_CON_LA_BASE = { carpetas: true, crear_carpeta: true, expandir: true };
+
+/* ── QUIÉN MANDA: la hoja o la base (puente-sheets-17; auditoría 2026-10-26, T1-2 y T1-4) ──────────
+   Desde el 25 de octubre de 2026 la empresa está en modo 'base' (docs/BASE-MANDA.md): un teléfono que lo
+   sabe escribe en la base, y la copia de cada 3 horas hoja → base ya no aplica nada. Pero un teléfono que
+   NO se enteró —sin la sesión de la base, o que no ha vuelto a preguntar— seguía mandando aquí sus
+   cambios por /empujar, /empujar_almacen y /empujar_gastos, y esta hoja los aceptaba con un «listo»: el
+   teléfono los sacaba de su bandeja y se quedaban en una hoja congelada que ya no le llega a nadie. Un
+   cobro, una etapa, un gasto: perdidos sin que nadie lo viera.
+
+   Por eso la hoja tiene que saber el modo, y sin credenciales nuevas: no hay con qué preguntárselo a la
+   base por su cuenta (mi_acceso pide la sesión de una persona). Se guarda en una propiedad del script,
+   MODO_EMPRESA, y la fijan tres caminos, ninguno con un secreto nuevo:
+     · la copia de cada 3 horas («Copia diaria.gs», en este mismo proyecto): la función importar-diario
+       le contesta `modo` —lo lee de la base con el secreto que ya tiene— y la copia lo anota aquí con
+       fijarModoEmpresa_. Es el camino que no depende de nadie;
+     · una sesión de la base que entra a Drive o Maps (identidadDeLaBase): la base le contesta mi_acceso
+       con el modo de AL3D, y se anota de paso. Lo hacen solos los teléfonos que ya mandan desde la base,
+       cada vez que abren una ficha; no cuesta una petición más;
+     · y a mano, para no esperar a ninguno de los dos: ⚡ AL3D → 🔧 Actualizar el puente → «4 · La base
+       manda», o marcarQueLaBaseManda / marcarQueLaHojaManda desde el editor.
+   Quien manda de verdad es la base: si a mano se pone 'hoja' y la base dice 'base', la siguiente copia
+   lo regresa a 'base'. Sin la propiedad —una hoja que nunca supo nada, o el servicio de propiedades que
+   no contesta—, 'hoja': ante la duda todo se comporta como siempre, igual que MODO_ESPEJO.
+
+   Con 'base' las tres rutas de escritura contestan LA_BASE_MANDA ANTES de tomar el candado y sin tocar
+   ninguna pestaña. NO es definitivo, a propósito: el teléfono deja el cambio en su bandeja y lo manda a
+   la base en cuanto sabe que la base manda (js/datos/puente.js). Lo demás sigue igual: leer (/jalar,
+   /jalar_almacen, /jalar_gastos, /salud —que ahora dice el modo—), Drive, Maps, el sello, la IA,
+   /verificar y /espejo. Ni se borra ni se protege nada de la hoja: al abrirla se ve el aviso (onOpen) y
+   el correo de los lunes no sale con las cifras congeladas (enviarResumen). */
+var PROP_MODO_EMPRESA = 'MODO_EMPRESA';
+/* De dónde salió el último cambio de modo y cuándo, para quien abra las propiedades y se pregunte por qué. */
+var PROP_MODO_EMPRESA_NOTA = 'MODO_EMPRESA_NOTA';
+var RUTAS_QUE_ESCRIBEN = { empujar: true, empujar_almacen: true, empujar_gastos: true };
+var AVISO_LA_BASE_MANDA = 'La plataforma manda desde el 25 de octubre: lo que se escriba aquí ya no llega a ningún lado. Captura en la plataforma.';
+
+/** 'base' o 'hoja'. Cualquier otra cosa —sin propiedad, un valor raro, el servicio caído— es 'hoja'. */
+function modoEmpresa_() {
+  try {
+    var v = String(PropertiesService.getScriptProperties().getProperty(PROP_MODO_EMPRESA) || '').trim().toLowerCase();
+    return v === 'base' ? 'base' : 'hoja';
+  } catch (e) { return 'hoja'; }
+}
+
+function laBaseManda_() { return modoEmpresa_() === 'base'; }
+
+/**
+ * Anota quién manda. Solo 'base' u 'hoja': lo demás no se escribe. Devuelve true si cambió.
+ * Escribe solo cuando cambia —la copia la llama cada 3 horas y la sesión de la base en cada ficha—, y
+ * deja en MODO_EMPRESA_NOTA de dónde vino y cuándo. La llaman la copia diaria (copia-diaria.gs, desde
+ * otro archivo del mismo proyecto: el guion bajo final la esconde del menú «Ejecutar», no de él),
+ * identidadDeLaBase y las dos de abajo.
+ */
+function fijarModoEmpresa_(modo, fuente) {
+  modo = String(modo == null ? '' : modo).trim().toLowerCase();
+  if (modo !== 'base' && modo !== 'hoja') return false;
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(PROP_MODO_EMPRESA) === modo) return false;
+  props.setProperty(PROP_MODO_EMPRESA, modo);
+  props.setProperty(PROP_MODO_EMPRESA_NOTA, String(fuente || 'sin decir') + ' · ' + new Date().toISOString());
+  return true;
+}
+
+/** Desde el editor (o el menú): la base manda y esta hoja deja de recibir escrituras de los teléfonos. */
+function marcarQueLaBaseManda() {
+  var cambio = fijarModoEmpresa_('base', 'a mano (marcarQueLaBaseManda)');
+  var linea = (cambio ? 'Listo: ' : 'Ya estaba así: ') + 'la base manda. /empujar, /empujar_almacen y /empujar_gastos ya no escriben ' +
+    'en esta hoja; un teléfono que todavía no se entera guarda sus cambios y los manda a la base cuando entre con su cuenta.';
+  Logger.log(linea);
+  try { SpreadsheetApp.getActive().toast(linea, 'Quién manda', 12); } catch (e) { /* desde el editor no hay hoja a la vista */ }
+  return linea;
+}
+
+/** Desde el editor y nada más: de vuelta a 'hoja'. Solo tiene sentido si la base también volvió a 'hoja'
+ *  (modo_cambiar): si no, la siguiente copia lo regresa a 'base', que es lo correcto. */
+function marcarQueLaHojaManda() {
+  var cambio = fijarModoEmpresa_('hoja', 'a mano (marcarQueLaHojaManda)');
+  var linea = (cambio ? 'Listo: ' : 'Ya estaba así: ') + 'la hoja manda y vuelve a recibir lo que mandan los teléfonos. ' +
+    'Si la base sigue en modo «base», la siguiente copia lo regresa solo.';
+  Logger.log(linea);
+  return linea;
+}
+
+/** Lo que contestan las rutas de escritura con la base mandando. No escribe nada ni toma el candado. */
+function respuestaLaBaseManda_() {
+  return { ok: false, codigo: 'LA_BASE_MANDA', modo: 'base',
+           mensaje: 'La plataforma ahora guarda en la base y esta hoja ya no recibe cambios: no se escribió nada. ' +
+                    'El cambio se queda guardado en el teléfono y sale a la base en cuanto ese teléfono entre con su cuenta.' };
+}
+
+/** El aviso al abrir la hoja (onOpen). Un aviso que se queda hasta que lo cierran: no borra ni protege nada. */
+function avisarQueLaBaseManda_() {
+  if (!laBaseManda_()) return false;
+  try { SpreadsheetApp.getActive().toast(AVISO_LA_BASE_MANDA, '⚠️ Esta hoja ya no recibe nada', -1); return true; }
+  catch (e) { return false; }
+}
 
 /* Quién es quién. Una pestaña normal de esta hoja, con dos columnas: Correo y Rol. Es una
    pestaña y no un diálogo ni una constante del código por la razón de siempre en este
@@ -2289,6 +2441,12 @@ function doPost(e) {
         mensaje: 'Demasiadas peticiones seguidas desde este teléfono. Espera un minuto.' });
     }
 
+    /* Con la base mandando, las tres rutas de escritura no escriben (ver «QUIÉN MANDA»). Va DESPUÉS de las
+       puertas y del cupo, a propósito: a quien no tiene llave se le contesta lo de siempre —esto no le
+       confirma nada—, y un teléfono que insiste sigue contando contra su cupo. Y ANTES de la ruta: ni el
+       candado se toma. (auditoría 2026-10-26, T1-2) */
+    if (RUTAS_QUE_ESCRIBEN[ruta] === true && laBaseManda_()) return responder(respuestaLaBaseManda_());
+
     if (ruta === 'salud')    return responder(rutaSalud_(rol, ingreso ? 'google' : 'token', ingreso ? ingreso.correo : ''));
     if (ruta === 'esquema')  return responder(rutaEsquema_());
     if (ruta === 'jalar')    return responder(rutaJalar_(cuerpo, rol));
@@ -2462,10 +2620,18 @@ function identidadDeLaBase(tok) {
       var j = JSON.parse(r.getContentText());
       if (j && j.ok === true && j.estado === 'activo') {
         correo = String((j.usuario && j.usuario.correo) || '').trim().toLowerCase();
-        var emp = Array.isArray(j.empresas) ? j.empresas : [];
+        var emp = Array.isArray(j.empresas) ? j.empresas : [], modoBase = '';
         for (var i = 0; i < emp.length; i++) {
-          if (emp[i] && emp[i].empresa_id === BASE_EMPRESA && emp[i].estado === 'activo') area = String(emp[i].area || '');
+          if (emp[i] && emp[i].empresa_id === BASE_EMPRESA && emp[i].estado === 'activo') {
+            area = String(emp[i].area || '');
+            modoBase = String(emp[i].modo || '');
+          }
         }
+        /* De paso, quién manda (puente-sheets-17): la base lo acaba de decir, a una cuenta activa de AL3D,
+           y esta petición la hizo la hoja misma a la base de BASE_URL —nadie de afuera la puede inventar—.
+           Así la hoja se entera en minutos, sin esperar a la copia de cada 3 horas. Solo escribe si cambió
+           (fijarModoEmpresa_), y un tropiezo al anotar no le cierra la puerta a nadie. (auditoría 2026-10-26, T1-2) */
+        if (area && modoBase) { try { fijarModoEmpresa_(modoBase, 'sesión de la base (mi_acceso)'); } catch (e) { /* se anota la próxima */ } }
       }
     } else if (codigo === 401 || codigo === 403) {
       definitivo = true;
@@ -2566,7 +2732,10 @@ function rutaSalud_(rol, via, correo) {
               con dos puertas, saber por cuál entraste es la mitad de poder arreglarlo. */
            via: via || 'token', correo: correo || '',
            /* Qué proveedores de IA tienen llave aquí. Solo si o no: la llave no sale nunca. */
-           ia: iaEstado() };
+           ia: iaEstado(),
+           /* Quién manda, como lo sabe esta hoja (puente-sheets-17): con 'base', las escrituras contestan
+              LA_BASE_MANDA, y el teléfono puede saberlo desde aquí sin gastar una subida. */
+           modo: modoEmpresa_() };
 }
 
 /* ---------------------------------------------------------------- /esquema */

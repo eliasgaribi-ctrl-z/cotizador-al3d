@@ -351,8 +351,14 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 16', VERSION_ESPERADA, 'puente-sheets-16');
-  /* A la 15 solo le falta dejar pasar la sesión de la base a Drive y Maps: los gastos ya los lleva. */
+  eq('la plataforma espera la 17', VERSION_ESPERADA, 'puente-sheets-17');
+  /* A la 16 solo le falta saber quién manda: que la hoja deje de aceptar lo que mandan los teléfonos que
+     no se enteraron de que la base manda (auditoría 2026-10-26, T1-2). */
+  const a16 = avisoVersion('puente-sheets-16');
+  cierto('a la 16 le dice que la hoja sigue aceptando lo que no llega a la base y qué pegar',
+    /no se enteró/.test(a16) && /no llegar a la base|sin llegar a la base/.test(a16) && /puente-sheets-17/.test(a16) && /Copia diaria/.test(a16));
+  cierto('  y no le habla de Drive, que la 16 ya abre con la sesión de la base', !/Drive/.test(a16));
+  /* A la 15 le falta dejar pasar la sesión de la base a Drive y Maps (y lo de la 16): los gastos ya los lleva. */
   const a15 = avisoVersion('puente-sheets-15');
   cierto('a la 15 le dice que Drive no se ve con la base mandando y qué pegar', /Drive/.test(a15) && /sesión de la base/.test(a15) && /puente-sheets-16/.test(a15));
   cierto('  y no le habla de los gastos, que la 15 ya lleva', !/«Gastos»/.test(a15));

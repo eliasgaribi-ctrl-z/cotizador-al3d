@@ -10,9 +10,11 @@
    ENTRADA   POST con el secreto en la cabecera  x-importar-secreto  (IMPORTAR_SECRETO, 32+ caracteres)
              y, de cuerpo, el volcado de la hoja en el formato de puente/volcado-para-importar.gs
              («al3d-volcado» v1), que arma y manda puente/copia-diaria.gs. Hasta 15 MB.
-   SALIDA    200 { ok:true, id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, ventas, duracion_ms, motivo,
+   SALIDA    200 { ok:true, id, fecha, aplicado, cuadra, diferencias, conflictos, rechazos, ventas, duracion_ms, motivo, modo,
                    autorizaciones:{ comprobadas, no_entran } }
-                 aplicado:false cuando el plan trae conflictos o filas que no entran (no se escribe nada; se anota igual)
+                 aplicado:false cuando el plan trae conflictos o filas que no entran (motivo 'conflictos'; no se escribe nada; se
+                 anota igual), o cuando la base manda (motivo 'modo_base': la copia ya solo cuadra)
+                 modo: 'base' | 'hoja' | null, quién manda según la base; la hoja lo anota (copia-diaria.gs, puente-sheets-17)
              502 { ok:false, codigo:'BASE_RECHAZO', … , error:{codigo, tabla?, restriccion?} }  la copia tronó en la base y se
                  deshizo ENTERA; el fallo quedó anotado en cuadre_diario
              503 CONFIGURACION      falta IMPORTAR_SECRETO (o es corto) o SUPABASE_DB_URL: NO hace nada
@@ -163,7 +165,11 @@ export async function manejar(peticion, deps) {
       return responder(502, { ...sobreDeError('BASE_RECHAZO', 'La base rechazó la copia y se deshizo entera: no se escribió nada. El fallo quedó anotado en cuadre_diario.'),
         ...res, error: r.error });
     }
-    return responder(200, { ok: true, ...res, motivo: r.aplicado ? null : 'conflictos' });
+    /* `modo` (puente-sheets-17): quién manda, para que la hoja lo anote (copia-diaria.gs → fijarModoEmpresa_). Y el motivo de no aplicar
+       ya no es siempre «conflictos»: con la base mandando es lo esperado, y la línea del registro de la hoja lo dice así (auditoría
+       2026-10-26, T1-2 y T1-4). */
+    const modo = r.modo === 'base' || r.modo === 'hoja' ? r.modo : null;
+    return responder(200, { ok: true, ...res, modo, motivo: r.aplicado ? null : modo === 'base' ? 'modo_base' : 'conflictos' });
   } catch (e) {
     if (e instanceof CopiaOcupada) return responder(409, sobreDeError('OCUPADA', 'Ya hay una copia en curso: esta no hizo nada.'));
     if (e instanceof ErrorDeCopia) {

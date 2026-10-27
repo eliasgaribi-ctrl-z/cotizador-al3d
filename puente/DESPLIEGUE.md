@@ -145,7 +145,8 @@ para todo el equipo —la etapa, las notas, el plazo, la cita y las correcciones
 cambio más reciente— con tres columnas nuevas en Ventas, AG:AI (al final).
 Desde el 23 de octubre espera **`puente-sheets-15`**: lo de la 14 más los **gastos** —la pestaña
 «Gastos» y los caminos `/empujar_gastos` y `/jalar_gastos`— (al final). Y desde el 26 de octubre,
-**`puente-sheets-16`**: lo de la 15 más la sesión de la base para Drive y Maps (al final). Cuál corre la hoja de verdad
+**`puente-sheets-16`**: lo de la 15 más la sesión de la base para Drive y Maps (al final). Y desde la misma tarde,
+**`puente-sheets-17`**: lo de la 16 más que la hoja sepa que la base manda y deje de recibir (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -497,6 +498,43 @@ Drive», como hasta hoy.
 
 Para comprobarlo: con la base mandando, abre la ficha de un proyecto del taller: «Carpeta de Drive»
 enseña sus archivos sin tocar «Conectar Drive».
+
+### Al pasar a `puente-sheets-17` (la hoja deja de recibir) — pegar los dos archivos, publicar y marcar
+
+La 17 hace que la hoja sepa que la base manda (README, «`puente-sheets-17`»): con eso `/empujar`,
+`/empujar_almacen` y `/empujar_gastos` dejan de escribir y contestan `LA_BASE_MANDA`, de modo que el
+cambio de un teléfono que no se enteró se queda guardado en ese teléfono en lugar de perderse en la hoja
+congelada; al abrir la hoja se ve el aviso, y el correo de los lunes ya no sale con cifras viejas. No
+crea pestañas, no toca Ventas y **no pide permisos nuevos**. Cambian **los dos archivos** del proyecto de
+Apps Script: `Código.gs` y `Copia diaria.gs`.
+
+El orden no rompe nada. Si la app nueva sale antes, con la hoja en la 16 todo sigue como hoy. Si la hoja
+pasa a la 17 antes que la app, un teléfono con la app vieja no entiende la respuesta pero tampoco la toma
+por buena: deja el cambio en su bandeja como pendiente (no lo pierde) y lo reintenta; con la app nueva lo
+dice con todas sus letras y no le insiste a la hoja.
+
+1. **Pegar y guardar `Código.gs`.** **Extensiones → Apps Script → `Código.gs`**: selecciona todo, borra,
+   pega `puente/hoja-apps-script.gs` y guarda (💾). Parte de la 16: si la hoja corre la 16 del
+   repositorio, se pega entero.
+2. **Pegar y guardar `Copia diaria.gs`.** En el mismo proyecto, abre **`Copia diaria.gs`**: selecciona
+   todo, borra, pega `puente/copia-diaria.gs` y guarda (💾). Es la que, cada 3 horas, anota sola quién
+   manda.
+3. **Publicar la versión.** **Implementar → Gestionar implementaciones → lápiz → Versión: Versión
+   nueva → Implementar.** La URL no cambia.
+4. **Fijar el modo ya, sin esperar a la copia.** Recarga la hoja y usa **⚡ AL3D → 🔧 Actualizar el
+   puente → 4 · La base manda: la hoja deja de recibir** (o, en el editor, elige
+   `marcarQueLaBaseManda` y «Ejecutar»). Sale un aviso que dice «Listo: la base manda».
+
+Sin el paso 4 también se fija solo: la siguiente copia de cada 3 horas lo anota —cuando la función
+`importar-diario` ya esté publicada con el campo `modo` (la de este repositorio)—, y en cuanto un
+teléfono que ya manda desde la base abre la ficha de un proyecto (Drive), también. Regresar a «la hoja
+manda» solo se hace en el editor (`marcarQueLaHojaManda`), y solo tiene sentido si la base también
+volvió a `hoja`: si no, la siguiente copia lo regresa a `base`.
+
+Para comprobarlo: **Ajustes → El puente → Probar** dice `puente-sheets-17`; al recargar la hoja sale
+arriba a la derecha «La plataforma manda desde el 25 de octubre…»; y en **Extensiones → Apps Script →
+Configuración del proyecto → Propiedades de la secuencia de comandos** está `MODO_EMPRESA = base`, con
+`MODO_EMPRESA_NOTA` diciendo de dónde salió.
 
 ## Las cabeceras del sitio
 
