@@ -10,10 +10,14 @@
 //   MO-06  con la base mandando entra con el V-### de la base; de vuelta en la hoja, el reintento de esa misma alta dice «ya existía» (la
 //          verdad) y una nueva se niega
 //   MO-07  la copia de cada 3 horas sigue dando de alta las ventas de la hoja con la hoja mandando: no usa alta_venta (escribe directo)
+// Y lo de 0030 (auditoría 2026-10-26, T1-5, decidido por Elías): volver a la hoja, con candado.
+//   MO-08  con algo hecho en la base mientras manda (un cobro, una venta nueva, una etapa, una cita, un abono, un gasto), `modo_cambiar('hoja')`
+//          se niega y dice cuántos, de qué tipo y sus folios, sin cambiar nada; sin nada pendiente (o con cambios de ANTES del paso a la base),
+//          cambia como siempre; si la base no sabe desde cuándo manda, se niega con esa razón; el regreso del dueño (Editor SQL) sigue abierto
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describir, prueba, dato, igual, cierto, esperarError, resumen } from '../arnes/marco.mjs';
-import { crearBaseDePruebas, sembrarUsuarios, sesionDe, como, sql, una, llamar, conCopia } from '../comun/semilla.js';
+import { crearBaseDePruebas, sembrarUsuarios, sembrarProyectos, sesionDe, como, sql, una, llamar, conCopia } from '../comun/semilla.js';
 import { volcado, dia } from '../comun/hoja-de-mentiras.js';
 import { cincuentaFilas } from '../comun/escenarios-importador.js';
 import { planear } from '../../../scripts/importador/plan.mjs';
@@ -133,7 +137,11 @@ describir('MO-06 con la base mandando entra; de vuelta en la hoja, el reintento 
     const x = await una(db, `select p.fuente, p.etapa, d.subtotal::float8 as sub, i.estado from public.proyectos p join public.ventas_dinero d on d.proyecto_id = p.id
                              join public.instalaciones i on i.proyecto_id = p.id where p.id = 'alta-1'`);
     igual([x.fuente, x.etapa, x.sub, x.estado], ['manual', 'ganado', 4000, 'propuesta'], 'lo de siempre (0006): la cita propuesta, porque la dio Pagos');
-    await cambiar(db, 'dir', 'hoja');
+    /* 0030: esa venta la hoja no la tiene, así que `modo_cambiar('hoja')` ya no deja regresar (MO-08). El regreso de esta prueba es el del
+       dueño en el Editor SQL, el que dice docs/BASE-MANDA.md («Cómo se regresa») para cuando ya se pasó a la hoja a mano. */
+    const candado = await cambiar(db, 'dir', 'hoja');
+    igual([candado.ok, candado.codigo, candado.pendientes.total, candado.pendientes.tipos[0].folios], [false, 'DATO_INVALIDO', 1, ['V-001']], 'el candado nombra la venta nueva');
+    await sql(db, "update public.empresas set modo = 'hoja', modo_desde = now() where id = 'al3d'");
     const antes = await huella(db);
     const r2 = await alta(db, 'pag', ALTA());
     igual([r2.ok, r2.ya_existia, r2.folio_hoja], [true, true, 'V-001'], 'la respuesta perdida de un alta que sí entró: no «no se registró»');
@@ -158,6 +166,88 @@ describir('MO-07 la copia de cada 3 horas no usa alta_venta', () => {
   prueba('ni el importador ni la función la nombran, y service_role (con la que entra la función) ni siquiera puede ejecutarla', async () => conCopia(plantilla, async db => {
     for (const c of ['scripts/importador/', 'supabase/functions/importar-diario/', 'supabase/functions/_shared/']) cierto(!/alta_venta/.test(textoDe(c)), c);
     await esperarError(como(db, { rol: 'service_role' }).rpc('alta_venta', ALTA()), '42501');
+  }));
+});
+
+/* ============================================================================
+   0030: volver a la hoja, con candado (auditoría 2026-10-26, T1-5)
+   La semilla con ventas: V-001 (p1, cortado, con cita i1), V-002 (p2, ganado, sin cita), V-003 (p3), V-004 (p4), V-005 (p6, histórica).
+   ============================================================================ */
+const conVentas = dato(async () => {
+  const db = await crearBaseDePruebas();
+  db.u = await sembrarUsuarios(db);
+  await sembrarProyectos(db);
+  return db;
+}, { limpiar: db => db.close() });
+const S = (db, quien) => sesionDe(db, db.u[quien], { confirmar: true });
+const lineasDeModo = async db => Number((await una(db, "select count(*)::int as n from public.bitacora where accion = 'modo'")).n);
+const modoDe = async db => (await una(db, "select modo from public.empresas where id = 'al3d'")).modo;
+const tiposDe = r => r.pendientes.tipos.map(t => [t.tipo, t.n, t.folios]);
+
+describir('MO-08 volver a la hoja, con candado (0030)', () => {
+  prueba('un cobro en la base después del cambio: volver a la hoja se niega, dice cuántos, de qué tipo y el folio, y no cambia nada', async () => conCopia(conVentas, async db => {
+    igual((await cambiar(db, 'dir', 'base')).ok, true);
+    const c = await llamar(S(db, 'pag'), 'registrar_cobro', { p_proyecto: 'p2', p_monto: 500, p_op_id: 'cobro-mo08' });
+    igual(c.ok, true, 'el cobro entró en la base');
+    const modos = await lineasDeModo(db);
+    const r = await cambiar(db, 'dir', 'hoja');
+    igual([r.ok, r.codigo, r.definitivo], [false, 'DATO_INVALIDO', true], 'se niega, definitivo (reintentar no lo arregla)');
+    igual(tiposDe(r), [['cobro', 1, ['V-002']]], 'un cobro, de V-002, y nada más');
+    igual(r.pendientes.total, 1);
+    cierto(/^No se puede volver a la hoja: la base tiene 1 cambio hecho con la base mandando que la hoja no tiene/.test(r.mensaje) &&
+           /1 venta con cobro o cambio de dinero \(V-002\)/.test(r.mensaje) && /lo pisaría/.test(r.mensaje), r.mensaje);
+    cierto(!/\$|500/.test(r.mensaje), 'sin importes en el mensaje');
+    igual([await modoDe(db), await lineasDeModo(db)], ['base', modos], 'la empresa sigue en la base y no hay línea nueva en la bitácora');
+    igual((await cambiar(db, 'dir', 'base')).sin_cambio, true, 'pedir «base» sigue siendo «sin cambio»');
+  }));
+
+  prueba('sin cambios con la base mandando se permite, como siempre; lo hecho ANTES del paso a la base no cuenta', async () => conCopia(conVentas, async db => {
+    /* Con la hoja mandando: una etapa y un cobro (los manda la sombra, o Dirección por el Editor). La hoja ya los tiene por su lado. */
+    igual((await llamar(S(db, 'dir'), 'mover_etapa', { p_proyecto: 'p1', p_etapa: 'armado', p_sello: Date.now() })).ok, true);
+    igual((await llamar(S(db, 'pag'), 'registrar_cobro', { p_proyecto: 'p2', p_monto: 100, p_op_id: 'cobro-antes' })).ok, true);
+    igual((await cambiar(db, 'dir', 'base')).ok, true);
+    igual(await cambiar(db, 'dir', 'hoja'), { ok: true, modo: 'hoja' }, 'nada pendiente: regresa');
+    igual([await modoDe(db), await lineasDeModo(db)], ['hoja', 2], 'con sus dos líneas en la bitácora');
+  }));
+
+  prueba('varios tipos a la vez: cada uno con su cuenta y sus folios, en orden (venta nueva, cobro, abono, etapa, cita, gasto)', async () => conCopia(conVentas, async db => {
+    igual((await cambiar(db, 'dir', 'base')).ok, true);
+    igual((await llamar(S(db, 'pag'), 'alta_venta', ALTA('alta-mo08'))).folio_hoja, 'V-006', 'una venta nueva con el V-### de la base');
+    igual((await llamar(S(db, 'dir'), 'registrar_cobro', { p_proyecto: 'p3', p_monto: 300, p_op_id: 'cobro-p3' })).ok, true);
+    igual((await llamar(S(db, 'dir'), 'registrar_abono_comision', { p_proyecto: 'p1', p_monto: 10, p_op_id: 'ab-p1' })).ok, true);
+    igual((await llamar(S(db, 'dir'), 'mover_etapa', { p_proyecto: 'p4', p_etapa: 'en_diseno', p_sello: Date.now() })).ok, true);
+    igual((await llamar(S(db, 'dir'), 'instalacion_guardar', { p_op: { id: 'cita-p2', proyecto_id: 'p2', fecha: '2026-11-05', hora: '10:00',
+      ventana: 'dia', duracion_min: 120, sello: Date.now() } })).ok, true);
+    igual((await llamar(S(db, 'pag'), 'gasto_registrar', { p_op: { op_id: 'op-g1', id: 'gas-mo08', fecha: '2026-10-26', concepto: 'Vinil de corte', categoria: 'Material',
+      monto: 850, cuenta: 'Elias BBVA', folio: '', registro_por: 'Ana · Pagos (K7QM)', registrado_en: Date.now(), anulado: false, anulo: '', anulado_en: null } })).creado, true);
+    const r = await cambiar(db, 'dir', 'hoja');
+    igual(tiposDe(r), [['venta_nueva', 1, ['V-006']], ['cobro', 1, ['V-003']], ['abono', 1, ['V-001']], ['etapa', 1, ['V-004']],
+                       ['cita', 1, ['V-002']], ['gasto', 1, ['2026-10-26 Vinil de corte']]]);
+    igual(r.pendientes.total, 6);
+    cierto(/la base tiene 6 cambios hechos con la base mandando/.test(r.mensaje) && /los pisaría/.test(r.mensaje) &&
+           /1 venta nueva \(V-006\); 1 venta con cobro o cambio de dinero \(V-003\); 1 abono de comisión \(V-001\); 1 cambio de etapa \(V-004\); 1 cita de instalación \(V-002\); 1 gasto \(2026-10-26 Vinil de corte\)/.test(r.mensaje), r.mensaje);
+    igual(await modoDe(db), 'base', 'sigue en la base');
+    /* El regreso del dueño, ya con todo pasado a la hoja a mano (docs/BASE-MANDA.md, «Cómo se regresa»): el candado es de la RPC de Dirección. */
+    await sql(db, "update public.empresas set modo = 'hoja', modo_desde = now() where id = 'al3d'");
+    igual(await modoDe(db), 'hoja');
+  }));
+
+  prueba('la base que no sabe desde cuándo manda se niega con esa razón; sin la hora, toma la de la línea «modo» de la bitácora', async () => conCopia(conVentas, async db => {
+    /* Puesta en 'base' por SQL sin la hora (y sin línea en la bitácora): no hay con qué medir qué no tiene la hoja. */
+    await sql(db, "update public.empresas set modo = 'base', modo_desde = null where id = 'al3d'");
+    const r = await cambiar(db, 'dir', 'hoja');
+    igual([r.ok, r.codigo, r.pendientes], [false, 'DATO_INVALIDO', null]);
+    cierto(/no sabe desde cuándo manda/.test(r.mensaje), r.mensaje);
+    /* Con la línea de la bitácora de un paso a la base de verdad, esa es la hora. */
+    await sql(db, "update public.empresas set modo = 'hoja' where id = 'al3d'");
+    igual((await cambiar(db, 'dir', 'base')).ok, true);
+    await sql(db, "update public.empresas set modo_desde = null where id = 'al3d'");
+    igual((await cambiar(db, 'dir', 'hoja')).ok, true, 'nada pendiente desde esa línea: regresa');
+  }));
+
+  prueba('Pagos y Fabricación siguen sin poder cambiar el modo (el candado va después del área)', async () => conCopia(conVentas, async db => {
+    igual((await cambiar(db, 'dir', 'base')).ok, true);
+    for (const q of ['pag', 'fab']) igual([q, (await cambiar(db, q, 'hoja')).codigo], [q, 'ROL_SIN_PERMISO']);
   }));
 });
 

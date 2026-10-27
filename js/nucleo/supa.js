@@ -373,13 +373,30 @@ export async function entrarSinBoton(correoPuerta, opc = {}) {
   });
 }
 
+/* ----- Los topes de las esperas (auditoría 2026-10-26, T1-3) -----
+   La promesa que va en vuelo se COMPARTE (abajo), y eso tiene una cara mala que se vio el 26-oct: si una petición se
+   cuelga —la red del arranque que se queda a medias, el candado de pestañas de supabase-js que no se suelta— nadie
+   más en esa carga vuelve a preguntar: todos reciben la misma promesa, que nunca contesta, y la vigilancia se queda
+   con `_enCurso` puesto para siempre. El Chrome de Dirección corrió así en modo hoja toda una carga, con sesión
+   válida y la base en 'base', y sin que nada lo dijera. Con tope, una pregunta colgada contesta «no sé» a tiempo
+   (`desconocido`, que no cambia nada de lo que este aparato sabía) y la siguiente vuelve a salir. Si la respuesta
+   de verdad llega después, se guarda igual: el modo y su aviso (`al3d-modo`) van dentro de `accesoDeVerdad`.
+   Son propiedades y no constantes sueltas para que las pruebas los puedan acortar (pruebas/supabase-quien-manda.mjs). */
+export const TOPES = { cliente: 20000, sesion: 8000, acceso: 15000 };
+function conTope(p, ms, siNo) {
+  let reloj = 0;
+  const tope = new Promise(r => { reloj = setTimeout(() => r(typeof siNo === 'function' ? siNo() : siNo), ms); });
+  return Promise.race([Promise.resolve(p).finally(() => clearTimeout(reloj)), tope]);
+}
+
 /** Quién eres según la base. Una invitación pendiente se reclama aquí mismo. Las preguntas que llegan
  *  juntas —la puerta, el relevo, Ajustes y la entrada única, al abrir— comparten la que va en vuelo: eran
- *  de 4 a 6 `mi_acceso` por carga (auditoría 2026-10-25, ES-11). Una que llega después pregunta de nuevo. */
+ *  de 4 a 6 `mi_acceso` por carga (auditoría 2026-10-25, ES-11). Una que llega después pregunta de nuevo.
+ *  Con tope (T1-3, arriba): la que no contesta en TOPES.acceso es «no sé» y suelta el turno. */
 let _accesoEnVuelo = null;
 export function acceso() {
   if (_accesoEnVuelo) return _accesoEnVuelo;
-  const p = accesoDeVerdad();
+  const p = conTope(accesoDeVerdad(), TOPES.acceso, () => ({ estado: 'desconocido', codigo: 'SIN_RESPUESTA', mensaje: 'La base no contestó a tiempo.' }));
   _accesoEnVuelo = p;
   const fin = () => { if (_accesoEnVuelo === p) _accesoEnVuelo = null; };
   p.then(fin, fin);
@@ -405,13 +422,56 @@ async function accesoDeVerdad() {
   return a;
 }
 
-/** La sesión de Supabase de este aparato, o null (apagado, sin sesión, la librería que no cargó). */
+/** La sesión de Supabase de este aparato, o null (apagado, sin sesión, la librería que no cargó). Con tope en cada
+ *  espera (T1-3): `getSession` espera el candado de pestañas de supabase-js y, con otra pestaña que no lo suelta,
+ *  puede no contestar nunca. Sin sesión a tiempo es «sin sesión» AHORA: quien pregunta vuelve a intentarlo
+ *  (`saberQuienManda`), y la librería que todavía baja sigue bajando (el cliente se guarda como promesa). */
 async function sesion() {
   if (!encendido()) return null;
-  try { const c = await cliente(); const { data } = await c.auth.getSession(); return (data && data.session) || null; }
-  catch (_) { return null; }
+  try {
+    const c = await conTope(cliente(), TOPES.cliente, null);
+    if (!c) return null;
+    const r = await conTope(c.auth.getSession(), TOPES.sesion, null);
+    return (r && r.data && r.data.session) || null;
+  } catch (_) { return null; }
 }
 export async function haySesion() { return !!(await sesion()); }
+
+/* ============================================================================
+   ¿QUIÉN MANDA? EN CADA ARRANQUE (auditoría 2026-10-26, T1-3)
+
+   El 26-oct el Chrome de escritorio de Dirección tenía el interruptor encendido, sesión válida en la base (activo, una
+   sola empresa, la base en 'base') y token de dispositivo, y NO tenía el modo guardado: corrió en modo hoja sin que nada lo
+   dijera. En una carga posterior sí lo guardó. Hasta aquí el modo se preguntaba en tres lugares y ninguno era seguro en
+   ese aparato:
+     · la puerta, solo si este aparato YA sabía que la base manda (`preguntarALaBase` va detrás de `laBaseManda()`): un
+       aparato que no lo sabía nunca se enteraba por ella;
+     · la entrada única (`entrarSinBoton`), que con la sesión ya hecha contesta «ya» sin preguntar nada;
+     · la vigilancia, que arrancaba DESPUÉS de montar la primera pantalla, preguntaba una vez y, si la sesión no estaba
+       lista en ese momento o la respuesta no llegaba, no volvía a preguntar en diez minutos —y con una petición colgada,
+       nunca en esa carga (los topes de arriba)—.
+   No se pudo ver cuál de las tres pasó; esto cierra las tres. La app llama a esto en cuanto pasa la puerta (js/app.js,
+   `crearQuienManda`), y la puerta también pregunta a la base cuando no sabe el modo (js/nucleo/puerta.js, `supaSinModo`).
+   Unos pocos intentos si la respuesta no fue explícita (sin sesión todavía, sin respuesta), con espera creciente; la
+   respuesta explícita, la que sea (activo, sin acceso, retirado…), es la última. `acceso()` guarda el modo y avisa
+   (`al3d-modo`) si cambió. Si al final no se sabe, la app lo dice con una banda roja: nada de quedarse en la hoja callado.
+   @returns {Promise<{estado:string, modo?:string, area?:string, correo?:string}>} lo de `leerAcceso`, o
+            {estado:'apagado'} / {estado:'sin_sesion'} / {estado:'desconocido'}.
+   ============================================================================ */
+/* Tres intentos, con 2 s y luego 4 s de espera entre uno y otro. Propiedades, como TOPES, para que las pruebas las acorten. */
+export const REINTENTOS_MODO = { intentos: 3, esperaMs: 2000 };
+export async function saberQuienManda(opc = {}) {
+  const intentos = Math.max(1, opc.intentos || REINTENTOS_MODO.intentos);
+  const entre = opc.esperaMs != null ? opc.esperaMs : REINTENTOS_MODO.esperaMs;
+  let r = { estado: 'desconocido' };
+  for (let i = 0; i < intentos; i++) {
+    if (!encendido()) return { estado: 'apagado' };
+    if (i) await espera(entre * i);
+    r = (await haySesion()) ? await acceso() : { estado: 'sin_sesion' };
+    if (r.estado !== 'desconocido' && r.estado !== 'sin_sesion') return r;
+  }
+  return r;
+}
 /** El token de esa sesión, o ''. Lo pide el Apps Script para Drive y Maps (puente-sheets-16), que se lo
  *  pregunta a la base: nunca se guarda ni se escribe en ninguna parte. */
 export async function tokenDeSesion() { const s = await sesion(); return (s && s.access_token) || ''; }
@@ -507,6 +567,10 @@ export function esLaMismaPersona(correoBase, correoPuerta) {
  * Pregunta a la base cada MS_VIGILAR y al volver a la app. Si DOS respuestas explícitas,
  * separadas, dicen «acceso retirado», bloquea la pantalla. El borrado de lo local solo corre
  * con los tres candados abiertos (hoy, nunca: BORRADO_HABILITADO = false).
+ *
+ * `_enCurso` ya no se puede quedar puesto para siempre: `haySesion()` y `acceso()` tienen tope (T1-3). Antes, una
+ * petición colgada en la primera vuelta dejaba esta vigilancia muda toda la carga, y con ella la única pregunta del
+ * modo que hacía la app. La app la arranca ahora en cuanto pasa la puerta (js/app.js, `crearQuienManda`).
  * @param {{bandejaVacia?: () => Promise<boolean>, todoConAcuse?: () => Promise<boolean>}} [deps]
  */
 export function vigilar(deps = {}) {
