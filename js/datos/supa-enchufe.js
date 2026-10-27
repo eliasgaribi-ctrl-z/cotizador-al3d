@@ -246,7 +246,8 @@ export async function cuadrarAhora() {
   }
   let hoja;
   try {
-    const r = await Puente.hablar('jalar', {});
+    /* Es el botón «Cuadrar ahora»: puede pedir el permiso de Google de la hoja dentro del toque (auditoría 2026-10-26, T1-8). */
+    const r = await Puente.hablar('jalar', {}, undefined, { toque: true });
     if (!r || r.ok === false) return { ok: false, mensaje: (r && r.mensaje) || 'La hoja no contestó.' };
     hoja = (Array.isArray(r.registros) ? r.registros : []).map(f => Puente.ventaDeHoja((f && f.datos) || null)).filter(Boolean);
   } catch (e) { return { ok: false, mensaje: 'La hoja no contestó: ' + ((e && e.message) || e) }; }

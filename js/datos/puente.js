@@ -1887,7 +1887,10 @@ export function crear(cfg0, opc = {}) {
                  /* Por cuál de las dos puertas entró y con qué correo. La puerta
                     (js/nucleo/puerta.js) necesita las dos: un `via:'token'` significa que la
                     hoja reconoció al APARATO y no a la persona, y eso no da pase. */
-                 via: r.cuerpo.via || 'token', correo: r.cuerpo.correo || '' };
+                 via: r.cuerpo.via || 'token', correo: r.cuerpo.correo || '',
+                 /* Quién manda, según la hoja (puente-sheets-17): la puerta lo lee para avisar a un aparato que todavía
+                    no sabe que la base manda (auditoría 2026-10-26, T1-3). Una hoja anterior no lo dice: ''. */
+                 modo: r.cuerpo.modo === 'base' || r.cuerpo.modo === 'hoja' ? r.cuerpo.modo : '' };
       } catch (e) {
         return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
       }
