@@ -91,6 +91,16 @@ let _masFicha = { id: null, abierto: false };
    correcto: el material calculado sigue sin corresponder a la cotización de hoy. */
 const HUELLA_IGNORADA = new Set();
 
+/* ----- Material encendido -----
+   Material está en mantenimiento (el interruptor único es `Agenda.MATERIAL_EN_MANTENIMIENTO`,
+   js/datos/agenda.js). Esta pantalla seguía enseñando su semáforo —«Material sin calcular» en casi
+   cada tarjeta, «Faltan 3 materiales» en rojo—, preguntaba «¿Ya se cortó?» porque «salen del almacén
+   los materiales» y tenía botones a la pantalla apagada: «Ver la lista de compra», «Ver almacén»,
+   «Recalcular material». Todo eso pregunta aquí, al MISMO interruptor, para que el día que se encienda
+   Material vuelva junto (auditoría 2026-10-26, T1-7). Que no salga nada del almacén no lo decide
+   esta pantalla: lo decide la capa de datos (`materialEnMantenimiento` en js/datos/proyectos.js). */
+const conMaterial = () => !Agenda.MATERIAL_EN_MANTENIMIENTO;
+
 const _oyentes = [];        // [[elemento, tipo, fn]]
 let _tBuscar = 0;
 let _imprimiendo = false;
@@ -345,11 +355,13 @@ async function leerDatos() {
      vuelve esta pantalla una que tarda. Con `hastaDias` largo porque aquí la pregunta no
      es «qué compro esta semana» sino «a este proyecto le falta algo», y hay proyectos
      ganados con instalación a dos meses. */
+  /* Con Material en mantenimiento no se lee el almacén: el semáforo no se pinta (ver `conMaterial`). */
+  const mat = conMaterial();
   const [proys, insts, compra, mats, hoja, rech] = await Promise.all([
     Proy.listar({}),
     Agenda.listar({ vivas: true }),
-    Stock.listaCompra({ hastaDias: 3650 }),
-    Material.listarMateriales({}),
+    mat ? Stock.listaCompra({ hastaDias: 3650 }) : Promise.resolve([]),
+    mat ? Material.listarMateriales({}) : Promise.resolve([]),
     Prefs.veDinero() ? DB.listar('ventas_hoja').catch(() => []) : Promise.resolve(null),
     Promise.resolve().then(() => Sync.rechazadas()).catch(() => []),
   ]);
@@ -375,11 +387,17 @@ async function leerDatos() {
   }
 
   REQS = new Map();
-  const vivos = TODOS.filter(p => p.etapa !== 'cancelado');
-  const reqs = await Promise.all(vivos.map(p => Material.requerimientos(p.id)));
-  vivos.forEach((p, k) => REQS.set(p.id, reqs[k] || []));
+  if (mat) {
+    const vivos = TODOS.filter(p => p.etapa !== 'cancelado');
+    const reqs = await Promise.all(vivos.map(p => Material.requerimientos(p.id)));
+    vivos.forEach((p, k) => REQS.set(p.id, reqs[k] || []));
+  }
 
-  SEM = semaforos(compra || []);
+  /* Sin semáforo, no hay «Material sin calcular», «Faltan N materiales» ni «Material completo» en
+     ninguna tarjeta, renglón ni ficha, ni la cuenta «con material faltante» de la cinta, ni el bloque
+     «Material» del taller con su «Ver la lista de compra»: todos salen de `SEM` y con el mapa vacío no
+     se pintan (auditoría 2026-10-26, T1-7). */
+  SEM = mat ? semaforos(compra || []) : new Map();
   HUELLA = huellas();
 
   /* Las cotizaciones que nadie decidió. El criterio es la AUSENCIA de un proyecto con ese
@@ -668,7 +686,7 @@ function pintarListaYa(el) {
       el.innerHTML = vacio(
         'Todavía no has marcado ninguna cotización como ganada',
         'Cuando cierres una venta, abre Registrar Venta en el cotizador y aprieta «Esta cotización se ganó». ' +
-        'El proyecto entra aquí con su dirección, su tipo de trabajo y su material ya calculado.',
+        'El proyecto entra aquí con su dirección' + (conMaterial() ? ', su tipo de trabajo y su material ya calculado.' : ' y su tipo de trabajo.'),
         /* Por la ruta y no por `cotizador.html`: el enlace duro abandonaba la plataforma
            entera —se iba la barra, el botón atrás volvía al hash anterior y en la app
            instalada abría fuera del marco—. */
@@ -1491,9 +1509,12 @@ function htmlFicha(p) {
   datos.push(dato('Límite de fabricación', p.compromiso_texto ||
     'La cotización no prometió fecha de entrega'));
   datos.push(dato('Ganado el', fmtFecha(p.fecha_ganado) || '—'));
-  datos.push(dato('Material', sem
-    ? '<span class="pf-sem ' + sem.estado + '">' + esc(sem.palabra) + '</span><br>' + esc(sem.detalle)
-    : '—', true));
+  /* Con Material en mantenimiento ni el renglón: un «Material —» en cada ficha es ruido (T1-7). */
+  if (conMaterial()) {
+    datos.push(dato('Material', sem
+      ? '<span class="pf-sem ' + sem.estado + '">' + esc(sem.palabra) + '</span><br>' + esc(sem.detalle)
+      : '—', true));
+  }
 
   /* El espejo de Notion. Se pinta con su nombre y se dice qué es: el estatus de allá es de
      dinero y no de obra, y verlos juntos en la misma ficha es lo que impide que alguien
@@ -1562,11 +1583,14 @@ function htmlFicha(p) {
      son de otra versión del trabajo. */
   const estado = HUELLA.get(p.id) || Cot.estadoOrigen(p);
   if (estado === 'cambio' && !HUELLA_IGNORADA.has(p.id)) {
+    /* Con Material en mantenimiento el aviso se queda —recalcular es también lo que trae el nombre y el
+       importe de la cotización de hoy— y no habla de material (T1-7; el mismo texto que A12 en reglas.js). */
     partes.push('<p class="hintnote nota-av">' + ico('i-aviso') + ' <b>' +
       esc(p.folio_local || Cot.folioVisible(p.folio_global)) + ' se editó después de ganarse.</b> ' +
-      'El material calculado ya no corresponde.</p>' +
+      (conMaterial() ? 'El material calculado ya no corresponde.' : 'Esta ficha sigue con las partidas que se ganaron.') + '</p>' +
       '<div class="btn-fila">' +
-        '<button type="button" class="btn btn-pri" data-resinc="' + esc(p.id) + '">Recalcular material</button>' +
+        '<button type="button" class="btn btn-pri" data-resinc="' + esc(p.id) + '">' +
+          (conMaterial() ? 'Recalcular material' : 'Actualizar con la de hoy') + '</button>' +
         '<button type="button" class="btn btn-gho" data-huella-ok="' + esc(p.id) + '">Dejar como está</button>' +
       '</div>');
   } else if (estado === 'desaparecio' && p.origen && p.origen.folio) {
@@ -1968,7 +1992,9 @@ function pasosDeEtapa(p, rol, junto) {
           ? '<p class="hintnote pj-sigue">Se marcó «' + esc(Proy.ETAPA_NOMBRE.cancelado || 'No se dio') +
             '»: regresarlo lo decide Dirección.</p>'
           : '') + (junto ? '<div class="btn-fila">' + junto + '</div>' : '')) +
-    '<p class="hintnote">Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre. ' +
+    /* Con Material en mantenimiento no sale nada del almacén al cortar: decirlo sería prometer un descuento que no
+       pasa (T1-7). */
+    '<p class="hintnote">' + (conMaterial() ? 'Al llegar a «Cortado» el material sale del almacén, una sola vez y con tu nombre. ' : '') +
     'Tocar un paso de atrás regresa la etapa, y eso sí pregunta.</p>';
 }
 
@@ -2934,7 +2960,8 @@ async function clicFicha(ev) {
   const ok = t.closest('[data-huella-ok]');
   if (ok) {
     HUELLA_IGNORADA.add(ok.dataset.huellaOk);
-    toast('Se queda como está. El aviso vuelve si recargas: el material sigue siendo el de la versión anterior.', '', 5200);
+    toast('Se queda como está. El aviso vuelve si recargas: ' +
+      (conMaterial() ? 'el material sigue siendo el de la versión anterior.' : 'la ficha sigue siendo la de la versión anterior.'), '', 5200);
     await refrescarFicha();
     pintarLista();
     publicarCuenta();
@@ -3101,7 +3128,8 @@ async function moverEtapa(id, etapa) {
   const actual = await Proy.obtener(id);
   const de = actual ? Proy.ORDEN[actual.etapa] : undefined, a = Proy.ORDEN[etapa];
   if (actual && de !== undefined && a !== undefined && a < de) {
-    const cruzaCorte = de >= Proy.ORDEN.cortado && a < Proy.ORDEN.cortado;
+    /* Lo del almacén, solo con Material encendido: en mantenimiento no salió nada al cortar (T1-7). */
+    const cruzaCorte = conMaterial() && de >= Proy.ORDEN.cortado && a < Proy.ORDEN.cortado;
     const ok = await confirmarPf({
       titulo: '¿Regresar «' + (actual.nombre || actual.folio_local) + '» a ' + (Proy.ETAPA_NOMBRE[etapa] || etapa) + '?',
       texto: 'Está en ' + (Proy.ETAPA_NOMBRE[actual.etapa] || actual.etapa) + '.' +
@@ -3109,8 +3137,11 @@ async function moverEtapa(id, etapa) {
         '\n\nQueda anotado en la bitácora con tu nombre.',
       si: 'Regresar la etapa', no: 'Dejarla como está', peligro: true });
     if (!ok) return;
-  } else if (actual && de !== undefined && a !== undefined &&
+  } else if (conMaterial() && actual && de !== undefined && a !== undefined &&
              a >= Proy.ORDEN.cortado && de < Proy.ORDEN.cortado) {
+    /* Con Material en mantenimiento no se pregunta: lo que la pregunta protegía —sacar el material del
+       almacén, lo único que no se deshace solo— no pasa (la capa de datos no saca nada), y avanzar una
+       etapa sin almacén es como cualquier otro avance (auditoría 2026-10-26, T1-7). */
     /* AVANZAR hasta cruzar «Cortado» también pregunta, y esto es nuevo: el Tablero ya lo hacía
        («¿Ya se cortó?», en `abrirPide()`) y la ficha no, así que el mismo hecho —sacar el
        material del almacén, la única escritura de esta pantalla que no se deshace sola— se
@@ -3139,12 +3170,14 @@ async function moverEtapa(id, etapa) {
      ya nadie le cree. */
   const n = num(r.valor && r.valor.movimientos);
   const nombre = Proy.ETAPA_NOMBRE[etapa] || etapa;
+  /* Con Material en mantenimiento no sale nada (n es 0) y tampoco se dice «no se descontó nada del
+     almacén»: sería hablar de un almacén apagado. Ni «Ver almacén», que llevaba a esa pantalla (T1-7). */
   if (n > 0) {
     toast('Ahora está en «' + nombre + '». ' +
       (n === 1 ? 'Salió 1 material del almacén' : 'Salieron ' + n + ' materiales del almacén') +
       ', a nombre de ' + Prefs.sello() + '.', 'ok', 6000,
-      { label: 'Ver almacén', fn: () => { if (CTX && CTX.ir) CTX.ir('material'); } });
-  } else if (etapa === 'cortado' || etapa === 'armado' || etapa === 'listo') {
+      conMaterial() ? { label: 'Ver almacén', fn: () => { if (CTX && CTX.ir) CTX.ir('material'); } } : null);
+  } else if (conMaterial() && (etapa === 'cortado' || etapa === 'armado' || etapa === 'listo')) {
     toast('Ahora está en «' + nombre + '». No se descontó nada del almacén: o ya había salido, o ' +
       'este proyecto no tiene material calculado.', '', 5200);
   } else {
@@ -3168,7 +3201,10 @@ async function resincronizar(id, boton) {
   if (boton) boton.disabled = false;
   if (!r.ok) { avisarResultado(r); return; }
   const l = num(r.valor && r.valor.lineas);
-  toast('Recalculado con la cotización de hoy: ' + l + (l === 1 ? ' línea de material' : ' líneas de material') + '.', 'ok', 5200);
+  /* Sin contar líneas de material con Material en mantenimiento (T1-7). */
+  toast(conMaterial()
+    ? 'Recalculado con la cotización de hoy: ' + l + (l === 1 ? ' línea de material' : ' líneas de material') + '.'
+    : 'Quedó con la cotización de hoy.', 'ok', 5200);
   HUELLA_IGNORADA.delete(id);
   await cargar();
   await refrescarFicha();
@@ -3248,7 +3284,7 @@ async function abrirHoja(id) {
   /* Se relee el requerimiento en vez de usar el del mapa: entre que se pintó la lista y
      que fabricación abre la orden pudo entrar un recálculo, y la hoja que se imprime no
      puede ser la vieja. */
-  const reqs = await Material.requerimientos(id);
+  const reqs = conMaterial() ? await Material.requerimientos(id) : [];
   REQS.set(id, reqs);
   const capa = $('pf-hoja'); if (!capa) return;
   capa.innerHTML = htmlHoja(p, reqs);
@@ -3323,7 +3359,9 @@ function htmlHoja(p, reqs) {
     '<div class="pf-panel-b">' +
       cab +
       '<div class="fld-lab">Qué se fabrica</div>' + partidas +
-      '<div class="fld-lab">Material que pide este proyecto</div>' + material +
+      /* Las cantidades de material salen del cálculo que está en mantenimiento: impresas en la orden de
+         trabajo, con su fórmula, se leen como algo en que confiar. Vuelven con el interruptor (T1-7). */
+      (conMaterial() ? '<div class="fld-lab">Material que pide este proyecto</div>' + material : '') +
       (p.compromiso_texto ? '<p class="hintnote nota-av">' + ico('i-reloj') + ' Se prometió: ' + esc(p.compromiso_texto) + '</p>' : '') +
       (p.notas ? '<p class="hintnote">' + esc(p.notas).replace(/\n/g, '<br>') + '</p>' : '') +
       '<p class="mat-sello">Hoja generada el ' + esc(fmtFecha(hoyISO())) + ' · ' + esc(Prefs.sello()) + '</p>' +

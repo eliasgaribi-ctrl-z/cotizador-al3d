@@ -39,6 +39,9 @@ const i1 = {
 const estado = {
   hoy: HOY,
   rol: 'direccion',
+  /* Material ENCENDIDO: lo que sigue prueba A8, A9 y A13 tal como corren el día que se encienda. Hoy
+     Material está en mantenimiento y sin decirlo no salen (la sección 8, al final, prueba eso). */
+  material: true,
   proyectos: [p1, p2],
   instalaciones: [i1],
   requerimientos: [
@@ -329,6 +332,39 @@ const dia = mensajeWa('comparte_dia', { nombre: 'Omar', tel: '3300000000', insta
 cierto(/cómo va el día/.test(dia.texto) && /Tacos Don Beto/.test(dia.texto),
   'el mensaje a fabricación pide el avance y lista lo del día');
 cierto(mensajeWa('lo_que_sea', {}).texto === '', 'una clase que no existe devuelve texto vacío, no un mensaje a medias');
+
+/* ---- 8. Material en mantenimiento (auditoría 2026-10-26, T1-7) ----
+   Con el interruptor único puesto (`MATERIAL_EN_MANTENIMIENTO` de js/datos/agenda.js) no sale ningún
+   aviso de material: ni «falta material» / «no tiene material calculado» (A8), ni «bajo mínimo» (A9),
+   ni «constante desviada» (A13), que en rojo y en casi cada instalación llevaban a una pantalla
+   apagada. Sin decir `material`, manda el interruptor: es lo que hace `refrescar` en el teléfono. */
+{
+  const { MATERIAL_EN_MANTENIMIENTO } = await import('../js/datos/agenda.js');
+  cierto(MATERIAL_EN_MANTENIMIENTO === true, 'el interruptor está puesto, como hoy');
+  const calibracion = [{ familia: 'acrilico', constante_sugerida: 'K_ACR', muestras: 6, razon: 1.3, valor_actual: 0.75, valor_sugerido: 0.98 }];
+  const sinDecir = { ...estado, calibracion };
+  delete sinDecir.material;
+  const comoHoy = evaluar(sinDecir);
+  const deMaterial = a => /^A(8|9|13)_/.test(a.regla);
+  cierto(!comoHoy.some(deMaterial), 'sin decirlo, ningún aviso de material: ' + comoHoy.map(a => a.regla).join(', '));
+  cierto(comoHoy.map(a => a.regla).join(',') === 'A6_sin_decidir,A7_sin_fecha', 'y lo demás sale igual: ' + comoHoy.map(a => a.regla).join(', '));
+  cierto(evaluar({ ...sinDecir, material: false }).map(a => a.rid).join() === comoHoy.map(a => a.rid).join(), '`material: false` es lo mismo');
+  const encendido = evaluar({ ...sinDecir, material: true });
+  cierto(['A8_material', 'A9_minimo', 'A13_constante'].every(r => encendido.some(a => a.regla === r)),
+    'el día que se encienda vuelven las tres juntas: ' + encendido.map(a => a.regla).join(', '));
+  cierto(evaluar({ ...sinDecir, rol: 'fabricacion' }).length === 0,
+    'a fabricación, que solo veía material y almacén, no le sale nada en rojo');
+  /* A12 se queda —recalcular también trae el nombre y el importe de la cotización de hoy— pero sin
+     prometer material de una pantalla apagada. */
+  const a12Hoy = evaluar({ ...sinDecir, proyectos: [ganado], instalaciones: [],
+    historial: [{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 50 }], ts: dias(3) }] }).find(a => a.regla === 'A12_huella');
+  cierto(!!a12Hoy && !/material/i.test(a12Hoy.detalle + a12Hoy.acciones.map(x => x.label).join(' ')) &&
+    a12Hoy.acciones[0].tipo === 'resincronizar' && a12Hoy.acciones[0].label === 'Actualizar con la de hoy',
+    'A12 sigue, sin hablar de material: ' + (a12Hoy && a12Hoy.detalle + ' / ' + a12Hoy.acciones.map(x => x.label).join(', ')));
+  const a12Enc = evaluar({ ...sinDecir, material: true, proyectos: [ganado], instalaciones: [],
+    historial: [{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 50 }], ts: dias(3) }] }).find(a => a.regla === 'A12_huella');
+  cierto(!!a12Enc && a12Enc.acciones[0].label === 'Recalcular material', 'y con Material encendido vuelve a decir «Recalcular material»');
+}
 
 console.log('\n— catálogo de reglas —');
 console.log('  ' + Object.keys(REGLAS).join(' ') + '  (' + Object.keys(REGLAS).length + ' reglas de pantalla)');

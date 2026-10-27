@@ -1154,7 +1154,25 @@ function emitirSalidas(p, origenMov, nota) {
   _salidas = corrida.catch(() => {});
   return corrida;
 }
+
+/* MATERIAL EN MANTENIMIENTO (auditoría 2026-10-26, T1-7). Con el interruptor único puesto
+   (`MATERIAL_EN_MANTENIMIENTO`, js/datos/agenda.js) NADA sale del almacén: ni al cruzar el
+   corte ni a un día de la instalación. Antes el interruptor escondía la pantalla y el libro se
+   seguía moviendo solo —al abrir «Qué atender», al leer el asistente, al marcar «Cortado»—, y
+   con la base mandando cada uno de esos renglones va al libro COMPARTIDO: un almacén que nadie
+   mira y que nadie puede corregir, porque la pantalla del conteo está apagada. Va aquí, en la
+   única puerta por la que pasan las dos salidas, y no en cada pantalla que las dispara.
+   Sin poder leer el interruptor tampoco se descuenta: una salida de más no se deshace sola
+   (el libro solo crece) y una de menos se corrige con el primer conteo. El requerimiento se
+   queda como estaba: marcarlo 'consumido' sin renglón en el libro sería inventar que salió.
+   La base hace lo mismo con lo suyo (0031_material_en_mantenimiento.sql): el relevo le avisa. */
+async function materialEnMantenimiento() {
+  const A = await mod('agenda');
+  return !A || A.MATERIAL_EN_MANTENIMIENTO !== false;
+}
+
 async function emitirSalidasAhora(p, origenMov, nota) {
+  if (await materialEnMantenimiento()) return { movimientos: 0, fallidos: 0, mantenimiento: true };
   const [Mat, St] = await Promise.all([mod('material'), mod('stock')]);
   if (!Mat || typeof Mat.requerimientos !== 'function') return { movimientos: 0, fallidos: 0 };
   if (!St || typeof St.mover !== 'function') return { movimientos: 0, fallidos: 0 };
@@ -1221,6 +1239,9 @@ async function emitirSalidasAhora(p, origenMov, nota) {
  * `ganado → listo`, así que puede pasar de 'ganado' a 'listo' con un toque, y si la salida
  * solo se emitiera al escribir la palabra 'cortado' el almacén nunca se descontaría por el
  * camino más corto que la propia pantalla ofrece.
+ *
+ * Con Material en mantenimiento la etapa se mueve igual y no sale nada (`movimientos: 0`): ver
+ * `materialEnMantenimiento`, arriba (auditoría 2026-10-26, T1-7).
  *
  * @returns {Promise<Resultado>} valor = {proyecto, movimientos:number}
  */
@@ -1302,6 +1323,9 @@ export async function avanzarEtapa(id, etapa) {
  */
 export async function emitirSalidasDerivadas(hoy) {
   if (!DB.estado().ok) return mal('DB_NO_DISPONIBLE', DB.motivoTexto());
+  /* Con Material en mantenimiento no se degrada nada: no hay módulo que degradar (auditoría
+     2026-10-26, T1-7, y `materialEnMantenimiento` arriba). Ni se leen las instalaciones. */
+  if (await materialEnMantenimiento()) return ok({ proyectos: 0, movimientos: 0, sin_stock: 0, mantenimiento: true });
   const dia = esISO(hoy) ? hoy : hoyISO();
 
   const inst = await DB.listar('instalaciones');

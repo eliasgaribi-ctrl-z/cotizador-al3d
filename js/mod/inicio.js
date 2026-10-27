@@ -128,8 +128,9 @@ async function leer() {
       Proyectos.listar({ sinFecha: true, vivos: true }),
       /* Con la misma regla que el Calendario: sin las de una obra que ya está en «Instalado» o después (auditoría 2026-10-25, CM-1). */
       Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true }),
-      Stock.listaCompra({}),
-      Stock.bajoMinimo(),
+      /* Con Material en mantenimiento el almacén ni se lee: nada de esta pantalla lo enseña (T1-7). */
+      Agenda.MATERIAL_EN_MANTENIMIENTO ? Promise.resolve([]) : Stock.listaCompra({}),
+      Agenda.MATERIAL_EN_MANTENIMIENTO ? Promise.resolve([]) : Stock.bajoMinimo(),
       Proyectos.listar({ etapa: 'instalado', conPendiente: true }),
     ]);
 
@@ -241,7 +242,9 @@ function cuentas(d, rol, veDinero) {
       d.conSaldo.length === 1 ? 'Proyecto con saldo' : 'Proyectos con saldo', d.conSaldo.length > 0,
       puedeIr('control') ? { tipo: 'pasar', datos: { ruta: 'control', dato: { tab: 'cobrar' } }, que: 'abrir Por cobrar en Control' } : null));
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
-    if (veDinero && costo > 0) {
+    /* El costo de la compra también es de Material: con el interruptor puesto `d.compra` llega vacía y
+       la cifra no sale (auditoría 2026-10-26, T1-7). La guarda va escrita para que no dependa de eso. */
+    if (veDinero && costo > 0 && !Agenda.MATERIAL_EN_MANTENIMIENTO) {
       c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>');
     } else if (!Agenda.MATERIAL_EN_MANTENIMIENTO) {
       c.push(unaCuenta('comprar', d.porComprar.length, 'Materiales por comprar', false, aMat));
@@ -1046,9 +1049,13 @@ async function hacerGanar() {
   if (!avisarResultado(r)) return;
 
   cerrarPide();
+  /* Sin «con material calculado» mientras Material esté en mantenimiento: es el mismo interruptor que
+     calla sus avisos y su pantalla, y la misma regla que el aviso de Fabricación (`conMat`, auditoría
+     2026-10-26, T1-7). */
+  const mat = !Agenda.MATERIAL_EN_MANTENIMIENTO;
   toast((fecha
-    ? 'Listo. Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
-    : 'Listo. Ya es proyecto, con su material calculado. Falta la fecha.') + (u.aviso ? '. ' + u.aviso : ''),
+    ? 'Listo. Ya es proyecto' + (mat ? ', con material calculado y' : ',') + ' con fecha del ' + fmtFecha(fecha)
+    : 'Listo. Ya es proyecto' + (mat ? ', con su material calculado' : '') + '. Falta la fecha.') + (u.aviso ? '. ' + u.aviso : ''),
     'ok', u.aviso ? 7000 : 4600);
   await recargar();
 }

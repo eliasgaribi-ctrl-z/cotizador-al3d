@@ -450,18 +450,14 @@ if (activa('p7')) {
   await esp(p, 400);
   que(!(await pregunta(p)), 'y tocar la etapa de hoy no pregunta ni escribe nada');
 
-  /* El botón de lo que sigue: cruzar «Cortado» pregunta (el Tablero ya preguntaba), y se puede decir que no. */
+  /* El botón de lo que sigue. Con Material encendido cruzar «Cortado» pregunta (saca material del almacén, lo único de la
+     ficha que no se deshace solo). Con Material en mantenimiento —como hoy: el interruptor único de js/datos/agenda.js— NO
+     pregunta: no sale nada del almacén, y avanzar es como cualquier otro avance (auditoría 2026-10-26, T1-7). La pregunta
+     con Material encendido la vigila pruebas/material-en-mantenimiento.mjs en el código. */
   await p.tap('.pj-sigue .btn');
-  await esp(p, 500);
-  que(await pregunta(p), 'el botón «Ya se cortó» pregunta antes: saca material del almacén, y el Tablero ya preguntaba');
-  await p.tap('#pf-confirma-no');
-  await esp(p, 500);
-  que((await p.$eval('#pj-etapas [aria-current="step"]', e => e.dataset.clave)) === 'en_diseno', 'diciendo «Todavía no» la etapa no se movió');
-  await p.tap('.pj-sigue .btn');
-  await esp(p, 500);
-  await p.tap('#pf-confirma-si');
   await esp(p, 1300);
-  que((await p.$eval('#pj-etapas [aria-current="step"]', e => e.dataset.clave)) === 'cortado', 'diciendo «Sí, ya se cortó» el riel se rehace con «Cortado» encendido');
+  que(!(await pregunta(p)), 'con Material en mantenimiento, «Ya se cortó» no pregunta: no sale nada del almacén');
+  que((await p.$eval('#pj-etapas [aria-current="step"]', e => e.dataset.clave)) === 'cortado', '«Ya se cortó» deja el riel con «Cortado» encendido');
   que((await p.$eval('.pj-sigue .btn', e => e.textContent.trim())) === 'Ya se armó', 'y el botón ya dice lo que sigue: «Ya se armó»');
 
   /* Regresar: tocar un paso de atrás, con la pregunta de siempre. */
@@ -1199,7 +1195,9 @@ if (activa('taller')) {
       pie: [...document.querySelectorAll('#pf-ficha .pf-panel-f .btn')].map(b => b.textContent.trim()),
     };
   });
-  que(f.hay && f.bloques.join(' · ') === 'Logotipo · Cómo es · Material · Dónde se instala · Etapa de obra', 'arriba, en su orden: ' + f.bloques.join(' · '));
+  /* Sin el bloque «Material»: con Material en mantenimiento (el interruptor único, auditoría 2026-10-26, T1-7) la ficha no
+     enseña su semáforo; el día que se encienda vuelve entre «Cómo es» y «Dónde se instala». */
+  que(f.hay && f.bloques.join(' · ') === 'Logotipo · Cómo es · Dónde se instala · Etapa de obra', 'arriba, en su orden: ' + f.bloques.join(' · '));
   que(/letras/.test(f.como), 'cómo es: la partida con sus palabras de siempre («' + f.como.trim().slice(0, 50) + '»)');
   que(f.sigue.trim() === 'Ya se cortó', 'y el paso que sigue, arriba: «' + f.sigue.trim() + '»');
   que(f.dinero === false, 'sin un peso en lo de arriba: lo lee quien corta y quien instala');
@@ -1212,12 +1210,9 @@ if (activa('taller')) {
   await p.locator('#pf-ficha .chips [data-cuenta]').first().tap(); await esp(p, 1300);
   que(await p.evaluate(() => { const d = document.querySelector('#pf-ficha .pj-mas'); return !!d && d.open; }), 'abierto, guardar una cuenta de cobro de adentro no lo vuelve a plegar');
 
-  /* La lista de compra, si falta material. */
+  /* La lista de compra: con Material en mantenimiento no hay botón a su pantalla, que está apagada (T1-7). */
   const compra = p.locator('#pf-ficha [data-ir-ruta="material"]');
-  if (await compra.count()) {
-    await compra.tap(); await esp(p, 1500);
-    que(p.url().endsWith('#/material'), '«Ver la lista de compra» cierra la ficha y abre Material');
-  } else bien('(este proyecto no tiene material faltante: no hay lista de compra que ofrecer)');
+  que((await compra.count()) === 0, 'con Material en mantenimiento no hay «Ver la lista de compra» que lleve a la pantalla apagada');
   que(errs.length === 0, 'cero errores de página', 'errores de página: ' + [...new Set(errs)].slice(0, 2).join(' | '));
   await c.ctx.close();
 

@@ -31,13 +31,18 @@
       y tener dos llaves distintas —una para la pantalla y otra para el almacén— es cómo un
       aviso atendido reaparece al recargar.
 
-   Dep: db, prefs, cotizador, ui (fechas y formato), stock/material/proyectos (perezosos).
+   Dep: db, prefs, cotizador, ui (fechas y formato), agenda (solo el interruptor de Material),
+   stock/material/proyectos (perezosos).
    ============================================================================ */
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
 import { TALLER_NOMBRE, DIRECCION_TALLER, entregaDe } from './entrega.js';
+/* El interruptor único de Material (auditoría 2026-10-26, T1-7). Estático y no perezoso como stock o
+   material: agenda.js no importa este archivo —no hay ciclo— y lo que se lee es una constante, no un
+   módulo de 60 KB. */
+import { MATERIAL_EN_MANTENIMIENTO } from './agenda.js';
 import { diasEntre } from '../nucleo/fechas.js';
 import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa, telWa }
   from '../nucleo/ui.js';
@@ -213,6 +218,12 @@ function normalizar(e) {
     dispositivo: E.dispositivo || '',
     /* La base manda (ver `laBaseManda`, arriba). Sin decirlo, la hoja: lo de siempre. */
     base: E.base === true,
+    /* Material encendido. Sin decirlo, lo dice el interruptor único (`MATERIAL_EN_MANTENIMIENTO` de
+       js/datos/agenda.js): con Material en mantenimiento no hay avisos de material, venga de quien
+       venga la llamada. Se puede decir `material: true` para probar el día que se encienda —es lo que
+       hace pruebas/reglas.mjs con las reglas de material— sin que `evaluar` deje de ser pura
+       (auditoría 2026-10-26, T1-7). */
+    material: E.material === undefined ? !MATERIAL_EN_MANTENIMIENTO : E.material === true,
   };
 }
 
@@ -229,8 +240,15 @@ function normalizar(e) {
 export function evaluar(estado) {
   const E = normalizar(estado);
   const out = [];
-  a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
-  a11(E, out); a12(E, out); a13(E, out); a15(E, out);
+  a6(E, out); a7(E, out); a10(E, out);
+  a11(E, out); a12(E, out); a15(E, out);
+  /* Las tres de material —A8 «falta material / no tiene material calculado», A9 «bajo mínimo» y A13
+     «constante desviada»— salen solo con Material encendido. Con Material en mantenimiento su cálculo
+     no está bien definido, su pantalla está apagada y sus botones («Recalcular material», «Ver la
+     lista de compra», «Ver almacén», «Actualizar la constante») llevaban a esa pantalla o a un número
+     en el que nadie confía; en rojo, encima, en casi cada instalación. El día que se encienda vuelven
+     las tres juntas, con el mismo interruptor (auditoría 2026-10-26, T1-7). */
+  if (E.material) { a8(E, out); a9(E, out); a13(E, out); }
   return ordenar(vigentes(out, E));
 }
 
@@ -640,15 +658,21 @@ function a12(E, out) {
        sin ordenar, y con `===` todo proyecto viejo salía como «se editó después de ganarse». */
     if (Cot.mismaHuella(antes, entrada)) continue;
 
+    /* Con Material en mantenimiento el aviso se queda —recalcular es también la única puerta por la
+       que cambian el nombre y el importe del proyecto (`Proyectos.resincronizar`)— pero no habla de
+       material: «Recalcular material» prometía algo de una pantalla apagada (auditoría 2026-10-26,
+       T1-7). Es el mismo botón y hace lo mismo. */
     out.push(aviso('A12', p.id, {
       tono: 'av',
       titulo: folio + ' se editó después de ganarse',
-      detalle: 'El material calculado ya no corresponde a lo que dice la cotización de hoy. Recalcular reemplaza la copia congelada y vuelve a derivar el material; dejarlo así conserva lo que se firmó.',
+      detalle: E.material
+        ? 'El material calculado ya no corresponde a lo que dice la cotización de hoy. Recalcular reemplaza la copia congelada y vuelve a derivar el material; dejarlo así conserva lo que se firmó.'
+        : 'El proyecto sigue con las partidas que se ganaron. Actualizarlo reemplaza la copia congelada por la cotización de hoy (partidas, nombre e importe); dejarlo así conserva lo que se firmó.',
       cuando: '',
       plazo: 0,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        { label: 'Recalcular material', tipo: 'resincronizar', datos: { proyecto_id: p.id } },
+        { label: E.material ? 'Recalcular material' : 'Actualizar con la de hoy', tipo: 'resincronizar', datos: { proyecto_id: p.id } },
         { label: 'Dejar como está', tipo: 'descartar_aviso', datos: { proyecto_id: p.id } },
       ],
     }));
@@ -786,12 +810,21 @@ function a15(E, out) {
  * las salidas de material se emiten como `derivado` y el almacén lo dice en su sello. Va
  * aquí porque es lo que corre «al abrir», que es el único momento que existe sin servidor.
  *
+ * Con Material en mantenimiento, NO. Abrir «Qué atender» o el asistente descontaba material
+ * a un día de la instalación sin que nadie tocara nada, y con la base mandando ese renglón va
+ * al libro COMPARTIDO de todos los teléfonos (auditoría 2026-10-26, T1-7). Nada descuenta
+ * solo mientras el interruptor esté puesto; tampoco se lee el almacén, que solo alimentaba
+ * los tres avisos de material que `evaluar` ya no saca. La guarda de verdad vive en
+ * `emitirSalidas` de js/datos/proyectos.js (por ahí pasan el corte y la derivada); ésta solo
+ * se ahorra la llamada.
+ *
  * NUNCA lanza: si algo falla devuelve lo que alcanzó a calcular, o [].
  */
 export async function refrescar(opts = {}) {
   const hoy = esISO(opts.hoy) ? opts.hoy : hoyISO();
+  const material = !MATERIAL_EN_MANTENIMIENTO;
   try {
-    const P = await mod('proyectos');
+    const P = material ? await mod('proyectos') : null;
     if (P && typeof P.emitirSalidasDerivadas === 'function') {
       try { await P.emitirSalidasDerivadas(hoy); } catch (_) {}
     }
@@ -801,11 +834,11 @@ export async function refrescar(opts = {}) {
       DB.listar('requerimientos'), DB.listar('avisos'),
     ]);
 
-    const S = await mod('stock');
+    const S = material ? await mod('stock') : null;
     const existencias = S && S.existencias ? await S.existencias().catch(() => []) : [];
     const faltantes = S && S.listaCompra
       ? await S.listaCompra({ hastaDias: DIAS_MATERIAL }).catch(() => []) : [];
-    const M = await mod('material');
+    const M = material ? await mod('material') : null;
     const calibracion = M && M.calibracion ? await M.calibracion().catch(() => []) : [];
 
     const lista = evaluar({
@@ -813,7 +846,7 @@ export async function refrescar(opts = {}) {
       historial: Cot.historial(), cola: Cot.cola(),
       avisos: guardados, calibracion,
       hoy, rol: Prefs.rol(), veDinero: Prefs.veDinero(),
-      dispositivo: Prefs.dispositivo(), base: laBaseManda(),
+      dispositivo: Prefs.dispositivo(), base: laBaseManda(), material,
     });
 
     await persistir(lista, guardados);

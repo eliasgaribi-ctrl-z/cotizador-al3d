@@ -18,6 +18,12 @@
 
    Se corre con pruebas/correr.sh, como todas. */
 
+/* Con Material ENCENDIDO (auditoría 2026-10-26, T1-7): con el interruptor único puesto, como hoy, no
+   sale nada del almacén al cortar (js/datos/proyectos.js, `materialEnMantenimiento`; lo prueba
+   pruebas/material-en-mantenimiento.mjs). Lo de aquí —una salida por requerimiento entre teléfonos— es
+   lo que corre el día que se encienda, y se sigue probando así, con el mismo código. Va antes de cargar
+   cualquier módulo de js/ (todos se cargan abajo con import()). */
+import './comun/material-encendido.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

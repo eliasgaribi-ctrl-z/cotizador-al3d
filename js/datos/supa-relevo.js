@@ -55,6 +55,7 @@ import * as Prefs from './prefs.js';
 import * as Puente from './puente.js';
 import { traducir, traducirGasto, leerRespuesta, crearEscritor, ALMACEN } from './supa-traductor.js';
 import { crearFuente, veDinero } from './supa-vivo.js';
+import { MATERIAL_EN_MANTENIMIENTO } from './agenda.js';
 
 export const AREAS = Object.freeze(['direccion', 'fabricacion', 'pagos']);
 /** Lo que este relevo lleva a la base. Lo demás se aparta en el teléfono con su razón (`motivo`). */
@@ -65,6 +66,41 @@ const MS_CUENTA = 10 * 60 * 1000;
 const MARCA_ALMACEN = 'al3d_pf_supa_vivo_alm';       // la misma que la lectura en vivo: el libro de la base, hasta dónde se vio
 
 const t = v => (v === null || v === undefined) ? '' : String(v);
+
+/* ============================================================================
+   MATERIAL EN MANTENIMIENTO: LA BASE TAMPOCO DESCUENTA (auditoría 2026-10-26, T1-7)
+   ============================================================================ */
+
+/* La salida de material del corte la emiten dos: este teléfono (que con el interruptor único puesto ya no emite nada:
+   js/datos/proyectos.js, `materialEnMantenimiento`) y la base, dentro de `mover_etapa` y de `instalacion_guardar` cuando la
+   obra cruza el corte. Marcar «Cortado» con la base mandando la descontaba igual, en el libro compartido. La base no tiene un
+   interruptor propio —alguien tendría que acordarse de moverlo junto con éste—: OYE el del teléfono. Mientras esté puesto,
+   cada llamada de este relevo lleva la cabecera `x-al3d-material: mantenimiento`, como ya lleva `x-al3d-contrato`, y con ella
+   la base no saca nada del almacén (0031_material_en_mantenimiento.sql). Una cabecera que la base no conoce no rompe nada: en
+   cualquier orden de despliegue lo peor es lo de antes, nunca una bandeja trabada. El día que se encienda Material, el teléfono
+   deja de mandarla y la base vuelve a emitir sola. */
+export const CABECERA_MATERIAL = 'x-al3d-material';
+
+/**
+ * El cliente de supabase-js con la cabecera de Material en cada `rpc()`. `setHeader` es del constructor de la llamada de
+ * supabase-js (perezoso: no sale hasta que se espera); un cliente sin él pasa tal cual. Lo demás del cliente —`from`, la
+ * sesión— es el mismo objeto.
+ */
+export function conCabeceraDeMaterial(c) {
+  if (!c || typeof c.rpc !== 'function') return c;
+  return new Proxy(c, {
+    get(o, k) {
+      if (k === 'rpc') {
+        return (...a) => {
+          const b = o.rpc(...a);
+          return b && typeof b.setHeader === 'function' ? b.setHeader(CABECERA_MATERIAL, 'mantenimiento') : b;
+        };
+      }
+      const v = Reflect.get(o, k, o);
+      return typeof v === 'function' ? v.bind(o) : v;
+    },
+  });
+}
 
 /* Cada uno con su frase entera, como en puente.js: la lee una persona que quiere saber por qué su cambio
    no salió, y una plantilla con el nombre del almacén pegado no concuerda. */
@@ -217,6 +253,9 @@ export function crearRelevo(deps) {
   const ahora = deps.ahora || (() => Date.now());
   const escritor = crearEscritor();
   const lector = deps.lector;
+  /* El interruptor de Material (ver `conCabeceraDeMaterial`, arriba). js/app.js no lo dice y manda el de agenda.js; una prueba
+     puede decirlo para el día que se encienda. */
+  const materialApagado = typeof deps.materialEnMantenimiento === 'boolean' ? deps.materialEnMantenimiento : MATERIAL_EN_MANTENIMIENTO;
 
   /* Quién es esta cuenta para la base, recordado MS_CUENTA si está activa. Lo que no está activo se
      vuelve a preguntar en la siguiente vuelta: es lo que se arregla entrando. */
@@ -233,11 +272,15 @@ export function crearRelevo(deps) {
     return a || { estado: 'desconocido' };
   }
 
-  /* La puerta de cada viaje: una cuenta activa con su área, y el cliente. */
+  /* La puerta de cada viaje: una cuenta activa con su área, y el cliente (con la cabecera de Material mientras esté en
+     mantenimiento: la oyen las RPC que sacan material del almacén). */
   async function abrir() {
     const a = await cuenta();
     if (a.estado !== 'activo' || !AREAS.includes(a.area)) return { ok: false, ...porQueNo(a) };
-    try { return { ok: true, a, c: await deps.cliente() }; }
+    try {
+      const c = await deps.cliente();
+      return { ok: true, a, c: materialApagado ? conCabeceraDeMaterial(c) : c };
+    }
     catch (e) { return { ok: false, codigo: 'SIN_RED', mensaje: t(e && e.message) || 'Supabase no cargó.' }; }
   }
 
@@ -266,6 +309,17 @@ export function crearRelevo(deps) {
     }
     if (op.almacen === 'movimientos' && t(d.requerimiento_id).startsWith(pid + ':')) {
       datos.requerimiento_id = base + t(d.requerimiento_id).slice(pid.length);
+    }
+    /* Y el id de la salida del corte, que SALE DEL REQUERIMIENTO (`mov-salida:<requerimiento>`, js/datos/proyectos.js): es lo que
+       la hace idempotente entre teléfonos y frente a la base. Se traducía el `requerimiento_id` y no el id, y cortar una venta de antes
+       del cambio la descontaba DOS veces en el libro compartido: `mover_etapa` emite la suya con el requerimiento de la base
+       (`mov-salida:proy-hoja-V-###:<material>`, 0006) y la del teléfono entraba con el suyo como otro renglón. Con el mismo id, la
+       base contesta «ya estaba» y queda una sola, sin importar cuál llegó primero (auditoría 2026-10-26, T1-7; lo prueba
+       supabase/tests/sync-e-importacion/una-salida-por-corte.mjs). En este teléfono el renglón se queda con su id: el libro de aquí
+       no se reescribe. */
+    if (op.almacen === 'movimientos' && t(d.id).startsWith('mov-salida:' + pid + ':')) {
+      datos.id = 'mov-salida:' + base + t(d.id).slice(('mov-salida:' + pid).length);
+      registro = datos.id;
     }
     return { ...op, registro_id: registro, datos };
   }
