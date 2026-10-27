@@ -148,13 +148,20 @@ function aiOlvidarLlavesLocales(){
 /* Qué proveedores tienen llave en la hoja, según /salud. null = todavía no se sabe, y mientras
    tanto se intenta con todos: la hoja contesta «sin llave» por los que falten. */
 let _iaEnHoja=null;
+/* De fondo (auditoría 2026-10-26, T1-8): abrir el modal no es pedir nada, así que esta pregunta NUNCA abre
+   la ventana de Google. Antes la abría si el permiso de la hoja había vencido y el toque que abrió el modal
+   seguía fresco: la persona tocaba «Cotizar con IA» y le salía Google. Sin permiso la hoja no dice qué
+   proveedores tienen llave, y eso se dice en vez de quedarse en «Consultando la hoja…» para siempre; el
+   permiso se pide al tocar «Analizar» (aiAnalyze). */
+let _iaSinPermiso=false;
 async function aiConsultarHoja(){
-  try{ const r=await hablarHoja('salud',{}); if(r&&r.ok&&r.ia) _iaEnHoja=r.ia; }catch(_){}
+  try{ const r=await hablarHoja('salud',{}); if(r&&r.ok&&r.ia){ _iaEnHoja=r.ia; _iaSinPermiso=false; } }
+  catch(e){ _iaSinPermiso=!!(e&&e.permisoGoogle); }
   aiPintarProveedores();
 }
 function aiPintarProveedores(){
   const el=$('ai-estado'); if(!el) return;
-  if(!_iaEnHoja){ el.textContent='Consultando la hoja…'; return; }
+  if(!_iaEnHoja){ el.textContent=_iaSinPermiso?'La hoja dice qué proveedores tienen llave en cuanto des el permiso de Google, que se pide al tocar «Analizar y cotizar».':'Consultando la hoja…'; return; }
   const filas=AI_PROVS.map((p,i)=>`<li class="${_iaEnHoja[p]?'ok':'falta'}">${i+1} · ${AI_NOMBRE[p]} — ${_iaEnHoja[p]?'listo':'sin llave en la hoja'}${p==='gemini'?' · el único que lee PDF':''}</li>`).join('');
   el.innerHTML=`<ul class="ai-prov-lista">${filas}</ul>`
     +(AI_PROVS.some(p=>_iaEnHoja[p])?'':'<p>Ningún proveedor tiene llave todavía: Dirección las pega en la hoja, en <b>⚡ AL3D → Llaves de IA</b>.</p>');
@@ -1009,6 +1016,13 @@ async function aiAnalyze(){
     return {ok:false,motivo:'Gemini no tiene llave y es el único que lee PDF'};
   }
   if(_iaEnHoja&&!AI_PROVS.some(p=>_iaEnHoja[p])){ aiStatus('Ningún proveedor de IA tiene llave en la hoja. Dirección la pega en ⚡ AL3D → Llaves de IA.','err'); return {ok:false,motivo:'Ningún proveedor tiene llave en la hoja'}; }
+  /* ----- El permiso de Google de la hoja, AHORA (auditoría 2026-10-26, T1-8) -----
+     La IA contesta a través de la hoja, y la hoja pide el permiso de Google (dura una hora). Se pide aquí,
+     antes de cualquier espera, porque es cuando el navegador deja abrir la ventana: la primera pregunta a
+     la hoja sale después de preparar la imagen, y para entonces el toque ya pasó. Las preguntas de la
+     cadena van de fondo —nunca abren otra ventana, ni con los reintentos—: o encuentran el permiso vivo, o
+     la hoja dice que falta y eso corta la cadena (aiPedirHoja). */
+  const permiso=permisoDeLaHoja();
   const verbo=src?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const run=++_aiRun; aiTrabajando=true; aiPintarTrabajando(true);
@@ -1031,6 +1045,13 @@ async function aiAnalyze(){
     /* Lo que de verdad se manda, no lo que pesaba el archivo: la imagen se reduce a 1600 px y
        sale JPEG, y en 4G eso es la diferencia entre esperar tres segundos o veinte. */
     aiTrazaPaso('archivo',null,'ok',aiPeso(Math.round(b64.length*3/4))+' de subida');
+    /* Si la persona sigue leyendo la ventana de Google, el análisis la espera (con el tope de la
+       plataforma). Si la cerró o no regresó, no se paga ninguna petición: se dice por qué. */
+    const pm=await permiso;
+    if(run!==_aiRun) return {ok:false,motivo:'Análisis cancelado'};
+    if(!pm.ok){ const e=new Error(pm.mensaje||'Google no dio el permiso para preguntarle a la hoja.'); e.definitivo=true; throw e; }
+    /* Con el permiso ya vivo, la lista de proveedores que no se pudo leer al abrir el modal se lee ahora. */
+    if(!_iaEnHoja) aiConsultarHoja();
     const prompt=src?PROMPT_IA+promptMedidas(src.medidas):PROMPT_IA;
     const cadena=aiCadena(esPdf);
     if(!cadena.length) throw new Error('ningún proveedor de IA tiene llave en la hoja para este archivo');

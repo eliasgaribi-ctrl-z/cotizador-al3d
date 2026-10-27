@@ -57,11 +57,19 @@ function pintarRolDisponible(){
 
 /* Una pregunta a la hoja. Empotrado va por la plataforma, que pone la identidad de Google; suelto,
    por el token de dispositivo de venta.js, que basta para solicitar pero nunca para sellar.
-   Devuelve lo que la hoja contestó y lanza con un mensaje legible si no contestó. */
-async function hablarHoja(ruta,cuerpo,espera){
+   Devuelve lo que la hoja contestó y lanza con un mensaje legible si no contestó.
+
+   `toque` (auditoría 2026-10-26, T1-8): true SOLO cuando la pidió una persona con un botón —Solicitar,
+   Autorizar, Rechazar, Guardar precios—. Entonces la plataforma puede abrir la ventana de Google para el
+   permiso de la hoja y espera a que la persona conteste. Sin él la pregunta es de fondo —la vuelta de
+   quince segundos, la cola de Dirección, el reintento de /solicitar, el repintado del Autorizador, la
+   copia de precios— y NUNCA abre la ventana: sin permiso vivo sale sin él, y lo que vuelve es «falta el
+   permiso de Google» (`e.permisoGoogle`), no «sin señal». Antes toda pregunta de aquí pedía con ventana,
+   y con el permiso vencido la ventana se abría sola más o menos cada hora y volvía al minuto de cerrarla. */
+async function hablarHoja(ruta,cuerpo,espera,toque){
   const b=_al3d();
   let r;
-  if(b) r=await b.hablar(ruta,cuerpo||{},espera);
+  if(b) r=await b.hablar(ruta,cuerpo||{},espera,toque===true?{toque:true}:undefined);
   else{
     const cfg=puenteCfg();
     if(!cfg){ const e=new Error('Este teléfono no tiene el puente a la hoja. Abre el cotizador desde la plataforma.'); e.codigo='SIN_PUENTE'; throw e; }
@@ -130,6 +138,18 @@ async function asegurarSesion(){
   if(typeof b.sesion!=='function') return {ok:true};
   try{ return await b.sesion(); }catch(_){ return {ok:false,mensaje:'No se pudo confirmar tu cuenta de Google.'}; }
 }
+/* ----- El permiso de Google de la hoja, al principio del toque (auditoría 2026-10-26, T1-8) -----
+   Para lo que tarda en llegar a su primera pregunta —la IA prepara la imagen antes de mandarla— o hace
+   varias seguidas —«Revisar ahora» pregunta por el estado y por la cola—: se pide AQUÍ, dentro del toque,
+   que es cuando el navegador deja abrir la ventana, y las preguntas de después van de fondo con el permiso
+   ya vivo. A diferencia de asegurarSesion(), no exige una cuenta: un teléfono con token de dispositivo, o
+   el cotizador suelto, pasan (la hoja decide). Se llama SIN un await antes: con uno, el toque ya pasó. */
+function permisoDeLaHoja(){
+  const b=_al3d();
+  if(!b||typeof b.permiso!=='function') return Promise.resolve({ok:true});
+  try{ return Promise.resolve(b.permiso()).catch(()=>({ok:false,mensaje:'No se pudo pedir el permiso de Google.'})); }
+  catch(_){ return Promise.resolve({ok:false,mensaje:'No se pudo pedir el permiso de Google.'}); }
+}
 
 /* ===================== Sellar =====================
    La única puerta por la que un precio pasa a «autorizado». La usan el formulario de revisión
@@ -139,7 +159,7 @@ async function sellarEnLaHoja(folio,cot,precioAuth,itemsAuth,nota){
   const s=await asegurarSesion();
   if(!s.ok) throw new Error(s.mensaje||'No se pudo confirmar tu cuenta de Google.');
   let r;
-  try{ r=await hablarHoja('autorizar',{folio,cotizacion:cot,precioAuth:precioAuth||0,itemsAuth:itemsAuth||{},nota:nota||''},30000); }
+  try{ r=await hablarHoja('autorizar',{folio,cotizacion:cot,precioAuth:precioAuth||0,itemsAuth:itemsAuth||{},nota:nota||''},30000,true); }
   catch(e){ throw new Error((e&&e.message)||'No se pudo llegar a la hoja. Vuelve a intentarlo con señal.'); }
   if(!r||r.ok!==true||!r.sello){
     const e=new Error(mensajeDeLaHoja(r,'La hoja no selló el precio.')); e.codigo=r&&r.codigo; throw e;
@@ -233,12 +253,22 @@ function aplicarSello(sello){
 /* ===================== Solicitar =====================
    Quien cotiza sin ser dirección no autoriza: pide. La solicitud se queda en la cola de este
    teléfono —así el precio se bloquea aunque no haya señal— y además sube a la hoja, que es de
-   donde la ve dirección en el suyo. Si no sube, se reintenta sola. */
-async function enviarSolicitud(){
+   donde la ve dirección en el suyo. Si no sube, se reintenta sola.
+
+   `toque` (T1-8): true cuando la manda un botón —«Solicitar autorización», «Reintentar el envío»,
+   «Volver a pedirla»—, y entonces puede pedir el permiso de Google de la hoja y esperarlo. El reintento
+   de la vuelta de quince segundos y el reenvío al cambiar de folio van sin él: nunca abren la ventana. Y
+   un reintento de fondo no sale mientras otro envío de ESTA solicitud va en camino —el del botón puede
+   estar esperando a que la persona conteste la ventana de Google, minutos—: serían dos envíos de lo
+   mismo, y el de fondo llegaría primero a decir «falta el permiso» con la ventana todavía abierta. */
+let _solEnVuelo=null;
+async function enviarSolicitud(toque){
   if(Q.estado!=='pendiente'||!Q.solicitud) return;
   const folio=Q.folio, sol=Q.solicitud, cot=cotParaHoja();
+  if(toque!==true&&_solEnVuelo===sol) return;
+  _solEnVuelo=sol;
   try{
-    const r=await hablarHoja('solicitar',{folio:folioGlobal(folio),cotizacion:cot,nota:''});
+    const r=await hablarHoja('solicitar',{folio:folioGlobal(folio),cotizacion:cot,nota:''},undefined,toque===true);
     /* Se canceló mientras iba en camino —«Editar», rechazar, otro cliente—. El «cancelar» pudo
        llegar a la hoja ANTES que esta solicitud, y entonces la dejó viva en la cola de dirección
        para un trabajo que ya no existe. Si la hoja la aceptó, se retira otra vez. */
@@ -271,10 +301,15 @@ async function enviarSolicitud(){
        haberla escrito igual. Por eso retirar no pregunta si estaba `enviada` (ver reabrir). */
     if(sol.retirada||Q.folio!==folio||!Q.solicitud) return;
     const primera=!Q.solicitud.error;
-    Q.solicitud.error=e.codigo==='SIN_PUENTE'?e.message:'Sin señal: la solicitud se manda sola cuando vuelva.';
+    /* Un permiso que falta no es «sin señal» (T1-8): la solicitud NO se manda sola cuando vuelva la señal,
+       se manda con «Reintentar el envío», que pide la ventana de Google. La frase es la de la plataforma:
+       «Cerraste la ventana de Google…», «La ventana de Google no regresó…» o «Falta el permiso…». */
+    Q.solicitud.error=e.codigo==='SIN_PUENTE'?e.message
+      :(e&&e.permisoGoogle)?String(e.message||'Falta el permiso de Google de la hoja.')+' La solicitud sigue aquí: «Reintentar el envío» la manda.'
+      :'Sin señal: la solicitud se manda sola cuando vuelva.';
     saveState(); renderAuth();
-    if(primera) toast(Q.solicitud.error,'err',6000);
-  }
+    if(primera||toque===true) toast(Q.solicitud.error,'err',6000);
+  }finally{ if(_solEnVuelo===sol) _solEnVuelo=null; }
   vigilarSolicitudes();
 }
 /* La foto de la cola se toma en solicitarConfirmado(), ANTES de mandar: se quedaba con
@@ -303,7 +338,21 @@ function retirarSolicitud(folio,sol){
    WhatsApp, de otra app—, que es cuando de verdad se mira. Con la pantalla apagada no se
    pregunta nada: no hay nadie para leer la respuesta. */
 const VIGILA_MS=15000;
-let _vigilaT=null, _vigilaEnVuelo=false;
+let _vigilaT=null, _vigilaEnVuelo=false, _vigilaVuelo=null;
+/* ----- Sin el permiso de Google de la hoja (auditoría 2026-10-26, T1-8) -----
+   La vuelta de quince segundos ya no abre la ventana de Google: es de fondo. Con la base mandando el
+   permiso de la hoja dura una hora y se pide con un botón, así que una espera larga —o la cola de
+   Dirección abierta toda la mañana— se queda sin él, y la hoja contesta que no sabe quién pregunta. Eso
+   no se calla: se guarda aquí la frase, la espera y la cola lo dicen, y ofrecen «Revisar ahora», que es
+   un botón y sí puede pedir el permiso. Se borra con la primera respuesta buena. Antes de esto el
+   permiso «se arreglaba» solo porque la vuelta abría la ventana si coincidía con un toque. */
+let _sinPermisoHoja='';
+function _permisoHojaEs(m){
+  m=String(m||'');
+  if(m===_sinPermisoHoja) return;
+  _sinPermisoHoja=m;
+  try{ renderAuth(); }catch(_){}
+}
 /* Cuándo contestó la hoja la última vez que se le preguntó por las solicitudes (C9). Es lo que
    dice «revisado hace 9 s» en la espera: sin él, una solicitud pendiente era una frase y un giro,
    y no se sabía si la app seguía preguntando o se había quedado esperando en silencio. Solo cuenta
@@ -328,9 +377,12 @@ function vigilarSolicitudes(){
   if(!_foliosEsperando().length&&!_veoColaRemota()) return;
   _vigilaT=setTimeout(()=>{ if(document.visibilityState!=='hidden') consultarSolicitudes(); else vigilarSolicitudes(); },VIGILA_MS);
 }
+/* De fondo (T1-8): ninguna de sus preguntas abre la ventana de Google, ni el reintento de /solicitar. */
 async function consultarSolicitudes(){
-  if(_vigilaEnVuelo) return;
+  if(_vigilaEnVuelo) return _vigilaVuelo;
   _vigilaEnVuelo=true;
+  let listo=()=>{};
+  _vigilaVuelo=new Promise(r=>{ listo=r; });
   try{
     /* Lo que no subió, se vuelve a mandar antes de preguntar por ello. Lo que alguien retiró
        de la cola de dirección, no: volver a pedirlo es decisión de quien cotiza, con su botón. */
@@ -340,6 +392,7 @@ async function consultarSolicitudes(){
       const r=await hablarHoja('estado',{folios:folios.map(f=>folioGlobal(f))});
       if(r&&r.ok&&r.folios){
         _estadoTs=Date.now();
+        _permisoHojaEs('');
         folios.forEach(f=>atenderRespuesta(f,r.folios[folioGlobal(f)]));
         /* La espera de la pantalla repinta su «revisado hace…» con la hora nueva. Con la solicitud
            ya contestada no queda nada que repintar, y atenderRespuesta se encargó. */
@@ -347,8 +400,21 @@ async function consultarSolicitudes(){
       }
     }
     if(_veoColaRemota()) await cargarPendientesRemotas();
-  }catch(_){ /* sin señal: se vuelve a preguntar en la siguiente vuelta */ }
-  finally{ _vigilaEnVuelo=false; vigilarSolicitudes(); }
+  }catch(e){
+    /* Sin señal: se vuelve a preguntar en la siguiente vuelta. Sin el permiso de Google, también, pero
+       se dice (ver _sinPermisoHoja). */
+    if(e&&e.permisoGoogle) _permisoHojaEs(e.message);
+  }
+  finally{ _vigilaEnVuelo=false; listo(); vigilarSolicitudes(); }
+}
+/* «Revisar ahora» (T1-8): la vuelta de quince segundos, pero pedida con un botón. El permiso de Google se
+   pide primero —dentro del toque— y las preguntas salen después, de fondo, con él vivo. Si la vuelta de
+   fondo iba en camino (sin permiso), se espera a que termine y se pregunta otra vez. */
+async function revisarSolicitudesAhora(){
+  const pm=await permisoDeLaHoja();
+  if(!pm.ok){ toast(pm.mensaje||'Google no dio el permiso.','err',8000); return; }
+  if(_vigilaEnVuelo) await _vigilaVuelo;
+  await consultarSolicitudes();
 }
 /* ----- Un sello de antes de pedir no contesta esta solicitud -----
    /estado devuelve el último sello VIGENTE del folio, y un folio que ya estuvo autorizado tiene
@@ -480,11 +546,13 @@ window.addEventListener('online',()=>{ if(_foliosEsperando().length||_veoColaRem
    porque no es una cotización de este teléfono: no ocupa su folio ni entra a su historial. */
 let _remotas=[], _remotasTs=0;
 function _veoColaRemota(){ return Q.rol==='autorizador'&&puedeAutorizar(); }
+/* De fondo (T1-8): la vuelta y el repintado del Autorizador la llaman, y ninguno abre la ventana. */
 async function cargarPendientesRemotas(){
   if(!puedeAutorizar()) return;
   try{
     const r=await hablarHoja('pendientes',{});
     if(r&&r.ok&&Array.isArray(r.solicitudes)){
+      _permisoHojaEs('');
       const propio='@'+dispositivo();
       /* Las de este mismo aparato ya están en la cola local: no se pintan dos veces. */
       const nuevas=r.solicitudes.filter(s=>s&&s.folio&&!String(s.folio).endsWith(propio));
@@ -493,7 +561,7 @@ async function cargarPendientesRemotas(){
       if(cambio&&Q.rol==='autorizador') renderAuth();
       pintarPasos();
     }
-  }catch(_){}
+  }catch(e){ if(e&&e.permisoGoogle) _permisoHojaEs(e.message); }
 }
 function remotasHTML(){
   if(!_remotas.length) return '';
@@ -733,7 +801,7 @@ async function rechazarRemota(){
   const nota=$('rem-nota').value.trim();
   const pedir=async()=>{
     const ses=await asegurarSesion(); if(!ses.ok) throw new Error(ses.mensaje);
-    const r=await hablarHoja('rechazar',{folio:s.folio,nota});
+    const r=await hablarHoja('rechazar',{folio:s.folio,nota},undefined,true);
     if(!r||!r.ok) throw new Error((r&&r.mensaje)||'La hoja no registró el rechazo.');
   };
   $('rem-estado').textContent='';
@@ -774,7 +842,10 @@ function vibrar(patron){
    está en esta lista corre. Ver «Los botones del marcado» en nucleo.js. */
 accionesDirectas(['abrirRevisionRemota','autorizarRemota','cerrarRevisionRemota',
   'enviarSolicitud','pintarRemotaNeto','rechazarRemota']);
-/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. */
+/* Las que leen el campo que las lleva o el evento: lo que era this.value, this o event. Y «Revisar
+   ahora» (T1-8), que no lee nada pero va aquí y no en la lista de arriba: esa lista se cuenta en el
+   README y en la cabecera de cada guion (pruebas/publicacion.mjs). */
 Object.assign(ACC,{
-  remotaPartida:(el,ev,i)=>remotaPartida(i,el.value)
+  remotaPartida:(el,ev,i)=>remotaPartida(i,el.value),
+  revisarSolicitudesAhora:()=>revisarSolicitudesAhora()
 });

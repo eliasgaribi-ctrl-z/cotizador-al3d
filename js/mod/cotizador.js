@@ -340,7 +340,9 @@ export function desmontar() {
                        que decide es la hoja, que verifica el token en cada petición.
      · sesion()      — que haya un token de Google vivo, pidiéndolo si caducó. Abre la
                        ventana de Google, así que el marco la llama dentro de un toque.
-     · hablar(r,c,t) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar).
+     · hablar(r,c,t,o) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar). Con
+                       `o.toque` la pidió un botón y puede abrir la ventana de Google; sin él, nunca.
+     · permiso()     — el permiso de Google de la hoja, pedido dentro de un toque sin preguntar nada.
      · avisar(m,t,f) — el aviso del notario («COT-0042 ya está autorizada · Abrir») cuando el
                        marco está ESCONDIDO. Conservado, el cotizador sigue vivo y su vigilante
                        sigue preguntando —dentro del marco `visibilityState` dice 'visible'—,
@@ -372,7 +374,15 @@ function exponerIdentidad() {
       return r.ok ? { ok: true, correo: Ingreso.correo() }
                   : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
     },
-    hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
+    /* `opciones.toque`: la pidió una persona con un botón, y entonces puede abrir la ventana de Google. Sin
+       él es de fondo y nunca la abre (js/datos/puente.js, «Las dos clases de pregunta»; auditoría
+       2026-10-26, T1-8). Del marco solo pasa ese sí o no. */
+    hablar(ruta, cuerpo, espera, opciones) {
+      return Puente.hablar(ruta, cuerpo, espera, { toque: !!(opciones && opciones.toque === true) });
+    },
+    /* El permiso de Google de la hoja, pedido al principio de un toque, sin preguntarle nada a la hoja: para
+       lo que tarda en llegar a su primera pregunta (la IA prepara la imagen). Nunca lanza. */
+    permiso() { return Puente.permiso(); },
     async folioDeVenta(fg) {
       const e = await estadoDeVenta(fg);
       return e.folio || '';
