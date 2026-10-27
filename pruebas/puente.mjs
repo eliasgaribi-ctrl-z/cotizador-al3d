@@ -1416,10 +1416,14 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await DB.poner('proyectos', propio('proy-S', 'COT-0720@TEST', 'V-720', { nombre: 'Sastrería Sol - Letras' }));
   await DB.poner('requerimientos', { id: 'req-S', proyecto_id: 'proy-S', material_id: 'mat-prueba', estado: 'calculado',
                                      cantidad_compra: 2, cantidad_ajustada: null, unidad_compra: 'lamina' });
+  /* Con Material en mantenimiento (el interruptor único de js/datos/agenda.js, auditoría 2026-10-26, T1-7) NINGUNO
+     resta: cortar no saca nada del almacén. El caso con Material encendido —los dos cortes restan UNA vez— se prueba
+     ahora en pruebas/material-en-mantenimiento.mjs, en un proceso con Material encendido: este archivo carga agenda.js
+     (por puente.js) antes de que se pudiera encender. */
   const [c1, c2] = await Promise.all([Proy.avanzarEtapa('proy-S', 'cortado'), Proy.avanzarEtapa('proy-S', 'cortado')]);
   const salidasS = (await DB.listar('movimientos')).filter(m => m.requerimiento_id === 'req-S');
-  eq('6 · dos cortes a la vez restan el material UNA vez', [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado],
-     [true, true, 1, 'consumido']);
+  eq('6 · dos cortes a la vez con Material en mantenimiento: ninguno resta y la línea sigue «calculado»',
+     [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado], [true, true, 0, 'calculado']);
 
   /* 7 · La hoja ya cobra la venta de una tarjeta importada: sale de la línea del taller. Se
      quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cobradas pidiendo

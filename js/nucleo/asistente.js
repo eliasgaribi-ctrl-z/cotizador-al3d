@@ -94,6 +94,18 @@ const DESC_INTENT = {
   material: 'Lo que falta comprar y lo que está bajo mínimo',
 };
 
+/* ----- Material en mantenimiento (auditoría 2026-10-26, T1-7) -----
+   Con el interruptor único puesto (`Agenda.MATERIAL_EN_MANTENIMIENTO`) el asistente no ofrece la
+   pregunta «Material por comprar» ni su cifra, no lee el almacén y, si alguien la escribe igual,
+   contesta que Material está en mantenimiento —sin «Ver la lista de compra», que llevaba a la pantalla
+   apagada—. Antes contestaba con números de un cálculo que nadie confirma, o «no hay nada que comprar».
+   Y leer el taller corre «Qué atender» (`Reglas.refrescar`), que ya no descuenta nada solo. Con el
+   mismo interruptor vuelve todo junto. */
+const conMaterial = () => !Agenda.MATERIAL_EN_MANTENIMIENTO;
+const intencionViva = k => k !== 'material' || conMaterial();
+const RESPUESTA_SIN_MATERIAL = '**Material está en mantenimiento.** Mientras se termina de definir su cálculo, la plataforma no lleva ' +
+  'la lista de compra ni el almacén, no avisa de material y no saca nada del almacén por su cuenta.';
+
 /** Una vez, desde app.js: cuelga el oyente del botón flotante. El panel se pinta al abrir. */
 export function montar(ctx) {
   _ctx = ctx || null;
@@ -255,7 +267,7 @@ function portadaHTML() {
   const dinero = Prefs.veDinero();
   const filas = GRUPOS.filter(g => !g.dinero || dinero).map(g =>
     '<p class="ag-grupo">' + esc(g.titulo) + '</p>' +
-    g.intents.map(k => {
+    g.intents.filter(intencionViva).map(k => {
       const it = INTENCIONES[k];
       return '<button type="button" class="ia-frecuente" data-ia-intent="' + k + '">' +
         '<span class="pf-fila-ico">' + ico(ICONO_INTENT[k] || 'i-doc') + '</span>' +
@@ -273,7 +285,7 @@ function resumenHTML() {
        pieza ya trae `aria-busy` y el texto de estado en un `role="status"`. */
     const P = window.Piezas;
     if (P && P.silueta) {
-      return '<div class="ia-hoy ia-hoy-cargando">' + P.silueta('cifras', { cifras: dinero ? 4 : 3, texto: 'Leyendo el taller…' }) + '</div>';
+      return '<div class="ia-hoy ia-hoy-cargando">' + P.silueta('cifras', { cifras: dinero ? 4 : (conMaterial() ? 3 : 2), texto: 'Leyendo el taller…' }) + '</div>';
     }
     return '<div class="ia-hoy ia-hoy-cargando" aria-busy="true"><p class="ia-hoy-t">Leyendo el taller…</p></div>';
   }
@@ -287,7 +299,8 @@ function resumenHTML() {
        tienen ficha aquí. Decía «3 proyectos» con dos botones «Abrir» y Control diciendo «3 ventas». */
     c.push('<button type="button" class="ia-cifra dinero" data-ia-intent="cobranza"><b>' + esc(money(d.porCobrar)) + '</b><span>por cobrar · ' + d.conSaldo + (d.conSaldo === 1 ? ' venta' : ' ventas') + '</span></button>');
     c.push('<button type="button" class="ia-cifra' + (d.comisionAbonable > 0 ? ' bien' : '') + '" data-ia-intent="comisiones"><b>' + esc(d.comisionAbonable > 0 ? money(d.comisionAbonable) : '—') + '</b><span>' + (d.comisionAbonable > 0 ? 'comisiones abonables ya' : 'sin comisiones abonables') + '</span></button>');
-  } else {
+  } else if (conMaterial()) {
+    /* La cifra de Fabricación es la de Material: con el interruptor puesto no hay (T1-7). */
     c.push('<button type="button" class="ia-cifra' + (d.comprar ? ' urge' : '') + '" data-ia-intent="material"><b>' + d.comprar + '</b><span>' + (d.comprar === 1 ? 'material por comprar' : 'materiales por comprar') + '</span></button>');
   }
   void cifra;
@@ -360,7 +373,7 @@ function accionesHTML(acciones) {
 /* La tira de preguntas rápidas encima del campo, cuando ya hay conversación. Se desliza. */
 function tiraHTML() {
   const dinero = Prefs.veDinero();
-  const lista = Object.keys(INTENCIONES).filter(k => k !== 'hoy' && (dinero || !INTENCIONES[k].dinero));
+  const lista = Object.keys(INTENCIONES).filter(k => k !== 'hoy' && intencionViva(k) && (dinero || !INTENCIONES[k].dinero));
   return '<div class="ia-tira" role="group" aria-label="Preguntas rápidas">' + lista.map(k =>
     '<button type="button" class="chip" data-ia-intent="' + k + '">' + esc(INTENCIONES[k].titulo) + '</button>').join('') + '</div>';
 }
@@ -556,7 +569,7 @@ async function preguntar(texto) {
   if (intent) { await preguntarLocal(intent, q); return; }
   if (!hayLlave) {
     _msgs.push({ rol: 'yo', texto: q, ts: Date.now() });
-    const cerca = sugerirIntenciones(q).filter(k => Prefs.veDinero() || !INTENCIONES[k].dinero);
+    const cerca = sugerirIntenciones(q).filter(k => intencionViva(k) && (Prefs.veDinero() || !INTENCIONES[k].dinero));
     _msgs.push({ rol: 'bot', local: true, ts: Date.now(),
       texto: 'Eso no lo puedo calcular aquí, y la hoja no tiene ninguna llave de IA para preguntas libres. ' +
         (cerca.length ? '¿Buscabas alguna de estas?' : '') +
@@ -574,6 +587,14 @@ async function preguntarLocal(intent, textoPregunta) {
   _ocupado = true;
   _msgs.push({ rol: 'yo', texto: textoPregunta || INTENCIONES[intent].pregunta, ts: Date.now() });
   pintar();
+  /* «¿Qué material falta comprar?» escrito a mano, con Material en mantenimiento: se dice eso, sin
+     leer el taller y sin el botón a la pantalla apagada (T1-7). */
+  if (!intencionViva(intent)) {
+    _msgs.push({ rol: 'bot', local: true, intent, ts: Date.now(), texto: RESPUESTA_SIN_MATERIAL, acciones: [] });
+    _ocupado = false;
+    pintar(); enfocarCampo();
+    return;
+  }
   try {
     await leerSiHaceFalta(true);
     const r = respuestaLocal(intent, _resumen);
@@ -733,8 +754,11 @@ async function leerTaller() {
   if (!DB.estado().ok) throw new Error(DB.motivoTexto() || 'la base no abrió');
   const hoy = hoyISO();
   const veDinero = Prefs.veDinero();
+  /* Con Material en mantenimiento ni el almacén ni el dictamen de material por proyecto (T1-7). Las
+     constantes sí: con ellas se calcula la ventana del taller, que no es de Material. */
   const [proyectos, insts, cts, mat, hoja] = await Promise.all([
-    Proy.listar({}), Agenda.listar({ vivas: true }), Material.constantes(), Agenda.contextoMaterial(),
+    Proy.listar({}), Agenda.listar({ vivas: true }), Material.constantes(),
+    conMaterial() ? Agenda.contextoMaterial() : Promise.resolve(null),
     /* El récord de la hoja, para que «¿cuánto vendimos?» conteste lo del negocio y no lo de
        este aparato: la misma lista unificada que pinta Control. Sin dinero no se lee. */
     veDinero ? DB.listar('ventas_hoja') : Promise.resolve([]),
@@ -747,7 +771,7 @@ async function leerTaller() {
     if (!p || p.etapa === 'cancelado' || p.etapa === 'instalado') continue;
     try { ventanas.set(p.id, Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts })); } catch (_) {}
   }
-  const materialDe = id => {
+  const materialDe = !conMaterial() ? null : id => {
     try {
       const p = proyectos.find(x => x.id === id);
       const d = Agenda.dictamen([{ proyecto_id: id, titulo: (p && p.nombre) || '', fecha: (instDe.get(id) || {}).fecha || null }], mat, hoy);
@@ -760,7 +784,9 @@ async function leerTaller() {
   const conversion = veDinero ? Ventas.conversion(Cot.historial(), ventas, Prefs.dispositivo()) : null;
 
   let faltantes = [], bajoMinimo = [], avisos = [], bitacora = [];
-  try { const S = await import('../datos/stock.js'); [faltantes, bajoMinimo] = await Promise.all([S.listaCompra({ hastaDias: 30 }), S.bajoMinimo()]); } catch (_) {}
+  if (conMaterial()) {
+    try { const S = await import('../datos/stock.js'); [faltantes, bajoMinimo] = await Promise.all([S.listaCompra({ hastaDias: 30 }), S.bajoMinimo()]); } catch (_) {}
+  }
   try { const R = await import('../datos/reglas.js'); avisos = await R.refrescar({ hoy }); } catch (_) {}
   try { bitacora = await Bitacora.listar({ limite: 25 }); } catch (_) {}
 
