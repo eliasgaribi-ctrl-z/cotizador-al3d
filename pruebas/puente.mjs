@@ -1421,9 +1421,12 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('6 · dos cortes a la vez restan el material UNA vez', [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado],
      [true, true, 1, 'consumido']);
 
-  /* 7 · La hoja ya cobra la venta de una tarjeta importada: sale de la línea del taller. Se
-     quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cobradas pidiendo
-     taller—. La que alguien ya pasó a garantía no se toca, y nada de esto sube a la hoja. */
+  /* 7 · La hoja ya LIQUIDÓ la venta de una tarjeta importada: sale de la línea del taller. Se
+     quedaba en «Ganado» para siempre —en octubre de 2026 eran ocho obras cerradas pidiendo
+     taller—. La que alguien ya pasó a garantía no se toca, y nada de esto sube a la hoja.
+     Con COBRANDO, desde el 2026-10-26, ya NO (auditoría, T1-9, decidido por Elías: «que se queden en
+     la tabla hasta que pasen a Liquidados»): la obra sigue en su estación. Hasta entonces este caso
+     esperaba «Instalado» también para V-730. */
   H.filas.push(fila('V-730', 'Cafetería Alba - Letras'), fila('V-731', 'Gimnasio Roca - Caja'), fila('V-732', 'Dental Mar - Letras'));
   await jalarTodo();
   const g732 = await DB.obtener('proyectos', 'proy-hoja-V-732');
@@ -1437,9 +1440,9 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const a73 = H.empujadas.length;
   await jalarTodo();
   await S.bombear();
-  eq('7 · cobrada o liquidada en la hoja, la tarjeta importada pasa a «Instalado»; la de garantía se queda',
+  eq('7 · liquidada en la hoja, la tarjeta importada pasa a «Instalado»; la que solo se cobra (COBRANDO) se queda en su estación; la de garantía se queda',
      await Promise.all(['V-730', 'V-731', 'V-732'].map(async f => (await DB.obtener('proyectos', 'proy-hoja-' + f)).etapa)),
-     ['instalado', 'instalado', 'garantia']);
+     ['ganado', 'instalado', 'garantia']);
   eq('7 · y no se manda nada a la hoja por eso', H.empujadas.length - a73, 0);
 
   /* 8 · La fecha de instalación escrita en la hoja llega al Calendario, y manda la hoja. Hasta

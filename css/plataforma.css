@@ -5068,3 +5068,20 @@ body.pf-cliente.pf-cliente-ve .pj-fila-dinero{filter:none}
 /* TR-1 · La venta que espera su folio de la base (en lugar de «Copiar datos para la hoja»). */
 .pj-espera-folio{display:flex;align-items:flex-start;gap:6px}
 .pj-espera-folio .svgi{flex:none;width:14px;height:14px;margin-top:3px}
+
+/* T1-9 · La tabla del taller hasta liquidar (auditoría 2026-10-26, decidido por Elías)
+   «Instalado, por cobrar» es la sexta columna de «El taller» en el Tablero: lo que ya se instaló y
+   todavía no se liquida. No es una estación —el taller ya no la toca—, así que su línea de arriba va
+   punteada y su número en el tono tenue; sus fichas no llevan rojo ni ámbar (ya no van tarde de nada).
+   En «Lo que viene» del Calendario, la cita que ya pasó y nadie marcó va en rojo, con su palabra, hasta
+   que alguien la marque. Y «Oculto del taller» en Proyectos: la marca y el aviso de la ficha. */
+.tb-est.tb-est-cobrar{border-top-style:dashed}
+.tb-est-cobrar .tb-est-h{color:var(--tinta2)}
+.tb-est-cobrar .tb-est-h b{color:var(--tinta)}
+.tb-ficha.tb-ficha-cobrar{background:var(--sup);border-style:dashed}
+.cal-ldia.atrasada .cal-ldia-h{color:var(--mal)}
+.pf-fila.cal-fila.atrasada{background:var(--mal-bg)}
+.pf-fila.cal-fila.atrasada::before{background:var(--mal)}
+.cal-atrasada-t{display:inline-block;font-weight:700;color:var(--mal)}
+.pj-oculto-aviso{display:flex;align-items:flex-start;gap:6px}
+.pj-oculto-aviso .svgi{flex:none;width:14px;height:14px;margin-top:3px}

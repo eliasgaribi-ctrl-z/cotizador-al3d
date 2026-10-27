@@ -526,9 +526,12 @@ export function desdeVentaDeHoja(venta) {
    la columna «Sellos», y al bajar solo se aplica lo que allá es más nuevo que aquí. La cita de
    instalación no está: su sello es el de la propia instalación (ver `selloDeInstalacion` en
    puente.js). Lo que no está en esta lista no compite: el dinero baja siempre de la hoja. */
+/* «Ocultar del taller» (auditoría 2026-10-26, T1-9) también compite por su sello: si Dirección la
+   oculta en su teléfono y otro teléfono tenía en la bandeja un «mostrar» de antes, gana el más
+   reciente, en la base (0029_taller_hasta_liquidar.sql) y al bajar (`obraDeLaFila` de puente.js). */
 export const SELLO_DE_CAMPO = {
   etapa: 'etapa', notas: 'notas', plazo_k: 'plazo_k', tel: 'tel', dir_texto: 'dir_texto',
-  lat: 'ubicacion', lng: 'ubicacion', entrega: 'entrega',
+  lat: 'ubicacion', lng: 'ubicacion', entrega: 'entrega', oculto_taller: 'oculto_taller',
 };
 /** El registro con la hora `ts` en el sello de cada dato de `campos` que compite. PURA. */
 export function sellar(registro, campos, ts) {
@@ -961,6 +964,9 @@ const ESCRIBIBLES = new Set([
   'dir_texto', 'entrecalles', 'maps_url', 'lat', 'lng', 'geo_fuente', 'anti_pactado',
   'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado', 'pct_comision',
   'fecha_ganado', 'plazo_k', 'entrega', 'sync',
+  /* «Ocultar del taller» (auditoría 2026-10-26, T1-9): solo Dirección —no está en los conjuntos de
+     Fabricación ni de Pagos de abajo—, la misma regla que la matriz de la base (0029). */
+  'oculto_taller',
 ]);
 
 /* Cada bloqueo con su razón escrita, porque el mensaje se le enseña a una persona que está
@@ -1062,6 +1068,10 @@ export async function actualizar(id, parche) {
       else if (plazoValido(v) === null) {
         return mal('DATO_INVALIDO', 'El plazo es uno de los cinco: 1, 1.5, 2, 2.5 o 3+ semanas (1 a 5). Para volver al propuesto, déjalo vacío.');
       } else v = plazoValido(v);
+    } else if (k === 'oculto_taller') {
+      /* Sí o no, y nada más: la base rechaza cualquier otra cosa (0029), y un «1» o un «sí» guardado
+         aquí escondería la obra en este teléfono y en ningún otro. */
+      if (typeof v !== 'boolean') return mal('DATO_INVALIDO', 'Ocultar del taller es sí o no.');
     }
     fila[k] = v;
   }
@@ -1101,10 +1111,11 @@ const CAMPO_NOMBRE = {
   nombre: 'nombre', contacto: 'contacto', negocio: 'negocio', tel: 'teléfono',
   tipo_trabajo: 'tipo de trabajo', compromiso_texto: 'compromiso de entrega',
   notion_page_id: 'página de Notion', notion_estado: 'estado en Notion',
-  entrega: 'cómo se entrega',
+  entrega: 'cómo se entrega', oculto_taller: 'oculto del taller',
 };
 const textoValor = v => {
   if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'sí' : 'no';
   if (ENTREGA_NOMBRE[v]) return ENTREGA_NOMBRE[v];
   if (Array.isArray(v)) return v.join(', ');
   if (typeof v === 'number') return String(v);

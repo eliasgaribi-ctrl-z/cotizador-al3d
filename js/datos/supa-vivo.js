@@ -31,7 +31,7 @@
    deja de bajar de la hoja y queda de respaldo cada 5 minutos (js/datos/supa-enchufe.js).
    ============================================================================ */
 
-import { P, ETAPA_A_NOTION, ENTREGA_A_HOJA, COLUMNA_DEL_SELLO, plazoAHoja, CITA_DE_LA_BASE } from './puente.js';
+import { P, ETAPA_A_NOTION, ENTREGA_A_HOJA, COLUMNA_DEL_SELLO, plazoAHoja, CITA_DE_LA_BASE, OCULTO_DE_LA_BASE } from './puente.js';
 
 /** Las columnas de dinero de la fila, las mismas que la hoja le quita a Fabricación
  *  (`CAMPOS_DE_DINERO` de puente/hoja-apps-script.gs). */
@@ -115,6 +115,10 @@ export function filaDeSupabase(p, inst, din) {
        «confirmada» como con la fila de la hoja (`citaDeLaBase` en puente.js). `null`: la base no tiene una viva. */
     [CITA_DE_LA_BASE]: inst ? citaDe(inst) : null,
   };
+  /* «Ocultar del taller» (auditoría 2026-10-26, T1-9; 0029_taller_hasta_liquidar.sql): solo la base lo guarda. Va en su llave
+     (`OCULTO_DE_LA_BASE`) y con su sello en la columna de los sellos; la bajada lo aplica con la regla de siempre (`obraDeLaFila`).
+     Sin la columna en la fila (una base sin 0029: ver `filas()`), sin la llave, y no se toca lo de este teléfono. */
+  if (Object.prototype.hasOwnProperty.call(p, 'oculto_taller')) out[OCULTO_DE_LA_BASE] = p.oculto_taller === true;
   if (din && typeof din === 'object') {
     /* Un importe que la hoja tenía VACÍO entra a la base como 0 y la copia dice cuál (`vacias` de
        `ventas_dinero.procedencia`): mientras siga en 0, sale vacío, como lo manda la hoja. Para el
@@ -182,8 +186,14 @@ export async function todas(armar) {
   return out;
 }
 
-const COLS_PROYECTO = 'id, folio_hoja, folio_global, nombre, estatus, iva, tipo_trabajo, etapa, fecha_anticipo, ' +
+const COLS_PROYECTO_SIN_OCULTO = 'id, folio_hoja, folio_global, nombre, estatus, iva, tipo_trabajo, etapa, fecha_anticipo, ' +
   'fecha_instalacion_hist, dir_texto, lat, lng, maps_url, tel, entrega, notas, plazo_k, sellos, etapa_vacia:procedencia->etapa_vacia';
+/* Con «Ocultar del taller» (auditoría 2026-10-26, T1-9), que llega con 0029. */
+export const COLS_PROYECTO = COLS_PROYECTO_SIN_OCULTO + ', oculto_taller';
+/* Una base que todavía no corre 0029 no tiene la columna, y PostgREST contesta con un error a la consulta ENTERA: sin esto, publicar la
+   app antes de aplicar la migración dejaría a todos los teléfonos sin bajar nada. Se reconoce por el nombre de la columna en el mensaje
+   (o el 42703 de Postgres, «la columna no existe») y se vuelve a pedir sin ella: nada se oculta hasta que la base la tenga. */
+const sinLaColumna = e => /oculto_taller/.test(String((e && e.message) || '')) || String((e && e.codigo_base) || '') === '42703';
 const COLS_CITA = 'id, proyecto_id, fecha, hora, ventana, duracion_min, estado, movida, uid_ics, notas, updated_at';
 const COLS_DINERO = 'proyecto_id, d_cuenta, g_subtotal, h_neto, i_anticipo, j_liquidacion, k_saldo, r_comision, ' +
   's_abonado, t_restante, pct_comision, n_fecha_liquidacion';
@@ -204,8 +214,11 @@ export function crearFuente(deps) {
     if (!['direccion', 'fabricacion', 'pagos'].includes(a)) {
       return { ok: false, codigo: 'SIN_ACCESO', mensaje: 'La base no reconoce el área de esta cuenta: no se lee nada.' };
     }
-    const proyectos = await todas(() => c.from('proyectos').select(COLS_PROYECTO).eq('empresa_id', empresa)
+    const deProyectos = cols => todas(() => c.from('proyectos').select(cols).eq('empresa_id', empresa)
       .not('folio_hoja', 'is', null).is('deleted_at', null).order('id'));
+    let proyectos;
+    try { proyectos = await deProyectos(COLS_PROYECTO); }
+    catch (e) { if (!sinLaColumna(e)) throw e; proyectos = await deProyectos(COLS_PROYECTO_SIN_OCULTO); }
     const insts = await todas(() => c.from('instalaciones').select(COLS_CITA)
       .eq('empresa_id', empresa).neq('estado', 'cancelada').is('deleted_at', null).order('id'));
     const viva = citasVivas(insts);

@@ -168,7 +168,8 @@ export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
    Va aquí, al lado del vocabulario, para que quien toque la lista de estatus vea esta. */
 export const VIVAS_EN_TALLER = ['FABRICACION', 'REPARANDO'];
 /* Las etapas de la línea del taller, antes de «Instalado»: de éstas sale sola una tarjeta
-   importada cuando la hoja ya cobra su venta (ver `bajar()`). */
+   importada cuando la hoja (o la base) ya LIQUIDÓ su venta (ver `bajar()`). Con COBRANDO ya no:
+   la obra se queda en su estación hasta liquidarse (auditoría 2026-10-26, T1-9). */
 const EN_LA_LINEA = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
 
 /* Quita las llaves que no traen valor. Un `undefined` en un parche NO es «ponlo en nada»:
@@ -458,7 +459,14 @@ export function instalacionANotion(inst, viva) {
 export const COLUMNA_DEL_SELLO = {
   etapa: P.etapa, notas: P.notas, plazo_k: P.plazo, tel: P.tel, dir_texto: P.direccion,
   ubicacion: P.ubicacion, entrega: P.entrega, instalacion: P.fechaInst,
+  oculto_taller: '_oculto_taller',
 };
+/* «Ocultar del taller» (auditoría 2026-10-26, T1-9) no es una columna de la hoja: solo la base lo
+   guarda (`proyectos.oculto_taller`, 0029). La fila que arma la lectura de la base
+   (js/datos/supa-vivo.js) lo trae en esta llave, como trae la cita entera en `CITA_DE_LA_BASE`, y
+   su sello en la misma «columna» de los sellos. Una fila de la hoja no la trae nunca, y entonces no
+   se toca lo que este teléfono tenga. */
+export const OCULTO_DE_LA_BASE = COLUMNA_DEL_SELLO.oculto_taller;
 const GRUPO_DE_COLUMNA = Object.fromEntries(Object.entries(COLUMNA_DEL_SELLO).map(([g, c]) => [c, g]));
 
 /** Cuándo se cambió por última vez esta instalación, con la mano de alguien. La que bajó de la
@@ -575,6 +583,14 @@ export function obraDeLaFila(venta, local, o = {}) {
     const e = venta.entrega;
     toma('entrega', e, !e, e === entregaDe(local), () => { parche.entrega = e; }, false);
   }
+  /* «Ocultar del taller» (T1-9), solo de una fila de la base. `false` cuenta como vacío: sin sello
+     no deshace nada (la base dice `false` de todas las obras que nadie ocultó, y eso no debe pisar
+     un «ocultar» de este teléfono que todavía no sube); con sello, es Dirección que la volvió a
+     mostrar, y se aplica. */
+  if (typeof venta.oculto_taller === 'boolean') {
+    const o = venta.oculto_taller;
+    toma('oculto_taller', o, !o, o === (local.oculto_taller === true), () => { parche.oculto_taller = o; }, true);
+  }
   return cambio ? { parche, sellos } : { parche: {}, sellos: null };
 }
 
@@ -679,6 +695,8 @@ export function ventaDeHoja(fila) {
      con la celda vacía es '' —«la hoja no dice», que se lee instalación pero NO pisa lo de este
      lado— y la revisión de la bajada lo usa para mandar la que la fila no tiene. */
   if (Object.prototype.hasOwnProperty.call(fila, P.entrega)) v.entrega = entregaDesdeHoja(fila[P.entrega]);
+  /* «Ocultar del taller» (T1-9): solo si la fila es de la base y trae la llave (ver `OCULTO_DE_LA_BASE`). */
+  if (Object.prototype.hasOwnProperty.call(fila, OCULTO_DE_LA_BASE)) v.oculto_taller = fila[OCULTO_DE_LA_BASE] === true;
   /* Las notas, el plazo y los sellos (puente-sheets-14): solo si la fila trae la columna de los
      sellos —una hoja con AG:AI—. Los sellos se guardan por dato de la plataforma (etapa, notas,
      tel…; la cita es `instalacion`), que es como los compara `obraDeLaFila`. */
@@ -2243,15 +2261,19 @@ export function crear(cfg0, opc = {}) {
         }) : null);
         if (!aplicar) continue;
 
-        /* Una tarjeta IMPORTADA cuya venta la hoja ya pasó a COBRANDO o LIQUIDADO: el trabajo se
-           entregó. Su etapa no la mueve nadie más —nació en la hoja, no hay cotización ni
-           instalación agendada que la empuje— y se quedaba en el tablero como «Ganado» para
-           siempre: en octubre de 2026 eran ocho obras cobradas o cerradas pidiendo taller. Se
-           pasa a «Instalado», solo de este lado (`sync.jalar` escribe sin encolar) y solo si
-           seguía en la línea del taller: una que alguien ya movió a garantía o canceló, se queda. */
+        /* Una tarjeta IMPORTADA cuya venta la hoja ya LIQUIDÓ: el trabajo se entregó y se cobró. Su
+           etapa no la mueve nadie más —nació en la hoja, no hay cotización ni instalación agendada
+           que la empuje— y se quedaba en el tablero como «Ganado» para siempre: en octubre de 2026
+           eran ocho obras cerradas pidiendo taller. Se pasa a «Instalado», solo de este lado
+           (`sync.jalar` escribe sin encolar) y solo si seguía en la línea del taller: una que
+           alguien ya movió a garantía o canceló, se queda.
+           Hasta el 2026-10-26 también con COBRANDO, y así se iban de «El taller» obras que todavía
+           no se instalaban: Pagos pasa a cobrar en cuanto el trabajo está listo. Elías decidió que
+           se queden en su estación hasta LIQUIDADO (auditoría 2026-10-26, T1-9), y lo mismo hace la
+           base (`interno.etapa_por_cobro`, 0029_taller_hasta_liquidar.sql). */
         /* Se decide al final, después de la etapa que baja de la hoja (`obraDeLaFila`): ver
-           `cobradaEnLaLinea` abajo. */
-        const cobradaEnLaLinea = !!(venta && esImportadoLocal(local) && ESTATUS_DE_PAGOS.includes(String(venta.estatus || '')));
+           `liquidadaEnLaLinea` abajo. */
+        const liquidadaEnLaLinea = !!(venta && esImportadoLocal(local) && String(venta.estatus || '') === 'LIQUIDADO');
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.
@@ -2317,9 +2339,9 @@ export function crear(cfg0, opc = {}) {
             if (u.maps_url && !String(local.maps_url || '').trim()) aplicar.maps_url = u.maps_url;
           }
         }
-        /* La tarjeta importada ya cobrada, a «Instalado» (ver arriba), con la etapa que quedó: la de
+        /* La tarjeta importada ya liquidada, a «Instalado» (ver arriba), con la etapa que quedó: la de
            aquí, o la que acaba de bajar de la hoja. */
-        if (cobradaEnLaLinea && EN_LA_LINEA.includes(String(aplicar.etapa || local.etapa || ''))) {
+        if (liquidadaEnLaLinea && EN_LA_LINEA.includes(String(aplicar.etapa || local.etapa || ''))) {
           aplicar.etapa = 'instalado';
         }
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });

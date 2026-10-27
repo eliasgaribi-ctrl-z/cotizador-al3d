@@ -38,6 +38,7 @@ import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import { laBaseManda } from '../datos/reglas.js';
 import { esFiscal } from '../datos/dinero-cuentas.js';
+import { ocultoDelTaller } from '../datos/taller.js';
 import {
   $, esc, money, cant, ico, toast, voz, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
@@ -930,6 +931,8 @@ function tarjeta(p) {
         : avisoDe(p) === 'doble' ? '<span class="pf-sem grave">Dos veces en ' + fuente() + '</span>' : '') +
       /* Un cambio que se rechazó para siempre: la tarjeta quedó movida solo en este teléfono. */
       (apart ? '<span class="pf-sem grave">No se guardó</span>' : '') +
+      /* Dirección la ocultó del taller (auditoría 2026-10-26, T1-9): aquí sigue, con su marca, para encontrarla y volver a mostrarla. */
+      (ocultoDelTaller(p) ? '<span class="pf-sem nada pj-oculto">Oculto del taller</span>' : '') +
       marcaCarpeta(p) +
       (inst
         ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
@@ -983,6 +986,7 @@ function fila(p) {
         (sem ? '<span class="pf-sem ' + sem.estado + '" title="' + esc(sem.detalle) + '">' + esc(sem.palabra) + '</span> ' : '') +
         (cambio ? '<span class="pf-sem grave">Se editó después de ganarse</span> ' : '') +
         (apart ? '<span class="pf-sem grave">No se guardó</span> ' : '') +
+        (ocultoDelTaller(p) ? '<span class="pf-sem nada pj-oculto">Oculto del taller</span> ' : '') +
         (marcaCarpeta(p) ? marcaCarpeta(p) + ' ' : '') +
       '</div>' +
       '<div class="pf-fila-d">' + (tipos.length ? esc(tipos.join(' · ')) : 'Sin tipo derivado') + dinero + '</div>' +
@@ -1557,6 +1561,15 @@ function htmlFicha(p) {
 
   const partes = [];
 
+  /* «Oculto del taller» (auditoría 2026-10-26, T1-9): arriba de todo, porque explica por qué esta
+     obra no sale en el Tablero ni en «Lo que viene». Lo lee cualquiera; volver a mostrarla es de
+     Dirección y está en «Más detalles», junto a «No se dio». */
+  if (ocultoDelTaller(p)) {
+    partes.push('<p class="hintnote pj-oculto-aviso">' + ico('i-ojo') + ' <b>Oculto del taller.</b> ' +
+      'No sale en «El taller» del Tablero, ni en sus avisos, ni en «Lo que viene» del Calendario. ' +
+      'El dinero sigue igual: su estatus, su saldo y sus comisiones no cambian.</p>');
+  }
+
   /* El aviso de huella. Va arriba de todo porque cambia el sentido de lo que está abajo:
      si la cotización se editó después de ganarse, el material y el importe de esta ficha
      son de otra versión del trabajo. */
@@ -1711,6 +1724,16 @@ function htmlFicha(p) {
       raros.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
         ico('i-copiar') + ' Copiar datos para la hoja</button>');
     }
+  }
+  /* «Ocultar del taller» y su reverso (auditoría 2026-10-26, T1-9). Lo pidió Elías para las obras
+     con las que quedó mal con el cliente y que «probablemente nunca me liquiden»: con las obras en
+     la tabla del taller hasta LIQUIDADO, ésas se quedarían ahí para siempre. Solo Dirección (la
+     misma regla que `Proy.puedeEscribir` y la matriz de la base, 0029) y solo con la base
+     mandando: se guarda en la base para todo el equipo, y con la hoja no habría dónde. */
+  if (rol === 'direccion' && base && p.etapa !== 'cancelado' && Proy.puedeEscribir(rol, 'oculto_taller')) {
+    raros.push(ocultoDelTaller(p)
+      ? '<button type="button" class="btn btn-gho" data-mostrar-taller="' + esc(p.id) + '">' + ico('i-ojo') + ' Volver a mostrar en el taller</button>'
+      : '<button type="button" class="btn btn-gho" data-ocultar-taller="' + esc(p.id) + '">Ocultar del taller</button>');
   }
   if (rol === 'direccion' && p.etapa !== 'cancelado') {
     raros.push('<button type="button" class="btn btn-dgr" data-cancelar="' + esc(p.id) + '">No se dio</button>');
@@ -2941,6 +2964,14 @@ async function clicFicha(ev) {
     return;
   }
 
+  /* «Ocultar del taller» y «Volver a mostrar en el taller» (T1-9). */
+  const oc = t.closest('[data-ocultar-taller],[data-mostrar-taller]');
+  if (oc) {
+    const ocultar = oc.hasAttribute('data-ocultar-taller');
+    await ocultarDelTaller(ocultar ? oc.dataset.ocultarTaller : oc.dataset.mostrarTaller, ocultar);
+    return;
+  }
+
   /* Las salidas del aviso de la hoja (ver `avisoHoja`). */
   const hj = t.closest('[data-hoja-alta],[data-hoja-fuera],[data-hoja-quitar],[data-hoja-dejar],[data-hoja-juntar],[data-hoja-noesla]');
   if (hj) {
@@ -2960,6 +2991,37 @@ async function clicFicha(ev) {
     if (p) pedirDescarte(p.id, p.folio_local || '', p.nombre || '');
     return;
   }
+}
+
+/* ----- «Ocultar del taller» (auditoría 2026-10-26, T1-9) -----
+   Una pregunta de un paso que dice qué pasa y qué NO pasa —el dinero—, porque ocultar es para todo
+   el equipo y no solo para este teléfono: se guarda en el proyecto (`oculto_taller`, con su sello)
+   y la bandeja lo sube a la base (`proyecto_actualizar`), que deja la línea en la bitácora. Volver a
+   mostrarla es el mismo camino al revés, con su propia pregunta. Las dos guardas se repiten aquí
+   aunque el botón ya no salga sin ellas: un toque viejo de una ficha pintada antes de un cambio de
+   rol no debe escribir. */
+async function ocultarDelTaller(id, ocultar) {
+  if (!id) return;
+  if (Prefs.rol() !== 'direccion' || !laBaseManda()) {
+    toast('Ocultar del taller es de Dirección, con la base mandando.', 'err', 4200);
+    return;
+  }
+  const p = await Proy.obtener(id);
+  if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); return; }
+  if (ocultoDelTaller(p) === ocultar) { await refrescarFicha(); return; }   // otro teléfono ya lo hizo
+  const nombre = p.nombre || p.folio_local || 'este proyecto';
+  const ok = await confirmarPf(ocultar
+    ? { titulo: '¿Ocultar «' + nombre + '» del taller?',
+        texto: 'Deja de salir en «El taller» del Tablero —en su estación o en «Instalado, por cobrar»—, en la cuenta de arriba, en los avisos y en «Lo que viene» del Calendario. Es para todo el equipo, no solo para este teléfono.\n\n' +
+          'El dinero no cambia: su estatus de cobro, su saldo y sus comisiones siguen igual, y Control la sigue contando.\n\n' +
+          'Aquí en Proyectos sigue, con la marca «Oculto del taller», para volver a mostrarla cuando quieras.',
+        si: 'Ocultar del taller', no: 'Cancelar' }
+    : { titulo: '¿Volver a mostrar «' + nombre + '» en el taller?',
+        texto: 'Vuelve a salir en «El taller» del Tablero, en sus avisos y en «Lo que viene» del Calendario, para todo el equipo. El dinero no cambia.',
+        si: 'Volver a mostrar', no: 'Cancelar' });
+  if (!ok) return;
+  await parchar(id, { oculto_taller: ocultar },
+    ocultar ? '«' + nombre + '» se ocultó del taller' : '«' + nombre + '» vuelve a salir en el taller');
 }
 
 async function refrescarFicha() {

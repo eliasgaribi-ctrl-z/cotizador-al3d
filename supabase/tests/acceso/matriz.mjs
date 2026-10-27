@@ -21,9 +21,10 @@ const matriz = async db => (await una(db, `select interno.matriz_permisos() as m
 const VALOR_PA = {
   notas: 'nota', tel: '33 1111 2222', dir_texto: 'Calle 9', lat: 20.5, lng: -103.5, maps_url: 'https://maps.app.goo.gl/x', geo_fuente: 'maps_pin', entrega: 'paqueteria', plazo_k: 3, entrecalles: 'A y B',
   ubicacion_pendiente: true, contacto: 'Ana', negocio: 'Taller', tipo_trabajo: ['Rotulacion de vinil'], compromiso_texto: 'para el viernes', fecha_anticipo: '2026-10-01', origen: { items: [{ id: 1, tipo: 'caja' }] },
+  oculto_taller: true,      // 0029 (T1-9): «Ocultar del taller», solo Dirección
 };
 const VALOR_CV = { nombre: 'Nombre nuevo', subtotal: 1234.5, anticipo: 100, liquidacion: 0, cuenta: 'Elias BBVA', estatus: 'COBRANDO', fecha_liquidacion: '2026-10-01', pct_comision: 10, iva: true };
-const SELLOS = () => ({ notas: AHORA(), tel: AHORA(), dir_texto: AHORA(), ubicacion: AHORA(), entrega: AHORA(), plazo_k: AHORA() });
+const SELLOS = () => ({ notas: AHORA(), tel: AHORA(), dir_texto: AHORA(), ubicacion: AHORA(), entrega: AHORA(), plazo_k: AHORA(), oculto_taller: AHORA() });
 
 /** La matriz tal como la fija el diseño (A.md §5.1). Las pruebas de abajo comparan COMPORTAMIENTO contra la tabla; esta fija la TABLA, para que un cambio de permisos sea un cambio visible aquí. */
 const ETAPAS_TODAS = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia', 'cancelado'];
@@ -31,7 +32,8 @@ const ETAPAS_TODAS = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'inst
 const SIN_CANCELAR = ETAPAS_TODAS.filter(e => e !== 'cancelado');
 const MATRIZ_DEL_DISENO = {
   direccion: {
-    proyecto_actualizar: ['notas', 'tel', 'dir_texto', 'lat', 'lng', 'maps_url', 'geo_fuente', 'entrega', 'plazo_k', 'entrecalles', 'ubicacion_pendiente', 'contacto', 'negocio', 'tipo_trabajo', 'compromiso_texto', 'fecha_anticipo', 'origen'],
+    proyecto_actualizar: ['notas', 'tel', 'dir_texto', 'lat', 'lng', 'maps_url', 'geo_fuente', 'entrega', 'plazo_k', 'entrecalles', 'ubicacion_pendiente', 'contacto', 'negocio', 'tipo_trabajo', 'compromiso_texto', 'fecha_anticipo', 'origen',
+                          'oculto_taller'],      // 0029 (auditoría 2026-10-26, T1-9): ocultar una obra del taller, solo Dirección
     corregir_venta: ['nombre', 'subtotal', 'anticipo', 'liquidacion', 'cuenta', 'estatus', 'fecha_liquidacion', 'pct_comision', 'iva'],
     etapas: { origen: ETAPAS_TODAS, destino: ETAPAS_TODAS }, instalacion: 'confirmada', alta: { ganar_proyecto: true, descartar_cotizacion: true, alta_venta: true }, ve_dinero: true,
   },

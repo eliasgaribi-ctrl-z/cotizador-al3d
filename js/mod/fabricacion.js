@@ -328,12 +328,14 @@ async function leer() {
   /* Las dos cuentas de arriba se leen en las tres vistas. «Cuántos ganados no tienen día»
      es la razón por la que alguien entra a esta pantalla, y enseñarla solo en la vista de
      mes obligaría a cambiar de vista para enterarse. */
+  /* Sin las obras que Dirección ocultó del taller (`oculto_taller`, auditoría 2026-10-26, T1-9): ni
+     piden fecha ni cuentan como «ya pasó y nadie la marcó». El mes y la semana sí las enseñan. */
   const [sinFecha, vencidas] = await Promise.all([
     Proyectos.listar({ sinFecha: true, vivos: true }),
-    Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true }),
+    Agenda.listar({ hasta: masDias(hoy, -1), estados: VIVAS_SIN_MARCAR, conProyecto: true, sinObraInstalada: true, sinOcultos: true }),
   ]);
 
-  const d = { hoy, sinFecha: sinFecha || [], vencidas: vencidas || [],
+  const d = { hoy, sinFecha: (sinFecha || []).filter(p => !Taller.ocultoDelTaller(p)), vencidas: vencidas || [],
               mes: null, filas: [], sem: new Map(), rango: null, dia: [] };
 
   if (_vista === 'mes') {
@@ -349,9 +351,16 @@ async function leer() {
 
   } else {
     /* La lista arranca hoy. Una agenda que abre enseñando las instalaciones de marzo obliga
-       a desplazarse para llegar a lo que viene, que es lo único que se venía a ver. */
-    d.filas = await Agenda.listar(_pasadas ? { conProyecto: true }
-                                           : { desde: hoy, conProyecto: true });
+       a desplazarse para llegar a lo que viene, que es lo único que se venía a ver.
+       Pero lo que ya pasó y NADIE MARCÓ va arriba, en rojo, hasta que se marque (auditoría
+       2026-10-26, T1-9): Elías instala obras después de su fecha acordada, y esa cita se
+       perdía de «Lo que viene» al día siguiente sin que nadie dijera si se instaló. Son las
+       mismas de «Ya pasó y nadie la marcó» (`d.vencidas`, arriba), así que la cuenta roja y la
+       lista dicen lo mismo. Sin lo oculto del taller. Con «Incluir lo que ya pasó», todo, como
+       siempre: es «Toda la agenda». */
+    d.filas = _pasadas
+      ? await Agenda.listar({ conProyecto: true })
+      : Agenda.loQueViene(await Agenda.listar({ desde: hoy, conProyecto: true, sinOcultos: true }), d.vencidas);
     if (d.filas.length) {
       d.sem = await mapaSemaforo(d.filas[0].fecha, d.filas[d.filas.length - 1].fecha);
     }
@@ -365,7 +374,7 @@ async function leer() {
      lectura de instalaciones con sus proyectos, la misma que hace la Lista. */
   d.proximas = [];
   if (!d.diaVisto && _vista !== 'lista' && !esTelefono()) {
-    d.proximas = await Agenda.listar({ desde: hoy, hasta: masDias(hoy, 13), vivas: true, conProyecto: true });
+    d.proximas = await Agenda.listar({ desde: hoy, hasta: masDias(hoy, 13), vivas: true, conProyecto: true, sinOcultos: true });
   }
 
   /* Las ventanas de taller, solo cuando la lente las va a pintar. Una lectura de proyectos
@@ -382,9 +391,9 @@ async function leer() {
     const instDe = new Map();
     for (const i of (insts || [])) if (i && i.proyecto_id && !instDe.has(i.proyecto_id)) instDe.set(i.proyecto_id, i);
     d.proyDe = new Map((proys || []).map(p => [p.id, p]));
-    d.ventanas = (proys || [])
-      .map(p => Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts }))
-      .filter(v => v.estado !== 'cancelado' && v.estado !== 'hecho');
+    /* Las mismas estaciones que «El taller» del Tablero (`tablaDelTaller`): sin lo hecho ni lo
+       oculto (T1-9). */
+    d.ventanas = Taller.tablaDelTaller(proys || [], instDe, { hoy, cts }).estaciones;
   }
 
   /* El mes como mapa de VENCIMIENTOS: por cada día, qué le toca a qué proyecto —empezar,
@@ -1431,7 +1440,8 @@ function pintarLista(d) {
   for (const i of insts) {
     if (i.fecha !== ultimo) {
       if (ultimo) html += '</section>';
-      html += '<section class="cal-ldia' + (i.fecha === d.hoy ? ' hoy' : '') + '"><h3 class="cal-ldia-h">' + esc(fmtFechaDia(i.fecha)) +
+      /* El día de una cita que ya pasó sin marcar (`atrasada`, T1-9) va en rojo entero, no solo su «hace N días». */
+      html += '<section class="cal-ldia' + (i.fecha === d.hoy ? ' hoy' : '') + (i.atrasada ? ' atrasada' : '') + '"><h3 class="cal-ldia-h">' + esc(fmtFechaDia(i.fecha)) +
         ' <span class="pf-cuando' + toneCuando(i.fecha) + '">' + esc(cuando(i.fecha)) + '</span></h3>';
       const sem = d.sem.get(i.fecha);
       if (veSemaforo() && sem && sem.estado !== 'ok') html += renglonSem(sem);
@@ -1511,12 +1521,16 @@ function fila(i, sem) {
   const hn = h ? h.replace(/\s*[ap]\.m\.$/, '') : 'Todo';
   const hs = h ? h.slice(hn.length).trim() : 'el día';
 
-  return '<div class="pf-fila cal-fila ' + claseEv(i) + '">' +
+  /* Una cita que ya pasó y nadie marcó, en «Lo que viene» (T1-9): en rojo y con su palabra —el color
+     nunca va solo—, hasta que alguien diga qué pasó con «Ya se instaló» o desde «Abrir». */
+  const atrasada = !!i.atrasada && !cancelada && i.estado !== 'hecha';
+  return '<div class="pf-fila cal-fila ' + claseEv(i) + (atrasada ? ' atrasada' : '') + '">' +
       '<div class="cal-fila-hora">' + esc(hn) + '<small>' + esc(hs) + '</small></div>' +
       '<div class="pf-fila-tx">' +
         '<div class="pf-fila-t">' + (instala ? '' : '<span class="pf-entrega ' + ent + '">' + esc(ENTREGA_ROTULO[ent]) + '</span> ') +
           esc(tituloDeFila(i)) + '</div>' +
         '<div class="pf-fila-d">' +
+          (atrasada ? '<span class="cal-atrasada-t">Ya pasó y nadie la marcó</span><br>' : '') +
           (semFila ? '<span class="cal-sem-t ' + esc(semFila.estado) + '">' + esc(PALABRA_SEM[semFila.estado] || semFila.estado) + '</span>' +
             (detalle.length ? ' · ' : '') : '') +
           esc(detalle.join(' · ')) +
@@ -2027,7 +2041,9 @@ function paraBajar(d) {
   const todas = _vista === 'mes' && d.mes
     ? (d.mes.dias || []).flatMap(x => x.instalaciones || [])
     : (d.filas || []);
-  return visibles(todas).filter(i => i.estado !== 'cancelada');
+  /* Lo que ya pasó sin marcar (las `atrasada` de «Lo que viene», T1-9) no se baja al calendario del
+     teléfono: su alarma ya pasó, y lo que toca es marcarla. */
+  return visibles(todas).filter(i => i.estado !== 'cancelada' && !i.atrasada);
 }
 
 async function bajarVarias() {

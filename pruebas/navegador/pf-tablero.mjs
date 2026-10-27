@@ -248,7 +248,8 @@ if (activa('taller')) {
   const est = await p.$$eval('#mod-tablero .tb-est', es => es.map(e => ({
     etapa: e.dataset.etapa, n: e.querySelector('.tb-est-h b').textContent,
     fichas: [...e.querySelectorAll('.tb-ficha')].map(f => ({ t: f.textContent, mal: f.classList.contains('mal'), av: f.classList.contains('av'), alto: f.getBoundingClientRect().height })) })));
-  que(est.map(e => e.etapa).join() === 'ganado,en_diseno,cortado,armado,listo', 'las cinco estaciones, en el orden del proceso (' + est.map(e => e.etapa).join(' → ') + ')');
+  /* Auditoría 2026-10-26, T1-9: después de las cinco estaciones va la sexta columna, «Instalado, por cobrar» (`por_cobrar`). */
+  que(est.map(e => e.etapa).join() === 'ganado,en_diseno,cortado,armado,listo,por_cobrar', 'las cinco estaciones, en el orden del proceso, y «Instalado, por cobrar» al final (' + est.map(e => e.etapa).join(' → ') + ')');
   const de = k => est.find(e => e.etapa === k) || { n: '?', fichas: [] };
   que([de('ganado').n, de('en_diseno').n, de('cortado').n, de('armado').n, de('listo').n].join(' · ') === '2 · 1 · 2 · 1 · 1', 'cada una con su cuenta: 2 · 1 · 2 · 1 · 1');
   que(est.every(e => Number(e.n) === e.fichas.length), 'y una ficha por trabajo');

@@ -68,7 +68,10 @@ eq('Centro Dental tiene carpeta pero no órdenes', estadoDe(taller('Juan Carlos 
 eq('Herrajes Innova tampoco (solo el .cdr)', estadoDe(taller('Diego - Herrajes Innova'), CARPETAS), 'sin_ordenes');
 eq('Dupla Taller no tiene carpeta', estadoDe(taller('Marlén - Dupla Taller'), CARPETAS), 'sin_carpeta');
 eq('lo instalado ya no lleva marca', estadoDe(taller('José - Kelvarion', { etapa: 'instalado' }), CARPETAS), null);
-eq('lo que la hoja ya cobra tampoco', estadoDe(taller('José - Kelvarion', { estatus_notion: 'COBRANDO' }), CARPETAS), null);
+/* Auditoría 2026-10-26, T1-9 (decidido por Elías): COBRANDO ya no saca la obra del taller —sigue en su estación hasta LIQUIDADO—, así
+   que conserva su marca de Drive. Hasta entonces esta prueba esperaba null con COBRANDO. */
+eq('lo que ya se cobra pero sigue en su estación CONSERVA su marca (hasta liquidar)', estadoDe(taller('José - Kelvarion', { estatus_notion: 'COBRANDO' }), CARPETAS), 'ordenes');
+eq('lo liquidado ya no', estadoDe(taller('José - Kelvarion', { estatus_notion: 'LIQUIDADO' }), CARPETAS), null);
 eq('sin nada sabido de Drive no se dice nada', estadoDe(taller('José - Kelvarion'), null), null);
 
 console.log('\nsinCarpeta — a quién le abre carpeta el teléfono de Dirección');

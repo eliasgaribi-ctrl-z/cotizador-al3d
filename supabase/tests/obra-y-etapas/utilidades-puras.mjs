@@ -106,6 +106,8 @@ describir('sellos_validos (el CHECK de proyectos.sellos)', () => {
   prueba('un objeto con claves de los 8 grupos y enteros >= 0 es válido; el objeto vacío también', async () => {
     igual(await sv({}), true);
     igual(await sv({ etapa: 1, notas: 0, plazo_k: 5, tel: 9, dir_texto: 10, ubicacion: 11, entrega: 12, instalacion: 1_760_000_000_000 }), true);
+    // 0029 (auditoría 2026-10-26, T1-9): «Ocultar del taller» lleva su sello como los demás datos de la obra.
+    igual(await sv({ oculto_taller: 1_760_000_000_000 }), true, 'oculto_taller');
   });
   prueba('clave desconocida, negativo, fracción, texto o algo que no es objeto → inválido', async () => {
     for (const j of [{ otra: 1 }, { etapa: -1 }, { etapa: 1.5 }, { etapa: '5' }, { etapa: null }, [], 'x', 5, null]) igual(await sv(j), false, JSON.stringify(j));

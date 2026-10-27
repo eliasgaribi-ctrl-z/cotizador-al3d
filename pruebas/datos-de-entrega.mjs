@@ -76,19 +76,22 @@ console.log('\n«FALTAN DATOS» DEL TABLERO — solo el taller, por la fecha má
     con({ id: 'e', nombre: 'E a 7 días', tel: '' }),
     con({ id: 'f', nombre: 'F completo' }),
     con({ id: 'g', nombre: 'G instalado', etapa: 'instalado', tel: '' }),
-    con({ id: 'h', nombre: 'H cobrando', estatus_notion: 'COBRANDO', tel: '' }),
+    /* Auditoría 2026-10-26, T1-9: lo que ya se cobra (COBRANDO) sigue en el taller hasta liquidarse; lo que sale es lo LIQUIDADO. */
+    con({ id: 'h', nombre: 'H liquidado', estatus_notion: 'LIQUIDADO', tel: '' }),
     con({ id: 'i', nombre: 'I cancelado', etapa: 'cancelado', tel: '' }),
     con({ id: 'j', nombre: 'J recoge', entrega: 'recoleccion', dir_texto: '', lat: null, lng: null }),
   ];
   const xs = DD.faltanDatos(ps, { hoy, fechaDe: p => fechas[p.id] || null });
   eq('orden: la que ya pasó, luego la más cercana, y sin fecha al final', xs.map(x => x.p.id), ['d', 'b', 'e', 'a', 'c']);
-  eq('fuera lo instalado, lo que ya se cobra, lo cancelado, lo completo y la recolección sin dirección',
+  eq('fuera lo instalado, lo ya liquidado, lo cancelado, lo completo y la recolección sin dirección',
      ps.filter(p => !xs.some(x => x.p.id === p.id)).map(p => p.id), ['f', 'g', 'h', 'i', 'j']);
   eq('pronto: siete días o menos, y lo vencido', xs.map(x => [x.p.id, x.pronto]),
      [['d', true], ['b', true], ['e', true], ['a', false], ['c', false]]);
   eq('los días hasta la entrega', xs.map(x => x.dias), [-4, 3, 7, 11, null]);
   eq('sin `fechaDe`, ninguna tiene fecha y van por nombre', DD.faltanDatos(ps, { hoy }).map(x => x.p.id), ['a', 'b', 'c', 'd', 'e']);
   eq('una lista vacía es vacía', DD.faltanDatos([], { hoy }), []);
+  eq('lo que ya se cobra pero sigue en su estación SÍ pide sus datos (T1-9: en el taller hasta liquidar)',
+     DD.faltanDatos([con({ id: 'k', nombre: 'K cobrando', estatus_notion: 'COBRANDO', tel: '' })], { hoy }).map(x => x.p.id), ['k']);
   eq('el mismo nombre del día de entrega: por nombre', DD.faltanDatos([con({ id: 'z', nombre: 'Zeta', tel: '' }), con({ id: 'y', nombre: 'Alfa', tel: '' })],
      { hoy, fechaDe: () => '2026-10-15' }).map(x => x.p.nombre), ['Alfa', 'Zeta']);
 }

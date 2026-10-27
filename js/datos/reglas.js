@@ -231,7 +231,20 @@ export function evaluar(estado) {
   const out = [];
   a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
   a11(E, out); a12(E, out); a13(E, out); a15(E, out);
-  return ordenar(vigentes(out, E));
+  return ordenar(vigentes(sinLoOculto(out, E), E));
+}
+
+/* Lo que Dirección ocultó del taller (`oculto_taller`, 0029; auditoría 2026-10-26, T1-9: «son
+   proyectos con los que quedé mal con el cliente, entonces probablemente nunca me liquiden») no
+   pide nada en «Qué atender»: ni sus avisos de proyecto ni los de su cita. Se quitan al final y no
+   antes de evaluar: el proyecto sigue en `E.proyectos`, así A6 sabe que su cotización ya se decidió
+   y no vuelve a preguntar por ella. El dinero no cambia: Control la sigue contando como siempre. */
+function sinLoOculto(lista, E) {
+  const ocultos = new Set(E.proyectos.filter(p => p && p.oculto_taller === true).map(p => p.id));
+  if (!ocultos.size) return lista;
+  const deLaCita = new Map(E.instalaciones.filter(Boolean).map(i => [i.id, i.proyecto_id]));
+  return lista.filter(a => !(a.entidad === 'proyecto' && ocultos.has(a.entidad_id)) &&
+                           !(a.entidad === 'instalacion' && ocultos.has(deLaCita.get(a.entidad_id))));
 }
 
 /** El aviso, con los campos de la pantalla y los de §4.9 en el mismo objeto: así
