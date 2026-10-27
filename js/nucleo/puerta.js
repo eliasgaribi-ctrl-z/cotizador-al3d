@@ -418,6 +418,14 @@ async function confirmarDeVerdad(conPantalla, alPaso) {
       }
       if (vb) return vb;
     }
+    /* Y lo mismo cuando este aparato todavía NO sabe quién manda (auditoría 2026-10-26, T1-3): con el interruptor
+       encendido y una sesión en la base, la base lo dice y deja el modo guardado (`acceso()`). Antes la vuelta de fondo
+       solo le preguntaba a la base si ya sabía que manda, así que un aparato que no lo sabía nunca se enteraba por aquí.
+       Solo vale un pase de la base (`ok`): un «fuera» sale de la base solo cuando ya se sabe que manda (`paseDeLaBase`). */
+    if (!conPantalla && supaSinModo()) {
+      const vb = await preguntarALaBase();
+      if (vb && vb.estado === 'ok') return vb;
+    }
     /* El detalle del renglón es corto a propósito: la frase entera de por qué no se pudo —la
        ventana que se cerró, la que el navegador bloqueó— sale en el aviso de la puerta, y
        repetirla aquí la cortaría a media palabra en un teléfono de 360 px. */
@@ -515,6 +523,26 @@ function laBaseManda() {
     return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
            /"modo":"base"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
   } catch (_) { return false; }
+}
+
+/* ── El aparato que no sabe quién manda (auditoría 2026-10-26, T1-3) ─────────────────────────────
+   Interruptor de Supabase encendido aquí y NINGÚN modo oído todavía. Así estaba el Chrome de Dirección el 26-oct (sesión
+   válida, la base en 'base') y la puerta nunca le preguntaba a la base: `preguntarALaBase` iba solo detrás de
+   `laBaseManda()`, que sin modo guardado es «la hoja». Con esto, la vuelta a quién eres le pregunta primero a la base;
+   `acceso()` deja el modo guardado y, si la base manda y la persona está activa, el pase sale de la base. Si la base no
+   lo puede decir (sin sesión en ella, sin red), sigue la hoja como siempre, y la app lo dice en su banda (js/app.js). */
+function supaSinModo() {
+  try {
+    return /"encendido":true/.test(localStorage.getItem('al3d_pf_supa') || '') &&
+           !/"modo":"(hoja|base)"/.test(localStorage.getItem('al3d_pf_supa_modo') || '');
+  } catch (_) { return false; }
+}
+
+/* La hoja dijo que la base manda (su /salud trae `modo` desde puente-sheets-17) y este aparato no lo sabía: se avisa a la
+   app (`al3d-la-base-manda`, el mismo aviso que da js/datos/puente.js cuando la hoja contesta LA_BASE_MANDA a una
+   escritura), que le pregunta a la base o pone la banda roja para entrar (js/app.js, `crearQuienManda`). */
+function avisarQueLaBaseManda(de) {
+  try { globalThis.dispatchEvent(new CustomEvent('al3d-la-base-manda', { detail: { de } })); } catch (_) { /* sin ventana: las pruebas */ }
 }
 
 /**
@@ -639,6 +667,11 @@ async function entrarConCredencialDeVerdad(cred, alPaso) {
 /** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. Con la base mandando,
  *  primero la base (ver `preguntarALaBase`). */
 async function preguntarALaHoja() {
+  /* T1-3: sin modo oído, primero la base (ver `supaSinModo`). Solo un pase cuenta; lo demás sigue abajo. */
+  if (supaSinModo()) {
+    const v0 = await preguntarALaBase();
+    if (v0 && v0.estado === 'ok') return v0;
+  }
   if (laBaseManda()) {
     const v = await preguntarALaBase();
     if (v) return v;
@@ -649,6 +682,10 @@ async function preguntarALaHoja() {
   if (!relevo) return { estado: 'sin_red' };
   let s;
   try { s = await relevo.salud(); } catch (_) { return { estado: 'sin_red' }; }
+  /* T1-3 (c): la hoja dice quién manda en su /salud (puente-sheets-17). Si dice 'base' y este aparato no lo sabe, la app
+     reacciona (le pregunta a la base, o pone la banda roja para entrar): nada de seguir mandando a la hoja callado. El pase
+     de esta vuelta sigue siendo el de la hoja; el de la base sale la siguiente vez que se confirme, ya con el modo guardado. */
+  if (s && s.modo === 'base' && !laBaseManda()) avisarQueLaBaseManda('salud');
 
   if (s.ok && s.via === 'google' && s.correo && Prefs.ROLES.includes(s.rol)) {
     Prefs.setPase({ correo: s.correo, rol: s.rol, hasta: Date.now() + MS_PASE, visto: Date.now() });
