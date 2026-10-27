@@ -51,6 +51,10 @@ let _abort = null;
 /* Qué proveedores tienen llave en la hoja, según /salud. Se pregunta al abrir el panel; null
    mientras no se sepa, y entonces se ofrece la IA igual: si no hay llave, la hoja lo dice. */
 let _iaEstado = null;
+/* De fondo (auditoría 2026-10-26, T1-8): abrir el asistente no es preguntar nada, así que esta pregunta
+   NUNCA abre la ventana de Google (`Puente.hablar` sin `toque`). Antes la abría si el permiso de la hoja
+   había vencido y el toque del botón flotante seguía fresco. Sin permiso no se sabe qué proveedores tienen
+   llave y se ofrece la IA igual: el permiso se pide al preguntar (`correrIA`). */
 function refrescarIA() {
   Puente.hablar('salud', {}).then(r => { if (r && r.ok && r.ia) { _iaEstado = r.ia; pintar(); } }).catch(() => {});
 }
@@ -652,6 +656,11 @@ const motivoCorto = (e, nombre) => {
 };
 
 async function correrIA(q, cadena) {
+  /* El permiso de Google de la hoja, pedido AQUÍ, antes de la primera espera (T1-8): esto corre dentro del
+     toque de «Preguntar» (o del «Entendido»), que es cuando el navegador deja abrir la ventana. Las preguntas
+     a los proveedores salen después de leer el taller y van de fondo: con el permiso ya vivo, o sin él y la
+     hoja diciendo que falta, pero ninguna abre otra ventana —ni la segunda, tercera o cuarta de la cadena—. */
+  const permiso = Puente.permiso();
   const tz = abrirTraza();
   tz.paso('taller', 'Leyendo el taller', 'trabaja');
   pintar();
@@ -678,6 +687,18 @@ async function correrIA(q, cadena) {
         ' y la pregunta se canceló, así que no se le mandó a ningún otro proveedor.' });
   };
   if (_cancelado) { cancelada(); return; }
+
+  /* Si la persona sigue en la ventana de Google, se la espera (el tope lo pone la plataforma); si la cerró o
+     Google dijo que no, no sale nada del teléfono y se dice por qué. */
+  const pm = await permiso;
+  if (_cancelado) { cancelada(); return; }
+  if (!pm.ok) {
+    tz.paso('permiso', 'Sin el permiso de Google de la hoja', 'mal');
+    tz.cerrar(false, 'Sin respuesta');
+    _msgs.push({ rol: 'error', ts: Date.now(),
+      texto: (pm.mensaje || 'Google no dio el permiso.') + ' La pregunta no salió. Las preguntas rápidas siguen funcionando sin IA.' });
+    return;
+  }
 
   const sistema = promptSistema(resumen);
   /* El hilo que viaja: las últimas vueltas, sin los avisos de espera ni los errores. Las

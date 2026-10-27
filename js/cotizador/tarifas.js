@@ -192,6 +192,10 @@ async function _tarEspejoHoja(tabla){
     nombre:String(f.nombre||'').trim(),precio:Number(f.precio),como:f.como||'',visible:f.visible!==false}));
   if(!filas.length) return false;
   let r=null;
+  /* De fondo SIEMPRE (auditoría 2026-10-26, T1-8): la copia la reintenta la lectura de precios, que nadie
+     pidió, y la del botón «Guardar precios» llega después de asegurarSesion(), que ya pidió la ventana de
+     Google en ese mismo toque. Si la persona la cerró, abrirle otra aquí sería no escucharla: sin permiso la
+     copia queda pendiente y se dice. */
   try{ r=await hablarHoja('guardar_tarifas',{filas},25000); }catch(_){ r=null; }
   const ok=!!(r&&r.ok);
   try{ if(ok) localStorage.removeItem(TARIFAS_ESPEJO); else localStorage.setItem(TARIFAS_ESPEJO,String(Date.now())); }catch(_){}
@@ -404,7 +408,8 @@ async function guardarTarifas(){
       return Object.assign({},rb,{espejo:await _tarEspejoHoja(rb.tabla)});
     }
     let r;
-    try{ r=await hablarHoja('guardar_tarifas',{filas},25000); }
+    /* Del botón (T1-8): con la hoja mandando es la pregunta que el toque pidió. */
+    try{ r=await hablarHoja('guardar_tarifas',{filas},25000,true); }
     catch(e){ throw new Error(e&&e.message||'La hoja no contestó.'); }
     if(!r||!r.ok){
       if(r&&r.codigo==='NO_ENCONTRADO'){ TARIFAS_INFO.sinRuta=true; pintarTarifas(); throw new Error('La hoja todavía no tiene esta función: hay que publicar la versión nueva del Apps Script.'); }

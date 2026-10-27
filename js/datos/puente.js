@@ -1030,15 +1030,30 @@ function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codig
 const MS_RENOVAR = 5000;
 const MS_ENTRE_RENOVACIONES = 60000;
 let _renovadoEn = 0;
+/* ── Y el freno de js/app.js, aquí también (auditoría 2026-10-26, T1-8) ──────────────────────────
+   Cerrar la ventana de Google, o decirle que no, ES la respuesta. Hasta octubre de 2026 este archivo
+   solo tenía el tope de uno por minuto: la persona cerraba la ventana y al minuto la vuelta del notario
+   —o cualquier otra petición que coincidiera con un toque— se la volvía a abrir. Ahora, tras un «no»
+   (DATO_INVALIDO: ventana cerrada, permiso negado, un origen que Google no acepta, o una ventana que no
+   regresó), nada que no sea un botón de la persona vuelve a pedirla en diez minutos: el mismo
+   MS_TRAS_NEGARSE que el oyente de clics de js/app.js. Un botón sí puede (`permisoDelToque`): es la
+   persona volviendo a pedirlo, no la app insistiendo. */
+const MS_TRAS_NEGARSE = 10 * 60000;
+let _renovarDesde = 0;
+/* La renovación que está en curso, si hay una: quien llega mientras tanto la espera en vez de abrir otra
+   ventana. Un toque que dispara dos preguntas, o la vuelta de fondo que cae mientras la persona todavía
+   está leyendo la pantalla de Google, son UNA ventana, no dos. */
+let _renovando = null;
 
 /* ── Con la base mandando, lo de fondo nunca abre la ventana de Google ──────────────────
    Quien entra por el botón de Google de la puerta no trae el permiso de la hoja, y lo que sigue en
    el Apps Script de fondo —las carpetas de Drive cada cinco minutos, los links cortos de Maps— lo
    pedía si en ese segundo había un toque reciente: la ventana de Google se abría sola en medio del
    trabajo, en el teléfono de Fabricación una vez cada cinco minutos (auditoría 2026-10-25, ES-3). Con
-   la base mandando, la ventana solo la abre una pregunta que alguien pidió con un botón (`hablar`: el
-   sello, la IA) o el «Entrar con Google» de Ajustes. La misma regla que js/app.js, leída sin cargar nada
-   (en una función de Supabase, sin localStorage, es la hoja: no cambia nada). */
+   la base mandando, la ventana solo la abre una pregunta que alguien pidió con un botón (`hablar` con
+   `toque`, o `permiso()`: el sello, la IA; ver T1-8 abajo) o el «Entrar con Google» de Ajustes. La
+   misma regla que js/app.js, leída sin cargar nada (en una función de Supabase, sin localStorage, es la
+   hoja: no cambia nada). */
 function laBaseManda() {
   try {
     const ls = globalThis.localStorage;
@@ -1047,22 +1062,123 @@ function laBaseManda() {
   } catch (_) { return false; }
 }
 
-async function tokenDeGoogle(conVentana) {
+/* ── Las dos clases de pregunta: la que pidió una persona con un botón, y la de fondo ─────────────
+   (auditoría 2026-10-26, T1-8). La auditoría del 25-oct (ES-3) quiso que lo de fondo nunca abriera la
+   ventana de Google con la base mandando, y la puerta que dejó abierta era `hablar`: TODA pregunta suelta
+   a la hoja pedía con ventana. Y por ahí pasaban cosas que nadie pidió: abrir el asistente o el modal de
+   la IA (/salud para pintar los proveedores), la espera de una autorización cada quince segundos
+   (/estado), la cola de Dirección (/pendientes), el reintento de /solicitar, el repintado del
+   Autorizador y el reintento de la copia de precios. Con el permiso de la hoja vencido —dura una hora— y
+   un toque cualquiera en esos cinco segundos, la ventana de Google se abría sola más o menos cada hora,
+   y si se cerraba volvía al minuto.
+
+   Ahora son tres caminos y cada quien dice el suyo:
+     · el BOTÓN (`hablar(..., {toque: true})` o `permiso()`): Solicitar, Autorizar, Rechazar, Analizar con
+       IA, Preguntar al asistente, Guardar precios. Puede abrir la ventana —dentro del toque, que es
+       cuando el navegador la deja abrir— y ESPERA a la persona (`permisoDelToque`);
+     · lo de FONDO (`hablar` sin `toque`, que es lo que se supone si nadie dice nada): nunca abre la
+       ventana. Sin permiso vivo sale sin él, y si la hoja contesta que no sabe quién pregunta eso se dice
+       como lo que es, «falta el permiso de Google» (`SIN_PERMISO_DE_GOOGLE`), no «sin señal»;
+     · el RELEVO de la hoja (la bandeja, Ajustes): lo de siempre. Con la base mandando no abre nada (ES-3);
+       con la hoja mandando, solo con un toque reciente, uno por minuto y nunca en los diez minutos que
+       siguen a un «no». */
+function anotarRespuesta(r) {
+  /* Un «no» de la persona frena diez minutos todo lo que no sea un botón. SIN_GESTO no es un «no» (nadie
+     vio nada) ni SIN_RED tampoco (no hubo a quién preguntarle). */
+  if (r && r.ok === false && r.codigo === 'DATO_INVALIDO') _renovarDesde = Date.now() + MS_TRAS_NEGARSE;
+  return r;
+}
+/* Una sola renovación a la vez, la pida quien la pida (ver `_renovando`). Nunca rechaza: contesta el
+   Resultado de ingreso.js. */
+function renovarUnaVez(abrir) {
+  if (_renovando) return _renovando;
+  _renovadoEn = Date.now();
+  let p;
+  try { p = Promise.resolve(abrir()); } catch (e) { p = Promise.reject(e); }
+  const esta = p
+    .catch(() => ({ ok: false, codigo: 'SIN_RED', mensaje: 'No se pudo pedir el permiso de Google.' }))
+    .then(anotarRespuesta)
+    .finally(() => { if (_renovando === esta) _renovando = null; });
+  _renovando = esta;
+  return esta;
+}
+/* El navegador sabe decir si hubo un toque (`navigator.userActivation`, Chrome y Safari 16.4+). Si no sabe,
+   el botón se cree a sí mismo: viene de un clic. */
+function sabeDelToque() {
+  try { return !!(globalThis.navigator && globalThis.navigator.userActivation); } catch (_) { return false; }
+}
+
+/* El token para una petición de fondo o del relevo. Nunca abre la ventana para `hablar` de fondo. */
+async function tokenDeGoogle(deFondo) {
   if (Ingreso.dentro()) return Ingreso.token();
   if (!Ingreso.configurado() || !Ingreso.correo()) return '';
-  if (!conVentana && laBaseManda()) return '';
+  if (deFondo || laBaseManda()) return '';
   if (!Ingreso.hayGesto()) return '';
-  if (Date.now() - _renovadoEn < MS_ENTRE_RENOVACIONES) return '';
-  _renovadoEn = Date.now();
+  const ahora = Date.now();
+  if (ahora - _renovadoEn < MS_ENTRE_RENOVACIONES || ahora < _renovarDesde) return '';
   let t = 0;
   try {
     await Promise.race([
-      Ingreso.renovar(),
+      renovarUnaVez(() => Ingreso.renovar()),
       new Promise(r => { t = setTimeout(r, MS_RENOVAR); }),
     ]);
   } catch (_) { /* renovar no lanza; y si lanzara, la petición sale con lo que haya */ }
   finally { if (t) clearTimeout(t); }
   return Ingreso.token();
+}
+
+/* ── El permiso pedido por un botón: se ESPERA a la persona ──────────────────────────────────────
+   Antes la renovación se cortaba a los cinco segundos (MS_RENOVAR) y la petición salía sin el permiso: en
+   un teléfono nuevo, el primer «Solicitar» abría la pantalla de consentimiento de Google, la persona la
+   leía, aceptaba… y la solicitud ya se había ido sin él, con «Sin señal» en pantalla. Ahora un botón
+   espera a la ventana, como ya hacía `asegurarSesion` del notario con `entrar(false)`. La espera tiene
+   tope —el de `Ingreso.entrar`, dos minutos— para el iPhone con la app instalada, donde la ventana de
+   Google a veces no regresa: sin él, «Sellando…» giraba para siempre.
+
+   `conToken`: el aparato tiene token de dispositivo. Entonces un «no» de Google no corta nada (la hoja
+   decide con el token), y uno que nunca entró con Google no tiene por qué ver la ventana.
+   Devuelve {ok:true, token} o {ok:false, codigo, mensaje}; nunca lanza. */
+async function permisoDelToque(conToken) {
+  if (Ingreso.dentro()) return { ok: true, token: Ingreso.token() };
+  if (!Ingreso.configurado()) return { ok: true, token: '' };
+  if (!Ingreso.correo()) {
+    /* Nunca entró con Google en este aparato. Con token de dispositivo, lo de siempre: decide el token. Sin
+       él, el botón es la única puerta que queda, y es «Entrar con Google» completo, como «Conectar Drive»
+       (js/datos/carpetas.js). */
+    if (conToken) return { ok: true, token: '' };
+  }
+  const r = await renovarUnaVez(() => (Ingreso.correo()
+    ? Ingreso.renovar(sabeDelToque() ? undefined : { gesto: true })
+    : Ingreso.entrar(false)));
+  if (Ingreso.dentro()) return { ok: true, token: Ingreso.token() };
+  return { ok: false, codigo: (r && r.codigo) || 'SIN_RED',
+           mensaje: (r && r.mensaje) || 'Google no dio el permiso.' };
+}
+
+/* Lo que se dice cuando una pregunta de fondo sale sin permiso y la hoja contesta que no sabe quién
+   pregunta. La frase de la hoja («Pégalo otra vez en Ajustes») es de los tiempos del token de dispositivo:
+   con la base mandando nadie tiene uno, y lo que falta es el permiso de Google, que se pide con un botón. */
+export const SIN_PERMISO_DE_GOOGLE =
+  'Falta el permiso de Google de la hoja: dura una hora y se pide con un botón, aceptando la ventana de Google.';
+function faltaPermiso(mensaje, motivo) {
+  const e = falla('ROL_SIN_PERMISO', mensaje || SIN_PERMISO_DE_GOOGLE);
+  e.permisoGoogle = true;
+  if (motivo) e.motivo = motivo;
+  return e;
+}
+
+/**
+ * El permiso de Google de la hoja, pedido por un botón y SIN preguntarle nada a la hoja. Para lo que tarda
+ * en llegar a su primera pregunta —la IA prepara la imagen, el asistente lee el taller— y para lo que hace
+ * varias seguidas: se llama al principio del toque, que es cuando el navegador deja abrir la ventana, y
+ * después las preguntas van de fondo con el permiso ya vivo (auditoría 2026-10-26, T1-8).
+ * @returns {Promise<{ok:boolean, codigo?:string, mensaje?:string}>} nunca lanza.
+ */
+export async function permiso() {
+  const p = Prefs.puente();
+  const conToken = !!String(p.token || '');
+  const r = await permisoDelToque(conToken);
+  return (r.ok || conToken) ? { ok: true } : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
 }
 
 /**
@@ -1078,8 +1194,9 @@ async function sesionDeLaBase(deLaBase) {
 }
 
 async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
-  /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
-  const g = await tokenDeGoogle(opciones.conVentana === true);
+  /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. `deFondo` lo pone
+     `hablar`, que ya pidió el permiso él mismo si la pregunta venía de un botón: aquí ya no se abre nada. */
+  const g = await tokenDeGoogle(opciones.deFondo === true);
   const s = await sesionDeLaBase(opciones.deLaBase);
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
@@ -1186,15 +1303,31 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
  *
  * Devuelve el cuerpo tal como lo contestó la hoja —`{ok:false, codigo, mensaje}` incluido— y
  * solo lanza por la red o por un rol sin permiso, con el código que `falla` pone.
+ *
+ * `opciones.toque`: la pidió una persona con un botón (ver «Las dos clases de pregunta», arriba). Sin
+ * él es de fondo y NUNCA abre la ventana de Google. Un permiso que falta lanza ROL_SIN_PERMISO con
+ * `permisoGoogle: true` y una frase que dice qué falta, para que nadie lo pinte como «sin señal».
  */
-export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA) {
+export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA, opciones = {}) {
   const p = Prefs.puente();
   const cfg = { url: normalizarUrl(p.url), token: String(p.token || '') };
   if (!cfg.url) throw falla('DATO_INVALIDO', 'Este aparato no tiene la dirección del puente.');
-  /* Una pregunta que alguien pidió con un botón: con la base mandando, es la que sí puede pedir el permiso de
-     Google de la hoja (ver `tokenDeGoogle`). */
-  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo), conVentana: true }, espera);
-  return r.cuerpo;
+  if (opciones && opciones.toque === true) {
+    /* El botón pide el permiso primero, y lo espera. Si la persona cerró la ventana, Google dijo que no o
+       la ventana no regresó, la pregunta ni sale —sin token de dispositivo la hoja la rechazaría— y se
+       dice por qué con las palabras de ingreso.js («Cerraste la ventana de Google…»). */
+    const pm = await permisoDelToque(!!cfg.token);
+    if (!pm.ok && !cfg.token) throw faltaPermiso(pm.mensaje, pm.codigo);
+  }
+  try {
+    const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo), deFondo: true }, espera);
+    return r.cuerpo;
+  } catch (e) {
+    /* Salió sin ninguna de las dos puertas y la hoja dijo que no sabe quién pregunta: eso es un permiso que
+       falta, no una cuenta sin acceso ni un token mal pegado. */
+    if (e && e.codigo === 'ROL_SIN_PERMISO' && !cfg.token && !Ingreso.dentro()) throw faltaPermiso();
+    throw e;
+  }
 }
 
 /** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de

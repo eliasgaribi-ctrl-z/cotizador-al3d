@@ -73,6 +73,10 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 export const conTope = ms => (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') ? AbortSignal.timeout(ms) : undefined;
 
 const GIS = 'https://accounts.google.com/gsi/client';
+/* Cuánto se espera a la ventana de Google antes de darse por vencido (ver el tope en `entrar`). Detrás
+   puede haber una persona leyendo la pantalla de consentimiento por primera vez, con su contraseña y su
+   segundo paso: dos minutos (auditoría 2026-10-26, T1-8). */
+const MS_VENTANA = 120000;
 
 /* Solo identidad. `openid email` son permisos NO SENSIBLES: Google no pide verificar la app
    para publicarlos, así que no sale la pantalla de «esta app no está verificada» ni hay tope
@@ -149,6 +153,9 @@ const MSG = {
     ': esa dirección no está autorizada para esta app. Abre la plataforma desde ' + URL_APP + ' y vuelve a intentar.',
   BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
   SIN_GESTO: 'El permiso de Google se renueva con tu siguiente toque: sin él, la ventana de Google se abriría sola con la app en segundo plano.',
+  /* La ventana que no regresó en MS_VENTANA (ver `entrar`). Dice qué hacer con ella y la salida que sí
+     funciona en el iPhone con la app instalada, donde pasa (auditoría 2026-10-26, T1-8). */
+  SIN_REGRESO: 'La ventana de Google no regresó a la app en dos minutos. Si sigue abierta, termina ahí o ciérrala, y vuelve a tocar el botón. En un iPhone con la app instalada en la pantalla de inicio esa ventana a veces no regresa: ábrela en Safari para esto.',
   /* El token de identidad del botón de Google no pasó la revisión de `leerCredencial`. Casi siempre es un
      reloj del teléfono muy desfasado o una pestaña que se quedó abierta con un botón viejo: volver a tocar
      lo arregla, y si no, el botón de la app (el de siempre) sigue ahí. */
@@ -380,6 +387,11 @@ export async function entrar(callado, opc) {
   if (!await cargarGis()) return mal('SIN_RED', MSG.SIN_RED);
 
   const r = await new Promise(resolve => {
+    /* Una sola salida, se llegue por donde se llegue: el token, el `error_callback` o el tope. El hueco
+       `_fallo` solo se vacía si sigue siendo de ESTA llamada: el tope de una vieja no le quita el suyo a
+       la que vino después. */
+    let tope = 0;
+    const fin = x => { clearTimeout(tope); if (_fallo === fin) _fallo = () => {}; resolve(x); };
     /* Un solo cliente mientras no cambie el identificador, por lo mismo que en `gcal.js`:
        crear uno por petición deja retrollamadas viejas colgando y el token acaba llegando a la
        que ya nadie espera. Se creaba UNA vez con el identificador de ese momento, así que
@@ -404,24 +416,35 @@ export async function entrar(callado, opc) {
         _clienteDe = id;
       } catch (_) {
         _cliente = null; _clienteDe = '';
-        return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
+        return fin(mal('DATO_INVALIDO', MSG.RECHAZADO));
       }
     }
     /* El cliente es uno solo para toda la pestaña, así que su `error_callback` se creó una
        vez y no puede cerrar sobre el `resolve` de ESTA llamada. Se apunta a un hueco que
        cada llamada rellena con el suyo, igual que se hace con `callback` justo abajo. */
-    _fallo = r => { _fallo = () => {}; resolve(r); };
+    _fallo = fin;
+    /* ── El tope (auditoría 2026-10-26, T1-8) ──────────────────────────────────────────────
+       Hay un cuarto camino que no avisa por ninguno de los otros: la ventana que no regresa. En un iPhone
+       con la app instalada en la pantalla de inicio, la ventana de Google se abre aparte y a veces nunca
+       le contesta a la app; la promesa no resolvía y el botón que la esperaba —«Sellando…» del notario,
+       «Entrando…» de Ajustes, cualquier botón que pide el permiso de la hoja (js/datos/puente.js,
+       `permisoDelToque`)— giraba para siempre. Es el mismo arreglo que ya tenía gcal.js. Más corto que el
+       de la puerta (MS_CON_PANTALLA, tres minutos, en puerta.js), que espera esto y algo más: un tope de
+       afuera tiene que ser más largo que el de adentro. Cuenta como un «no» (DATO_INVALIDO): lo de fondo
+       no vuelve a abrir una ventana que no regresó. Y un token que llega DESPUÉS del tope se guarda igual
+       (el callback de abajo lo escribe aunque la promesa ya haya contestado): el siguiente toque lo
+       encuentra vivo. */
+    tope = setTimeout(() => fin(mal('DATO_INVALIDO', MSG.SIN_REGRESO)), MS_VENTANA);
     _cliente.callback = resp => {
-      _fallo = () => {};          // contestó por aquí: el otro camino ya no tiene a quién
       if (!resp || !resp.access_token) {
         const cerrada = resp && (resp.error === 'access_denied' || resp.error === 'popup_closed');
-        return resolve(mal(cerrada ? 'DATO_INVALIDO' : 'SIN_RED',
+        return fin(mal(cerrada ? 'DATO_INVALIDO' : 'SIN_RED',
           cerrada ? MSG.CERRADO : MSG.SIN_RED));
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
       guardarTok(_tok);
-      resolve(ok({ expira: _tok.expira }));
+      fin(ok({ expira: _tok.expira }));
     };
     try {
       /* `login_hint` con el correo de la vez pasada: Google escoge esa cuenta sola y no
@@ -432,7 +455,7 @@ export async function entrar(callado, opc) {
       if (pista) op.login_hint = pista;
       _cliente.requestAccessToken(op);
     } catch (_) {
-      resolve(mal('SIN_RED', MSG.SIN_RED));
+      fin(mal('SIN_RED', MSG.SIN_RED));
     }
   });
   if (!r.ok) return r;
