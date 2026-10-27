@@ -222,7 +222,7 @@ dar de alta una venta sin cotización con la hoja mandando; Dirección corrige u
 - **Corregir desde la ficha del proyecto.** La corrección vive en «Cobros y abonos»; la ficha sigue con sus botones de cuenta y estatus, que van por
   la bandeja y sin pregunta, como siempre. Un botón en la ficha que lleve a «Datos de la venta» con esa venta elegida sería lo siguiente.
 - **La fecha del anticipo** (la que decide el mes de la venta en Control) y los datos de la obra no están en «Datos de la venta»: los de la obra se
-  cambian en la ficha; la fecha del anticipo sigue solo desde el Editor SQL (`proyecto_actualizar`, Dirección).
+  cambian en la ficha. La fecha del anticipo, desde `0032` (auditoría 2026-10-26, T1-6), también en «Datos de la venta», solo Dirección.
 - El anticipo, la liquidación y los abonos siguen en sus formularios. Una venta no se borra.
 - Nada de esto se probó en un navegador ni contra `al3d-produccion` (hace falta la app publicada y la empresa en `'base'`).
 
